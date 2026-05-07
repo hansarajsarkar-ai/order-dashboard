@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, Fragment } from 'react';
+import { useRouter } from 'next/navigation';
 import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 
 interface OrderListRow {
@@ -141,10 +142,35 @@ export default function OrderStatusDashboard() {
   const [sellerTablePage, setSellerTablePage] = useState(1);
   const [sellerDrillPage, setSellerDrillPage] = useState(1);
   const [mounted, setMounted] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [employeeName, setEmployeeName] = useState('');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const router = useRouter();
 
+  // Client-side auth gate — JWT lives in localStorage; bounce to /login if missing.
   useEffect(() => {
     setMounted(true);
-  }, []);
+    if (typeof window === 'undefined') return;
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      router.replace('/login');
+      return;
+    }
+    setEmployeeName(localStorage.getItem('employeeName') || '');
+    setAuthChecked(true);
+  }, [router]);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {}
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('employeeId');
+    localStorage.removeItem('employeeName');
+    localStorage.removeItem('employeeEmail');
+    router.replace('/login');
+  };
 
   const fetchMonthly = async () => {
     try {
@@ -345,6 +371,14 @@ export default function OrderStatusDashboard() {
 
   const timestamp = mounted ? new Date().toLocaleString() : '';
 
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="text-purple-200 text-sm">Checking access…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8 relative overflow-hidden">
       {/* Animated background orbs */}
@@ -352,6 +386,25 @@ export default function OrderStatusDashboard() {
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
 
       <div className="max-w-7xl mx-auto relative z-10">
+        {/* Top bar — signed-in user + logout */}
+        <div className="mb-6 flex items-center justify-end gap-3">
+          {employeeName && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                {employeeName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+              </div>
+              <span className="text-purple-100 font-medium">{employeeName}</span>
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/30 text-rose-200 text-sm font-medium disabled:opacity-50 transition-colors"
+          >
+            {isLoggingOut ? 'Signing out…' : 'Logout'}
+          </button>
+        </div>
+
         {/* Tabs */}
         <div className="mb-8 flex gap-2 p-1.5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl w-fit">
           {([

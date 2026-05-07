@@ -3,6 +3,7 @@
 import { useEffect, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
+import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
 
 interface OrderListRow {
   poNumber: string;
@@ -124,6 +125,13 @@ export default function OrderStatusDashboard() {
   const [sellerRange, setSellerRange] = useState<'7d' | '14d' | '15d' | 'custom' | 'all'>('all');
   const [sellerCustomFrom, setSellerCustomFrom] = useState('');
   const [sellerCustomTo, setSellerCustomTo] = useState('');
+  // Demography (India map) state
+  const [stateData, setStateData] = useState<StateRow[] | null>(null);
+  const [stateLoading, setStateLoading] = useState(false);
+  const [stateMetric, setStateMetric] = useState<'count' | 'amount'>('count');
+  const [stateRange, setStateRange] = useState<'7d' | '14d' | '15d' | 'custom' | 'all'>('all');
+  const [stateCustomFrom, setStateCustomFrom] = useState('');
+  const [stateCustomTo, setStateCustomTo] = useState('');
   const [sellerDrillId, setSellerDrillId] = useState<string | null>(null);
   const [sellerDrillName, setSellerDrillName] = useState<string>('');
   const [sellerDrillPhone, setSellerDrillPhone] = useState<string>('');
@@ -252,6 +260,47 @@ export default function OrderStatusDashboard() {
     fetchSeller();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sellerRange, sellerCustomFrom, sellerCustomTo]);
+
+  // Demography (state-wise map) range + fetcher
+  const resolveStateRange = (): { startDate: string | null; endDate: string | null } => {
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const days = stateRange === '7d' ? 7 : stateRange === '14d' ? 14 : stateRange === '15d' ? 15 : null;
+    if (days !== null) {
+      const start = new Date(today);
+      start.setDate(start.getDate() - days + 1);
+      return { startDate: fmt(start), endDate: fmt(today) };
+    }
+    if (stateRange === 'custom') {
+      return { startDate: stateCustomFrom || null, endDate: stateCustomTo || null };
+    }
+    return { startDate: null, endDate: null };
+  };
+
+  const fetchStateData = async () => {
+    try {
+      setStateLoading(true);
+      const { startDate, endDate } = resolveStateRange();
+      const params = new URLSearchParams({ year: String(currentYear) });
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const res = await fetch(`/api/order-by-state?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setStateData(json.data);
+    } catch (err) {
+      console.error('State fetch error:', err);
+      setStateData([]);
+    } finally {
+      setStateLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'demography') return;
+    fetchStateData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo]);
 
   useEffect(() => { setDrillPage(1); }, [drillStatus, drillMonth, drillSearch]);
   useEffect(() => { setSellerTablePage(1); }, [sellerSearch]);
@@ -1066,10 +1115,101 @@ export default function OrderStatusDashboard() {
         )}
 
         {activeTab === 'demography' && (
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-12 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-            <h2 className="text-2xl font-bold text-white mb-2">Demography</h2>
-            <p className="text-purple-200 text-sm mb-6">Geographic distribution of orders across {currentYear}.</p>
-            <div className="text-white/60 text-sm">Coming soon — let me know what cuts you want (e.g. orders by buyer state, top cities, regional revenue mix).</div>
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Demography</h2>
+                <p className="text-purple-300 text-sm mt-1">Order distribution across Indian states — buyer state of {currentYear}</p>
+              </div>
+              {/* metric toggle */}
+              <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                {(['count', 'amount'] as const).map((m) => {
+                  const active = stateMetric === m;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setStateMetric(m)}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        active
+                          ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.5)]'
+                          : 'text-purple-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {m === 'count' ? 'By orders' : 'By revenue'}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Date filter */}
+            <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Date</span>
+              {([
+                { key: 'all', label: `${currentYear} (full year)` },
+                { key: '7d', label: 'Last 7 days' },
+                { key: '14d', label: 'Last 14 days' },
+                { key: '15d', label: 'Last 15 days' },
+                { key: 'custom', label: 'Custom' },
+              ] as const).map((opt) => {
+                const active = stateRange === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => setStateRange(opt.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      active
+                        ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
+                        : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+              {stateRange === 'custom' && (
+                <div className="flex items-center gap-2 ml-2">
+                  <input
+                    type="date"
+                    value={stateCustomFrom}
+                    onChange={(e) => setStateCustomFrom(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                  <span className="text-purple-300 text-xs">to</span>
+                  <input
+                    type="date"
+                    value={stateCustomTo}
+                    onChange={(e) => setStateCustomTo(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+              )}
+              {stateRange !== 'all' && (
+                <button
+                  onClick={() => {
+                    setStateRange('all');
+                    setStateCustomFrom('');
+                    setStateCustomTo('');
+                  }}
+                  className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-rose-500/20 text-purple-200 hover:text-rose-200 border border-white/10 hover:border-rose-400/40 transition-all"
+                >
+                  ↺ Reset filter
+                </button>
+              )}
+            </div>
+
+            <div className="p-6">
+              {stateLoading || !stateData ? (
+                <div className="h-[640px] flex items-center justify-center text-purple-300">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+                    Loading state data…
+                  </div>
+                </div>
+              ) : (
+                <IndiaStateMap data={stateData} metric={stateMetric} />
+              )}
+            </div>
           </div>
         )}
 

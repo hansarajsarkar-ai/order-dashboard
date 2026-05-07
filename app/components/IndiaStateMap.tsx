@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
+import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps';
 import { scaleQuantize } from 'd3-scale';
+import { geoCentroid } from 'd3-geo';
 
 export interface StateRow {
   state: string | null;
@@ -35,7 +36,32 @@ interface FeatureProps {
 interface RsmGeography {
   rsmKey: string;
   properties: FeatureProps;
+  geometry: unknown;
 }
+
+const formatShort = (n: number, metric: 'count' | 'amount'): string => {
+  if (metric === 'amount') {
+    if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+    if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+    return `₹${Math.round(n)}`;
+  }
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return String(n);
+};
+
+// Some states are tiny; nudge their labels to avoid spilling into the sea or
+// onto neighbouring states. Offsets are in degrees (lng, lat).
+const LABEL_OFFSETS: Record<string, [number, number]> = {
+  'Goa': [-0.4, -0.3],
+  'Sikkim': [0.3, 0.4],
+  'Delhi': [0.6, 0.3],
+  'Chandigarh': [-0.5, 0.4],
+  'Puducherry': [0.4, -0.3],
+  'Lakshadweep': [-1.2, 0],
+  'Andaman & Nicobar': [0, -0.5],
+  'Dadra and Nagar Haveli and Daman and Diu': [-0.7, 0.2],
+};
 
 export default function IndiaStateMap({ data, metric }: Props) {
   type GeoFeatureCollection = {
@@ -117,43 +143,83 @@ export default function IndiaStateMap({ data, metric }: Props) {
           style={{ width: '100%', height: 'auto' }}
         >
           <Geographies geography={geo}>
-            {({ geographies }: { geographies: RsmGeography[] }) =>
-              geographies.map((g) => {
-                const name = g.properties.ST_NM;
-                const row = byGeoName.get(name);
-                const value = row?.[metric] || 0;
-                const fill = value > 0 ? colorScale(value) : '#1e1b4b';
-                return (
-                  <Geography
-                    key={g.rsmKey}
-                    geography={g}
-                    fill={fill}
-                    stroke="#0f172a"
-                    strokeWidth={0.6}
-                    onMouseMove={(e: React.MouseEvent) =>
-                      setTooltip({
-                        x: e.clientX,
-                        y: e.clientY,
-                        state: name,
-                        count: row?.count || 0,
-                        amount: row?.amount || 0,
-                      })
-                    }
-                    onMouseLeave={() => setTooltip(null)}
-                    style={{
-                      default: { outline: 'none', transition: 'fill 200ms ease' },
-                      hover: {
-                        fill: '#f0abfc',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        filter: 'drop-shadow(0 0 14px rgba(217,70,239,0.6))',
-                      },
-                      pressed: { outline: 'none' },
-                    }}
-                  />
-                );
-              })
-            }
+            {({ geographies }: { geographies: RsmGeography[] }) => (
+              <>
+                {/* Filled state shapes */}
+                {geographies.map((g) => {
+                  const name = g.properties.ST_NM;
+                  const row = byGeoName.get(name);
+                  const value = row?.[metric] || 0;
+                  const fill = value > 0 ? colorScale(value) : '#1e1b4b';
+                  return (
+                    <Geography
+                      key={g.rsmKey}
+                      geography={g}
+                      fill={fill}
+                      stroke="#0f172a"
+                      strokeWidth={0.6}
+                      onMouseMove={(e: React.MouseEvent) =>
+                        setTooltip({
+                          x: e.clientX,
+                          y: e.clientY,
+                          state: name,
+                          count: row?.count || 0,
+                          amount: row?.amount || 0,
+                        })
+                      }
+                      onMouseLeave={() => setTooltip(null)}
+                      style={{
+                        default: { outline: 'none', transition: 'fill 200ms ease' },
+                        hover: {
+                          fill: '#f0abfc',
+                          outline: 'none',
+                          cursor: 'pointer',
+                          filter: 'drop-shadow(0 0 14px rgba(217,70,239,0.6))',
+                        },
+                        pressed: { outline: 'none' },
+                      }}
+                    />
+                  );
+                })}
+                {/* Value labels — rendered on top so they're not occluded */}
+                {geographies.map((g) => {
+                  const name = g.properties.ST_NM;
+                  const row = byGeoName.get(name);
+                  const value = row?.[metric] || 0;
+                  if (value <= 0) return null;
+                  // d3-geo expects a Feature; the rsm Geography object is shaped like one.
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const [lng, lat] = geoCentroid(g as any);
+                  const off = LABEL_OFFSETS[name] || [0, 0];
+                  return (
+                    <Marker
+                      key={`label-${g.rsmKey}`}
+                      coordinates={[lng + off[0], lat + off[1]]}
+                    >
+                      <text
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        style={{
+                          fontFamily: 'system-ui, -apple-system, sans-serif',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          fill: '#fff',
+                          paintOrder: 'stroke',
+                          stroke: '#000',
+                          strokeWidth: 2.5,
+                          strokeLinecap: 'round',
+                          strokeLinejoin: 'round',
+                          pointerEvents: 'none',
+                          userSelect: 'none',
+                        }}
+                      >
+                        {formatShort(value, metric)}
+                      </text>
+                    </Marker>
+                  );
+                })}
+              </>
+            )}
           </Geographies>
         </ComposableMap>
 

@@ -31,7 +31,8 @@ export async function GET(req: NextRequest) {
         AND s."businessName" NOT ILIKE '%test%'
         AND s."isD2RBrandSeller" = TRUE
         AND po."status" IN ('DELIVERED', 'COMPLETED')
-        AND EXTRACT(YEAR FROM po."created_at") = $1;
+        AND po."markedPendingTime" IS NOT NULL
+        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1;
     `;
 
     const rows = await query<Row>(sql, [year]);

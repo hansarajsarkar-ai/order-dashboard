@@ -361,11 +361,11 @@ export default function OrderStatusDashboard() {
       if (sellerDrillStatus !== 'all' && r.status !== sellerDrillStatus) return false;
       if (po && !(r.poNumber || '').toLowerCase().includes(po)) return false;
       if (sellerDrillStartDate) {
-        const d = r.createdAt?.slice(0, 10);
+        const d = r.markedPendingTime?.slice(0, 10);
         if (!d || d < sellerDrillStartDate) return false;
       }
       if (sellerDrillEndDate) {
-        const d = r.createdAt?.slice(0, 10);
+        const d = r.markedPendingTime?.slice(0, 10);
         if (!d || d > sellerDrillEndDate) return false;
       }
       return true;

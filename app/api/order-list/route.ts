@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       const month = parseInt(monthParam);
       if (!Number.isNaN(month) && month >= 1 && month <= 12) {
         params.push(month);
-        monthFilter = ` AND EXTRACT(MONTH FROM po."created_at") = $${params.length}`;
+        monthFilter = ` AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
       }
     }
 
@@ -65,10 +65,11 @@ export async function GET(req: NextRequest) {
         AND s."businessName" NOT ILIKE '%test%'
         AND s."isD2RBrandSeller" = TRUE
         AND po."status" != 'DRAFT'
-        AND EXTRACT(YEAR FROM po."created_at") = $1
+        AND po."markedPendingTime" IS NOT NULL
+        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
         AND po."status" = $2
         ${monthFilter}
-      ORDER BY po."created_at" DESC
+      ORDER BY po."markedPendingTime" DESC
       LIMIT 2000;
     `;
 

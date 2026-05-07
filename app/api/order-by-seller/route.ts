@@ -32,15 +32,15 @@ export async function GET(req: NextRequest) {
     if (startDate || endDate) {
       if (startDate) {
         params.push(startDate);
-        whereDate += ` AND po."created_at"::date >= $${params.length}`;
+        whereDate += ` AND po."markedPendingTime"::date >= $${params.length}`;
       }
       if (endDate) {
         params.push(endDate);
-        whereDate += ` AND po."created_at"::date <= $${params.length}`;
+        whereDate += ` AND po."markedPendingTime"::date <= $${params.length}`;
       }
     } else {
       params.push(year);
-      whereDate = ` AND EXTRACT(YEAR FROM po."created_at") = $${params.length}`;
+      whereDate = ` AND EXTRACT(YEAR FROM po."markedPendingTime") = $${params.length}`;
     }
 
     const sql = `
@@ -63,9 +63,10 @@ export async function GET(req: NextRequest) {
         AND s."businessName" NOT ILIKE '%test%'
         AND s."isD2RBrandSeller" = TRUE
         AND po."status" != 'DRAFT'
+        AND po."markedPendingTime" IS NOT NULL
         AND s."id" = $1
         ${whereDate}
-      ORDER BY po."created_at" DESC
+      ORDER BY po."markedPendingTime" DESC
       LIMIT 5000;
     `;
 

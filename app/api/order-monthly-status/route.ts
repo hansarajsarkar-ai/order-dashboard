@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     const sql = `
       SELECT
         po."status" AS status,
-        EXTRACT(MONTH FROM po."created_at")::int AS month,
+        EXTRACT(MONTH FROM po."markedPendingTime")::int AS month,
         COUNT(*) AS count,
         COALESCE(SUM(po."amount"::numeric), 0)::text AS amount
       FROM "purchaseOrder"."purchaseOrder" po
@@ -33,8 +33,9 @@ export async function GET(req: NextRequest) {
         AND s."businessName" NOT ILIKE '%test%'
         AND s."isD2RBrandSeller" = TRUE
         AND po."status" != 'DRAFT'
-        AND EXTRACT(YEAR FROM po."created_at") = $1
-      GROUP BY po."status", EXTRACT(MONTH FROM po."created_at")
+        AND po."markedPendingTime" IS NOT NULL
+        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
+      GROUP BY po."status", EXTRACT(MONTH FROM po."markedPendingTime")
       ORDER BY status, month;
     `;
 

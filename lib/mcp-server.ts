@@ -36,7 +36,9 @@ import {
 import { query } from './db';
 
 // ─── Shared filter clauses ────────────────────────────────────────────────────
-// Mirror the dashboard: real-only orders, D2R brand sellers, no DRAFT.
+// Mirror the dashboard: real-only orders, D2R brand sellers, no DRAFT,
+// only orders that have entered the pending state. All time-based filtering
+// uses markedPendingTime (matches the live dashboard).
 const BASE_WHERE = `
   po."isTest" = FALSE
   AND po."isFalseOrder" = FALSE
@@ -46,6 +48,7 @@ const BASE_WHERE = `
   AND s."businessName" NOT ILIKE '%test%'
   AND s."isD2RBrandSeller" = TRUE
   AND po."status" != 'DRAFT'
+  AND po."markedPendingTime" IS NOT NULL
 `;
 
 const currentYear = () => new Date().getFullYear();
@@ -62,7 +65,7 @@ async function getGmvGoal(year: number) {
     JOIN "users"."seller" s ON s."id" = po."sellerId"
     WHERE ${BASE_WHERE}
       AND po."status" IN ('DELIVERED', 'COMPLETED')
-      AND EXTRACT(YEAR FROM po."created_at") = $1;
+      AND EXTRACT(YEAR FROM po."markedPendingTime") = $1;
   `;
   const rows = await query<{ achieved: string; orders: string }>(sql, [year]);
   const goal = 10000000;
@@ -83,15 +86,15 @@ async function getMonthlyStatusBreakdown(year: number) {
   const sql = `
     SELECT
       po."status" AS status,
-      EXTRACT(MONTH FROM po."created_at")::int AS month,
+      EXTRACT(MONTH FROM po."markedPendingTime")::int AS month,
       COUNT(*) AS count,
       COALESCE(SUM(po."amount"::numeric), 0)::text AS amount
     FROM "purchaseOrder"."purchaseOrder" po
     JOIN "users"."buyer" b ON b."id" = po."buyerId"
     JOIN "users"."seller" s ON s."id" = po."sellerId"
     WHERE ${BASE_WHERE}
-      AND EXTRACT(YEAR FROM po."created_at") = $1
-    GROUP BY po."status", EXTRACT(MONTH FROM po."created_at")
+      AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
+    GROUP BY po."status", EXTRACT(MONTH FROM po."markedPendingTime")
     ORDER BY status, month;
   `;
   const rows = await query<{ status: string; month: string; count: string; amount: string }>(
@@ -145,7 +148,7 @@ async function getSellerWiseBreakdown(year: number) {
     JOIN "users"."buyer" b ON b."id" = po."buyerId"
     JOIN "users"."seller" s ON s."id" = po."sellerId"
     WHERE ${BASE_WHERE}
-      AND EXTRACT(YEAR FROM po."created_at") = $1
+      AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
     GROUP BY s."id", s."phone", s."businessName", po."status";
   `;
   const rows = await query<{
@@ -211,8 +214,8 @@ async function getSellerOrders(sellerId: string, year: number, limit = 1000) {
     JOIN "users"."seller" s ON s."id" = po."sellerId"
     WHERE ${BASE_WHERE}
       AND s."id" = $1
-      AND EXTRACT(YEAR FROM po."created_at") = $2
-    ORDER BY po."created_at" DESC
+      AND EXTRACT(YEAR FROM po."markedPendingTime") = $2
+    ORDER BY po."markedPendingTime" DESC
     LIMIT $3;
   `;
   const rows = await query<{
@@ -250,7 +253,7 @@ async function listOrdersByStatus(
   let monthFilter = '';
   if (typeof month === 'number' && month >= 1 && month <= 12) {
     params.push(month);
-    monthFilter = `AND EXTRACT(MONTH FROM po."created_at") = $${params.length}`;
+    monthFilter = `AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
   }
   params.push(limit);
   const sql = `
@@ -269,10 +272,10 @@ async function listOrdersByStatus(
     JOIN "users"."buyer" b ON b."id" = po."buyerId"
     JOIN "users"."seller" s ON s."id" = po."sellerId"
     WHERE ${BASE_WHERE}
-      AND EXTRACT(YEAR FROM po."created_at") = $1
+      AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
       AND po."status" = $2
       ${monthFilter}
-    ORDER BY po."created_at" DESC
+    ORDER BY po."markedPendingTime" DESC
     LIMIT $${params.length};
   `;
   const rows = await query<{

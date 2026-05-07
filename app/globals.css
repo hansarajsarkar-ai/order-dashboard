@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+html, body {
+  background: #0f172a;
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.3; }
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}

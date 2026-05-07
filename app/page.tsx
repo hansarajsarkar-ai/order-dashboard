@@ -121,6 +121,9 @@ export default function OrderStatusDashboard() {
   const [sellerData, setSellerData] = useState<SellerWiseData | null>(null);
   const [sellerLoading, setSellerLoading] = useState(true);
   const [sellerSearch, setSellerSearch] = useState('');
+  const [sellerRange, setSellerRange] = useState<'7d' | '14d' | '15d' | 'custom' | 'all'>('all');
+  const [sellerCustomFrom, setSellerCustomFrom] = useState('');
+  const [sellerCustomTo, setSellerCustomTo] = useState('');
   const [sellerDrillId, setSellerDrillId] = useState<string | null>(null);
   const [sellerDrillName, setSellerDrillName] = useState<string>('');
   const [sellerDrillPhone, setSellerDrillPhone] = useState<string>('');
@@ -208,10 +211,33 @@ export default function OrderStatusDashboard() {
     fetchGoal();
   }, []);
 
+  // Resolve the active "Last N days / custom / all" preset to concrete YYYY-MM-DD bounds.
+  const resolveSellerRange = (): { startDate: string | null; endDate: string | null } => {
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const days = sellerRange === '7d' ? 7 : sellerRange === '14d' ? 14 : sellerRange === '15d' ? 15 : null;
+    if (days !== null) {
+      const start = new Date(today);
+      start.setDate(start.getDate() - days + 1); // inclusive of today
+      return { startDate: fmt(start), endDate: fmt(today) };
+    }
+    if (sellerRange === 'custom') {
+      return {
+        startDate: sellerCustomFrom || null,
+        endDate: sellerCustomTo || null,
+      };
+    }
+    return { startDate: null, endDate: null };
+  };
+
   const fetchSeller = async () => {
     try {
       setSellerLoading(true);
-      const response = await fetch(`/api/order-seller-wise?year=${currentYear}`);
+      const { startDate, endDate } = resolveSellerRange();
+      const params = new URLSearchParams({ year: String(currentYear) });
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const response = await fetch(`/api/order-seller-wise?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch seller data');
       const result: SellerWiseData = await response.json();
       setSellerData(result);
@@ -224,7 +250,8 @@ export default function OrderStatusDashboard() {
 
   useEffect(() => {
     fetchSeller();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sellerRange, sellerCustomFrom, sellerCustomTo]);
 
   useEffect(() => { setDrillPage(1); }, [drillStatus, drillMonth, drillSearch]);
   useEffect(() => { setSellerTablePage(1); }, [sellerSearch]);
@@ -286,13 +313,19 @@ export default function OrderStatusDashboard() {
     setSellerDrillPhone(seller.sellerPhone || '—');
     setSellerDrillRows(null);
     setSellerDrillError(null);
-    setSellerDrillStartDate('');
-    setSellerDrillEndDate('');
+    // Pre-fill the modal's date filters from the Seller-tab range so the drilldown
+    // immediately matches the parent table's view.
+    const { startDate: rangeStart, endDate: rangeEnd } = resolveSellerRange();
+    setSellerDrillStartDate(rangeStart || '');
+    setSellerDrillEndDate(rangeEnd || '');
     setSellerDrillStatus('all');
     setSellerDrillPo('');
     setSellerDrillLoading(true);
     try {
-      const res = await fetch(`/api/order-by-seller?sellerId=${encodeURIComponent(seller.sellerId)}&year=${currentYear}`);
+      const params = new URLSearchParams({ sellerId: seller.sellerId, year: String(currentYear) });
+      if (rangeStart) params.append('startDate', rangeStart);
+      if (rangeEnd) params.append('endDate', rangeEnd);
+      const res = await fetch(`/api/order-by-seller?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to fetch');
       setSellerDrillRows(json.data);
@@ -811,6 +844,57 @@ export default function OrderStatusDashboard() {
                   </div>
                 </div>
               )}
+            </div>
+            <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Date</span>
+              {([
+                { key: 'all', label: 'All' },
+                { key: '7d', label: 'Last 7 days' },
+                { key: '14d', label: 'Last 14 days' },
+                { key: '15d', label: 'Last 15 days' },
+                { key: 'custom', label: 'Custom' },
+              ] as const).map((opt) => {
+                const active = sellerRange === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => setSellerRange(opt.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      active
+                        ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
+                        : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+              {sellerRange === 'custom' && (
+                <div className="flex items-center gap-2 ml-2">
+                  <input
+                    type="date"
+                    value={sellerCustomFrom}
+                    onChange={(e) => setSellerCustomFrom(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                  <span className="text-purple-300 text-xs">to</span>
+                  <input
+                    type="date"
+                    value={sellerCustomTo}
+                    onChange={(e) => setSellerCustomTo(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+              )}
+              {(() => {
+                const { startDate, endDate } = resolveSellerRange();
+                if (!startDate && !endDate) return null;
+                return (
+                  <span className="text-xs text-purple-300/80 ml-auto tabular-nums">
+                    {startDate || '…'} → {endDate || '…'}
+                  </span>
+                );
+              })()}
             </div>
             <div className="px-8 py-3 border-b border-white/10 bg-white/5">
               <input

@@ -23,8 +23,26 @@ export async function GET(req: NextRequest) {
 
   const currentYear = new Date().getFullYear();
   const year = parseInt(searchParams.get('year') || String(currentYear));
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
 
   try {
+    const params: (string | number)[] = [sellerId];
+    let whereDate = '';
+    if (startDate || endDate) {
+      if (startDate) {
+        params.push(startDate);
+        whereDate += ` AND po."created_at"::date >= $${params.length}`;
+      }
+      if (endDate) {
+        params.push(endDate);
+        whereDate += ` AND po."created_at"::date <= $${params.length}`;
+      }
+    } else {
+      params.push(year);
+      whereDate = ` AND EXTRACT(YEAR FROM po."created_at") = $${params.length}`;
+    }
+
     const sql = `
       SELECT
         po."poNumber"::text          AS po_number,
@@ -46,12 +64,12 @@ export async function GET(req: NextRequest) {
         AND s."isD2RBrandSeller" = TRUE
         AND po."status" != 'DRAFT'
         AND s."id" = $1
-        AND EXTRACT(YEAR FROM po."created_at") = $2
+        ${whereDate}
       ORDER BY po."created_at" DESC
       LIMIT 5000;
     `;
 
-    const rows = await query<Row>(sql, [sellerId, year]);
+    const rows = await query<Row>(sql, params);
 
     const data = rows.map((r) => ({
       poNumber: r.po_number,
@@ -68,6 +86,8 @@ export async function GET(req: NextRequest) {
       count: data.length,
       sellerId,
       year,
+      startDate: startDate || null,
+      endDate: endDate || null,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err) || 'Unknown error';

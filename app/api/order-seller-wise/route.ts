@@ -16,8 +16,27 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const currentYear = new Date().getFullYear();
   const year = parseInt(searchParams.get('year') || String(currentYear));
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
 
   try {
+    // Date filter overrides the year filter when provided.
+    const params: (string | number)[] = [];
+    let whereDate = '';
+    if (startDate || endDate) {
+      if (startDate) {
+        params.push(startDate);
+        whereDate += ` AND po."created_at"::date >= $${params.length}`;
+      }
+      if (endDate) {
+        params.push(endDate);
+        whereDate += ` AND po."created_at"::date <= $${params.length}`;
+      }
+    } else {
+      params.push(year);
+      whereDate = ` AND EXTRACT(YEAR FROM po."created_at") = $${params.length}`;
+    }
+
     const sql = `
       SELECT
         s."id"::text          AS seller_id,
@@ -37,12 +56,12 @@ export async function GET(req: NextRequest) {
         AND s."businessName" NOT ILIKE '%test%'
         AND s."isD2RBrandSeller" = TRUE
         AND po."status" != 'DRAFT'
-        AND EXTRACT(YEAR FROM po."created_at") = $1
+        ${whereDate}
       GROUP BY s."id", s."phone", s."businessName", po."status"
       ORDER BY s."businessName" ASC, po."status" ASC;
     `;
 
-    const rows = await query<Row>(sql, [year]);
+    const rows = await query<Row>(sql, params);
 
     type Cell = { count: number; amount: number };
     type Seller = {
@@ -98,6 +117,8 @@ export async function GET(req: NextRequest) {
       statuses,
       totals: { byStatus: statusTotals, grand },
       year,
+      startDate: startDate || null,
+      endDate: endDate || null,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

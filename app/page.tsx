@@ -848,7 +848,7 @@ export default function OrderStatusDashboard() {
             <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
               <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Date</span>
               {([
-                { key: 'all', label: 'All' },
+                { key: 'all', label: `${currentYear} (full year)` },
                 { key: '7d', label: 'Last 7 days' },
                 { key: '14d', label: 'Last 14 days' },
                 { key: '15d', label: 'Last 15 days' },
@@ -895,6 +895,22 @@ export default function OrderStatusDashboard() {
                   </span>
                 );
               })()}
+              {(sellerRange !== 'all' || sellerSearch) && (
+                <button
+                  onClick={() => {
+                    setSellerRange('all');
+                    setSellerCustomFrom('');
+                    setSellerCustomTo('');
+                    setSellerSearch('');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-rose-500/20 text-purple-200 hover:text-rose-200 border border-white/10 hover:border-rose-400/40 transition-all ${
+                    !(() => { const r = resolveSellerRange(); return r.startDate || r.endDate; })() ? 'ml-auto' : ''
+                  }`}
+                  title="Reset to current year + clear search"
+                >
+                  ↺ Reset filter
+                </button>
+              )}
             </div>
             <div className="px-8 py-3 border-b border-white/10 bg-white/5">
               <input

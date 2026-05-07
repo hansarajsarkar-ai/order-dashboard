@@ -521,7 +521,7 @@ export default function OrderStatusDashboard() {
                   <div className="text-white font-bold text-lg">{monthlyData.totals.grand.count.toLocaleString()}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-purple-300">Total Revenue</div>
+                  <div className="text-purple-300">Total Order Value</div>
                   <div className="text-white font-bold text-lg">{formatAmount(monthlyData.totals.grand.amount)}</div>
                 </div>
               </div>
@@ -806,7 +806,7 @@ export default function OrderStatusDashboard() {
                     <div className="text-white font-bold text-lg">{sellerData.totals.grand.count.toLocaleString()}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-purple-300">Total Revenue</div>
+                    <div className="text-purple-300">Total Order Value</div>
                     <div className="text-white font-bold text-lg">{formatAmount(sellerData.totals.grand.amount)}</div>
                   </div>
                 </div>

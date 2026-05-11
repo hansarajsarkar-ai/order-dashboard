@@ -37,6 +37,11 @@ export async function GET(req: NextRequest) {
         AND po."status" != 'DRAFT'
         AND po."markedPendingTime" IS NOT NULL
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
+        -- Fixed scope: REJECTED orders that actually got DELIVERED via intercity third-party
+        AND po."status"          = 'REJECTED'
+        AND po."deliveryStatus"  = 'DELIVERED'
+        AND po."deliveryType"    = 'INTERCITY'
+        AND po."deliveryNetwork" = 'THIRD_PARTY'
       GROUP BY po."status", po."deliveryStatus", EXTRACT(MONTH FROM po."markedPendingTime")
       ORDER BY status, delivery_status NULLS LAST, month;
     `;

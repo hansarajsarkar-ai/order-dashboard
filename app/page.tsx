@@ -824,7 +824,12 @@ export default function OrderStatusDashboard() {
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
               <h2 className="text-2xl font-bold text-white">Status × Delivery Status</h2>
-              <p className="text-purple-300 text-sm mt-1">Click any status to drill into its delivery sub-statuses — {currentYear}</p>
+              <p className="text-purple-300 text-sm mt-1">
+                Scoped to: <span className="font-mono text-fuchsia-300">status=REJECTED</span> ·{' '}
+                <span className="font-mono text-fuchsia-300">deliveryStatus=DELIVERED</span> ·{' '}
+                <span className="font-mono text-fuchsia-300">deliveryType=INTERCITY</span> ·{' '}
+                <span className="font-mono text-fuchsia-300">deliveryNetwork=THIRD_PARTY</span> — {currentYear}
+              </p>
             </div>
             {pivotData && (
               <div className="flex items-center gap-6 text-sm">

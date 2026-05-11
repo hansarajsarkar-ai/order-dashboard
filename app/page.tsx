@@ -132,6 +132,34 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 
 const PAGE_SIZE = 50;
 
+type CsvCell = string | number | null | undefined;
+function downloadCSV(filename: string, headers: string[], rows: CsvCell[][]) {
+  if (typeof window === 'undefined') return;
+  const esc = (v: CsvCell) => {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers, ...rows].map((row) => row.map(esc).join(','));
+  // Prepend BOM so Excel opens UTF-8 (incl. ₹) correctly.
+  const csv = '﻿' + lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const DOWNLOAD_BTN_CLASS =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-fuchsia-500/30 border border-white/10 hover:border-fuchsia-400/50 text-purple-200 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+
+const DOWNLOAD_BTN_LIGHT_CLASS =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-fuchsia-100 border border-slate-200 hover:border-fuchsia-300 text-slate-700 hover:text-fuchsia-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+
 const formatAmount = (n: number): string => {
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
   if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
@@ -831,6 +859,27 @@ export default function OrderStatusDashboard() {
                   <div className="text-purple-300">Total Order Value</div>
                   <div className="text-white font-bold text-lg">{formatAmount(monthlyData.totals.grand.amount)}</div>
                 </div>
+                <button
+                  className={DOWNLOAD_BTN_CLASS}
+                  onClick={() => {
+                    const headers = ['Status', ...MONTH_NAMES.flatMap((m) => [`${m} Count`, `${m} Amount`]), 'Total Count', 'Total Amount'];
+                    const rows = monthlyData.data.map((row) => {
+                      const monthCells = MONTH_NAMES.flatMap((_, i) => {
+                        const c = row.months[i + 1];
+                        return [c?.count ?? 0, c?.amount ?? 0];
+                      });
+                      return [row.status, ...monthCells, row.total.count, row.total.amount];
+                    });
+                    const totalsCells = MONTH_NAMES.flatMap((_, i) => {
+                      const c = monthlyData.totals.byMonth[i + 1];
+                      return [c?.count ?? 0, c?.amount ?? 0];
+                    });
+                    rows.push(['Total', ...totalsCells, monthlyData.totals.grand.count, monthlyData.totals.grand.amount]);
+                    downloadCSV(`monthly-breakdown-by-status-${currentYear}.csv`, headers, rows);
+                  }}
+                >
+                  ↓ CSV
+                </button>
               </div>
             )}
           </div>
@@ -964,6 +1013,30 @@ export default function OrderStatusDashboard() {
                   <div className="text-purple-300">Total Order Value</div>
                   <div className="text-white font-bold text-lg">{formatAmount(pivotData.totals.grand.amount)}</div>
                 </div>
+                <button
+                  className={DOWNLOAD_BTN_CLASS}
+                  onClick={() => {
+                    const headers = ['Status', 'Delivery Status', ...MONTH_NAMES.flatMap((m) => [`${m} Count`, `${m} Amount`]), 'Total Count', 'Total Amount'];
+                    const rows: CsvCell[][] = [];
+                    pivotData.data.forEach((row) => {
+                      const parentCells = MONTH_NAMES.flatMap((_, i) => {
+                        const c = row.months[i + 1];
+                        return [c?.count ?? 0, c?.amount ?? 0];
+                      });
+                      rows.push([row.status, '(all)', ...parentCells, row.total.count, row.total.amount]);
+                      row.deliveryStatuses.forEach((sub) => {
+                        const subCells = MONTH_NAMES.flatMap((_, i) => {
+                          const c = sub.months[i + 1];
+                          return [c?.count ?? 0, c?.amount ?? 0];
+                        });
+                        rows.push([row.status, sub.deliveryStatus ?? '(no delivery status)', ...subCells, sub.total.count, sub.total.amount]);
+                      });
+                    });
+                    downloadCSV(`status-x-delivery-${currentYear}.csv`, headers, rows);
+                  }}
+                >
+                  ↓ CSV
+                </button>
               </div>
             )}
           </div>
@@ -1145,9 +1218,53 @@ export default function OrderStatusDashboard() {
 
         {/* Monthly Trend & Growth — Status × Month, share-of-mix with pp delta */}
         <div className="mt-8 bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10">
-            <h2 className="text-2xl font-bold text-white">Monthly Trend & Growth</h2>
-            <p className="text-white/60 text-sm mt-1">Share of monthly orders & revenue per status, with month-over-month change in percentage points — {currentYear}</p>
+          <div className="px-8 py-6 border-b border-white/10 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Monthly Trend & Growth</h2>
+              <p className="text-white/60 text-sm mt-1">Share of monthly orders & revenue per status, with month-over-month change in percentage points — {currentYear}</p>
+            </div>
+            {monthlyData && (
+              <button
+                className={DOWNLOAD_BTN_CLASS}
+                onClick={() => {
+                  const activeMonths: number[] = [];
+                  for (let m = 1; m <= 12; m++) {
+                    const c = monthlyData.totals.byMonth[m];
+                    if (c && c.count > 0) activeMonths.push(m);
+                  }
+                  const headers = ['Status'];
+                  activeMonths.forEach((m, i) => {
+                    const name = `${MONTH_NAMES[m - 1]} ${currentYear}`;
+                    headers.push(`${name} Order %`, `${name} Amount %`);
+                    if (i > 0) headers.push(`${name} Order Growth pp`, `${name} Amount Growth pp`);
+                  });
+                  const rows: CsvCell[][] = monthlyData.data.map((row) => {
+                    const out: CsvCell[] = [row.status];
+                    activeMonths.forEach((m, i) => {
+                      const cell = row.months[m];
+                      const monthTotal = monthlyData.totals.byMonth[m];
+                      const cellCount = cell?.count || 0;
+                      const cellAmount = cell?.amount || 0;
+                      const countPct = monthTotal?.count ? (cellCount * 100) / monthTotal.count : 0;
+                      const amountPct = monthTotal?.amount ? (cellAmount * 100) / monthTotal.amount : 0;
+                      out.push(countPct.toFixed(2), amountPct.toFixed(2));
+                      if (i > 0) {
+                        const prevM = activeMonths[i - 1];
+                        const prevCell = row.months[prevM];
+                        const prevMonthTotal = monthlyData.totals.byMonth[prevM];
+                        const prevCountPct = prevMonthTotal?.count ? ((prevCell?.count || 0) * 100) / prevMonthTotal.count : 0;
+                        const prevAmountPct = prevMonthTotal?.amount ? ((prevCell?.amount || 0) * 100) / prevMonthTotal.amount : 0;
+                        out.push((countPct - prevCountPct).toFixed(2), (amountPct - prevAmountPct).toFixed(2));
+                      }
+                    });
+                    return out;
+                  });
+                  downloadCSV(`monthly-trend-growth-${currentYear}.csv`, headers, rows);
+                }}
+              >
+                ↓ CSV
+              </button>
+            )}
           </div>
           <div className="overflow-x-auto">
             {monthlyLoading ? (
@@ -1313,6 +1430,23 @@ export default function OrderStatusDashboard() {
                     <div className="text-purple-300">Total Order Value</div>
                     <div className="text-white font-bold text-lg">{formatAmount(sellerData.totals.grand.amount)}</div>
                   </div>
+                  <button
+                    className={DOWNLOAD_BTN_CLASS}
+                    onClick={() => {
+                      const statuses = sellerData.statuses;
+                      const headers = ['Seller Business', 'Seller Phone', ...statuses.flatMap((st) => [`${st} Count`, `${st} Amount`]), 'Total Count', 'Total Amount'];
+                      const rows: CsvCell[][] = sellerData.data.map((s) => {
+                        const cells = statuses.flatMap((st) => {
+                          const c = s.statuses[st];
+                          return [c?.count ?? 0, c?.amount ?? 0];
+                        });
+                        return [s.sellerBusinessName, s.sellerPhone, ...cells, s.total.count, s.total.amount];
+                      });
+                      downloadCSV(`seller-wise-status-${currentYear}.csv`, headers, rows);
+                    }}
+                  >
+                    ↓ CSV
+                  </button>
                 </div>
               )}
             </div>
@@ -1554,6 +1688,28 @@ export default function OrderStatusDashboard() {
                     <div className="text-purple-300">Total Orders</div>
                     <div className="text-white font-bold text-lg">{slabData.totals.grand.total.toLocaleString()}</div>
                   </div>
+                  <button
+                    className={DOWNLOAD_BTN_CLASS}
+                    onClick={() => {
+                      const months = slabData.months;
+                      const slabCols = ['0-500', '500-1k', '1k-2k', '>2k'];
+                      const headers = ['Seller Business', 'Seller Phone', 'Total Orders'];
+                      months.forEach((m) => slabCols.forEach((sc) => headers.push(`${MONTH_NAMES[m - 1]} ${sc}`)));
+                      slabCols.forEach((sc) => headers.push(`Total ${sc}`));
+                      const rows: CsvCell[][] = slabData.data.map((s) => {
+                        const row: CsvCell[] = [s.sellerBusinessName, s.sellerPhone, s.total.total];
+                        months.forEach((m) => {
+                          const c = s.months[m] || { s0_500: 0, s500_1000: 0, s1000_2000: 0, s2000_plus: 0, total: 0 };
+                          row.push(c.s0_500, c.s500_1000, c.s1000_2000, c.s2000_plus);
+                        });
+                        row.push(s.total.s0_500, s.total.s500_1000, s.total.s1000_2000, s.total.s2000_plus);
+                        return row;
+                      });
+                      downloadCSV(`seller-month-slab-${currentYear}.csv`, headers, rows);
+                    }}
+                  >
+                    ↓ CSV
+                  </button>
                 </div>
               )}
             </div>
@@ -1750,6 +1906,32 @@ export default function OrderStatusDashboard() {
                     );
                   })}
                 </div>
+                <button
+                  className={DOWNLOAD_BTN_CLASS}
+                  disabled={geoMode === 'state' ? !stateData : !districtData}
+                  onClick={() => {
+                    if (geoMode === 'state') {
+                      if (!stateData) return;
+                      downloadCSV(
+                        `demography-state-${currentYear}.csv`,
+                        ['State', 'Order Count', 'Order Amount'],
+                        stateData.map((r) => [r.state ?? '(no state)', r.count, r.amount])
+                      );
+                    } else {
+                      if (!districtData) return;
+                      const filename = districtSelectedState
+                        ? `demography-district-${districtSelectedState}-${currentYear}.csv`
+                        : `demography-district-${currentYear}.csv`;
+                      downloadCSV(
+                        filename,
+                        ['State', 'District', 'Order Count', 'Order Amount'],
+                        districtData.map((r) => [r.state ?? '(no state)', r.district ?? '(no district)', r.count, r.amount])
+                      );
+                    }
+                  }}
+                >
+                  ↓ CSV
+                </button>
               </div>
             </div>
 
@@ -1908,12 +2090,37 @@ export default function OrderStatusDashboard() {
                       : ''}
                   </p>
                 </div>
-                <button
-                  onClick={closePivotDrill}
-                  className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
-                >
-                  Close
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className={DOWNLOAD_BTN_LIGHT_CLASS}
+                    disabled={!filteredPivotDrillRows || filteredPivotDrillRows.length === 0}
+                    onClick={() => {
+                      if (!filteredPivotDrillRows) return;
+                      const isRejected = pivotDrillStatus === 'REJECTED';
+                      const headers = [
+                        'PO Number', 'Amount', 'Marked Pending', 'Seller Phone', 'Seller Business',
+                        'Buyer Phone', 'Buyer Business', 'Seller Address', 'Buyer Address',
+                        ...(isRejected ? ['Reject Reason', 'Rejected By', 'Reason Added By Badho Team'] : []),
+                      ];
+                      const rows: CsvCell[][] = filteredPivotDrillRows.map((r) => [
+                        r.poNumber, r.amount, r.markedPendingTime, r.sellerPhone, r.sellerBusinessName,
+                        r.buyerPhone, r.buyerBusinessName, r.sellerAddress ?? '', r.buyerAddress,
+                        ...(isRejected ? [r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? ''] : []),
+                      ]);
+                      const monthTag = pivotDrillMonth ? MONTH_NAMES[pivotDrillMonth - 1] : 'all';
+                      const deliveryTag = pivotDrillDelivery === undefined ? 'all' : (pivotDrillDelivery ?? 'null');
+                      downloadCSV(`status-delivery-${pivotDrillStatus}-${deliveryTag}-${monthTag}-${currentYear}.csv`, headers, rows);
+                    }}
+                  >
+                    ↓ CSV
+                  </button>
+                  <button
+                    onClick={closePivotDrill}
+                    className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
               <div className="px-6 py-3 border-b border-slate-200 bg-white">
                 <input
@@ -2025,12 +2232,29 @@ export default function OrderStatusDashboard() {
                   <h3 className="text-xl font-bold text-slate-900">{sellerDrillName}</h3>
                   <p className="text-slate-500 text-sm tabular-nums mt-0.5">{sellerDrillPhone}</p>
                 </div>
-                <button
-                  onClick={closeSellerDrill}
-                  className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
-                >
-                  Close
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className={DOWNLOAD_BTN_LIGHT_CLASS}
+                    disabled={!filteredSellerDrillRows || filteredSellerDrillRows.length === 0}
+                    onClick={() => {
+                      if (!filteredSellerDrillRows) return;
+                      const headers = ['PO Number', 'Status', 'Amount', 'Buyer Phone', 'Buyer Business', 'Marked Pending', 'Created At'];
+                      const rows: CsvCell[][] = filteredSellerDrillRows.map((r) => [
+                        r.poNumber, r.status, r.amount, r.buyerPhone, r.buyerBusinessName, r.markedPendingTime, r.createdAt,
+                      ]);
+                      const safeName = (sellerDrillName || 'seller').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 40);
+                      downloadCSV(`seller-orders-${safeName}-${currentYear}.csv`, headers, rows);
+                    }}
+                  >
+                    ↓ CSV
+                  </button>
+                  <button
+                    onClick={closeSellerDrill}
+                    className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
 
               {sellerDrillSummary && (
@@ -2216,12 +2440,29 @@ export default function OrderStatusDashboard() {
                       : ''}
                   </p>
                 </div>
-                <button
-                  onClick={closeDrill}
-                  className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
-                >
-                  Close
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className={DOWNLOAD_BTN_LIGHT_CLASS}
+                    disabled={!filteredDrillRows || filteredDrillRows.length === 0}
+                    onClick={() => {
+                      if (!filteredDrillRows) return;
+                      const headers = ['PO Number', 'Status', 'Amount', 'Buyer Phone', 'Buyer Business', 'Seller Phone', 'Seller Business', 'Buyer Address', 'Buyer State', 'Marked Pending', 'Created At'];
+                      const rows: CsvCell[][] = filteredDrillRows.map((r) => [
+                        r.poNumber, r.status, r.amount, r.buyerPhone, r.buyerBusinessName, r.sellerPhone, r.sellerBusinessName, r.buyerAddress, r.buyerState, r.markedPendingTime, r.createdAt,
+                      ]);
+                      const monthTag = drillMonth ? MONTH_NAMES[drillMonth - 1] : 'all';
+                      downloadCSV(`orders-${drillStatus}-${monthTag}-${currentYear}.csv`, headers, rows);
+                    }}
+                  >
+                    ↓ CSV
+                  </button>
+                  <button
+                    onClick={closeDrill}
+                    className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
               <div className="px-6 py-3 border-b border-slate-200 bg-white">
                 <input

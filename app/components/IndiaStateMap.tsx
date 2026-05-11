@@ -23,6 +23,52 @@ const NAME_ALIASES: Record<string, string> = {
   'Jammu and Kashmir': 'Jammu & Kashmir',
 };
 
+// Standard 2-letter Indian state/UT codes (the ones on number-plates / IN-ISO).
+export const STATE_CODES: Record<string, string> = {
+  'Andaman & Nicobar': 'AN',
+  'Andhra Pradesh': 'AP',
+  'Arunachal Pradesh': 'AR',
+  'Assam': 'AS',
+  'Bihar': 'BR',
+  'Chandigarh': 'CH',
+  'Chhattisgarh': 'CG',
+  'Dadra and Nagar Haveli and Daman and Diu': 'DN',
+  'Delhi': 'DL',
+  'Goa': 'GA',
+  'Gujarat': 'GJ',
+  'Haryana': 'HR',
+  'Himachal Pradesh': 'HP',
+  'Jammu & Kashmir': 'JK',
+  'Jharkhand': 'JH',
+  'Karnataka': 'KA',
+  'Kerala': 'KL',
+  'Ladakh': 'LA',
+  'Lakshadweep': 'LD',
+  'Madhya Pradesh': 'MP',
+  'Maharashtra': 'MH',
+  'Manipur': 'MN',
+  'Meghalaya': 'ML',
+  'Mizoram': 'MZ',
+  'Nagaland': 'NL',
+  'Odisha': 'OD',
+  'Puducherry': 'PY',
+  'Punjab': 'PB',
+  'Rajasthan': 'RJ',
+  'Sikkim': 'SK',
+  'Tamil Nadu': 'TN',
+  'Telangana': 'TG',
+  'Tripura': 'TR',
+  'Uttar Pradesh': 'UP',
+  'Uttarakhand': 'UK',
+  'West Bengal': 'WB',
+};
+
+export const stateCode = (name: string | null | undefined): string => {
+  if (!name) return '?';
+  const key = NAME_ALIASES[name] ?? name;
+  return STATE_CODES[key] ?? name.slice(0, 3).toUpperCase();
+};
+
 const formatAmount = (n: number): string => {
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
   if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
@@ -193,19 +239,44 @@ export default function IndiaStateMap({ data, metric, onStateClick }: Props) {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const [lng, lat] = geoCentroid(g as any);
                   const off = LABEL_OFFSETS[name] || [0, 0];
+                  const code = stateCode(name);
                   return (
                     <Marker
                       key={`label-${g.rsmKey}`}
                       coordinates={[lng + off[0], lat + off[1]]}
                     >
+                      {/* State code — first line, bolder */}
                       <text
                         textAnchor="middle"
                         dominantBaseline="central"
+                        y={-6}
                         style={{
                           fontFamily: 'system-ui, -apple-system, sans-serif',
                           fontSize: 10,
-                          fontWeight: 700,
+                          fontWeight: 800,
+                          letterSpacing: '0.04em',
                           fill: '#fff',
+                          paintOrder: 'stroke',
+                          stroke: '#000',
+                          strokeWidth: 2.5,
+                          strokeLinecap: 'round',
+                          strokeLinejoin: 'round',
+                          pointerEvents: 'none',
+                          userSelect: 'none',
+                        }}
+                      >
+                        {code}
+                      </text>
+                      {/* Metric value — second line, smaller */}
+                      <text
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        y={6}
+                        style={{
+                          fontFamily: 'system-ui, -apple-system, sans-serif',
+                          fontSize: 9,
+                          fontWeight: 600,
+                          fill: '#fde68a',
                           paintOrder: 'stroke',
                           stroke: '#000',
                           strokeWidth: 2.5,
@@ -238,7 +309,12 @@ export default function IndiaStateMap({ data, metric, onStateClick }: Props) {
             className="fixed z-[60] px-4 py-3 rounded-xl bg-slate-900/95 backdrop-blur border border-fuchsia-400/40 text-white text-xs shadow-[0_0_30px_rgba(217,70,239,0.4)] pointer-events-none"
             style={{ left: tooltip.x + 14, top: tooltip.y + 14 }}
           >
-            <div className="font-bold text-fuchsia-300 text-sm mb-1">{tooltip.state}</div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center justify-center min-w-[26px] px-1.5 py-0.5 rounded text-[10px] font-bold bg-fuchsia-500/30 text-fuchsia-200 border border-fuchsia-400/40 tracking-wider">
+                {stateCode(tooltip.state)}
+              </span>
+              <span className="font-bold text-fuchsia-300 text-sm">{tooltip.state}</span>
+            </div>
             <div className="tabular-nums">
               <span className="text-white/60">Orders:</span>{' '}
               <span className="font-semibold">{tooltip.count.toLocaleString()}</span>
@@ -283,6 +359,9 @@ export default function IndiaStateMap({ data, metric, onStateClick }: Props) {
               return (
                 <li key={r.state || i} className="px-4 py-2.5 flex items-center gap-3 hover:bg-white/5 transition-colors">
                   <div className="w-6 text-purple-300 text-xs font-bold tabular-nums">{i + 1}</div>
+                  <span className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-br from-fuchsia-500/30 to-purple-500/30 text-fuchsia-200 border border-fuchsia-400/40 tracking-wider" title={r.state || ''}>
+                    {stateCode(r.state)}
+                  </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-white text-sm truncate">{r.state}</div>
                     <div className="h-1 rounded-full bg-white/5 mt-1 overflow-hidden">

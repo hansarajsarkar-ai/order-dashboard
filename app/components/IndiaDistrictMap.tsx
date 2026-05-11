@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps';
 import { scaleQuantize } from 'd3-scale';
 import { geoCentroid, geoBounds } from 'd3-geo';
+import { stateCode } from './IndiaStateMap';
 
 export interface DistrictRow {
   state: string | null;
@@ -270,7 +271,12 @@ export default function IndiaDistrictMap({ data, metric, selectedState }: Props)
             className="fixed z-[60] px-4 py-3 rounded-xl bg-slate-900/95 backdrop-blur border border-fuchsia-400/40 text-white text-xs shadow-[0_0_30px_rgba(217,70,239,0.4)] pointer-events-none"
             style={{ left: tooltip.x + 14, top: tooltip.y + 14 }}
           >
-            <div className="font-bold text-fuchsia-300 text-sm mb-0.5">{tooltip.district || '—'}</div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="inline-flex items-center justify-center min-w-[24px] px-1 py-0.5 rounded text-[9px] font-bold bg-fuchsia-500/30 text-fuchsia-200 border border-fuchsia-400/40 tracking-wider">
+                {stateCode(tooltip.state)}
+              </span>
+              <span className="font-bold text-fuchsia-300 text-sm">{tooltip.district || '—'}</span>
+            </div>
             <div className="text-purple-200/70 text-[10px] mb-1.5 uppercase tracking-wide">{tooltip.state}</div>
             <div className="tabular-nums">
               <span className="text-white/60">Orders:</span>{' '}
@@ -321,6 +327,9 @@ export default function IndiaDistrictMap({ data, metric, selectedState }: Props)
                   className="px-4 py-2.5 flex items-center gap-3 hover:bg-white/5 transition-colors"
                 >
                   <div className="w-6 text-purple-300 text-xs font-bold tabular-nums">{i + 1}</div>
+                  <span className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-br from-fuchsia-500/30 to-purple-500/30 text-fuchsia-200 border border-fuchsia-400/40 tracking-wider" title={r.state || ''}>
+                    {stateCode(r.state)}
+                  </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-white text-sm truncate">{r.district}</div>
                     <div className="text-[10px] text-purple-300/70 truncate">{r.state}</div>

@@ -18,6 +18,9 @@ interface OrderListRow {
   buyerAddress: string;
   buyerState: string | null;
   sellerAddress?: string;
+  rejectReason?: string | null;
+  rejectedBy?: string | null;
+  reasonAddedByBadhoTeam?: string | null;
   markedPendingTime: string | null;
   createdAt: string;
 }
@@ -1729,6 +1732,13 @@ export default function OrderStatusDashboard() {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Address</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
+                        {pivotDrillStatus === 'REJECTED' && (
+                          <>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Reject Reason</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Rejected By</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Reason Added By Badho Team</th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -1743,6 +1753,13 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-600 max-w-xs" title={r.sellerAddress || ''}>{r.sellerAddress || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-600 max-w-xs" title={r.buyerAddress || ''}>{r.buyerAddress || <span className="text-slate-400 italic">—</span>}</td>
+                          {pivotDrillStatus === 'REJECTED' && (
+                            <>
+                              <td className="px-4 py-3 text-slate-700 max-w-xs bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-4 py-3 text-slate-700 bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-4 py-3 text-slate-700 max-w-xs bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400 italic">—</span>}</td>
+                            </>
+                          )}
                         </tr>
                       ))}
                     </tbody>

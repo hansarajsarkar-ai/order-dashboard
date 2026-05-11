@@ -18,6 +18,9 @@ interface Row {
   seller_address_line1: string | null;
   seller_city: string | null;
   seller_state: string | null;
+  reject_reason: string | null;
+  rejected_by: string | null;
+  reason_added_by_badho_team: string | null;
   marked_pending_time: string | null;
   created_at: string;
 }
@@ -71,6 +74,9 @@ export async function GET(req: NextRequest) {
         s."addressLine1"             AS seller_address_line1,
         s."city"                     AS seller_city,
         s."state"                    AS seller_state,
+        po."rejectReason"            AS reject_reason,
+        po."rejectedBy"              AS rejected_by,
+        po."reasonAddedByBadhoTeam"  AS reason_added_by_badho_team,
         po."markedPendingTime"       AS marked_pending_time,
         po."created_at"              AS created_at
       FROM "purchaseOrder"."purchaseOrder" po
@@ -107,6 +113,9 @@ export async function GET(req: NextRequest) {
       buyerAddress: [r.buyer_address_line1, r.buyer_city, r.buyer_state].filter(Boolean).join(', '),
       buyerState: r.buyer_state,
       sellerAddress: [r.seller_address_line1, r.seller_city, r.seller_state].filter(Boolean).join(', '),
+      rejectReason: r.reject_reason,
+      rejectedBy: r.rejected_by,
+      reasonAddedByBadhoTeam: r.reason_added_by_badho_team,
       markedPendingTime: r.marked_pending_time,
       createdAt: r.created_at,
     }));

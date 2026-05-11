@@ -17,6 +17,7 @@ interface OrderListRow {
   sellerBusinessName: string | null;
   buyerAddress: string;
   buyerState: string | null;
+  sellerAddress?: string;
   markedPendingTime: string | null;
   createdAt: string;
 }
@@ -1720,32 +1721,24 @@ export default function OrderStatusDashboard() {
                     <thead className="sticky top-0 bg-slate-100 z-10">
                       <tr className="border-b border-slate-200">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Delivery Status</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Phone</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Business</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer State</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Created At</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Address</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r) => (
-                        <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="px-4 py-3 text-slate-900 tabular-nums font-medium">{r.poNumber}</td>
-                          <td className="px-4 py-3 text-slate-700">{r.status}</td>
-                          <td className="px-4 py-3 text-slate-700">{r.deliveryStatus ?? <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
-                          <td className="px-4 py-3 text-slate-700 tabular-nums">{r.buyerPhone || '—'}</td>
-                          <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || '—'}</td>
-                          <td className="px-4 py-3 text-slate-700 tabular-nums">{r.sellerPhone || '—'}</td>
-                          <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || '—'}</td>
-                          <td className="px-4 py-3 text-slate-700">{r.buyerState || '—'}</td>
+                        <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50 align-top">
+                          <td className="px-4 py-3 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
+                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
+                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
+                          <td className="px-4 py-3 text-slate-600 max-w-xs" title={r.sellerAddress || ''}>{r.sellerAddress || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-600 max-w-xs" title={r.buyerAddress || ''}>{r.buyerAddress || <span className="text-slate-400 italic">—</span>}</td>
                         </tr>
                       ))}
                     </tbody>

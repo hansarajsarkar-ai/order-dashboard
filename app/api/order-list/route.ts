@@ -15,6 +15,9 @@ interface Row {
   buyer_address_line1: string | null;
   buyer_city: string | null;
   buyer_state: string | null;
+  seller_address_line1: string | null;
+  seller_city: string | null;
+  seller_state: string | null;
   marked_pending_time: string | null;
   created_at: string;
 }
@@ -65,6 +68,9 @@ export async function GET(req: NextRequest) {
         b."addressLine1"             AS buyer_address_line1,
         b."city"                     AS buyer_city,
         b."state"                    AS buyer_state,
+        s."addressLine1"             AS seller_address_line1,
+        s."city"                     AS seller_city,
+        s."state"                    AS seller_state,
         po."markedPendingTime"       AS marked_pending_time,
         po."created_at"              AS created_at
       FROM "purchaseOrder"."purchaseOrder" po
@@ -100,6 +106,7 @@ export async function GET(req: NextRequest) {
       sellerBusinessName: r.seller_business_name,
       buyerAddress: [r.buyer_address_line1, r.buyer_city, r.buyer_state].filter(Boolean).join(', '),
       buyerState: r.buyer_state,
+      sellerAddress: [r.seller_address_line1, r.seller_city, r.seller_state].filter(Boolean).join(', '),
       markedPendingTime: r.marked_pending_time,
       createdAt: r.created_at,
     }));

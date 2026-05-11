@@ -4,6 +4,7 @@ import { useEffect, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
+import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
 
 interface OrderListRow {
   poNumber: string;
@@ -132,6 +133,11 @@ export default function OrderStatusDashboard() {
   const [stateRange, setStateRange] = useState<'7d' | '14d' | '15d' | 'custom' | 'all'>('all');
   const [stateCustomFrom, setStateCustomFrom] = useState('');
   const [stateCustomTo, setStateCustomTo] = useState('');
+  const [geoMode, setGeoMode] = useState<'state' | 'district'>('state');
+  const [districtData, setDistrictData] = useState<DistrictRow[] | null>(null);
+  const [districtLoading, setDistrictLoading] = useState(false);
+  // selected DB state name for the district view (null = show all districts)
+  const [districtSelectedState, setDistrictSelectedState] = useState<string | null>(null);
   const [sellerDrillId, setSellerDrillId] = useState<string | null>(null);
   const [sellerDrillName, setSellerDrillName] = useState<string>('');
   const [sellerDrillPhone, setSellerDrillPhone] = useState<string>('');
@@ -301,6 +307,45 @@ export default function OrderStatusDashboard() {
     fetchStateData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, stateRange, stateCustomFrom, stateCustomTo]);
+
+  const fetchDistrictData = async () => {
+    try {
+      setDistrictLoading(true);
+      const { startDate, endDate } = resolveStateRange();
+      const params = new URLSearchParams({ year: String(currentYear) });
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (districtSelectedState) params.append('state', districtSelectedState);
+      const res = await fetch(`/api/order-by-district?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setDistrictData(json.data);
+    } catch (err) {
+      console.error('District fetch error:', err);
+      setDistrictData([]);
+    } finally {
+      setDistrictLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'demography') return;
+    if (geoMode !== 'district') return;
+    fetchDistrictData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, geoMode, districtSelectedState, stateRange, stateCustomFrom, stateCustomTo]);
+
+  // Reverse alias: state-map's ST_NM (e.g. "Andaman & Nicobar") → DB state name.
+  const GEO_TO_DB_STATE: Record<string, string> = {
+    'Andaman & Nicobar': 'Andaman and Nicobar Islands',
+    'Jammu & Kashmir': 'Jammu and Kashmir',
+  };
+
+  const handleStateMapClick = (geoStateName: string) => {
+    const dbName = GEO_TO_DB_STATE[geoStateName] ?? geoStateName;
+    setDistrictSelectedState(dbName);
+    setGeoMode('district');
+  };
 
   useEffect(() => { setDrillPage(1); }, [drillStatus, drillMonth, drillSearch]);
   useEffect(() => { setSellerTablePage(1); }, [sellerSearch]);
@@ -1119,26 +1164,51 @@ export default function OrderStatusDashboard() {
             <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
                 <h2 className="text-2xl font-bold text-white">Demography</h2>
-                <p className="text-purple-300 text-sm mt-1">Order distribution across Indian states — buyer state of {currentYear}</p>
+                <p className="text-purple-300 text-sm mt-1">
+                  {geoMode === 'state'
+                    ? 'Order distribution across Indian states — click any state to drill into its districts'
+                    : `District-level order distribution${districtSelectedState ? ` in ${districtSelectedState}` : ' across India'}`}
+                </p>
               </div>
-              {/* metric toggle */}
-              <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
-                {(['count', 'amount'] as const).map((m) => {
-                  const active = stateMetric === m;
-                  return (
-                    <button
-                      key={m}
-                      onClick={() => setStateMetric(m)}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        active
-                          ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.5)]'
-                          : 'text-purple-200 hover:bg-white/10'
-                      }`}
-                    >
-                      {m === 'count' ? 'By orders' : 'By revenue'}
-                    </button>
-                  );
-                })}
+              <div className="flex items-center gap-3">
+                {/* State / District sub-tabs */}
+                <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                  {(['state', 'district'] as const).map((m) => {
+                    const active = geoMode === m;
+                    return (
+                      <button
+                        key={m}
+                        onClick={() => setGeoMode(m)}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                          active
+                            ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.5)]'
+                            : 'text-purple-200 hover:bg-white/10'
+                        }`}
+                      >
+                        {m === 'state' ? 'State' : 'District'}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* metric toggle */}
+                <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                  {(['count', 'amount'] as const).map((m) => {
+                    const active = stateMetric === m;
+                    return (
+                      <button
+                        key={m}
+                        onClick={() => setStateMetric(m)}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                          active
+                            ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.5)]'
+                            : 'text-purple-200 hover:bg-white/10'
+                        }`}
+                      >
+                        {m === 'count' ? 'By orders' : 'By revenue'}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -1198,16 +1268,67 @@ export default function OrderStatusDashboard() {
               )}
             </div>
 
+            {geoMode === 'district' && (
+              <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+                <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">State</span>
+                <select
+                  value={districtSelectedState || ''}
+                  onChange={(e) => setDistrictSelectedState(e.target.value || null)}
+                  className="px-3 py-1.5 text-xs bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-[220px]"
+                >
+                  <option value="">All India</option>
+                  {(stateData ?? [])
+                    .filter((r) => r.state)
+                    .sort((a, b) => (a.state || '').localeCompare(b.state || ''))
+                    .map((r) => (
+                      <option key={r.state} value={r.state || ''}>
+                        {r.state}
+                      </option>
+                    ))}
+                </select>
+                {districtSelectedState && (
+                  <button
+                    onClick={() => {
+                      setGeoMode('state');
+                      setDistrictSelectedState(null);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/15 text-purple-200 border border-white/10 transition-all"
+                  >
+                    ← Back to state view
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="p-6">
-              {stateLoading || !stateData ? (
+              {geoMode === 'state' ? (
+                stateLoading || !stateData ? (
+                  <div className="h-[640px] flex items-center justify-center text-purple-300">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+                      Loading state data…
+                    </div>
+                  </div>
+                ) : (
+                  <IndiaStateMap
+                    data={stateData}
+                    metric={stateMetric}
+                    onStateClick={handleStateMapClick}
+                  />
+                )
+              ) : districtLoading || !districtData ? (
                 <div className="h-[640px] flex items-center justify-center text-purple-300">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
-                    Loading state data…
+                    Loading district data…
                   </div>
                 </div>
               ) : (
-                <IndiaStateMap data={stateData} metric={stateMetric} />
+                <IndiaDistrictMap
+                  data={districtData}
+                  metric={stateMetric}
+                  selectedState={districtSelectedState}
+                />
               )}
             </div>
           </div>

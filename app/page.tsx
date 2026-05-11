@@ -95,6 +95,29 @@ interface SellerWiseData {
   year: number;
 }
 
+interface SlabCell {
+  s0_500: number;
+  s500_1000: number;
+  s1000_2000: number;
+  s2000_plus: number;
+  total: number;
+}
+
+interface SellerSlabRow {
+  sellerId: string;
+  sellerPhone: string | null;
+  sellerBusinessName: string | null;
+  months: Record<string, SlabCell>;
+  total: SlabCell;
+}
+
+interface SellerSlabData {
+  data: SellerSlabRow[];
+  months: number[];
+  totals: { byMonth: Record<string, SlabCell>; grand: SlabCell };
+  year: number;
+}
+
 interface SellerOrderRow {
   poNumber: string;
   status: string;
@@ -163,6 +186,9 @@ export default function OrderStatusDashboard() {
   const [sellerData, setSellerData] = useState<SellerWiseData | null>(null);
   const [sellerLoading, setSellerLoading] = useState(true);
   const [sellerSearch, setSellerSearch] = useState('');
+  const [slabData, setSlabData] = useState<SellerSlabData | null>(null);
+  const [slabLoading, setSlabLoading] = useState(true);
+  const [slabSearch, setSlabSearch] = useState('');
   const [sellerRange, setSellerRange] = useState<'7d' | '14d' | '15d' | 'custom' | 'all'>('all');
   const [sellerCustomFrom, setSellerCustomFrom] = useState('');
   const [sellerCustomTo, setSellerCustomTo] = useState('');
@@ -373,6 +399,29 @@ export default function OrderStatusDashboard() {
 
   useEffect(() => {
     fetchSeller();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sellerRange, sellerCustomFrom, sellerCustomTo]);
+
+  const fetchSlab = async () => {
+    try {
+      setSlabLoading(true);
+      const { startDate, endDate } = resolveSellerRange();
+      const params = new URLSearchParams({ year: String(currentYear) });
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const response = await fetch(`/api/order-seller-slab-monthly?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch slab data');
+      const result: SellerSlabData = await response.json();
+      setSlabData(result);
+    } catch (err) {
+      console.error('Slab fetch error:', err);
+    } finally {
+      setSlabLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSlab();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sellerRange, sellerCustomFrom, sellerCustomTo]);
 
@@ -1243,6 +1292,7 @@ export default function OrderStatusDashboard() {
         )}
 
         {activeTab === 'seller' && (
+        <Fragment>
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
             <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
@@ -1484,6 +1534,168 @@ export default function OrderStatusDashboard() {
               })()}
             </div>
           </div>
+
+          {/* Seller × Month × Amount Slab */}
+          <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Seller × Month × Amount Slab</h2>
+                <p className="text-purple-300 text-sm mt-1">Orders placed by buyers, bucketed by order value per month — {currentYear}</p>
+              </div>
+              {slabData && (
+                <div className="flex items-center gap-6 text-sm">
+                  <div className="text-right">
+                    <div className="text-purple-300">Sellers</div>
+                    <div className="text-white font-bold text-lg">{slabData.data.length.toLocaleString()}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-purple-300">Total Orders</div>
+                    <div className="text-white font-bold text-lg">{slabData.totals.grand.total.toLocaleString()}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-8 py-3 border-b border-white/10 bg-white/5">
+              <input
+                type="text"
+                value={slabSearch}
+                onChange={(e) => setSlabSearch(e.target.value)}
+                placeholder="Search by seller phone or business name..."
+                className="w-full px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+              />
+            </div>
+            <div className="overflow-x-auto">
+              {slabLoading ? (
+                <div className="px-8 py-12 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+                    <p className="text-purple-300">Loading slab data...</p>
+                  </div>
+                </div>
+              ) : !slabData || slabData.data.length === 0 ? (
+                <div className="px-8 py-12 text-center text-purple-300">No slab data available</div>
+              ) : (() => {
+                const q = slabSearch.trim().toLowerCase();
+                const filtered = q
+                  ? slabData.data.filter((s) =>
+                      (s.sellerPhone || '').toLowerCase().includes(q) ||
+                      (s.sellerBusinessName || '').toLowerCase().includes(q)
+                    )
+                  : slabData.data;
+                if (filtered.length === 0) {
+                  return <div className="px-8 py-12 text-center text-purple-300">No matches for &ldquo;{slabSearch}&rdquo;</div>;
+                }
+                const months = slabData.months;
+                return (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10">
+                        <th rowSpan={2} className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[240px]">
+                          Seller
+                        </th>
+                        <th rowSpan={2} className="px-3 py-3 text-right text-xs font-semibold text-purple-100 bg-purple-500/15 sticky left-[240px] backdrop-blur z-10 border-r border-white/10 min-w-[110px]">
+                          Total Orders
+                        </th>
+                        {months.map((m) => (
+                          <th key={m} colSpan={4} className="px-2 py-2 text-center text-xs font-semibold text-purple-200 border-r border-white/10">
+                            {MONTH_NAMES[m - 1]}
+                          </th>
+                        ))}
+                        <th colSpan={4} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">
+                          Total
+                        </th>
+                      </tr>
+                      <tr className="bg-white/5 border-b border-white/10">
+                        {[...months, 'total' as const].map((m) => {
+                          const isTotal = m === 'total';
+                          return (
+                            <Fragment key={String(m)}>
+                              <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>0-500</th>
+                              <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>500-1k</th>
+                              <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>1k-2k</th>
+                              <th className={`px-2 py-2 text-right text-[10px] font-medium border-r border-white/10 ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>&gt;2k</th>
+                            </Fragment>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((s) => (
+                        <tr key={s.sellerId} className="border-b border-white/5 hover:bg-white/10 transition-colors group">
+                          <td className="px-4 py-3 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 text-white text-sm">
+                            <div className="font-medium leading-tight">{s.sellerBusinessName || '—'}</div>
+                            <div className="text-purple-300/70 text-xs tabular-nums leading-tight mt-0.5">{s.sellerPhone || '—'}</div>
+                          </td>
+                          <td className="px-3 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10 sticky left-[240px] backdrop-blur z-10 border-r border-white/10">
+                            {s.total.total.toLocaleString()}
+                          </td>
+                          {months.map((m) => {
+                            const c = s.months[m];
+                            const has = c && c.total > 0;
+                            return (
+                              <Fragment key={m}>
+                                <td className={`px-2 py-3 text-right tabular-nums ${has && c.s0_500 > 0 ? 'text-white' : 'text-white/25'}`}>
+                                  {has && c.s0_500 > 0 ? c.s0_500.toLocaleString() : '—'}
+                                </td>
+                                <td className={`px-2 py-3 text-right tabular-nums ${has && c.s500_1000 > 0 ? 'text-purple-200' : 'text-white/25'}`}>
+                                  {has && c.s500_1000 > 0 ? c.s500_1000.toLocaleString() : '—'}
+                                </td>
+                                <td className={`px-2 py-3 text-right tabular-nums ${has && c.s1000_2000 > 0 ? 'text-purple-200' : 'text-white/25'}`}>
+                                  {has && c.s1000_2000 > 0 ? c.s1000_2000.toLocaleString() : '—'}
+                                </td>
+                                <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${has && c.s2000_plus > 0 ? 'text-purple-200' : 'text-white/25'}`}>
+                                  {has && c.s2000_plus > 0 ? c.s2000_plus.toLocaleString() : '—'}
+                                </td>
+                              </Fragment>
+                            );
+                          })}
+                          {/* Total slab columns */}
+                          <td className="px-2 py-3 text-right tabular-nums font-semibold text-white bg-purple-500/10">
+                            {s.total.s0_500 > 0 ? s.total.s0_500.toLocaleString() : '—'}
+                          </td>
+                          <td className="px-2 py-3 text-right tabular-nums font-semibold text-purple-100 bg-purple-500/10">
+                            {s.total.s500_1000 > 0 ? s.total.s500_1000.toLocaleString() : '—'}
+                          </td>
+                          <td className="px-2 py-3 text-right tabular-nums font-semibold text-purple-100 bg-purple-500/10">
+                            {s.total.s1000_2000 > 0 ? s.total.s1000_2000.toLocaleString() : '—'}
+                          </td>
+                          <td className="px-2 py-3 text-right tabular-nums font-semibold text-purple-100 bg-purple-500/10 border-r border-white/10">
+                            {s.total.s2000_plus > 0 ? s.total.s2000_plus.toLocaleString() : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                      {/* Grand totals row */}
+                      <tr className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-t-2 border-purple-400/40 font-bold">
+                        <td className="px-4 py-3 sticky left-0 bg-slate-900/95 backdrop-blur z-10 border-r border-white/10 text-white">
+                          <div>Total</div>
+                          <div className="text-white/60 text-xs font-normal">{filtered.length} seller{filtered.length === 1 ? '' : 's'}</div>
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums text-white bg-purple-500/30 sticky left-[240px] backdrop-blur z-10 border-r border-white/10">
+                          {slabData.totals.grand.total.toLocaleString()}
+                        </td>
+                        {months.map((m) => {
+                          const c = slabData.totals.byMonth[m];
+                          return (
+                            <Fragment key={m}>
+                              <td className="px-2 py-3 text-right tabular-nums text-white">{c?.s0_500 ? c.s0_500.toLocaleString() : '—'}</td>
+                              <td className="px-2 py-3 text-right tabular-nums text-purple-100">{c?.s500_1000 ? c.s500_1000.toLocaleString() : '—'}</td>
+                              <td className="px-2 py-3 text-right tabular-nums text-purple-100">{c?.s1000_2000 ? c.s1000_2000.toLocaleString() : '—'}</td>
+                              <td className="px-2 py-3 text-right tabular-nums text-purple-100 border-r border-white/10">{c?.s2000_plus ? c.s2000_plus.toLocaleString() : '—'}</td>
+                            </Fragment>
+                          );
+                        })}
+                        <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30">{slabData.totals.grand.s0_500.toLocaleString()}</td>
+                        <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30">{slabData.totals.grand.s500_1000.toLocaleString()}</td>
+                        <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30">{slabData.totals.grand.s1000_2000.toLocaleString()}</td>
+                        <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10">{slabData.totals.grand.s2000_plus.toLocaleString()}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+          </div>
+        </Fragment>
         )}
 
         {activeTab === 'demography' && (

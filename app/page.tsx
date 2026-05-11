@@ -1724,7 +1724,9 @@ export default function OrderStatusDashboard() {
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Business</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Address</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
                       </tr>
@@ -1736,7 +1738,9 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-600 max-w-xs" title={r.sellerAddress || ''}>{r.sellerAddress || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-600 max-w-xs" title={r.buyerAddress || ''}>{r.buyerAddress || <span className="text-slate-400 italic">—</span>}</td>
                         </tr>

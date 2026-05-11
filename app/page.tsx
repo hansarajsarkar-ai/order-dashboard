@@ -1676,7 +1676,9 @@ export default function OrderStatusDashboard() {
             <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
                 <h2 className="text-2xl font-bold text-white">Seller × Month × Amount Slab</h2>
-                <p className="text-purple-300 text-sm mt-1">Orders placed by buyers, bucketed by order value per month — {currentYear}</p>
+                <p className="text-purple-300 text-sm mt-1">
+                  Only <span className="font-mono text-fuchsia-300">DELIVERED + COMPLETED</span> orders, bucketed by order value per month — {currentYear}
+                </p>
               </div>
               {slabData && (
                 <div className="flex items-center gap-6 text-sm">

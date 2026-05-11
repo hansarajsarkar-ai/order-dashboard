@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
         AND s."isTest"           = FALSE
         AND s."businessName" NOT ILIKE '%test%'
         AND s."isD2RBrandSeller" = TRUE
-        AND po."status" != 'DRAFT'
+        AND po."status" IN ('DELIVERED', 'COMPLETED')
         AND po."markedPendingTime" IS NOT NULL
         ${whereDate}
       GROUP BY s."id", s."phone", s."businessName", EXTRACT(MONTH FROM po."markedPendingTime");

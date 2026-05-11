@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 interface Row {
   po_number: string;
   status: string;
+  delivery_status: string | null;
   amount: string;
   buyer_phone: string | null;
   buyer_business_name: string | null;
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
   const monthParam = searchParams.get('month');
   const status = searchParams.get('status');
+  const deliveryStatusParam = searchParams.get('deliveryStatus'); // value | "__NULL__" | null
 
   if (!status) {
     return NextResponse.json({ error: 'status parameter required' }, { status: 400 });
@@ -40,10 +42,21 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    let deliveryFilter = '';
+    if (deliveryStatusParam !== null) {
+      if (deliveryStatusParam === '__NULL__') {
+        deliveryFilter = ` AND po."deliveryStatus" IS NULL`;
+      } else {
+        params.push(deliveryStatusParam);
+        deliveryFilter = ` AND po."deliveryStatus" = $${params.length}`;
+      }
+    }
+
     const sql = `
       SELECT
         po."poNumber"::text          AS po_number,
         po."status"                  AS status,
+        po."deliveryStatus"          AS delivery_status,
         po."amount"::text            AS amount,
         b."phone"                    AS buyer_phone,
         b."businessName"             AS buyer_business_name,
@@ -69,6 +82,7 @@ export async function GET(req: NextRequest) {
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
         AND po."status" = $2
         ${monthFilter}
+        ${deliveryFilter}
       ORDER BY po."markedPendingTime" DESC
       LIMIT 2000;
     `;
@@ -78,6 +92,7 @@ export async function GET(req: NextRequest) {
     const data = rows.map((r) => ({
       poNumber: r.po_number,
       status: r.status,
+      deliveryStatus: r.delivery_status,
       amount: parseFloat(r.amount),
       buyerPhone: r.buyer_phone,
       buyerBusinessName: r.buyer_business_name,
@@ -95,6 +110,7 @@ export async function GET(req: NextRequest) {
       year,
       month: monthParam ? parseInt(monthParam) : null,
       status,
+      deliveryStatus: deliveryStatusParam,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err) || 'Unknown error';

@@ -9,6 +9,7 @@ import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMa
 interface OrderListRow {
   poNumber: string;
   status: string;
+  deliveryStatus?: string | null;
   amount: number;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
@@ -143,6 +144,16 @@ export default function OrderStatusDashboard() {
   const [pivotData, setPivotData] = useState<MonthlyStatusDeliveryData | null>(null);
   const [pivotLoading, setPivotLoading] = useState(true);
   const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(new Set());
+  // Status × Delivery Status drilldown modal
+  const [pivotDrillOpen, setPivotDrillOpen] = useState(false);
+  const [pivotDrillStatus, setPivotDrillStatus] = useState<string>('');
+  const [pivotDrillDelivery, setPivotDrillDelivery] = useState<string | null | undefined>(undefined); // undefined = no filter, null = NULL filter, string = exact
+  const [pivotDrillMonth, setPivotDrillMonth] = useState<number | null>(null);
+  const [pivotDrillRows, setPivotDrillRows] = useState<OrderListRow[] | null>(null);
+  const [pivotDrillLoading, setPivotDrillLoading] = useState(false);
+  const [pivotDrillError, setPivotDrillError] = useState<string | null>(null);
+  const [pivotDrillSearch, setPivotDrillSearch] = useState('');
+  const [pivotDrillPage, setPivotDrillPage] = useState(1);
   const [goalData, setGoalData] = useState<RevenueGoal | null>(null);
   const [goalLoading, setGoalLoading] = useState(true);
   const [sellerData, setSellerData] = useState<SellerWiseData | null>(null);
@@ -257,6 +268,48 @@ export default function OrderStatusDashboard() {
       else next.add(status);
       return next;
     });
+  };
+
+  const openPivotDrill = async (
+    status: string,
+    deliveryStatus: string | null | undefined,
+    month: number | null
+  ) => {
+    setPivotDrillOpen(true);
+    setPivotDrillStatus(status);
+    setPivotDrillDelivery(deliveryStatus);
+    setPivotDrillMonth(month);
+    setPivotDrillRows(null);
+    setPivotDrillError(null);
+    setPivotDrillSearch('');
+    setPivotDrillPage(1);
+    setPivotDrillLoading(true);
+    try {
+      const params = new URLSearchParams({ status, year: String(currentYear) });
+      if (month !== null) params.append('month', String(month));
+      if (deliveryStatus !== undefined) {
+        params.append('deliveryStatus', deliveryStatus === null ? '__NULL__' : deliveryStatus);
+      }
+      const res = await fetch(`/api/order-list?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to fetch');
+      setPivotDrillRows(json.data);
+    } catch (err) {
+      setPivotDrillError(err instanceof Error ? err.message : 'Error loading orders');
+    } finally {
+      setPivotDrillLoading(false);
+    }
+  };
+
+  const closePivotDrill = () => {
+    setPivotDrillOpen(false);
+    setPivotDrillStatus('');
+    setPivotDrillDelivery(undefined);
+    setPivotDrillMonth(null);
+    setPivotDrillRows(null);
+    setPivotDrillError(null);
+    setPivotDrillSearch('');
+    setPivotDrillPage(1);
   };
 
   const fetchGoal = async () => {
@@ -400,6 +453,7 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => { setDrillPage(1); }, [drillStatus, drillMonth, drillSearch]);
+  useEffect(() => { setPivotDrillPage(1); }, [pivotDrillStatus, pivotDrillDelivery, pivotDrillMonth, pivotDrillSearch]);
   useEffect(() => { setSellerTablePage(1); }, [sellerSearch]);
   useEffect(() => { setSellerDrillPage(1); }, [sellerDrillId, sellerDrillStartDate, sellerDrillEndDate, sellerDrillStatus, sellerDrillPo]);
 
@@ -546,6 +600,27 @@ export default function OrderStatusDashboard() {
     const startIdx = (safePage - 1) * PAGE_SIZE;
     const endIdx = Math.min(startIdx + PAGE_SIZE, filteredSellerDrillRows.length);
     return { totalPages, safePage, startIdx, endIdx, rows: filteredSellerDrillRows.slice(startIdx, endIdx) };
+  })();
+
+  const filteredPivotDrillRows = (() => {
+    if (!pivotDrillRows) return null;
+    const q = pivotDrillSearch.trim().toLowerCase();
+    if (!q) return pivotDrillRows;
+    return pivotDrillRows.filter(
+      (r) =>
+        (r.poNumber || '').toLowerCase().includes(q) ||
+        (r.buyerPhone || '').toLowerCase().includes(q) ||
+        (r.sellerPhone || '').toLowerCase().includes(q)
+    );
+  })();
+
+  const pivotDrillPaged = (() => {
+    if (!filteredPivotDrillRows) return null;
+    const totalPages = Math.max(1, Math.ceil(filteredPivotDrillRows.length / PAGE_SIZE));
+    const safePage = Math.min(Math.max(1, pivotDrillPage), totalPages);
+    const startIdx = (safePage - 1) * PAGE_SIZE;
+    const endIdx = Math.min(startIdx + PAGE_SIZE, filteredPivotDrillRows.length);
+    return { totalPages, safePage, startIdx, endIdx, rows: filteredPivotDrillRows.slice(startIdx, endIdx) };
   })();
 
   const timestamp = mounted ? new Date().toLocaleString() : '';
@@ -895,21 +970,37 @@ export default function OrderStatusDashboard() {
                             const month = idx + 1;
                             const cell = row.months[month];
                             const hasData = cell && cell.count > 0;
+                            const handleClick = (e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              if (hasData) openPivotDrill(row.status, undefined, month);
+                            };
                             return (
                               <Fragment key={month}>
-                                <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>
+                                <td
+                                  onClick={handleClick}
+                                  className={`px-2 py-3 text-right tabular-nums transition-all duration-200 ${hasData ? 'text-white cursor-pointer hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_20px_rgba(217,70,239,0.6),0_0_18px_rgba(168,85,247,0.55)] hover:scale-110 transform-gpu relative' : 'text-white/30'}`}
+                                >
                                   {hasData ? cell.count.toLocaleString() : '—'}
                                 </td>
-                                <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200' : 'text-white/30'}`}>
+                                <td
+                                  onClick={handleClick}
+                                  className={`px-2 py-3 text-right tabular-nums border-r border-white/10 transition-all duration-200 ${hasData ? 'text-purple-200 cursor-pointer hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_20px_rgba(217,70,239,0.6),0_0_18px_rgba(168,85,247,0.55)] hover:scale-110 transform-gpu relative' : 'text-white/30'}`}
+                                >
                                   {hasData ? formatAmount(cell.amount) : '—'}
                                 </td>
                               </Fragment>
                             );
                           })}
-                          <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10">
+                          <td
+                            onClick={(e) => { e.stopPropagation(); openPivotDrill(row.status, undefined, null); }}
+                            className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:shadow-[inset_0_0_20px_rgba(217,70,239,0.7),0_0_22px_rgba(168,85,247,0.6)] hover:scale-110 transform-gpu relative"
+                          >
                             {row.total.count.toLocaleString()}
                           </td>
-                          <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10">
+                          <td
+                            onClick={(e) => { e.stopPropagation(); openPivotDrill(row.status, undefined, null); }}
+                            className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:shadow-[inset_0_0_20px_rgba(217,70,239,0.7),0_0_22px_rgba(168,85,247,0.6)] hover:scale-110 transform-gpu relative"
+                          >
                             {formatAmount(row.total.amount)}
                           </td>
                         </tr>
@@ -928,21 +1019,37 @@ export default function OrderStatusDashboard() {
                               const month = idx + 1;
                               const cell = sub.months[month];
                               const hasData = cell && cell.count > 0;
+                              const handleClick = (e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                if (hasData) openPivotDrill(row.status, sub.deliveryStatus, month);
+                              };
                               return (
                                 <Fragment key={month}>
-                                  <td className={`px-2 py-2.5 text-right text-xs tabular-nums ${hasData ? 'text-purple-100' : 'text-white/20'}`}>
+                                  <td
+                                    onClick={handleClick}
+                                    className={`px-2 py-2.5 text-right text-xs tabular-nums transition-all duration-200 ${hasData ? 'text-purple-100 cursor-pointer hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_18px_rgba(217,70,239,0.55),0_0_16px_rgba(168,85,247,0.5)] hover:scale-110 transform-gpu relative' : 'text-white/20'}`}
+                                  >
                                     {hasData ? cell.count.toLocaleString() : '—'}
                                   </td>
-                                  <td className={`px-2 py-2.5 text-right text-xs tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200/80' : 'text-white/20'}`}>
+                                  <td
+                                    onClick={handleClick}
+                                    className={`px-2 py-2.5 text-right text-xs tabular-nums border-r border-white/10 transition-all duration-200 ${hasData ? 'text-purple-200/80 cursor-pointer hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_18px_rgba(217,70,239,0.55),0_0_16px_rgba(168,85,247,0.5)] hover:scale-110 transform-gpu relative' : 'text-white/20'}`}
+                                  >
                                     {hasData ? formatAmount(cell.amount) : '—'}
                                   </td>
                                 </Fragment>
                               );
                             })}
-                            <td className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-100 bg-purple-500/5">
+                            <td
+                              onClick={(e) => { e.stopPropagation(); openPivotDrill(row.status, sub.deliveryStatus, null); }}
+                              className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-100 bg-purple-500/5 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_18px_rgba(217,70,239,0.6),0_0_18px_rgba(168,85,247,0.55)] hover:scale-110 transform-gpu relative"
+                            >
                               {sub.total.count.toLocaleString()}
                             </td>
-                            <td className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-200/80 bg-purple-500/5 border-r border-white/10">
+                            <td
+                              onClick={(e) => { e.stopPropagation(); openPivotDrill(row.status, sub.deliveryStatus, null); }}
+                              className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-200/80 bg-purple-500/5 border-r border-white/10 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_18px_rgba(217,70,239,0.6),0_0_18px_rgba(168,85,247,0.55)] hover:scale-110 transform-gpu relative"
+                            >
                               {formatAmount(sub.total.amount)}
                             </td>
                           </tr>
@@ -1545,6 +1652,131 @@ export default function OrderStatusDashboard() {
                   metric={stateMetric}
                   selectedState={districtSelectedState}
                 />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Status × Delivery Status Drilldown Modal */}
+        {pivotDrillOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={closePivotDrill}
+          >
+            <div
+              className="bg-white text-slate-900 border border-slate-200 rounded-2xl max-w-7xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-purple-50">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">
+                    {pivotDrillStatus}
+                    {pivotDrillDelivery !== undefined && (
+                      <span className="text-slate-500 text-base font-normal"> → </span>
+                    )}
+                    {pivotDrillDelivery !== undefined && (
+                      <span className="text-fuchsia-600 text-base font-semibold">
+                        {pivotDrillDelivery ?? '(no delivery status)'}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-slate-500 text-sm mt-0.5">
+                    {pivotDrillMonth ? `${MONTH_NAMES[pivotDrillMonth - 1]} ${currentYear}` : `${currentYear} (all months)`}
+                    {' · '}
+                    {pivotDrillLoading
+                      ? 'Loading…'
+                      : pivotDrillRows
+                      ? `${filteredPivotDrillRows?.length ?? 0} of ${pivotDrillRows.length} order${pivotDrillRows.length === 1 ? '' : 's'}`
+                      : ''}
+                  </p>
+                </div>
+                <button
+                  onClick={closePivotDrill}
+                  className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="px-6 py-3 border-b border-slate-200 bg-white">
+                <input
+                  type="text"
+                  value={pivotDrillSearch}
+                  onChange={(e) => setPivotDrillSearch(e.target.value)}
+                  placeholder="Search by PO number, buyer phone, or seller phone..."
+                  className="w-full px-4 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                />
+              </div>
+              <div className="flex-1 overflow-auto">
+                {pivotDrillLoading ? (
+                  <div className="px-6 py-12 text-center text-slate-500">Loading orders…</div>
+                ) : pivotDrillError ? (
+                  <div className="px-6 py-12 text-center text-rose-600">{pivotDrillError}</div>
+                ) : !pivotDrillRows || pivotDrillRows.length === 0 ? (
+                  <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
+                ) : !filteredPivotDrillRows || filteredPivotDrillRows.length === 0 ? (
+                  <div className="px-6 py-12 text-center text-slate-500">No matches for &ldquo;{pivotDrillSearch}&rdquo;</div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-slate-100 z-10">
+                      <tr className="border-b border-slate-200">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Delivery Status</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Business</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer State</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Created At</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r) => (
+                        <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="px-4 py-3 text-slate-900 tabular-nums font-medium">{r.poNumber}</td>
+                          <td className="px-4 py-3 text-slate-700">{r.status}</td>
+                          <td className="px-4 py-3 text-slate-700">{r.deliveryStatus ?? <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                          <td className="px-4 py-3 text-slate-700 tabular-nums">{r.buyerPhone || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700 tabular-nums">{r.sellerPhone || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700">{r.buyerState || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              {pivotDrillPaged && filteredPivotDrillRows && filteredPivotDrillRows.length > 0 && (
+                <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-sm text-slate-600 flex-wrap gap-2">
+                  <div>
+                    Showing <span className="font-semibold text-slate-900">{pivotDrillPaged.startIdx + 1}</span>–<span className="font-semibold text-slate-900">{pivotDrillPaged.endIdx}</span> of <span className="font-semibold text-slate-900">{filteredPivotDrillRows.length}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPivotDrillPage((p) => Math.max(1, p - 1))}
+                      disabled={pivotDrillPaged.safePage <= 1}
+                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Prev
+                    </button>
+                    <span className="px-2 text-slate-500">
+                      Page <span className="text-slate-900 font-semibold">{pivotDrillPaged.safePage}</span> of {pivotDrillPaged.totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPivotDrillPage((p) => Math.min(pivotDrillPaged.totalPages, p + 1))}
+                      disabled={pivotDrillPaged.safePage >= pivotDrillPaged.totalPages}
+                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>

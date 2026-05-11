@@ -1420,10 +1420,11 @@ export default function OrderStatusDashboard() {
                 const paged = filtered.slice(startIdx, endIdx);
                 return (
                   <Fragment>
+                  <div className="overflow-auto max-h-[520px]">
                   <table className="w-full text-sm">
-                    <thead>
+                    <thead className="sticky top-0 z-20">
                       <tr className="bg-white/5 border-b border-white/10">
-                        <th rowSpan={2} className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[260px]">
+                        <th rowSpan={2} className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/95 backdrop-blur z-30 border-r border-white/10 min-w-[260px]">
                           Seller
                         </th>
                         {sellerData.statuses.map((st) => (
@@ -1507,6 +1508,7 @@ export default function OrderStatusDashboard() {
                       </tr>
                     </tbody>
                   </table>
+                  </div>
                   <div className="px-8 py-4 border-t border-white/10 bg-white/5 flex items-center justify-between text-sm text-purple-200 flex-wrap gap-3">
                     <div>
                       Showing <span className="font-semibold text-white">{startIdx + 1}</span>–<span className="font-semibold text-white">{endIdx}</span> of <span className="font-semibold text-white">{filtered.length}</span>

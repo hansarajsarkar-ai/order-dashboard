@@ -12,7 +12,7 @@ export default function LoginPage() {
   // If already logged in, bounce to dashboard
   useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('authToken')) {
-      router.replace('/');
+      router.replace('/badho');
     }
   }, [router]);
 
@@ -41,7 +41,7 @@ export default function LoginPage() {
       localStorage.setItem('employeeId', data.employeeId);
       localStorage.setItem('employeeName', data.employeeName);
       localStorage.setItem('employeeEmail', data.email);
-      router.replace('/');
+      router.replace('/badho');
     } catch (err) {
       console.error(err);
       setError('Something went wrong. Please try again.');

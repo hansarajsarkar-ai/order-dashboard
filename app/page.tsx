@@ -73,6 +73,24 @@ interface DailyStatusData {
   daysInMonth: number;
 }
 
+interface WeeklyStatusRow {
+  status: string;
+  weeks: Record<string, MonthCell>;
+  total: MonthCell;
+}
+
+interface WeeklyStatusData {
+  data: WeeklyStatusRow[];
+  weeks: number[];
+  weekStartLabels: Record<string, string>;
+  totals: {
+    byWeek: Record<string, MonthCell>;
+    byStatus: Record<string, MonthCell>;
+    grand: MonthCell;
+  };
+  year: number;
+}
+
 interface DeliverySubRow {
   deliveryStatus: string | null;
   months: Record<string, MonthCell>;
@@ -213,11 +231,13 @@ export default function OrderStatusDashboard() {
   const yearEnd = `${currentYear}-12-31`;
 
   const [monthlyData, setMonthlyData] = useState<MonthlyStatusData | null>(null);
-  // Monthly Breakdown view toggle: 'month' (default) or 'day' (drilled into one month)
-  const [breakdownGranularity, setBreakdownGranularity] = useState<'month' | 'day'>('month');
+  // Monthly Breakdown view toggle: 'month' (default), 'week', or 'day'
+  const [breakdownGranularity, setBreakdownGranularity] = useState<'month' | 'week' | 'day'>('month');
   const [breakdownMonth, setBreakdownMonth] = useState<number>(new Date().getMonth() + 1);
   const [dailyData, setDailyData] = useState<DailyStatusData | null>(null);
   const [dailyLoading, setDailyLoading] = useState(false);
+  const [weeklyData, setWeeklyData] = useState<WeeklyStatusData | null>(null);
+  const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [monthlyLoading, setMonthlyLoading] = useState(true);
   const [pivotData, setPivotData] = useState<MonthlyStatusDeliveryData | null>(null);
   const [pivotLoading, setPivotLoading] = useState(true);
@@ -344,6 +364,27 @@ export default function OrderStatusDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [breakdownGranularity, breakdownMonth]);
+
+  const fetchWeekly = async () => {
+    try {
+      setWeeklyLoading(true);
+      const response = await fetch(`/api/order-weekly-status?year=${currentYear}`);
+      if (!response.ok) throw new Error('Failed to fetch weekly data');
+      const result: WeeklyStatusData = await response.json();
+      setWeeklyData(result);
+    } catch (err) {
+      console.error('Weekly fetch error:', err);
+    } finally {
+      setWeeklyLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (breakdownGranularity === 'week' && !weeklyData) {
+      fetchWeekly();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breakdownGranularity]);
 
   const fetchPivot = async () => {
     try {
@@ -894,13 +935,15 @@ export default function OrderStatusDashboard() {
               <p className="text-purple-300 text-sm mt-1">
                 {breakdownGranularity === 'month'
                   ? `Order count & revenue by status across ${currentYear}`
+                  : breakdownGranularity === 'week'
+                  ? `Order count & revenue by status — ${currentYear}, week by week (ISO week)`
                   : `Order count & revenue by status — ${MONTH_NAMES[breakdownMonth - 1]} ${currentYear}, day by day`}
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Month / Day toggle */}
+              {/* Month / Week / Day toggle */}
               <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
-                {(['month', 'day'] as const).map((g) => {
+                {(['month', 'week', 'day'] as const).map((g) => {
                   const active = breakdownGranularity === g;
                   return (
                     <button
@@ -912,7 +955,7 @@ export default function OrderStatusDashboard() {
                           : 'text-purple-200 hover:bg-white/10'
                       }`}
                     >
-                      {g === 'month' ? 'Month' : 'Day'}
+                      {g === 'month' ? 'Month' : g === 'week' ? 'Week' : 'Day'}
                     </button>
                   );
                 })}
@@ -993,6 +1036,40 @@ export default function OrderStatusDashboard() {
                     });
                     rows.push(['Total', ...totalsCells, dailyData.totals.grand.count, dailyData.totals.grand.amount]);
                     downloadCSV(`daily-breakdown-${MONTH_NAMES[dailyData.month - 1]}-${currentYear}.csv`, headers, rows);
+                  }}
+                >
+                  ↓ CSV
+                </button>
+              </div>
+            )}
+            {breakdownGranularity === 'week' && weeklyData && (
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-right">
+                  <div className="text-purple-300">Total Orders</div>
+                  <div className="text-white font-bold text-lg">{weeklyData.totals.grand.count.toLocaleString()}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-purple-300">Total Order Value</div>
+                  <div className="text-white font-bold text-lg">{formatAmount(weeklyData.totals.grand.amount)}</div>
+                </div>
+                <button
+                  className={DOWNLOAD_BTN_CLASS}
+                  onClick={() => {
+                    const weeks = weeklyData.weeks;
+                    const headers = ['Status', ...weeks.flatMap((w) => [`W${w} Count`, `W${w} Amount`]), 'Total Count', 'Total Amount'];
+                    const rows = weeklyData.data.map((row) => {
+                      const weekCells = weeks.flatMap((w) => {
+                        const c = row.weeks[w];
+                        return [c?.count ?? 0, c?.amount ?? 0];
+                      });
+                      return [row.status, ...weekCells, row.total.count, row.total.amount];
+                    });
+                    const totalsCells = weeks.flatMap((w) => {
+                      const c = weeklyData.totals.byWeek[w];
+                      return [c?.count ?? 0, c?.amount ?? 0];
+                    });
+                    rows.push(['Total', ...totalsCells, weeklyData.totals.grand.count, weeklyData.totals.grand.amount]);
+                    downloadCSV(`weekly-breakdown-${currentYear}.csv`, headers, rows);
                   }}
                 >
                   ↓ CSV
@@ -1114,6 +1191,107 @@ export default function OrderStatusDashboard() {
             )}
             </>
             )}
+            {breakdownGranularity === 'week' && (() => {
+              if (weeklyLoading) {
+                return (
+                  <div className="px-8 py-12 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+                      <p className="text-purple-300">Loading weekly data…</p>
+                    </div>
+                  </div>
+                );
+              }
+              if (!weeklyData || weeklyData.data.length === 0) {
+                return <div className="px-8 py-12 text-center text-purple-300">No weekly data available</div>;
+              }
+              const weeks = weeklyData.weeks;
+              return (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th rowSpan={2} className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[160px]">
+                        Status
+                      </th>
+                      {weeks.map((w) => (
+                        <th key={w} colSpan={2} className="px-2 py-2 text-center text-xs font-semibold text-purple-200 border-r border-white/10">
+                          <div>W{w}</div>
+                          <div className="text-[9px] font-normal text-purple-300/70">{weeklyData.weekStartLabels[w] || ''}</div>
+                        </th>
+                      ))}
+                      <th colSpan={2} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">
+                        Total
+                      </th>
+                    </tr>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      {[...weeks, 'total' as const].map((w, i) => {
+                        const isTotal = w === 'total';
+                        return (
+                          <Fragment key={String(w) + i}>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Count</th>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium border-r border-white/10 ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Amount</th>
+                          </Fragment>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyData.data.map((row) => (
+                      <tr key={row.status} className="border-b border-white/5 hover:bg-white/10 transition-colors group">
+                        <td className="px-4 py-3 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 text-white text-sm font-medium">
+                          {row.status}
+                        </td>
+                        {weeks.map((w) => {
+                          const cell = row.weeks[w];
+                          const hasData = cell && cell.count > 0;
+                          return (
+                            <Fragment key={w}>
+                              <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>
+                                {hasData ? cell.count.toLocaleString() : '—'}
+                              </td>
+                              <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200' : 'text-white/30'}`}>
+                                {hasData ? formatAmount(cell.amount) : '—'}
+                              </td>
+                            </Fragment>
+                          );
+                        })}
+                        <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10">
+                          {row.total.count.toLocaleString()}
+                        </td>
+                        <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10">
+                          {formatAmount(row.total.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-t-2 border-purple-400/40 font-bold">
+                      <td className="px-4 py-3 sticky left-0 bg-slate-900/95 backdrop-blur z-10 border-r border-white/10 text-white">
+                        Total
+                      </td>
+                      {weeks.map((w) => {
+                        const cell = weeklyData.totals.byWeek[w];
+                        const hasData = cell && cell.count > 0;
+                        return (
+                          <Fragment key={w}>
+                            <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>
+                              {hasData ? cell.count.toLocaleString() : '—'}
+                            </td>
+                            <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-100' : 'text-white/30'}`}>
+                              {hasData ? formatAmount(cell.amount) : '—'}
+                            </td>
+                          </Fragment>
+                        );
+                      })}
+                      <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30">
+                        {weeklyData.totals.grand.count.toLocaleString()}
+                      </td>
+                      <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10">
+                        {formatAmount(weeklyData.totals.grand.amount)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              );
+            })()}
             {breakdownGranularity === 'day' && (() => {
               if (dailyLoading) {
                 return (

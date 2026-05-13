@@ -55,6 +55,24 @@ interface MonthlyStatusData {
   year: number;
 }
 
+interface DailyStatusRow {
+  status: string;
+  days: Record<string, MonthCell>;
+  total: MonthCell;
+}
+
+interface DailyStatusData {
+  data: DailyStatusRow[];
+  totals: {
+    byDay: Record<string, MonthCell>;
+    byStatus: Record<string, MonthCell>;
+    grand: MonthCell;
+  };
+  year: number;
+  month: number;
+  daysInMonth: number;
+}
+
 interface DeliverySubRow {
   deliveryStatus: string | null;
   months: Record<string, MonthCell>;
@@ -195,6 +213,11 @@ export default function OrderStatusDashboard() {
   const yearEnd = `${currentYear}-12-31`;
 
   const [monthlyData, setMonthlyData] = useState<MonthlyStatusData | null>(null);
+  // Monthly Breakdown view toggle: 'month' (default) or 'day' (drilled into one month)
+  const [breakdownGranularity, setBreakdownGranularity] = useState<'month' | 'day'>('month');
+  const [breakdownMonth, setBreakdownMonth] = useState<number>(new Date().getMonth() + 1);
+  const [dailyData, setDailyData] = useState<DailyStatusData | null>(null);
+  const [dailyLoading, setDailyLoading] = useState(false);
   const [monthlyLoading, setMonthlyLoading] = useState(true);
   const [pivotData, setPivotData] = useState<MonthlyStatusDeliveryData | null>(null);
   const [pivotLoading, setPivotLoading] = useState(true);
@@ -300,6 +323,27 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     fetchMonthly();
   }, []);
+
+  const fetchDaily = async (month: number) => {
+    try {
+      setDailyLoading(true);
+      const response = await fetch(`/api/order-daily-status?year=${currentYear}&month=${month}`);
+      if (!response.ok) throw new Error('Failed to fetch daily data');
+      const result: DailyStatusData = await response.json();
+      setDailyData(result);
+    } catch (err) {
+      console.error('Daily fetch error:', err);
+    } finally {
+      setDailyLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (breakdownGranularity === 'day') {
+      fetchDaily(breakdownMonth);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breakdownGranularity, breakdownMonth]);
 
   const fetchPivot = async () => {
     try {
@@ -847,9 +891,48 @@ export default function OrderStatusDashboard() {
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
               <h2 className="text-2xl font-bold text-white">Monthly Breakdown by Status</h2>
-              <p className="text-purple-300 text-sm mt-1">Order count & revenue by status across {currentYear}</p>
+              <p className="text-purple-300 text-sm mt-1">
+                {breakdownGranularity === 'month'
+                  ? `Order count & revenue by status across ${currentYear}`
+                  : `Order count & revenue by status — ${MONTH_NAMES[breakdownMonth - 1]} ${currentYear}, day by day`}
+              </p>
             </div>
-            {monthlyData && (
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Month / Day toggle */}
+              <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                {(['month', 'day'] as const).map((g) => {
+                  const active = breakdownGranularity === g;
+                  return (
+                    <button
+                      key={g}
+                      onClick={() => setBreakdownGranularity(g)}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        active
+                          ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.5)]'
+                          : 'text-purple-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {g === 'month' ? 'Month' : 'Day'}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Month picker — only visible in day mode */}
+              {breakdownGranularity === 'day' && (
+                <select
+                  value={breakdownMonth}
+                  onChange={(e) => setBreakdownMonth(parseInt(e.target.value))}
+                  className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                >
+                  {MONTH_NAMES.map((name, i) => (
+                    <option key={i} value={i + 1} className="bg-slate-900">
+                      {name} {currentYear}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {breakdownGranularity === 'month' && monthlyData && (
               <div className="flex items-center gap-6 text-sm">
                 <div className="text-right">
                   <div className="text-purple-300">Total Orders</div>
@@ -882,8 +965,44 @@ export default function OrderStatusDashboard() {
                 </button>
               </div>
             )}
+            {breakdownGranularity === 'day' && dailyData && (
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-right">
+                  <div className="text-purple-300">Total Orders</div>
+                  <div className="text-white font-bold text-lg">{dailyData.totals.grand.count.toLocaleString()}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-purple-300">Total Order Value</div>
+                  <div className="text-white font-bold text-lg">{formatAmount(dailyData.totals.grand.amount)}</div>
+                </div>
+                <button
+                  className={DOWNLOAD_BTN_CLASS}
+                  onClick={() => {
+                    const days = Array.from({ length: dailyData.daysInMonth }, (_, i) => i + 1);
+                    const headers = ['Status', ...days.flatMap((d) => [`Day ${d} Count`, `Day ${d} Amount`]), 'Total Count', 'Total Amount'];
+                    const rows = dailyData.data.map((row) => {
+                      const dayCells = days.flatMap((d) => {
+                        const c = row.days[d];
+                        return [c?.count ?? 0, c?.amount ?? 0];
+                      });
+                      return [row.status, ...dayCells, row.total.count, row.total.amount];
+                    });
+                    const totalsCells = days.flatMap((d) => {
+                      const c = dailyData.totals.byDay[d];
+                      return [c?.count ?? 0, c?.amount ?? 0];
+                    });
+                    rows.push(['Total', ...totalsCells, dailyData.totals.grand.count, dailyData.totals.grand.amount]);
+                    downloadCSV(`daily-breakdown-${MONTH_NAMES[dailyData.month - 1]}-${currentYear}.csv`, headers, rows);
+                  }}
+                >
+                  ↓ CSV
+                </button>
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto">
+            {breakdownGranularity === 'month' && (
+            <>
             {monthlyLoading ? (
               <div className="px-8 py-12 text-center">
                 <div className="flex flex-col items-center gap-3">
@@ -993,6 +1112,108 @@ export default function OrderStatusDashboard() {
                 </tbody>
               </table>
             )}
+            </>
+            )}
+            {breakdownGranularity === 'day' && (() => {
+              if (dailyLoading) {
+                return (
+                  <div className="px-8 py-12 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+                      <p className="text-purple-300">Loading day-by-day data…</p>
+                    </div>
+                  </div>
+                );
+              }
+              if (!dailyData || dailyData.data.length === 0) {
+                return <div className="px-8 py-12 text-center text-purple-300">No orders in {MONTH_NAMES[breakdownMonth - 1]} {currentYear}</div>;
+              }
+              const days = Array.from({ length: dailyData.daysInMonth }, (_, i) => i + 1);
+              return (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th rowSpan={2} className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[160px]">
+                        Status
+                      </th>
+                      {days.map((d) => (
+                        <th key={d} colSpan={2} className="px-2 py-2 text-center text-xs font-semibold text-purple-200 border-r border-white/10">
+                          {d}
+                        </th>
+                      ))}
+                      <th colSpan={2} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">
+                        Total
+                      </th>
+                    </tr>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      {[...days, 'total' as const].map((d, i) => {
+                        const isTotal = d === 'total';
+                        return (
+                          <Fragment key={String(d) + i}>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Count</th>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium border-r border-white/10 ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Amount</th>
+                          </Fragment>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dailyData.data.map((row) => (
+                      <tr key={row.status} className="border-b border-white/5 hover:bg-white/10 transition-colors group">
+                        <td className="px-4 py-3 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 text-white text-sm font-medium">
+                          {row.status}
+                        </td>
+                        {days.map((d) => {
+                          const cell = row.days[d];
+                          const hasData = cell && cell.count > 0;
+                          return (
+                            <Fragment key={d}>
+                              <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>
+                                {hasData ? cell.count.toLocaleString() : '—'}
+                              </td>
+                              <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200' : 'text-white/30'}`}>
+                                {hasData ? formatAmount(cell.amount) : '—'}
+                              </td>
+                            </Fragment>
+                          );
+                        })}
+                        <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10">
+                          {row.total.count.toLocaleString()}
+                        </td>
+                        <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10">
+                          {formatAmount(row.total.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-t-2 border-purple-400/40 font-bold">
+                      <td className="px-4 py-3 sticky left-0 bg-slate-900/95 backdrop-blur z-10 border-r border-white/10 text-white">
+                        Total
+                      </td>
+                      {days.map((d) => {
+                        const cell = dailyData.totals.byDay[d];
+                        const hasData = cell && cell.count > 0;
+                        return (
+                          <Fragment key={d}>
+                            <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>
+                              {hasData ? cell.count.toLocaleString() : '—'}
+                            </td>
+                            <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-100' : 'text-white/30'}`}>
+                              {hasData ? formatAmount(cell.amount) : '—'}
+                            </td>
+                          </Fragment>
+                        );
+                      })}
+                      <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30">
+                        {dailyData.totals.grand.count.toLocaleString()}
+                      </td>
+                      <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10">
+                        {formatAmount(dailyData.totals.grand.amount)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              );
+            })()}
           </div>
         </div>
 

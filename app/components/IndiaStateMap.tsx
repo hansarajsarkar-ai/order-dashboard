@@ -229,12 +229,13 @@ export default function IndiaStateMap({ data, metric, onStateClick }: Props) {
                     />
                   );
                 })}
-                {/* Value labels — rendered on top so they're not occluded */}
+                {/* Labels — every state gets its 2-letter code; states with
+                    data also get the metric value on a second line. */}
                 {geographies.map((g) => {
                   const name = g.properties.ST_NM;
                   const row = byGeoName.get(name);
                   const value = row?.[metric] || 0;
-                  if (value <= 0) return null;
+                  const hasData = value > 0;
                   // d3-geo expects a Feature; the rsm Geography object is shaped like one.
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const [lng, lat] = geoCentroid(g as any);
@@ -245,17 +246,17 @@ export default function IndiaStateMap({ data, metric, onStateClick }: Props) {
                       key={`label-${g.rsmKey}`}
                       coordinates={[lng + off[0], lat + off[1]]}
                     >
-                      {/* State code — first line, bolder */}
+                      {/* State code — first line, bolder. Dim for states with no data. */}
                       <text
                         textAnchor="middle"
                         dominantBaseline="central"
-                        y={-6}
+                        y={hasData ? -6 : 0}
                         style={{
                           fontFamily: 'system-ui, -apple-system, sans-serif',
                           fontSize: 10,
                           fontWeight: 800,
                           letterSpacing: '0.04em',
-                          fill: '#fff',
+                          fill: hasData ? '#fff' : 'rgba(255,255,255,0.55)',
                           paintOrder: 'stroke',
                           stroke: '#000',
                           strokeWidth: 2.5,
@@ -267,27 +268,29 @@ export default function IndiaStateMap({ data, metric, onStateClick }: Props) {
                       >
                         {code}
                       </text>
-                      {/* Metric value — second line, smaller */}
-                      <text
-                        textAnchor="middle"
-                        dominantBaseline="central"
-                        y={6}
-                        style={{
-                          fontFamily: 'system-ui, -apple-system, sans-serif',
-                          fontSize: 9,
-                          fontWeight: 600,
-                          fill: '#fde68a',
-                          paintOrder: 'stroke',
-                          stroke: '#000',
-                          strokeWidth: 2.5,
-                          strokeLinecap: 'round',
-                          strokeLinejoin: 'round',
-                          pointerEvents: 'none',
-                          userSelect: 'none',
-                        }}
-                      >
-                        {formatShort(value, metric)}
-                      </text>
+                      {/* Metric value — second line, only when there's data. */}
+                      {hasData && (
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          y={6}
+                          style={{
+                            fontFamily: 'system-ui, -apple-system, sans-serif',
+                            fontSize: 9,
+                            fontWeight: 600,
+                            fill: '#fde68a',
+                            paintOrder: 'stroke',
+                            stroke: '#000',
+                            strokeWidth: 2.5,
+                            strokeLinecap: 'round',
+                            strokeLinejoin: 'round',
+                            pointerEvents: 'none',
+                            userSelect: 'none',
+                          }}
+                        >
+                          {formatShort(value, metric)}
+                        </text>
+                      )}
                     </Marker>
                   );
                 })}

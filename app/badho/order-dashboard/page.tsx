@@ -2,9 +2,10 @@
 
 import { useEffect, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
-import IndiaStateMap, { type StateRow } from '@/app/components/IndiaStateMap';
-import IndiaDistrictMap, { type DistrictRow } from '@/app/components/IndiaDistrictMap';
+import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
+import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
 
 interface OrderListRow {
   poNumber: string;
@@ -806,8 +807,15 @@ export default function OrderStatusDashboard() {
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
 
       <div className="max-w-7xl mx-auto relative z-10">
-        {/* Top bar — signed-in user + logout */}
-        <div className="mb-6 flex items-center justify-end gap-3">
+        {/* Top bar — back to /badho + signed-in user + logout */}
+        <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
+          <Link
+            href="/badho"
+            className="text-xs font-semibold text-purple-200 hover:text-white px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+          >
+            ← All dashboards
+          </Link>
+          <div className="flex items-center gap-3">
           {employeeName && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
@@ -823,6 +831,7 @@ export default function OrderStatusDashboard() {
           >
             {isLoggingOut ? 'Signing out…' : 'Logout'}
           </button>
+          </div>
         </div>
 
         {/* Tabs */}

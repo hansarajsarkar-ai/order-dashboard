@@ -1,5 +1,35 @@
 'use client';
 
+/**
+ * ─────────────────────────────────────────────────────────────────────
+ *  BADHO DASHBOARDS — index page
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ *  Folder layout convention:
+ *
+ *    app/
+ *      page.tsx                       → redirect to /badho
+ *      login/page.tsx                 → shared auth (success → /badho)
+ *      api/<dashboard-slug>/...       → dashboard-specific API routes
+ *      badho/
+ *        page.tsx                     → this file (the index)
+ *        _template/                   → starter scaffold for new dashboards
+ *                                       (the leading _ keeps it un-routed)
+ *        <dashboard-slug>/
+ *          page.tsx                   → the dashboard page
+ *          components/                → components only this dashboard uses
+ *
+ *  To add a new dashboard:
+ *    1. cp -r app/badho/_template app/badho/<your-slug>
+ *    2. Build the dashboard in app/badho/<your-slug>/page.tsx
+ *    3. Add an entry to the DASHBOARDS array below
+ *    4. (optional) put dashboard-only APIs at app/api/<your-slug>/...
+ *
+ *  The slug here MUST match the folder name. The card on this index
+ *  links to /badho/<slug>.
+ * ─────────────────────────────────────────────────────────────────────
+ */
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -12,7 +42,6 @@ interface DashboardEntry {
   status: 'live' | 'coming-soon';
 }
 
-// Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 const DASHBOARDS: DashboardEntry[] = [
   {
     slug: 'order-dashboard',
@@ -22,7 +51,7 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '📊',
     status: 'live',
   },
-  // Future dashboards: just add an entry here and drop the route at app/badho/<slug>/page.tsx
+  // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 
 export default function BadhoIndex() {

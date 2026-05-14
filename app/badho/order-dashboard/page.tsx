@@ -331,7 +331,7 @@ export default function OrderStatusDashboard() {
   const [sellerDrillEndDate, setSellerDrillEndDate] = useState<string>('');
   const [sellerDrillStatus, setSellerDrillStatus] = useState<string>('all');
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'seller' | 'demography'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'seller' | 'demography'>('dashboard');
   const [drillStatus, setDrillStatus] = useState<string | null>(null);
   const [drillMonth, setDrillMonth] = useState<number | null>(null);
   const [drillRows, setDrillRows] = useState<OrderListRow[] | null>(null);
@@ -921,6 +921,7 @@ export default function OrderStatusDashboard() {
         <div className="mb-8 flex gap-2 p-1.5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl w-fit">
           {([
             { key: 'dashboard', label: 'Dashboard' },
+            { key: 'trend', label: 'Trend' },
             { key: 'seller', label: 'Seller wise' },
             { key: 'demography', label: 'Demography' },
           ] as const).map((tab) => {
@@ -1527,9 +1528,13 @@ export default function OrderStatusDashboard() {
             })()}
           </div>
         </div>
+        </>
+        )}
 
+        {activeTab === 'trend' && (
+        <>
         {/* Monthly Trend & Growth — Status × Month, share-of-mix with pp delta */}
-        <div className="mt-8 bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 flex items-center justify-between flex-wrap gap-4">
             <div>
               <h2 className="text-2xl font-bold text-white">Monthly Trend & Growth</h2>

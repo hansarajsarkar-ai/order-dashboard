@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   ResponsiveContainer,
   RadialBarChart, RadialBar, PolarAngleAxis,
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, LabelList,
 } from 'recharts';
 import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
 import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
@@ -1740,7 +1740,35 @@ export default function OrderStatusDashboard() {
                     strokeWidth={2}
                     fill="url(#gradOrders)"
                     activeDot={{ r: 5 }}
-                  />
+                    dot={{ r: 2.5, fill: '#d946ef', stroke: '#1e1b4b', strokeWidth: 1 }}
+                  >
+                    <LabelList
+                      dataKey={trendMetric === 'count' ? 'ordersCount' : 'ordersAmount'}
+                      position="top"
+                      offset={10}
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        if (trendMetric === 'amount') {
+                          if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+                          if (n >= 100000)   return `₹${(n / 100000).toFixed(1)}L`;
+                          if (n >= 1000)     return `₹${(n / 1000).toFixed(0)}K`;
+                          return `₹${n}`;
+                        }
+                        if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+                        return String(n);
+                      }}
+                      style={{
+                        fill: '#fdf4ff',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        paintOrder: 'stroke',
+                        stroke: '#000',
+                        strokeWidth: 2,
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'round',
+                      }}
+                    />
+                  </Area>
                   <Area
                     type="monotone"
                     dataKey={trendMetric === 'count' ? 'deliveredCount' : 'deliveredAmount'}
@@ -1749,7 +1777,35 @@ export default function OrderStatusDashboard() {
                     strokeWidth={2}
                     fill="url(#gradDelivered)"
                     activeDot={{ r: 5 }}
-                  />
+                    dot={{ r: 2.5, fill: '#10b981', stroke: '#1e1b4b', strokeWidth: 1 }}
+                  >
+                    <LabelList
+                      dataKey={trendMetric === 'count' ? 'deliveredCount' : 'deliveredAmount'}
+                      position="bottom"
+                      offset={10}
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        if (trendMetric === 'amount') {
+                          if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+                          if (n >= 100000)   return `₹${(n / 100000).toFixed(1)}L`;
+                          if (n >= 1000)     return `₹${(n / 1000).toFixed(0)}K`;
+                          return `₹${n}`;
+                        }
+                        if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+                        return String(n);
+                      }}
+                      style={{
+                        fill: '#d1fae5',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        paintOrder: 'stroke',
+                        stroke: '#000',
+                        strokeWidth: 2,
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'round',
+                      }}
+                    />
+                  </Area>
                 </AreaChart>
               </ResponsiveContainer>
             )}

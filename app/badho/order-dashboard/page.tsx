@@ -3,7 +3,11 @@
 import { useEffect, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
+import {
+  ResponsiveContainer,
+  RadialBarChart, RadialBar, PolarAngleAxis,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area,
+} from 'recharts';
 import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
 import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
 
@@ -332,6 +336,14 @@ export default function OrderStatusDashboard() {
   const [sellerDrillStatus, setSellerDrillStatus] = useState<string>('all');
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'seller' | 'demography'>('dashboard');
+  // Trend tab — daily order trend chart
+  interface DailyTrendPoint { day: string; ordersCount: number; ordersAmount: number; deliveredCount: number; deliveredAmount: number; }
+  const [trendData, setTrendData] = useState<DailyTrendPoint[] | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendRange, setTrendRange] = useState<'7d' | '30d' | '90d' | 'all' | 'custom'>('30d');
+  const [trendCustomFrom, setTrendCustomFrom] = useState('');
+  const [trendCustomTo, setTrendCustomTo] = useState('');
+  const [trendMetric, setTrendMetric] = useState<'count' | 'amount'>('count');
   const [drillStatus, setDrillStatus] = useState<string | null>(null);
   const [drillMonth, setDrillMonth] = useState<number | null>(null);
   const [drillRows, setDrillRows] = useState<OrderListRow[] | null>(null);
@@ -487,6 +499,46 @@ export default function OrderStatusDashboard() {
     if (pivotGranularity === 'day') fetchPivotDaily(pivotDayMonth);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pivotGranularity, pivotDayMonth]);
+
+  // ── Trend tab — daily trend window ──────────────────────────────
+  const resolveTrendRange = (): { startDate: string | null; endDate: string | null } => {
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const map: Record<string, number | null> = { '7d': 7, '30d': 30, '90d': 90, all: null, custom: -1 };
+    const days = map[trendRange];
+    if (typeof days === 'number' && days > 0) {
+      const start = new Date(today);
+      start.setDate(start.getDate() - days + 1);
+      return { startDate: fmt(start), endDate: fmt(today) };
+    }
+    if (trendRange === 'custom') return { startDate: trendCustomFrom || null, endDate: trendCustomTo || null };
+    return { startDate: null, endDate: null };
+  };
+
+  const fetchTrend = async () => {
+    try {
+      setTrendLoading(true);
+      const { startDate, endDate } = resolveTrendRange();
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const res = await fetch(`/api/order-daily-trend${params.toString() ? `?${params}` : ''}`);
+      if (!res.ok) throw new Error('Failed to fetch trend');
+      const json = await res.json();
+      setTrendData(json.data);
+    } catch (err) {
+      console.error('Trend fetch error:', err);
+      setTrendData([]);
+    } finally {
+      setTrendLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'trend') return;
+    fetchTrend();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, trendRange, trendCustomFrom, trendCustomTo]);
 
   const toggleStatusExpansion = (status: string) => {
     setExpandedStatuses((prev) => {
@@ -1533,6 +1585,177 @@ export default function OrderStatusDashboard() {
 
         {activeTab === 'trend' && (
         <>
+        {/* Daily Order Trend — line chart */}
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Daily Order Trend</h2>
+              <p className="text-purple-300 text-sm mt-1">
+                Per-day {trendMetric === 'count' ? 'order count' : 'order value'} —
+                <span className="text-fuchsia-300"> all non-DRAFT</span> vs <span className="text-emerald-300">delivered + completed</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* metric toggle */}
+              <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                {(['count', 'amount'] as const).map((m) => {
+                  const active = trendMetric === m;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setTrendMetric(m)}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        active
+                          ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.5)]'
+                          : 'text-purple-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {m === 'count' ? 'Orders' : 'Revenue'}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Date-range chips */}
+          <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Date</span>
+            {([
+              { key: '7d', label: 'Last 7 days' },
+              { key: '30d', label: 'Last 30 days' },
+              { key: '90d', label: 'Last 90 days' },
+              { key: 'all', label: `${currentYear} (full year)` },
+              { key: 'custom', label: 'Custom' },
+            ] as const).map((opt) => {
+              const active = trendRange === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setTrendRange(opt.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    active
+                      ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
+                      : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+            {trendRange === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input
+                  type="date"
+                  value={trendCustomFrom}
+                  onChange={(e) => setTrendCustomFrom(e.target.value)}
+                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+                <span className="text-purple-300 text-xs">to</span>
+                <input
+                  type="date"
+                  value={trendCustomTo}
+                  onChange={(e) => setTrendCustomTo(e.target.value)}
+                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+              </div>
+            )}
+            {trendData && trendData.length > 0 && (
+              <span className="ml-auto text-xs text-purple-300/80 tabular-nums">
+                {trendData.length} days · {trendData.reduce((s, d) => s + (trendMetric === 'count' ? d.ordersCount : d.ordersAmount), 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })} total {trendMetric === 'count' ? 'orders' : '₹'}
+              </span>
+            )}
+          </div>
+
+          {/* Chart */}
+          <div className="p-6">
+            {trendLoading || !trendData ? (
+              <div className="h-[360px] flex items-center justify-center text-purple-300">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+                  Loading trend…
+                </div>
+              </div>
+            ) : trendData.length === 0 ? (
+              <div className="h-[360px] flex items-center justify-center text-purple-300">No data in this range</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={360}>
+                <AreaChart data={trendData} margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
+                  <defs>
+                    <linearGradient id="gradOrders" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"  stopColor="#d946ef" stopOpacity={0.55} />
+                      <stop offset="100%" stopColor="#d946ef" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="gradDelivered" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"  stopColor="#10b981" stopOpacity={0.55} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                    tickFormatter={(d: string) => {
+                      const [, m, dd] = d.split('-');
+                      return `${dd}/${m}`;
+                    }}
+                    minTickGap={20}
+                  />
+                  <YAxis
+                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                    tickFormatter={(v: number) => {
+                      if (trendMetric === 'amount') {
+                        if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+                        if (v >= 100000)   return `₹${(v / 100000).toFixed(1)}L`;
+                        if (v >= 1000)     return `₹${(v / 1000).toFixed(0)}K`;
+                        return `₹${v}`;
+                      }
+                      if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+                      return String(v);
+                    }}
+                    width={70}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'rgba(15,23,42,0.95)',
+                      border: '1px solid rgba(217,70,239,0.4)',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 12,
+                    }}
+                    labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
+                    formatter={(value, name) => {
+                      const n = typeof value === 'number' ? value : Number(value ?? 0);
+                      const v = trendMetric === 'amount' ? formatAmount(n) : n.toLocaleString();
+                      return [v, String(name)];
+                    }}
+                    labelFormatter={(d) => `Date: ${d}`}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12, color: '#e9d5ff' }} />
+                  <Area
+                    type="monotone"
+                    dataKey={trendMetric === 'count' ? 'ordersCount' : 'ordersAmount'}
+                    name="Orders sent"
+                    stroke="#d946ef"
+                    strokeWidth={2}
+                    fill="url(#gradOrders)"
+                    activeDot={{ r: 5 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey={trendMetric === 'count' ? 'deliveredCount' : 'deliveredAmount'}
+                    name="Delivered + Completed"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fill="url(#gradDelivered)"
+                    activeDot={{ r: 5 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
         {/* Monthly Trend & Growth — Status × Month, share-of-mix with pp delta */}
         <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 flex items-center justify-between flex-wrap gap-4">

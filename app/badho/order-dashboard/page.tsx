@@ -114,6 +114,44 @@ interface MonthlyStatusDeliveryData {
   year: number;
 }
 
+interface DeliveryWeekSubRow {
+  deliveryStatus: string | null;
+  weeks: Record<string, MonthCell>;
+  total: MonthCell;
+}
+interface StatusDeliveryWeekRow {
+  status: string;
+  weeks: Record<string, MonthCell>;
+  total: MonthCell;
+  deliveryStatuses: DeliveryWeekSubRow[];
+}
+interface WeeklyStatusDeliveryData {
+  data: StatusDeliveryWeekRow[];
+  weeks: number[];
+  weekStartLabels: Record<string, string>;
+  totals: { byWeek: Record<string, MonthCell>; grand: MonthCell };
+  year: number;
+}
+
+interface DeliveryDaySubRow {
+  deliveryStatus: string | null;
+  days: Record<string, MonthCell>;
+  total: MonthCell;
+}
+interface StatusDeliveryDayRow {
+  status: string;
+  days: Record<string, MonthCell>;
+  total: MonthCell;
+  deliveryStatuses: DeliveryDaySubRow[];
+}
+interface DailyStatusDeliveryData {
+  data: StatusDeliveryDayRow[];
+  totals: { byDay: Record<string, MonthCell>; grand: MonthCell };
+  year: number;
+  month: number;
+  daysInMonth: number;
+}
+
 interface SellerRow {
   sellerId: string;
   sellerPhone: string | null;
@@ -243,6 +281,13 @@ export default function OrderStatusDashboard() {
   const [pivotData, setPivotData] = useState<MonthlyStatusDeliveryData | null>(null);
   const [pivotLoading, setPivotLoading] = useState(true);
   const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(new Set());
+  // Granularity for the Status × Delivery Status pivot
+  const [pivotGranularity, setPivotGranularity] = useState<'month' | 'week' | 'day'>('month');
+  const [pivotDayMonth, setPivotDayMonth] = useState<number>(new Date().getMonth() + 1);
+  const [pivotWeekData, setPivotWeekData] = useState<WeeklyStatusDeliveryData | null>(null);
+  const [pivotWeekLoading, setPivotWeekLoading] = useState(false);
+  const [pivotDayData, setPivotDayData] = useState<DailyStatusDeliveryData | null>(null);
+  const [pivotDayLoading, setPivotDayLoading] = useState(false);
   // Status × Delivery Status drilldown modal
   const [pivotDrillOpen, setPivotDrillOpen] = useState(false);
   const [pivotDrillStatus, setPivotDrillStatus] = useState<string>('');
@@ -404,6 +449,44 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     fetchPivot();
   }, []);
+
+  const fetchPivotWeekly = async () => {
+    try {
+      setPivotWeekLoading(true);
+      const response = await fetch(`/api/order-weekly-status-delivery?year=${currentYear}`);
+      if (!response.ok) throw new Error('Failed to fetch weekly pivot');
+      const result: WeeklyStatusDeliveryData = await response.json();
+      setPivotWeekData(result);
+    } catch (err) {
+      console.error('Pivot weekly fetch error:', err);
+    } finally {
+      setPivotWeekLoading(false);
+    }
+  };
+
+  const fetchPivotDaily = async (month: number) => {
+    try {
+      setPivotDayLoading(true);
+      const response = await fetch(`/api/order-daily-status-delivery?year=${currentYear}&month=${month}`);
+      if (!response.ok) throw new Error('Failed to fetch daily pivot');
+      const result: DailyStatusDeliveryData = await response.json();
+      setPivotDayData(result);
+    } catch (err) {
+      console.error('Pivot daily fetch error:', err);
+    } finally {
+      setPivotDayLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (pivotGranularity === 'week' && !pivotWeekData) fetchPivotWeekly();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pivotGranularity]);
+
+  useEffect(() => {
+    if (pivotGranularity === 'day') fetchPivotDaily(pivotDayMonth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pivotGranularity, pivotDayMonth]);
 
   const toggleStatusExpansion = (status: string) => {
     setExpandedStatuses((prev) => {
@@ -1409,9 +1492,46 @@ export default function OrderStatusDashboard() {
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
               <h2 className="text-2xl font-bold text-white">Status × Delivery Status</h2>
-              <p className="text-purple-300 text-sm mt-1">Click any status to drill into its delivery sub-statuses — {currentYear}</p>
+              <p className="text-purple-300 text-sm mt-1">
+                {pivotGranularity === 'month'
+                  ? `Click any status to drill into its delivery sub-statuses — ${currentYear}`
+                  : pivotGranularity === 'week'
+                  ? `Week-by-week — ${currentYear} (ISO week)`
+                  : `Day-by-day — ${MONTH_NAMES[pivotDayMonth - 1]} ${currentYear}`}
+              </p>
             </div>
-            {pivotData && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                {(['month', 'week', 'day'] as const).map((g) => {
+                  const active = pivotGranularity === g;
+                  return (
+                    <button
+                      key={g}
+                      onClick={() => setPivotGranularity(g)}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        active
+                          ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.5)]'
+                          : 'text-purple-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {g === 'month' ? 'Month' : g === 'week' ? 'Week' : 'Day'}
+                    </button>
+                  );
+                })}
+              </div>
+              {pivotGranularity === 'day' && (
+                <select
+                  value={pivotDayMonth}
+                  onChange={(e) => setPivotDayMonth(parseInt(e.target.value))}
+                  className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                >
+                  {MONTH_NAMES.map((name, i) => (
+                    <option key={i} value={i + 1} className="bg-slate-900">{name} {currentYear}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {pivotGranularity === 'month' && pivotData && (
               <div className="flex items-center gap-6 text-sm">
                 <div className="text-right">
                   <div className="text-purple-300">Total Orders</div>
@@ -1447,8 +1567,68 @@ export default function OrderStatusDashboard() {
                 </button>
               </div>
             )}
+            {pivotGranularity === 'week' && pivotWeekData && (
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-right">
+                  <div className="text-purple-300">Total Orders</div>
+                  <div className="text-white font-bold text-lg">{pivotWeekData.totals.grand.count.toLocaleString()}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-purple-300">Total Order Value</div>
+                  <div className="text-white font-bold text-lg">{formatAmount(pivotWeekData.totals.grand.amount)}</div>
+                </div>
+                <button
+                  className={DOWNLOAD_BTN_CLASS}
+                  onClick={() => {
+                    const weeks = pivotWeekData.weeks;
+                    const headers = ['Status', 'Delivery Status', ...weeks.flatMap((w) => [`W${w} Count`, `W${w} Amount`]), 'Total Count', 'Total Amount'];
+                    const rows: CsvCell[][] = [];
+                    pivotWeekData.data.forEach((row) => {
+                      const parentCells = weeks.flatMap((w) => { const c = row.weeks[w]; return [c?.count ?? 0, c?.amount ?? 0]; });
+                      rows.push([row.status, '(all)', ...parentCells, row.total.count, row.total.amount]);
+                      row.deliveryStatuses.forEach((sub) => {
+                        const subCells = weeks.flatMap((w) => { const c = sub.weeks[w]; return [c?.count ?? 0, c?.amount ?? 0]; });
+                        rows.push([row.status, sub.deliveryStatus ?? '(no delivery status)', ...subCells, sub.total.count, sub.total.amount]);
+                      });
+                    });
+                    downloadCSV(`status-x-delivery-weekly-${currentYear}.csv`, headers, rows);
+                  }}
+                >↓ CSV</button>
+              </div>
+            )}
+            {pivotGranularity === 'day' && pivotDayData && (
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-right">
+                  <div className="text-purple-300">Total Orders</div>
+                  <div className="text-white font-bold text-lg">{pivotDayData.totals.grand.count.toLocaleString()}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-purple-300">Total Order Value</div>
+                  <div className="text-white font-bold text-lg">{formatAmount(pivotDayData.totals.grand.amount)}</div>
+                </div>
+                <button
+                  className={DOWNLOAD_BTN_CLASS}
+                  onClick={() => {
+                    const days = Array.from({ length: pivotDayData.daysInMonth }, (_, i) => i + 1);
+                    const headers = ['Status', 'Delivery Status', ...days.flatMap((d) => [`Day ${d} Count`, `Day ${d} Amount`]), 'Total Count', 'Total Amount'];
+                    const rows: CsvCell[][] = [];
+                    pivotDayData.data.forEach((row) => {
+                      const parentCells = days.flatMap((d) => { const c = row.days[d]; return [c?.count ?? 0, c?.amount ?? 0]; });
+                      rows.push([row.status, '(all)', ...parentCells, row.total.count, row.total.amount]);
+                      row.deliveryStatuses.forEach((sub) => {
+                        const subCells = days.flatMap((d) => { const c = sub.days[d]; return [c?.count ?? 0, c?.amount ?? 0]; });
+                        rows.push([row.status, sub.deliveryStatus ?? '(no delivery status)', ...subCells, sub.total.count, sub.total.amount]);
+                      });
+                    });
+                    downloadCSV(`status-x-delivery-daily-${MONTH_NAMES[pivotDayData.month - 1]}-${currentYear}.csv`, headers, rows);
+                  }}
+                >↓ CSV</button>
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto">
+            {pivotGranularity === 'month' && (
+            <>
             {pivotLoading ? (
               <div className="px-8 py-12 text-center">
                 <div className="flex flex-col items-center gap-3">
@@ -1621,6 +1801,197 @@ export default function OrderStatusDashboard() {
                 </tbody>
               </table>
             )}
+            </>
+            )}
+
+            {pivotGranularity === 'week' && (() => {
+              if (pivotWeekLoading) return <div className="px-8 py-12 text-center"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" /><p className="text-purple-300">Loading weekly pivot…</p></div></div>;
+              if (!pivotWeekData || pivotWeekData.data.length === 0) return <div className="px-8 py-12 text-center text-purple-300">No data available</div>;
+              const weeks = pivotWeekData.weeks;
+              return (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th rowSpan={2} className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[220px]">Status / Delivery Status</th>
+                      {weeks.map((w) => (
+                        <th key={w} colSpan={2} className="px-2 py-2 text-center text-xs font-semibold text-purple-200 border-r border-white/10">
+                          <div>W{w}</div>
+                          <div className="text-[9px] font-normal text-purple-300/70">{pivotWeekData.weekStartLabels[w] || ''}</div>
+                        </th>
+                      ))}
+                      <th colSpan={2} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">Total</th>
+                    </tr>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      {[...weeks, 'total' as const].map((w, i) => {
+                        const isTotal = w === 'total';
+                        return (
+                          <Fragment key={String(w) + i}>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Count</th>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium border-r border-white/10 ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Amount</th>
+                          </Fragment>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pivotWeekData.data.map((row) => {
+                      const expanded = expandedStatuses.has(row.status);
+                      return (
+                        <Fragment key={row.status}>
+                          <tr onClick={() => toggleStatusExpansion(row.status)} className="border-b border-white/5 hover:bg-fuchsia-500/15 cursor-pointer transition-colors group">
+                            <td className="px-4 py-3 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 text-white text-sm font-semibold">
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-block w-4 text-purple-300 transition-transform ${expanded ? 'rotate-90' : ''}`}>▸</span>
+                                <span>{row.status}</span>
+                                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-purple-200 tabular-nums">{row.deliveryStatuses.length} sub</span>
+                              </div>
+                            </td>
+                            {weeks.map((w) => {
+                              const cell = row.weeks[w];
+                              const hasData = cell && cell.count > 0;
+                              return (
+                                <Fragment key={w}>
+                                  <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>{hasData ? cell.count.toLocaleString() : '—'}</td>
+                                  <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200' : 'text-white/30'}`}>{hasData ? formatAmount(cell.amount) : '—'}</td>
+                                </Fragment>
+                              );
+                            })}
+                            <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10">{row.total.count.toLocaleString()}</td>
+                            <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10">{formatAmount(row.total.amount)}</td>
+                          </tr>
+                          {expanded && row.deliveryStatuses.map((sub) => (
+                            <tr key={`${row.status}-${sub.deliveryStatus ?? 'null'}`} className="border-b border-white/5 bg-white/[0.02]">
+                              <td className="px-4 py-2.5 sticky left-0 bg-slate-900/85 backdrop-blur z-10 border-r border-white/10 text-purple-100 text-xs">
+                                <div className="flex items-center gap-2 pl-6"><span className="text-purple-400/60">└</span><span className={sub.deliveryStatus ? '' : 'italic text-purple-300/70'}>{sub.deliveryStatus ?? '(no delivery status)'}</span></div>
+                              </td>
+                              {weeks.map((w) => {
+                                const cell = sub.weeks[w];
+                                const hasData = cell && cell.count > 0;
+                                return (
+                                  <Fragment key={w}>
+                                    <td className={`px-2 py-2.5 text-right text-xs tabular-nums ${hasData ? 'text-purple-100' : 'text-white/20'}`}>{hasData ? cell.count.toLocaleString() : '—'}</td>
+                                    <td className={`px-2 py-2.5 text-right text-xs tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200/80' : 'text-white/20'}`}>{hasData ? formatAmount(cell.amount) : '—'}</td>
+                                  </Fragment>
+                                );
+                              })}
+                              <td className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-100 bg-purple-500/5">{sub.total.count.toLocaleString()}</td>
+                              <td className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-200/80 bg-purple-500/5 border-r border-white/10">{formatAmount(sub.total.amount)}</td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      );
+                    })}
+                    <tr className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-t-2 border-purple-400/40 font-bold">
+                      <td className="px-4 py-3 sticky left-0 bg-slate-900/95 backdrop-blur z-10 border-r border-white/10 text-white">Total</td>
+                      {weeks.map((w) => {
+                        const c = pivotWeekData.totals.byWeek[w];
+                        const hd = c && c.count > 0;
+                        return (
+                          <Fragment key={w}>
+                            <td className={`px-2 py-3 text-right tabular-nums ${hd ? 'text-white' : 'text-white/30'}`}>{hd ? c.count.toLocaleString() : '—'}</td>
+                            <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hd ? 'text-purple-100' : 'text-white/30'}`}>{hd ? formatAmount(c.amount) : '—'}</td>
+                          </Fragment>
+                        );
+                      })}
+                      <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30">{pivotWeekData.totals.grand.count.toLocaleString()}</td>
+                      <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10">{formatAmount(pivotWeekData.totals.grand.amount)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              );
+            })()}
+
+            {pivotGranularity === 'day' && (() => {
+              if (pivotDayLoading) return <div className="px-8 py-12 text-center"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" /><p className="text-purple-300">Loading daily pivot…</p></div></div>;
+              if (!pivotDayData || pivotDayData.data.length === 0) return <div className="px-8 py-12 text-center text-purple-300">No orders in {MONTH_NAMES[pivotDayMonth - 1]} {currentYear}</div>;
+              const days = Array.from({ length: pivotDayData.daysInMonth }, (_, i) => i + 1);
+              return (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th rowSpan={2} className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[220px]">Status / Delivery Status</th>
+                      {days.map((d) => <th key={d} colSpan={2} className="px-2 py-2 text-center text-xs font-semibold text-purple-200 border-r border-white/10">{d}</th>)}
+                      <th colSpan={2} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">Total</th>
+                    </tr>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      {[...days, 'total' as const].map((d, i) => {
+                        const isTotal = d === 'total';
+                        return (
+                          <Fragment key={String(d) + i}>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Count</th>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium border-r border-white/10 ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Amount</th>
+                          </Fragment>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pivotDayData.data.map((row) => {
+                      const expanded = expandedStatuses.has(row.status);
+                      return (
+                        <Fragment key={row.status}>
+                          <tr onClick={() => toggleStatusExpansion(row.status)} className="border-b border-white/5 hover:bg-fuchsia-500/15 cursor-pointer transition-colors group">
+                            <td className="px-4 py-3 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 text-white text-sm font-semibold">
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-block w-4 text-purple-300 transition-transform ${expanded ? 'rotate-90' : ''}`}>▸</span>
+                                <span>{row.status}</span>
+                                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-purple-200 tabular-nums">{row.deliveryStatuses.length} sub</span>
+                              </div>
+                            </td>
+                            {days.map((d) => {
+                              const cell = row.days[d];
+                              const hasData = cell && cell.count > 0;
+                              return (
+                                <Fragment key={d}>
+                                  <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>{hasData ? cell.count.toLocaleString() : '—'}</td>
+                                  <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200' : 'text-white/30'}`}>{hasData ? formatAmount(cell.amount) : '—'}</td>
+                                </Fragment>
+                              );
+                            })}
+                            <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10">{row.total.count.toLocaleString()}</td>
+                            <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10">{formatAmount(row.total.amount)}</td>
+                          </tr>
+                          {expanded && row.deliveryStatuses.map((sub) => (
+                            <tr key={`${row.status}-${sub.deliveryStatus ?? 'null'}`} className="border-b border-white/5 bg-white/[0.02]">
+                              <td className="px-4 py-2.5 sticky left-0 bg-slate-900/85 backdrop-blur z-10 border-r border-white/10 text-purple-100 text-xs">
+                                <div className="flex items-center gap-2 pl-6"><span className="text-purple-400/60">└</span><span className={sub.deliveryStatus ? '' : 'italic text-purple-300/70'}>{sub.deliveryStatus ?? '(no delivery status)'}</span></div>
+                              </td>
+                              {days.map((d) => {
+                                const cell = sub.days[d];
+                                const hasData = cell && cell.count > 0;
+                                return (
+                                  <Fragment key={d}>
+                                    <td className={`px-2 py-2.5 text-right text-xs tabular-nums ${hasData ? 'text-purple-100' : 'text-white/20'}`}>{hasData ? cell.count.toLocaleString() : '—'}</td>
+                                    <td className={`px-2 py-2.5 text-right text-xs tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200/80' : 'text-white/20'}`}>{hasData ? formatAmount(cell.amount) : '—'}</td>
+                                  </Fragment>
+                                );
+                              })}
+                              <td className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-100 bg-purple-500/5">{sub.total.count.toLocaleString()}</td>
+                              <td className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-200/80 bg-purple-500/5 border-r border-white/10">{formatAmount(sub.total.amount)}</td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      );
+                    })}
+                    <tr className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-t-2 border-purple-400/40 font-bold">
+                      <td className="px-4 py-3 sticky left-0 bg-slate-900/95 backdrop-blur z-10 border-r border-white/10 text-white">Total</td>
+                      {days.map((d) => {
+                        const c = pivotDayData.totals.byDay[d];
+                        const hd = c && c.count > 0;
+                        return (
+                          <Fragment key={d}>
+                            <td className={`px-2 py-3 text-right tabular-nums ${hd ? 'text-white' : 'text-white/30'}`}>{hd ? c.count.toLocaleString() : '—'}</td>
+                            <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hd ? 'text-purple-100' : 'text-white/30'}`}>{hd ? formatAmount(c.amount) : '—'}</td>
+                          </Fragment>
+                        );
+                      })}
+                      <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30">{pivotDayData.totals.grand.count.toLocaleString()}</td>
+                      <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10">{formatAmount(pivotDayData.totals.grand.amount)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              );
+            })()}
           </div>
         </div>
 

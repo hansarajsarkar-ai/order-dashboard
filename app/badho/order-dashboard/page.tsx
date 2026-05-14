@@ -1024,7 +1024,7 @@ export default function OrderStatusDashboard() {
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Status × Delivery Status</h2>
+              <h2 className="text-2xl font-bold text-white">Monthly Breakdown by Order Status</h2>
               <p className="text-purple-300 text-sm mt-1">
                 {pivotGranularity === 'month'
                   ? `Click any status to drill into its delivery sub-statuses — ${currentYear}`

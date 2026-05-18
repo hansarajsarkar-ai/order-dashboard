@@ -362,27 +362,40 @@ export default function OrderStatusDashboard() {
   // RTO sub-tabs (Dashboard / Details)
   const [rtoSubTab, setRtoSubTab] = useState<'dashboard' | 'details'>('dashboard');
   interface RtoOrderRow {
-    poNumber: string;
-    amount: number;
-    deliveryStatus: string | null;
-    markedPendingTime: string | null;
+    orderDate: string | null;
+    itlDate: string | null;
     markedRejectedTime: string | null;
-    sellerPhone: string | null;
-    sellerBusinessName: string | null;
-    sellerAddress: string;
-    sellerState: string | null;
-    buyerPhone: string | null;
+    latestAttemptTime: string | null;
+    poNumber: string;
+    poStatus: string;
+    orderValue: number;
+    couponValue: number;
+    paymentMode: string | null;
+    brandName: string | null;
+    shipmentStatus: string | null;
+    finalFailureReason: string | null;
+    deliveryAttempt: number;
+    attempt1Time: string | null; attempt1Remarks: string | null;
+    attempt2Time: string | null; attempt2Remarks: string | null;
+    attempt3Time: string | null; attempt3Remarks: string | null;
+    attempt4Time: string | null; attempt4Remarks: string | null;
+    attempt5Time: string | null; attempt5Remarks: string | null;
+    attempt6Time: string | null; attempt6Remarks: string | null;
+    awbNumber: string | null;
+    logisticName: string | null;
+    codCollect: number;
+    buyerName: string | null;
     buyerBusinessName: string | null;
-    buyerAddress: string;
-    buyerState: string | null;
-    rejectReason: string | null;
-    rejectedBy: string | null;
-    reasonAddedByBadhoTeam: string | null;
+    buyerPhone: string | null;
+    buyerFullAddress: string | null;
+    buyerLongitude: string | null;
+    buyerLatitude: string | null;
   }
   const [rtoListData, setRtoListData] = useState<RtoOrderRow[] | null>(null);
   const [rtoListLoading, setRtoListLoading] = useState(false);
   const [rtoListSearch, setRtoListSearch] = useState('');
   const [rtoListPage, setRtoListPage] = useState(1);
+  const [rtoListDate, setRtoListDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   // Trend tab — daily order trend chart
   interface DailyTrendPoint { day: string; ordersCount: number; ordersAmount: number; deliveredCount: number; deliveredAmount: number; }
   const [trendData, setTrendData] = useState<DailyTrendPoint[] | null>(null);
@@ -640,7 +653,7 @@ export default function OrderStatusDashboard() {
   const fetchRtoList = async () => {
     try {
       setRtoListLoading(true);
-      const res = await fetch(`/api/order-rto-list?year=${currentYear}`);
+      const res = await fetch(`/api/order-rto-list?date=${rtoListDate}`);
       if (!res.ok) throw new Error('Failed to fetch RTO list');
       const json = await res.json();
       setRtoListData(json.data);
@@ -653,12 +666,12 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'rto' || rtoSubTab !== 'details' || rtoListData) return;
+    if (activeTab !== 'rto' || rtoSubTab !== 'details') return;
     fetchRtoList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, rtoSubTab]);
+  }, [activeTab, rtoSubTab, rtoListDate]);
 
-  useEffect(() => { setRtoListPage(1); }, [rtoListSearch]);
+  useEffect(() => { setRtoListPage(1); }, [rtoListSearch, rtoListDate]);
 
   // Filtered + paged views of the RTO list
   const filteredRtoListRows = (() => {
@@ -666,12 +679,15 @@ export default function OrderStatusDashboard() {
     const q = rtoListSearch.trim().toLowerCase();
     if (!q) return rtoListData;
     return rtoListData.filter((r) =>
-      (r.poNumber || '').toLowerCase().includes(q) ||
-      (r.sellerPhone || '').toLowerCase().includes(q) ||
+      String(r.poNumber || '').toLowerCase().includes(q) ||
       (r.buyerPhone || '').toLowerCase().includes(q) ||
-      (r.sellerBusinessName || '').toLowerCase().includes(q) ||
+      (r.buyerName || '').toLowerCase().includes(q) ||
       (r.buyerBusinessName || '').toLowerCase().includes(q) ||
-      (r.deliveryStatus || '').toLowerCase().includes(q)
+      (r.brandName || '').toLowerCase().includes(q) ||
+      (r.shipmentStatus || '').toLowerCase().includes(q) ||
+      (r.awbNumber || '').toLowerCase().includes(q) ||
+      (r.logisticName || '').toLowerCase().includes(q) ||
+      (r.finalFailureReason || '').toLowerCase().includes(q)
     );
   })();
 
@@ -2440,43 +2456,76 @@ export default function OrderStatusDashboard() {
                 <div>
                   <h2 className="text-2xl font-bold text-white">RTO Order Details</h2>
                   <p className="text-purple-300 text-sm mt-1">
+                    Latest intercity-delivery RTO scan for orders rejected on the selected date —
+                    {' '}
                     {rtoListLoading
                       ? 'Loading…'
                       : rtoListData
-                      ? `${filteredRtoListRows?.length ?? 0} of ${rtoListData.length} RTO order${rtoListData.length === 1 ? '' : 's'} this year`
+                      ? `${filteredRtoListRows?.length ?? 0} of ${rtoListData.length} order${rtoListData.length === 1 ? '' : 's'}`
                       : ''}
                   </p>
                 </div>
-                {rtoListData && rtoListData.length > 0 && (
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Rejected on</label>
+                  <input
+                    type="date"
+                    value={rtoListDate}
+                    onChange={(e) => setRtoListDate(e.target.value)}
+                    className="px-3 py-1.5 text-xs bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                  />
                   <button
-                    className={DOWNLOAD_BTN_CLASS}
-                    onClick={() => {
-                      const rows = filteredRtoListRows || [];
-                      const headers = [
-                        'PO Number','Amount','Delivery Status','Marked Pending','Marked Rejected',
-                        'Seller Phone','Seller Business','Seller Address',
-                        'Buyer Phone','Buyer Business','Buyer Address','Buyer State',
-                        'Reject Reason','Rejected By','Reason Added By Badho Team',
-                      ];
-                      const csvRows: CsvCell[][] = rows.map((r) => [
-                        r.poNumber, r.amount, r.deliveryStatus, r.markedPendingTime, r.markedRejectedTime,
-                        r.sellerPhone, r.sellerBusinessName, r.sellerAddress,
-                        r.buyerPhone, r.buyerBusinessName, r.buyerAddress, r.buyerState,
-                        r.rejectReason, r.rejectedBy, r.reasonAddedByBadhoTeam,
-                      ]);
-                      downloadCSV(`rto-orders-${currentYear}.csv`, headers, csvRows);
-                    }}
+                    onClick={() => setRtoListDate(new Date().toISOString().slice(0, 10))}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/15 border border-white/10 text-purple-200"
                   >
-                    ↓ CSV
+                    Today
                   </button>
-                )}
+                  {rtoListData && rtoListData.length > 0 && (
+                    <button
+                      className={DOWNLOAD_BTN_CLASS}
+                      onClick={() => {
+                        const rows = filteredRtoListRows || [];
+                        const headers = [
+                          'Order Date & Time', 'ITL Date & Time', 'Marked Rejected Time', 'Latest Attempt Time',
+                          'PO Number', 'PO Status', 'Order Value', 'Coupon Value', 'Payment Mode',
+                          'Brand Name', 'Shipment Status', 'Final Failure Reason', 'Delivery Attempt',
+                          'Attempt 1 Time', 'Attempt 1 Remarks',
+                          'Attempt 2 Time', 'Attempt 2 Remarks',
+                          'Attempt 3 Time', 'Attempt 3 Remarks',
+                          'Attempt 4 Time', 'Attempt 4 Remarks',
+                          'Attempt 5 Time', 'Attempt 5 Remarks',
+                          'Attempt 6 Time', 'Attempt 6 Remarks',
+                          'AWB Number', 'Logistic Name', 'COD Collect',
+                          'Buyer Name', 'Buyer Business Name', 'Buyer Phone',
+                          'Buyer Full Address', 'Buyer Longitude', 'Buyer Latitude',
+                        ];
+                        const csvRows: CsvCell[][] = rows.map((r) => [
+                          r.orderDate, r.itlDate, r.markedRejectedTime, r.latestAttemptTime,
+                          r.poNumber, r.poStatus, r.orderValue, r.couponValue, r.paymentMode,
+                          r.brandName, r.shipmentStatus, r.finalFailureReason, r.deliveryAttempt,
+                          r.attempt1Time, r.attempt1Remarks,
+                          r.attempt2Time, r.attempt2Remarks,
+                          r.attempt3Time, r.attempt3Remarks,
+                          r.attempt4Time, r.attempt4Remarks,
+                          r.attempt5Time, r.attempt5Remarks,
+                          r.attempt6Time, r.attempt6Remarks,
+                          r.awbNumber, r.logisticName, r.codCollect,
+                          r.buyerName, r.buyerBusinessName, r.buyerPhone,
+                          r.buyerFullAddress, r.buyerLongitude, r.buyerLatitude,
+                        ]);
+                        downloadCSV(`rto-orders-${rtoListDate}.csv`, headers, csvRows);
+                      }}
+                    >
+                      ↓ CSV
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="px-8 py-3 border-b border-white/10 bg-white/5">
                 <input
                   type="text"
                   value={rtoListSearch}
                   onChange={(e) => setRtoListSearch(e.target.value)}
-                  placeholder="Search by PO number, phone, business, delivery status…"
+                  placeholder="Search by PO, AWB, courier, buyer name/phone/business, brand, shipment status, failure reason…"
                   className="w-full px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                 />
               </div>
@@ -2484,40 +2533,81 @@ export default function OrderStatusDashboard() {
                 {rtoListLoading ? (
                   <div className="px-8 py-12 text-center text-purple-300">Loading RTO orders…</div>
                 ) : !rtoListData || rtoListData.length === 0 ? (
-                  <div className="px-8 py-12 text-center text-purple-300">No RTO orders this year</div>
+                  <div className="px-8 py-12 text-center text-purple-300">No RTO orders rejected on {rtoListDate}</div>
                 ) : !filteredRtoListRows || filteredRtoListRows.length === 0 ? (
                   <div className="px-8 py-12 text-center text-purple-300">No matches for &ldquo;{rtoListSearch}&rdquo;</div>
                 ) : (
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs">
                     <thead className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur">
                       <tr className="border-b border-white/10">
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">PO Number</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Delivery Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Marked Rejected</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Seller Phone</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Seller Business</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer Phone</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer Business</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer State</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-rose-200 bg-rose-500/10">Reject Reason</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">PO Number</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Order Date</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">ITL Date</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Marked Rejected</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Latest Attempt</th>
+                        <th className="px-3 py-3 text-right font-semibold text-purple-200 whitespace-nowrap">Order Value</th>
+                        <th className="px-3 py-3 text-right font-semibold text-purple-200 whitespace-nowrap">Coupon</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Payment</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Brand</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Shipment Status</th>
+                        <th className="px-3 py-3 text-left font-semibold text-rose-200 bg-rose-500/10 whitespace-nowrap">Final Failure Reason</th>
+                        <th className="px-3 py-3 text-right font-semibold text-purple-200 whitespace-nowrap">Attempts</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Attempt 1</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Attempt 2</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Attempt 3</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Attempt 4</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Attempt 5</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Attempt 6</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">AWB</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Courier</th>
+                        <th className="px-3 py-3 text-right font-semibold text-purple-200 whitespace-nowrap">COD</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Buyer Name</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Buyer Business</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Buyer Phone</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200">Buyer Address</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(rtoListPaged?.rows || filteredRtoListRows).map((r) => (
-                        <tr key={r.poNumber} className="border-b border-white/5 hover:bg-white/5">
-                          <td className="px-4 py-2.5 text-white tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
-                          <td className="px-4 py-2.5 text-right text-white tabular-nums whitespace-nowrap">{formatAmount(r.amount)}</td>
-                          <td className="px-4 py-2.5 text-purple-100 whitespace-nowrap">{r.deliveryStatus || '—'}</td>
-                          <td className="px-4 py-2.5 text-purple-100 whitespace-nowrap text-xs">{formatDateTime(r.markedRejectedTime)}</td>
-                          <td className="px-4 py-2.5 text-purple-100 tabular-nums whitespace-nowrap">{r.sellerPhone || '—'}</td>
-                          <td className="px-4 py-2.5 text-purple-100">{r.sellerBusinessName || '—'}</td>
-                          <td className="px-4 py-2.5 text-purple-100 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
-                          <td className="px-4 py-2.5 text-purple-100">{r.buyerBusinessName || '—'}</td>
-                          <td className="px-4 py-2.5 text-purple-100 whitespace-nowrap">{r.buyerState || '—'}</td>
-                          <td className="px-4 py-2.5 text-rose-200 bg-rose-500/5 max-w-xs" title={r.rejectReason || ''}>{r.rejectReason || <span className="italic text-purple-300/60">—</span>}</td>
-                        </tr>
-                      ))}
+                      {(rtoListPaged?.rows || filteredRtoListRows).map((r) => {
+                        const attemptCell = (t: string | null, remark: string | null) => {
+                          if (!t && !remark) return <span className="text-white/30">—</span>;
+                          return (
+                            <div className="min-w-[140px]">
+                              <div className="text-purple-100 whitespace-nowrap">{t || '—'}</div>
+                              <div className="text-[10px] text-purple-300/70 leading-tight max-w-[200px] truncate" title={remark || ''}>{remark || ''}</div>
+                            </div>
+                          );
+                        };
+                        return (
+                          <tr key={r.poNumber} className="border-b border-white/5 hover:bg-white/5 align-top">
+                            <td className="px-3 py-2.5 text-white tabular-nums font-semibold whitespace-nowrap">{r.poNumber}</td>
+                            <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.orderDate || '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.itlDate || '—'}</td>
+                            <td className="px-3 py-2.5 text-rose-200 whitespace-nowrap">{r.markedRejectedTime || '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.latestAttemptTime || '—'}</td>
+                            <td className="px-3 py-2.5 text-right text-white tabular-nums whitespace-nowrap">{formatAmount(r.orderValue)}</td>
+                            <td className="px-3 py-2.5 text-right text-purple-200 tabular-nums whitespace-nowrap">{r.couponValue ? formatAmount(r.couponValue) : '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.paymentMode || '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap font-medium">{r.brandName || '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.shipmentStatus || '—'}</td>
+                            <td className="px-3 py-2.5 text-rose-200 bg-rose-500/5 max-w-[260px]" title={r.finalFailureReason || ''}>{r.finalFailureReason || <span className="italic text-purple-300/60">—</span>}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums font-bold text-rose-200">{r.deliveryAttempt || 0}</td>
+                            <td className="px-3 py-2.5">{attemptCell(r.attempt1Time, r.attempt1Remarks)}</td>
+                            <td className="px-3 py-2.5">{attemptCell(r.attempt2Time, r.attempt2Remarks)}</td>
+                            <td className="px-3 py-2.5">{attemptCell(r.attempt3Time, r.attempt3Remarks)}</td>
+                            <td className="px-3 py-2.5">{attemptCell(r.attempt4Time, r.attempt4Remarks)}</td>
+                            <td className="px-3 py-2.5">{attemptCell(r.attempt5Time, r.attempt5Remarks)}</td>
+                            <td className="px-3 py-2.5">{attemptCell(r.attempt6Time, r.attempt6Remarks)}</td>
+                            <td className="px-3 py-2.5 text-purple-100 tabular-nums whitespace-nowrap">{r.awbNumber || '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.logisticName || '—'}</td>
+                            <td className="px-3 py-2.5 text-right text-purple-200 tabular-nums whitespace-nowrap">{r.codCollect ? formatAmount(r.codCollect) : '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.buyerName || '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100">{r.buyerBusinessName || '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100 max-w-[320px]" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}

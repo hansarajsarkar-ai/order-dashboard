@@ -391,6 +391,22 @@ export default function OrderStatusDashboard() {
   const [goalModalSearch, setGoalModalSearch] = useState('');
   const [goalModalData, setGoalModalData] = useState<GoalOrderRow[] | null>(null);
   const [goalModalLoading, setGoalModalLoading] = useState(false);
+  // Order funnel table (bucketed by created_at)
+  interface FunnelData {
+    totalCount: number; totalAmount: number;
+    deliveredCount: number; deliveredAmount: number;
+    rejectedCount: number; rejectedAmount: number;
+    cancelledCount: number; cancelledAmount: number;
+    inFlightCount: number; inFlightAmount: number;
+    year: number | null;
+    startDate: string | null;
+    endDate: string | null;
+  }
+  const [funnelData, setFunnelData] = useState<FunnelData | null>(null);
+  const [funnelLoading, setFunnelLoading] = useState(false);
+  const [funnelRange, setFunnelRange] = useState<'year' | 'today' | '7d' | '30d' | 'custom'>('year');
+  const [funnelCustomFrom, setFunnelCustomFrom] = useState('');
+  const [funnelCustomTo, setFunnelCustomTo] = useState('');
   // RTO sub-tabs (Dashboard / Details)
   const [rtoSubTab, setRtoSubTab] = useState<'dashboard' | 'details'>('dashboard');
   interface RtoOrderRow {
@@ -913,6 +929,50 @@ export default function OrderStatusDashboard() {
     fetchGoal();
   }, []);
 
+  // Order funnel (created_at) — resolve range + fetch
+  const resolveFunnelRange = (): { startDate: string | null; endDate: string | null } => {
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    if (funnelRange === 'today') return { startDate: fmt(today), endDate: fmt(today) };
+    if (funnelRange === '7d') {
+      const start = new Date(today); start.setDate(start.getDate() - 6);
+      return { startDate: fmt(start), endDate: fmt(today) };
+    }
+    if (funnelRange === '30d') {
+      const start = new Date(today); start.setDate(start.getDate() - 29);
+      return { startDate: fmt(start), endDate: fmt(today) };
+    }
+    if (funnelRange === 'custom') {
+      return { startDate: funnelCustomFrom || null, endDate: funnelCustomTo || null };
+    }
+    return { startDate: null, endDate: null };
+  };
+
+  const fetchFunnel = async () => {
+    try {
+      setFunnelLoading(true);
+      const { startDate, endDate } = resolveFunnelRange();
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      const url = `/api/order-funnel${params.toString() ? `?${params}` : ''}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch funnel');
+      const json: FunnelData = await res.json();
+      setFunnelData(json);
+    } catch (err) {
+      console.error('Funnel fetch error:', err);
+      setFunnelData(null);
+    } finally {
+      setFunnelLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFunnel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [funnelRange, funnelCustomFrom, funnelCustomTo]);
+
   // Resolve the active "Last N days / custom / all" preset to concrete YYYY-MM-DD bounds.
   const resolveSellerRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
@@ -1377,6 +1437,159 @@ export default function OrderStatusDashboard() {
                     </div>
                   </div>
                 </div>
+              );
+            })()}
+          </div>
+        </div>
+
+
+        {/* Order Funnel — Created → Delivered / Rejected / Cancelled (by created_at) */}
+        <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Order Funnel</h2>
+              <p className="text-purple-300 text-sm mt-1">
+                Created → Delivered / Rejected / Cancelled — bucketed by <span className="font-mono text-fuchsia-300">created_at</span>
+                {funnelData?.year && ` · ${funnelData.year}`}
+                {funnelData?.startDate && funnelData?.endDate && ` · ${funnelData.startDate} → ${funnelData.endDate}`}
+              </p>
+            </div>
+            {funnelData && (
+              <button
+                className={DOWNLOAD_BTN_CLASS}
+                onClick={() => {
+                  const total = funnelData.totalCount || 1;
+                  const totalAmt = funnelData.totalAmount || 1;
+                  const headers = ['Stage', 'Orders', '% of Created', 'Value', '% of Value'];
+                  const pct = (n: number, d: number) => d > 0 ? `${((n / d) * 100).toFixed(2)}%` : '0%';
+                  const rows: CsvCell[][] = [
+                    ['Total Created',          funnelData.totalCount,     '100%',                                  funnelData.totalAmount,     '100%'],
+                    ['Delivered + Completed',  funnelData.deliveredCount, pct(funnelData.deliveredCount, total),   funnelData.deliveredAmount, pct(funnelData.deliveredAmount, totalAmt)],
+                    ['Rejected',               funnelData.rejectedCount,  pct(funnelData.rejectedCount,  total),   funnelData.rejectedAmount,  pct(funnelData.rejectedAmount,  totalAmt)],
+                    ['Cancelled',              funnelData.cancelledCount, pct(funnelData.cancelledCount, total),   funnelData.cancelledAmount, pct(funnelData.cancelledAmount, totalAmt)],
+                    ['In-flight (other)',      funnelData.inFlightCount,  pct(funnelData.inFlightCount,  total),   funnelData.inFlightAmount,  pct(funnelData.inFlightAmount,  totalAmt)],
+                  ];
+                  const rangeSuffix = funnelData.year ? String(funnelData.year)
+                    : funnelData.startDate && funnelData.endDate ? `${funnelData.startDate}_${funnelData.endDate}`
+                    : 'all';
+                  downloadCSV(`order-funnel-${rangeSuffix}.csv`, headers, rows);
+                }}
+              >
+                ↓ CSV
+              </button>
+            )}
+          </div>
+          {/* Range chips */}
+          <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">created_at</span>
+            {([
+              { key: 'year',   label: `${currentYear} (full year)` },
+              { key: '30d',    label: 'Last 30 days' },
+              { key: '7d',     label: 'Last 7 days' },
+              { key: 'today',  label: 'Today' },
+              { key: 'custom', label: 'Custom' },
+            ] as const).map((opt) => {
+              const active = funnelRange === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setFunnelRange(opt.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    active
+                      ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
+                      : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+            {funnelRange === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input
+                  type="date"
+                  value={funnelCustomFrom}
+                  onChange={(e) => setFunnelCustomFrom(e.target.value)}
+                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                />
+                <span className="text-purple-300 text-xs">to</span>
+                <input
+                  type="date"
+                  value={funnelCustomTo}
+                  onChange={(e) => setFunnelCustomTo(e.target.value)}
+                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                />
+              </div>
+            )}
+          </div>
+          {/* Table */}
+          <div className="overflow-x-auto">
+            {funnelLoading || !funnelData ? (
+              <div className="px-8 py-12 text-center text-purple-300">Loading funnel…</div>
+            ) : (() => {
+              const total = funnelData.totalCount || 1;
+              const totalAmt = funnelData.totalAmount || 1;
+              const pct = (n: number, d: number) => d > 0 ? (n / d) * 100 : 0;
+              const stages: Array<{ label: string; count: number; amount: number; tone: string; bg: string; pillBg: string; pillText: string }> = [
+                { label: 'Total Created',         count: funnelData.totalCount,     amount: funnelData.totalAmount,     tone: 'text-white',         bg: 'bg-white/10',         pillBg: 'bg-fuchsia-500/20',  pillText: 'text-fuchsia-200' },
+                { label: 'Delivered + Completed', count: funnelData.deliveredCount, amount: funnelData.deliveredAmount, tone: 'text-emerald-200',   bg: 'bg-emerald-500/5',    pillBg: 'bg-emerald-500/20',  pillText: 'text-emerald-200' },
+                { label: 'Rejected',              count: funnelData.rejectedCount,  amount: funnelData.rejectedAmount,  tone: 'text-rose-200',      bg: 'bg-rose-500/5',       pillBg: 'bg-rose-500/20',     pillText: 'text-rose-200' },
+                { label: 'Cancelled',             count: funnelData.cancelledCount, amount: funnelData.cancelledAmount, tone: 'text-amber-200',     bg: 'bg-amber-500/5',       pillBg: 'bg-amber-500/20',    pillText: 'text-amber-200' },
+                { label: 'In-flight (other)',     count: funnelData.inFlightCount,  amount: funnelData.inFlightAmount,  tone: 'text-purple-200',    bg: 'bg-purple-500/5',     pillBg: 'bg-purple-500/20',   pillText: 'text-purple-200' },
+              ];
+              return (
+                <table className="w-full text-sm">
+                  <thead className="bg-white/5 border-b border-white/10">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-purple-200 uppercase tracking-wider">Stage</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wider">Orders</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wider">% of Created</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wider">Value</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wider">% of Value</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200 uppercase tracking-wider w-[260px]">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stages.map((s, i) => {
+                      const countPct = i === 0 ? 100 : pct(s.count, total);
+                      const amtPct   = i === 0 ? 100 : pct(s.amount, totalAmt);
+                      return (
+                        <tr key={s.label} className={`border-b border-white/5 ${s.bg} hover:bg-white/5 transition-colors`}>
+                          <td className="px-6 py-4">
+                            <div className={`font-semibold ${s.tone}`}>{s.label}</div>
+                            {i === 0 && <div className="text-[10px] text-purple-300/70 leading-tight mt-0.5">excluding DRAFT, test orders</div>}
+                          </td>
+                          <td className={`px-4 py-4 text-right tabular-nums font-bold ${s.tone}`}>{s.count.toLocaleString()}</td>
+                          <td className="px-4 py-4 text-right tabular-nums text-purple-200">
+                            <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-semibold ${s.pillBg} ${s.pillText}`}>
+                              {countPct.toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className={`px-4 py-4 text-right tabular-nums font-bold ${s.tone}`}>{formatAmount(s.amount)}</td>
+                          <td className="px-4 py-4 text-right tabular-nums text-purple-200">
+                            <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-semibold ${s.pillBg} ${s.pillText}`}>
+                              {amtPct.toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${
+                                  i === 0 ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500'
+                                  : i === 1 ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                                  : i === 2 ? 'bg-gradient-to-r from-rose-500 to-red-500'
+                                  : i === 3 ? 'bg-gradient-to-r from-amber-500 to-orange-500'
+                                  : 'bg-gradient-to-r from-purple-500 to-indigo-500'
+                                }`}
+                                style={{ width: `${Math.min(countPct, 100)}%` }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               );
             })()}
           </div>

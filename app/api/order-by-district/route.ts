@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
   const state = searchParams.get('state'); // optional — narrow to one state
-  const sellerId = searchParams.get('sellerId');
+  const sellerIdsParam = searchParams.get('sellerIds') || searchParams.get('sellerId');
 
   try {
     const params: (string | number)[] = [];
@@ -43,9 +43,9 @@ export async function GET(req: NextRequest) {
     }
 
     let whereSeller = '';
-    if (sellerId) {
-      params.push(sellerId);
-      whereSeller = ` AND po."sellerId" = $${params.length}`;
+    if (sellerIdsParam) {
+      params.push(sellerIdsParam);
+      whereSeller = ` AND po."sellerId"::text = ANY(string_to_array($${params.length}, ','))`;
     }
 
     const sql = `

@@ -326,11 +326,12 @@ export default function OrderStatusDashboard() {
   const [districtLoading, setDistrictLoading] = useState(false);
   // selected DB state name for the district view (null = show all districts)
   const [districtSelectedState, setDistrictSelectedState] = useState<string | null>(null);
-  // Brand (seller) filter for the demography view
-  interface SellerBrand {
-    sellerId: string;
-    sellerPhone: string | null;
-    sellerBusinessName: string | null;
+  // Brand filter for the demography view — one row per brand prefix.
+  // A brand may span multiple sellers (e.g. ChukDe GT + ChukDe NonGT).
+  interface BrandEntry {
+    brandName: string;
+    sellerIds: string[];
+    sellerBusinessNames: string[];
     lastOrderAt: string | null;
     daysSinceLastOrder: number | null;
     isActive: boolean;
@@ -341,10 +342,22 @@ export default function OrderStatusDashboard() {
     statesCovered: number;
     districtsCovered: number;
   }
-  const [sellerBrandList, setSellerBrandList] = useState<SellerBrand[] | null>(null);
+  const [sellerBrandList, setSellerBrandList] = useState<BrandEntry[] | null>(null);
   const [sellerBrandSearch, setSellerBrandSearch] = useState('');
-  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
+  const [selectedBrandNames, setSelectedBrandNames] = useState<string[]>([]);
   const [sellerDropdownOpen, setSellerDropdownOpen] = useState(false);
+
+  // Flatten selected brand names → comma-separated sellerIds for the API
+  const resolveSelectedSellerIds = (): string => {
+    if (!sellerBrandList || selectedBrandNames.length === 0) return '';
+    const set = new Set<string>();
+    for (const b of sellerBrandList) {
+      if (selectedBrandNames.includes(b.brandName)) {
+        for (const sid of b.sellerIds) set.add(sid);
+      }
+    }
+    return Array.from(set).join(',');
+  };
   const [sellerDrillId, setSellerDrillId] = useState<string | null>(null);
   const [sellerDrillName, setSellerDrillName] = useState<string>('');
   const [sellerDrillPhone, setSellerDrillPhone] = useState<string>('');
@@ -1092,7 +1105,8 @@ export default function OrderStatusDashboard() {
       const params = new URLSearchParams({ year: String(currentYear) });
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
-      if (selectedSellerId) params.append('sellerId', selectedSellerId);
+      const sids = resolveSelectedSellerIds();
+      if (sids) params.append('sellerIds', sids);
       const res = await fetch(`/api/order-by-state?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
@@ -1109,7 +1123,7 @@ export default function OrderStatusDashboard() {
     if (activeTab !== 'demography') return;
     fetchStateData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedSellerId]);
+  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList]);
 
   const fetchDistrictData = async () => {
     try {
@@ -1119,7 +1133,8 @@ export default function OrderStatusDashboard() {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       if (districtSelectedState) params.append('state', districtSelectedState);
-      if (selectedSellerId) params.append('sellerId', selectedSellerId);
+      const sids = resolveSelectedSellerIds();
+      if (sids) params.append('sellerIds', sids);
       const res = await fetch(`/api/order-by-district?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
@@ -1137,7 +1152,7 @@ export default function OrderStatusDashboard() {
     if (geoMode !== 'district') return;
     fetchDistrictData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, geoMode, districtSelectedState, stateRange, stateCustomFrom, stateCustomTo, selectedSellerId]);
+  }, [activeTab, geoMode, districtSelectedState, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList]);
 
   // Seller brand list — fetched once when entering Demography tab
   const fetchSellerBrandList = async () => {
@@ -3954,7 +3969,7 @@ export default function OrderStatusDashboard() {
               )}
             </div>
 
-            {/* Brand (seller) selector + activity card */}
+            {/* Brand selector + activity card (multi-select; brands grouped by businessName prefix) */}
             <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap relative">
               <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Brand</span>
               <div className="relative">
@@ -3964,117 +3979,159 @@ export default function OrderStatusDashboard() {
                   className="min-w-[260px] px-3 py-1.5 text-xs bg-white/10 border border-white/20 rounded-lg text-white text-left flex items-center justify-between gap-2 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-purple-400"
                 >
                   {(() => {
-                    const selected = sellerBrandList?.find((s) => s.sellerId === selectedSellerId);
-                    return selected
-                      ? <span className="truncate">{selected.sellerBusinessName || '(no name)'}</span>
-                      : <span className="text-purple-300">All brands (no filter)</span>;
+                    if (selectedBrandNames.length === 0) return <span className="text-purple-300">All brands (no filter)</span>;
+                    if (selectedBrandNames.length === 1) return <span className="truncate">{selectedBrandNames[0]}</span>;
+                    return <span className="font-semibold text-fuchsia-200">{selectedBrandNames.length} brands selected</span>;
                   })()}
                   <span className="text-purple-300 text-[10px]">▾</span>
                 </button>
                 {sellerDropdownOpen && (
-                  <div className="absolute top-full left-0 mt-1 z-30 w-[420px] max-h-[420px] bg-slate-900 border border-white/15 rounded-lg shadow-2xl flex flex-col overflow-hidden">
-                    <div className="p-2 border-b border-white/10">
+                  <div className="absolute top-full left-0 mt-1 z-30 w-[460px] max-h-[460px] bg-slate-900 border border-white/15 rounded-lg shadow-2xl flex flex-col overflow-hidden">
+                    <div className="p-2 border-b border-white/10 flex items-center gap-2">
                       <input
                         type="text"
                         autoFocus
                         value={sellerBrandSearch}
                         onChange={(e) => setSellerBrandSearch(e.target.value)}
-                        placeholder="Search brand name or phone…"
-                        className="w-full px-2 py-1.5 text-xs bg-white/10 border border-white/20 rounded text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                        placeholder="Search brand…"
+                        className="flex-1 px-2 py-1.5 text-xs bg-white/10 border border-white/20 rounded text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400"
                       />
+                      {selectedBrandNames.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBrandNames([])}
+                          className="px-2 py-1.5 text-[10px] font-semibold text-rose-200 hover:bg-rose-500/20 rounded border border-rose-400/30 whitespace-nowrap"
+                        >
+                          Clear all
+                        </button>
+                      )}
                     </div>
                     <div className="overflow-y-auto flex-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedSellerId(null);
-                          setSellerDropdownOpen(false);
-                          setSellerBrandSearch('');
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs border-b border-white/5 hover:bg-white/10 ${selectedSellerId === null ? 'bg-fuchsia-500/15 text-fuchsia-200' : 'text-purple-200'}`}
-                      >
-                        All brands (no filter)
-                      </button>
                       {sellerBrandList === null ? (
                         <div className="px-3 py-4 text-xs text-purple-300/60">Loading brands…</div>
                       ) : (() => {
                         const q = sellerBrandSearch.trim().toLowerCase();
                         const filtered = q
-                          ? sellerBrandList.filter((s) =>
-                              (s.sellerBusinessName || '').toLowerCase().includes(q) ||
-                              (s.sellerPhone || '').toLowerCase().includes(q)
+                          ? sellerBrandList.filter((b) =>
+                              b.brandName.toLowerCase().includes(q) ||
+                              b.sellerBusinessNames.some((n) => (n || '').toLowerCase().includes(q))
                             )
                           : sellerBrandList;
                         if (filtered.length === 0) {
                           return <div className="px-3 py-4 text-xs text-purple-300/60">No matches</div>;
                         }
-                        return filtered.map((s) => {
-                          const active = s.sellerId === selectedSellerId;
+                        return filtered.map((b) => {
+                          const checked = selectedBrandNames.includes(b.brandName);
+                          const multiSeller = b.sellerIds.length > 1;
                           return (
-                            <button
-                              key={s.sellerId}
-                              type="button"
-                              onClick={() => {
-                                setSelectedSellerId(s.sellerId);
-                                setSellerDropdownOpen(false);
-                                setSellerBrandSearch('');
-                              }}
-                              className={`w-full text-left px-3 py-2 border-b border-white/5 hover:bg-white/10 ${active ? 'bg-fuchsia-500/15' : ''}`}
+                            <label
+                              key={b.brandName}
+                              className={`flex items-center gap-2 px-3 py-2 border-b border-white/5 hover:bg-white/10 cursor-pointer ${checked ? 'bg-fuchsia-500/15' : ''}`}
                             >
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <div className={`text-xs font-semibold truncate ${active ? 'text-fuchsia-200' : 'text-white'}`}>
-                                    {s.sellerBusinessName || '(no name)'}
-                                  </div>
-                                  <div className="text-[10px] text-purple-300/70 tabular-nums">
-                                    {s.sellerPhone || '—'} · {s.totalOrders.toLocaleString()} orders · {s.statesCovered} states
-                                  </div>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setSelectedBrandNames((prev) =>
+                                    prev.includes(b.brandName)
+                                      ? prev.filter((n) => n !== b.brandName)
+                                      : [...prev, b.brandName]
+                                  );
+                                }}
+                                className="accent-fuchsia-500 w-3.5 h-3.5"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className={`text-xs font-semibold truncate ${checked ? 'text-fuchsia-200' : 'text-white'}`}>
+                                  {b.brandName}
+                                  {multiSeller && <span className="ml-1.5 text-[9px] text-purple-300/70 font-normal">({b.sellerIds.length} sellers)</span>}
                                 </div>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${s.isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-500/30 text-slate-300'}`}>
-                                  {s.isActive ? 'ACTIVE' : 'IDLE'}
-                                </span>
+                                <div className="text-[10px] text-purple-300/70 tabular-nums">
+                                  {b.totalOrders.toLocaleString()} orders · {b.statesCovered} states · {b.districtsCovered} districts
+                                </div>
                               </div>
-                            </button>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${b.isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-500/30 text-slate-300'}`}>
+                                {b.isActive ? 'ACTIVE' : 'IDLE'}
+                              </span>
+                            </label>
                           );
                         });
                       })()}
                     </div>
+                    <div className="p-2 border-t border-white/10 flex items-center justify-between">
+                      <span className="text-[10px] text-purple-300/70">
+                        {selectedBrandNames.length === 0 ? 'none selected' : `${selectedBrandNames.length} selected`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSellerDropdownOpen(false)}
+                        className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white"
+                      >
+                        Apply
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
-              {selectedSellerId && (
-                <button
-                  onClick={() => setSelectedSellerId(null)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-rose-500/20 text-purple-200 hover:text-rose-200 border border-white/10 hover:border-rose-400/40 transition-all"
-                >
-                  Clear
-                </button>
-              )}
-              {/* Selected-brand activity card */}
-              {selectedSellerId && (() => {
-                const s = sellerBrandList?.find((x) => x.sellerId === selectedSellerId);
-                if (!s) return null;
-                const days = s.daysSinceLastOrder;
-                const lastLabel = s.lastOrderAt
-                  ? new Date(s.lastOrderAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+              {/* Activity card */}
+              {sellerBrandList && selectedBrandNames.length > 0 && (() => {
+                const selected = sellerBrandList.filter((b) => selectedBrandNames.includes(b.brandName));
+                if (selected.length === 0) return null;
+                const totalOrders = selected.reduce((s, b) => s + b.totalOrders, 0);
+                const totalAmount = selected.reduce((s, b) => s + b.totalAmount, 0);
+                const latestTs = selected.reduce<number | null>((acc, b) => {
+                  if (!b.lastOrderAt) return acc;
+                  const t = new Date(b.lastOrderAt).getTime();
+                  return acc === null || t > acc ? t : acc;
+                }, null);
+                const daysAgo = latestTs !== null ? Math.floor((Date.now() - latestTs) / 86400000) : null;
+                const isActive = daysAgo !== null && daysAgo <= 30;
+                const lastLabel = latestTs !== null
+                  ? new Date(latestTs).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
                   : 'never';
+                if (selected.length === 1) {
+                  const b = selected[0];
+                  return (
+                    <div className="ml-auto flex items-center gap-3 flex-wrap text-xs">
+                      <span className={`px-2 py-1 rounded-md font-bold ${b.isActive ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30' : 'bg-rose-500/20 text-rose-200 border border-rose-400/30'}`}>
+                        {b.isActive ? '● ACTIVE' : '○ INACTIVE'}
+                      </span>
+                      <div className="text-purple-200">
+                        <span className="text-purple-300/70">Last order:</span> <span className="font-semibold text-white">{lastLabel}</span>
+                        {b.daysSinceLastOrder !== null && <span className="text-purple-300/70"> ({b.daysSinceLastOrder}d ago)</span>}
+                      </div>
+                      <div className="text-purple-200">
+                        <span className="text-purple-300/70">Orders:</span> <span className="font-semibold text-white tabular-nums">{b.totalOrders.toLocaleString()}</span>
+                      </div>
+                      <div className="text-purple-200">
+                        <span className="text-purple-300/70">Value:</span> <span className="font-semibold text-white tabular-nums">{formatAmount(b.totalAmount)}</span>
+                      </div>
+                      <div className="text-purple-200">
+                        <span className="text-purple-300/70">Coverage:</span> <span className="font-semibold text-white tabular-nums">{b.statesCovered}</span> states · <span className="font-semibold text-white tabular-nums">{b.districtsCovered}</span> districts
+                      </div>
+                      {b.sellerIds.length > 1 && (
+                        <div className="text-[10px] text-purple-300/70">{b.sellerIds.length} sellers merged</div>
+                      )}
+                    </div>
+                  );
+                }
+                // Multi-brand aggregate
                 return (
                   <div className="ml-auto flex items-center gap-3 flex-wrap text-xs">
-                    <span className={`px-2 py-1 rounded-md font-bold ${s.isActive ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30' : 'bg-rose-500/20 text-rose-200 border border-rose-400/30'}`}>
-                      {s.isActive ? '● ACTIVE' : '○ INACTIVE'}
+                    <span className={`px-2 py-1 rounded-md font-bold ${isActive ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30' : 'bg-rose-500/20 text-rose-200 border border-rose-400/30'}`}>
+                      {isActive ? '● ACTIVE' : '○ INACTIVE'} ({selected.length} brands)
                     </span>
                     <div className="text-purple-200">
-                      <span className="text-purple-300/70">Last order:</span> <span className="font-semibold text-white">{lastLabel}</span>
-                      {days !== null && <span className="text-purple-300/70"> ({days}d ago)</span>}
+                      <span className="text-purple-300/70">Latest order:</span> <span className="font-semibold text-white">{lastLabel}</span>
+                      {daysAgo !== null && <span className="text-purple-300/70"> ({daysAgo}d ago)</span>}
                     </div>
                     <div className="text-purple-200">
-                      <span className="text-purple-300/70">Orders:</span> <span className="font-semibold text-white tabular-nums">{s.totalOrders.toLocaleString()}</span>
+                      <span className="text-purple-300/70">Orders:</span> <span className="font-semibold text-white tabular-nums">{totalOrders.toLocaleString()}</span>
                     </div>
                     <div className="text-purple-200">
-                      <span className="text-purple-300/70">Value:</span> <span className="font-semibold text-white tabular-nums">{formatAmount(s.totalAmount)}</span>
+                      <span className="text-purple-300/70">Value:</span> <span className="font-semibold text-white tabular-nums">{formatAmount(totalAmount)}</span>
                     </div>
-                    <div className="text-purple-200">
-                      <span className="text-purple-300/70">Coverage:</span> <span className="font-semibold text-white tabular-nums">{s.statesCovered}</span> states · <span className="font-semibold text-white tabular-nums">{s.districtsCovered}</span> districts
+                    <div className="text-[10px] text-purple-300/70 truncate max-w-[260px]" title={selected.map((b) => b.brandName).join(', ')}>
+                      {selected.map((b) => b.brandName).join(', ')}
                     </div>
                   </div>
                 );

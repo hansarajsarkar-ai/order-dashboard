@@ -4,9 +4,9 @@ import { query } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 interface Row {
-  seller_id: string;
-  seller_phone: string | null;
-  seller_business_name: string | null;
+  brand_name: string;
+  seller_ids: string;
+  seller_business_names: string;
   last_order_at: string | null;
   days_since_last_order: string | null;
   total_orders: string;
@@ -17,13 +17,13 @@ interface Row {
   districts_covered: string;
 }
 
-// Lists all D2R brand sellers with their visibility footprint:
-// - lastOrderAt + daysSinceLastOrder → drives the Active / Inactive badge (active = last order within 30 days)
-// - totalOrders / totalAmount over the requested window (defaults: current year, markedPendingTime-bucketed)
-// - deliveredOrders / deliveredAmount: subset where status IN ('DELIVERED','COMPLETED')
-// - statesCovered / districtsCovered: distinct buyer states / districts the brand has shipped to
+// Groups D2R sellers by brand prefix — `TRIM(SPLIT_PART(businessName, '-', 1))`.
+// One brand row per prefix. Sellers like "Chuk De - GT" and "Chuk De - NonGT"
+// merge into a single "Chuk De" row. Sellers without a '-' use their full name.
 //
-// Date filter uses startDate/endDate. last_order_at is ALL-TIME so the activity badge isn't biased by the window.
+// Per-brand stats: total orders + value in the window, distinct states / districts
+// shipped to, and the all-time last_order_at across the brand's sellers (drives the
+// ACTIVE / IDLE badge).
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const currentYear = new Date().getFullYear();
@@ -49,14 +49,23 @@ export async function GET(req: NextRequest) {
     }
 
     const sql = `
-      WITH brand_orders AS (
+      WITH seller_brand AS (
         SELECT
-          po."sellerId",
-          po."amount"::numeric AS amount,
+          s."id"::text       AS seller_id,
+          s."businessName"   AS seller_business_name,
+          TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) AS brand_name
+        FROM "users"."seller" s
+        WHERE s."isTest"           = FALSE
+          AND s."businessName" NOT ILIKE '%test%'
+          AND s."isD2RBrandSeller" = TRUE
+      ),
+      windowed AS (
+        SELECT
+          po."sellerId"::text    AS seller_id,
+          po."amount"::numeric   AS amount,
           po."status",
-          po."markedPendingTime",
-          b."state"    AS buyer_state,
-          b."district" AS buyer_district
+          b."state"              AS buyer_state,
+          b."district"           AS buyer_district
         FROM "purchaseOrder"."purchaseOrder" po
         JOIN "users"."buyer"  b ON b."id" = po."buyerId"
         JOIN "users"."seller" s ON s."id" = po."sellerId"
@@ -73,9 +82,9 @@ export async function GET(req: NextRequest) {
           AND po."markedPendingTime" IS NOT NULL
           ${whereDate}
       ),
-      brand_last AS (
+      last_all AS (
         SELECT
-          po."sellerId",
+          po."sellerId"::text AS seller_id,
           MAX(po."markedPendingTime") AS last_order_at
         FROM "purchaseOrder"."purchaseOrder" po
         JOIN "users"."buyer"  b ON b."id" = po."buyerId"
@@ -92,42 +101,64 @@ export async function GET(req: NextRequest) {
           AND po."status" != 'DRAFT'
           AND po."markedPendingTime" IS NOT NULL
         GROUP BY po."sellerId"
+      ),
+      brand_sellers AS (
+        SELECT
+          sb.brand_name,
+          STRING_AGG(sb.seller_id,            ',' ORDER BY sb.seller_id)             AS seller_ids,
+          STRING_AGG(sb.seller_business_name, '|' ORDER BY sb.seller_business_name)  AS seller_business_names
+        FROM seller_brand sb
+        GROUP BY sb.brand_name
+      ),
+      brand_metrics AS (
+        SELECT
+          sb.brand_name,
+          COUNT(w.*)                                                                                   AS total_orders,
+          COALESCE(SUM(w.amount), 0)                                                                   AS total_amount,
+          COUNT(*) FILTER (WHERE w.status IN ('DELIVERED','COMPLETED'))                                AS delivered_orders,
+          COALESCE(SUM(w.amount) FILTER (WHERE w.status IN ('DELIVERED','COMPLETED')), 0)              AS delivered_amount,
+          COUNT(DISTINCT w.buyer_state)    FILTER (WHERE w.buyer_state    IS NOT NULL)                 AS states_covered,
+          COUNT(DISTINCT w.buyer_district) FILTER (WHERE w.buyer_district IS NOT NULL)                 AS districts_covered
+        FROM seller_brand sb
+        LEFT JOIN windowed w ON w.seller_id = sb.seller_id
+        GROUP BY sb.brand_name
+      ),
+      brand_last AS (
+        SELECT sb.brand_name, MAX(la.last_order_at) AS last_order_at
+        FROM seller_brand sb
+        LEFT JOIN last_all la ON la.seller_id = sb.seller_id
+        GROUP BY sb.brand_name
       )
       SELECT
-        s."id"::text                                                   AS seller_id,
-        s."phone"                                                      AS seller_phone,
-        s."businessName"                                               AS seller_business_name,
-        bl."last_order_at"                                             AS last_order_at,
-        EXTRACT(DAY FROM (NOW() - bl."last_order_at"))::int::text      AS days_since_last_order,
-        COUNT(bo.*)                                                    AS total_orders,
-        COALESCE(SUM(bo."amount"), 0)::text                            AS total_amount,
-        COUNT(*) FILTER (WHERE bo."status" IN ('DELIVERED','COMPLETED')) AS delivered_orders,
-        COALESCE(SUM(bo."amount") FILTER (WHERE bo."status" IN ('DELIVERED','COMPLETED')), 0)::text AS delivered_amount,
-        COUNT(DISTINCT bo."buyer_state")    FILTER (WHERE bo."buyer_state" IS NOT NULL)    AS states_covered,
-        COUNT(DISTINCT bo."buyer_district") FILTER (WHERE bo."buyer_district" IS NOT NULL) AS districts_covered
-      FROM "users"."seller" s
-      LEFT JOIN brand_last bl ON bl."sellerId" = s."id"
-      LEFT JOIN brand_orders bo ON bo."sellerId" = s."id"
-      WHERE s."isTest"           = FALSE
-        AND s."businessName" NOT ILIKE '%test%'
-        AND s."isD2RBrandSeller" = TRUE
-      GROUP BY s."id", s."phone", s."businessName", bl."last_order_at"
-      ORDER BY total_orders DESC NULLS LAST, s."businessName" ASC;
+        bs.brand_name,
+        bs.seller_ids,
+        bs.seller_business_names,
+        bl.last_order_at,
+        EXTRACT(DAY FROM (NOW() - bl.last_order_at))::int::text AS days_since_last_order,
+        bm.total_orders::text,
+        bm.total_amount::text,
+        bm.delivered_orders::text,
+        bm.delivered_amount::text,
+        bm.states_covered::text,
+        bm.districts_covered::text
+      FROM brand_sellers bs
+      LEFT JOIN brand_metrics bm ON bm.brand_name = bs.brand_name
+      LEFT JOIN brand_last    bl ON bl.brand_name = bs.brand_name
+      ORDER BY bm.total_orders DESC NULLS LAST, bs.brand_name ASC;
     `;
     const rows = await query<Row>(sql, params);
 
     const data = rows.map((r) => {
-      const total = parseInt(r.total_orders || '0');
       const days = r.days_since_last_order ? parseInt(r.days_since_last_order) : null;
       const isActive = days !== null && days <= 30;
       return {
-        sellerId: r.seller_id,
-        sellerPhone: r.seller_phone,
-        sellerBusinessName: r.seller_business_name,
+        brandName: r.brand_name || '(no name)',
+        sellerIds: (r.seller_ids || '').split(',').filter(Boolean),
+        sellerBusinessNames: (r.seller_business_names || '').split('|').filter(Boolean),
         lastOrderAt: r.last_order_at,
         daysSinceLastOrder: days,
         isActive,
-        totalOrders: total,
+        totalOrders: parseInt(r.total_orders || '0'),
         totalAmount: parseFloat(r.total_amount || '0'),
         deliveredOrders: parseInt(r.delivered_orders || '0'),
         deliveredAmount: parseFloat(r.delivered_amount || '0'),

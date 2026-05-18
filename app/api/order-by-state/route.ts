@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
-  const sellerId = searchParams.get('sellerId');
+  // Accept comma-separated list of seller IDs (a brand may span multiple sellers, e.g. ChukDe).
+  const sellerIdsParam = searchParams.get('sellerIds') || searchParams.get('sellerId');
 
   try {
     const params: (string | number)[] = [];
@@ -35,9 +36,9 @@ export async function GET(req: NextRequest) {
     }
 
     let whereSeller = '';
-    if (sellerId) {
-      params.push(sellerId);
-      whereSeller = ` AND po."sellerId" = $${params.length}`;
+    if (sellerIdsParam) {
+      params.push(sellerIdsParam);
+      whereSeller = ` AND po."sellerId"::text = ANY(string_to_array($${params.length}, ','))`;
     }
 
     const sql = `

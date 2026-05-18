@@ -346,6 +346,12 @@ export default function OrderStatusDashboard() {
   const [sellerBrandSearch, setSellerBrandSearch] = useState('');
   const [selectedBrandNames, setSelectedBrandNames] = useState<string[]>([]);
   const [sellerDropdownOpen, setSellerDropdownOpen] = useState(false);
+  // Brand × State breakdown table
+  interface BrandStateRow { brandName: string; state: string | null; count: number; amount: number; districtsCovered: number; }
+  const [brandStateData, setBrandStateData] = useState<BrandStateRow[] | null>(null);
+  const [brandStateLoading, setBrandStateLoading] = useState(false);
+  const [brandStateSearch, setBrandStateSearch] = useState('');
+  const [brandStateSort, setBrandStateSort] = useState<'count' | 'amount' | 'brand' | 'state'>('count');
 
   // Flatten selected brand names → comma-separated sellerIds for the API
   const resolveSelectedSellerIds = (): string => {
@@ -1176,6 +1182,35 @@ export default function OrderStatusDashboard() {
     fetchSellerBrandList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, stateRange, stateCustomFrom, stateCustomTo]);
+
+  // Brand × State table
+  const fetchBrandStateData = async () => {
+    try {
+      setBrandStateLoading(true);
+      const { startDate, endDate } = resolveStateRange();
+      const params = new URLSearchParams({ year: String(currentYear) });
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (districtSelectedState) params.append('state', districtSelectedState);
+      const sids = resolveSelectedSellerIds();
+      if (sids) params.append('sellerIds', sids);
+      const res = await fetch(`/api/order-by-brand-state?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setBrandStateData(json.data);
+    } catch (err) {
+      console.error('Brand-state fetch error:', err);
+      setBrandStateData([]);
+    } finally {
+      setBrandStateLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'demography') return;
+    fetchBrandStateData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList, districtSelectedState]);
 
   // Reverse alias: state-map's ST_NM (e.g. "Andaman & Nicobar") → DB state name.
   const GEO_TO_DB_STATE: Record<string, string> = {
@@ -4200,6 +4235,134 @@ export default function OrderStatusDashboard() {
                   selectedState={districtSelectedState}
                 />
               )}
+            </div>
+
+            {/* Brand × State breakdown table */}
+            <div className="border-t border-white/10">
+              <div className="px-8 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-white">Brand × State breakdown</h3>
+                  <p className="text-purple-300/70 text-xs mt-0.5">
+                    Delivered + Completed orders by brand and buyer state
+                    {brandStateData && ` · ${brandStateData.length.toLocaleString()} (brand, state) cells`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <input
+                    type="text"
+                    value={brandStateSearch}
+                    onChange={(e) => setBrandStateSearch(e.target.value)}
+                    placeholder="Search brand or state…"
+                    className="px-3 py-1.5 text-xs bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-[240px]"
+                  />
+                  {brandStateData && brandStateData.length > 0 && (
+                    <button
+                      className={DOWNLOAD_BTN_CLASS}
+                      onClick={() => {
+                        const rows: CsvCell[][] = (brandStateData || []).map((r) => [
+                          r.brandName, r.state ?? '(no state)', r.count, r.amount, r.districtsCovered,
+                        ]);
+                        const suffix = (() => {
+                          const { startDate, endDate } = resolveStateRange();
+                          if (startDate && endDate) return `${startDate}_${endDate}`;
+                          return String(currentYear);
+                        })();
+                        downloadCSV(
+                          `demography-brand-state-${suffix}.csv`,
+                          ['Brand', 'State', 'Orders', 'Amount', 'Districts Covered'],
+                          rows
+                        );
+                      }}
+                    >
+                      ↓ CSV
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="overflow-auto max-h-[560px]">
+                {brandStateLoading || !brandStateData ? (
+                  <div className="px-8 py-12 text-center text-purple-300">Loading…</div>
+                ) : brandStateData.length === 0 ? (
+                  <div className="px-8 py-12 text-center text-purple-300">No delivered/completed orders in this slice</div>
+                ) : (() => {
+                  const q = brandStateSearch.trim().toLowerCase();
+                  const filtered = q
+                    ? brandStateData.filter((r) =>
+                        r.brandName.toLowerCase().includes(q) ||
+                        (r.state || '').toLowerCase().includes(q)
+                      )
+                    : brandStateData;
+                  const sorted = [...filtered].sort((a, b) => {
+                    if (brandStateSort === 'count')  return b.count  - a.count;
+                    if (brandStateSort === 'amount') return b.amount - a.amount;
+                    if (brandStateSort === 'brand')  return a.brandName.localeCompare(b.brandName);
+                    if (brandStateSort === 'state')  return (a.state || '').localeCompare(b.state || '');
+                    return 0;
+                  });
+                  if (sorted.length === 0) {
+                    return <div className="px-8 py-12 text-center text-purple-300">No matches</div>;
+                  }
+                  const filteredCount  = filtered.reduce((s, r) => s + r.count,  0);
+                  const filteredAmount = filtered.reduce((s, r) => s + r.amount, 0);
+                  const sortIndicator = (col: typeof brandStateSort) => brandStateSort === col ? ' ↓' : '';
+                  return (
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-white/10">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider w-12">#</th>
+                          <th
+                            onClick={() => setBrandStateSort('brand')}
+                            className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white"
+                          >
+                            Brand{sortIndicator('brand')}
+                          </th>
+                          <th
+                            onClick={() => setBrandStateSort('state')}
+                            className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white"
+                          >
+                            State{sortIndicator('state')}
+                          </th>
+                          <th
+                            onClick={() => setBrandStateSort('count')}
+                            className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white"
+                          >
+                            Orders{sortIndicator('count')}
+                          </th>
+                          <th
+                            onClick={() => setBrandStateSort('amount')}
+                            className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white"
+                          >
+                            Amount{sortIndicator('amount')}
+                          </th>
+                          <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Districts</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted.map((r, i) => (
+                          <tr key={`${r.brandName}__${r.state ?? '_'}`} className="border-b border-white/5 hover:bg-white/5">
+                            <td className="px-4 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
+                            <td className="px-4 py-2.5 text-white font-medium whitespace-nowrap">{r.brandName}</td>
+                            <td className="px-4 py-2.5 text-purple-100 whitespace-nowrap">{r.state || <span className="italic text-purple-400/60">(no state)</span>}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-white font-semibold">{r.count.toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-emerald-200">{formatAmount(r.amount)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{r.districtsCovered}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="sticky bottom-0 bg-slate-900/95 backdrop-blur border-t border-white/10">
+                        <tr>
+                          <td className="px-4 py-2.5" />
+                          <td className="px-4 py-2.5 text-purple-200 font-bold uppercase text-[11px] tracking-wider">Filtered total</td>
+                          <td className="px-4 py-2.5 text-purple-300/70 text-xs">{filtered.length} cells</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-white font-bold">{filteredCount.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-emerald-300 font-bold">{formatAmount(filteredAmount)}</td>
+                          <td className="px-4 py-2.5" />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  );
+                })()}
+              </div>
             </div>
           </div>
         )}

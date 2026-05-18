@@ -2313,91 +2313,146 @@ export default function OrderStatusDashboard() {
                 ) : rtoTrendData.length === 0 ? (
                   <div className="h-[320px] flex items-center justify-center text-purple-300">No RTO data for this range</div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={360}>
-                    <ComposedChart
-                      data={rtoTrendData}
-                      margin={{ top: 28, right: 24, left: 8, bottom: 8 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fill: 'rgba(216,180,254,0.75)', fontSize: 11 }}
-                        tickLine={false}
-                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                        minTickGap={rtoTrendGranularity === 'day' || rtoTrendGranularity === 'custom' ? 20 : 5}
-                      />
-                      <YAxis
-                        yAxisId="count"
-                        tick={{ fill: 'rgba(253,164,175,0.9)', fontSize: 11 }}
-                        tickLine={false}
-                        axisLine={false}
-                        width={44}
-                      />
-                      <YAxis
-                        yAxisId="amount"
-                        orientation="right"
-                        tick={{ fill: 'rgba(252,211,77,0.9)', fontSize: 11 }}
-                        tickLine={false}
-                        axisLine={false}
-                        width={56}
-                        tickFormatter={(v: number) => {
-                          if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
-                          if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
-                          if (v >= 1000) return `₹${(v / 1000).toFixed(0)}k`;
-                          return `₹${v}`;
-                        }}
-                      />
-                      <Tooltip
-                        cursor={{ fill: 'rgba(244,63,94,0.08)' }}
-                        contentStyle={{
-                          background: 'rgba(15,23,42,0.96)',
-                          border: '1px solid rgba(244,63,94,0.35)',
-                          borderRadius: 10,
-                          color: '#fff',
-                          fontSize: 12,
-                        }}
-                        labelStyle={{ color: '#fda4af', fontWeight: 700, marginBottom: 4 }}
-                        formatter={(v, name) => {
-                          const n = typeof v === 'number' ? v : Number(v ?? 0);
-                          const key = String(name);
-                          return [key === 'Order value' ? formatAmount(n) : n.toLocaleString(), key];
-                        }}
-                      />
-                      <Legend
-                        wrapperStyle={{ paddingTop: 6, fontSize: 12 }}
-                        iconType="circle"
-                      />
-                      <Bar
-                        yAxisId="count"
-                        dataKey="count"
-                        name="RTO orders"
-                        fill="#f43f5e"
-                        radius={[6, 6, 0, 0]}
-                        maxBarSize={42}
-                      >
-                        <LabelList
-                          dataKey="count"
-                          position="top"
-                          offset={8}
-                          style={{
-                            fill: '#fecdd3',
-                            fontSize: 11,
-                            fontWeight: 700,
-                          }}
-                        />
-                      </Bar>
-                      <Line
-                        yAxisId="amount"
-                        type="monotone"
-                        dataKey="amount"
-                        name="Order value"
-                        stroke="#f59e0b"
-                        strokeWidth={2.5}
-                        dot={{ r: 4, fill: '#f59e0b', stroke: '#1e1b4b', strokeWidth: 2 }}
-                        activeDot={{ r: 6, fill: '#fbbf24', stroke: '#1e1b4b', strokeWidth: 2 }}
-                      />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                  <div className="space-y-3">
+                    {/* Top: RTO order count */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-1 px-1">
+                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                        <span className="text-xs font-semibold text-rose-200 uppercase tracking-wide">RTO orders</span>
+                        <span className="text-[10px] text-purple-300/70">count per bucket</span>
+                      </div>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <ComposedChart
+                          data={rtoTrendData}
+                          margin={{ top: 20, right: 16, left: 8, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            tick={false}
+                            axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                            height={4}
+                          />
+                          <YAxis
+                            tick={{ fill: 'rgba(253,164,175,0.9)', fontSize: 11 }}
+                            tickLine={false}
+                            axisLine={false}
+                            width={44}
+                            allowDecimals={false}
+                          />
+                          <Tooltip
+                            cursor={{ fill: 'rgba(244,63,94,0.08)' }}
+                            contentStyle={{
+                              background: 'rgba(15,23,42,0.96)',
+                              border: '1px solid rgba(244,63,94,0.35)',
+                              borderRadius: 10,
+                              color: '#fff',
+                              fontSize: 12,
+                            }}
+                            labelStyle={{ color: '#fda4af', fontWeight: 700, marginBottom: 4 }}
+                            formatter={(v) => {
+                              const n = typeof v === 'number' ? v : Number(v ?? 0);
+                              return [n.toLocaleString(), 'RTO orders'];
+                            }}
+                          />
+                          <Bar
+                            dataKey="count"
+                            name="RTO orders"
+                            fill="#f43f5e"
+                            radius={[5, 5, 0, 0]}
+                            maxBarSize={42}
+                          >
+                            <LabelList
+                              dataKey="count"
+                              position="top"
+                              offset={6}
+                              style={{
+                                fill: '#fecdd3',
+                                fontSize: rtoTrendData.length > 24 ? 9 : 11,
+                                fontWeight: 700,
+                              }}
+                            />
+                          </Bar>
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Bottom: order value */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-1 px-1">
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        <span className="text-xs font-semibold text-amber-200 uppercase tracking-wide">Order value</span>
+                        <span className="text-[10px] text-purple-300/70">₹ per bucket</span>
+                      </div>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <ComposedChart
+                          data={rtoTrendData}
+                          margin={{ top: 20, right: 16, left: 8, bottom: 24 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fill: 'rgba(216,180,254,0.75)', fontSize: 11 }}
+                            tickLine={false}
+                            axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                            minTickGap={rtoTrendGranularity === 'day' || rtoTrendGranularity === 'custom' ? 20 : 5}
+                          />
+                          <YAxis
+                            tick={{ fill: 'rgba(252,211,77,0.9)', fontSize: 11 }}
+                            tickLine={false}
+                            axisLine={false}
+                            width={56}
+                            tickFormatter={(v: number) => {
+                              if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+                              if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
+                              if (v >= 1000) return `₹${(v / 1000).toFixed(0)}k`;
+                              return `₹${v}`;
+                            }}
+                          />
+                          <Tooltip
+                            cursor={{ fill: 'rgba(245,158,11,0.08)' }}
+                            contentStyle={{
+                              background: 'rgba(15,23,42,0.96)',
+                              border: '1px solid rgba(245,158,11,0.35)',
+                              borderRadius: 10,
+                              color: '#fff',
+                              fontSize: 12,
+                            }}
+                            labelStyle={{ color: '#fcd34d', fontWeight: 700, marginBottom: 4 }}
+                            formatter={(v) => {
+                              const n = typeof v === 'number' ? v : Number(v ?? 0);
+                              return [formatAmount(n), 'Order value'];
+                            }}
+                          />
+                          <Bar
+                            dataKey="amount"
+                            name="Order value"
+                            fill="#f59e0b"
+                            radius={[5, 5, 0, 0]}
+                            maxBarSize={42}
+                          >
+                            <LabelList
+                              dataKey="amount"
+                              position="top"
+                              offset={6}
+                              formatter={(v: string | number | boolean | null | undefined) => {
+                                const n = typeof v === 'number' ? v : Number(v ?? 0);
+                                if (n >= 10000000) return `${(n / 10000000).toFixed(1)}Cr`;
+                                if (n >= 100000) return `${(n / 100000).toFixed(1)}L`;
+                                if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
+                                return String(Math.round(n));
+                              }}
+                              style={{
+                                fill: '#fef3c7',
+                                fontSize: rtoTrendData.length > 24 ? 9 : 11,
+                                fontWeight: 700,
+                              }}
+                            />
+                          </Bar>
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

@@ -335,7 +335,9 @@ export default function OrderStatusDashboard() {
   const [sellerDrillEndDate, setSellerDrillEndDate] = useState<string>('');
   const [sellerDrillStatus, setSellerDrillStatus] = useState<string>('all');
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'seller' | 'demography'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'seller' | 'demography' | 'rto'>('dashboard');
+  const [rtoData, setRtoData] = useState<MonthlyStatusData | null>(null);
+  const [rtoLoading, setRtoLoading] = useState(true);
   // Trend tab — daily order trend chart
   interface DailyTrendPoint { day: string; ordersCount: number; ordersAmount: number; deliveredCount: number; deliveredAmount: number; }
   const [trendData, setTrendData] = useState<DailyTrendPoint[] | null>(null);
@@ -401,6 +403,25 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     fetchMonthly();
   }, []);
+
+  const fetchRto = async () => {
+    try {
+      setRtoLoading(true);
+      const response = await fetch(`/api/order-rto-breakdown?year=${currentYear}`);
+      if (!response.ok) throw new Error('Failed to fetch RTO data');
+      const result: MonthlyStatusData = await response.json();
+      setRtoData(result);
+    } catch (err) {
+      console.error('RTO fetch error:', err);
+    } finally {
+      setRtoLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'rto') return;
+    fetchRto();
+  }, [activeTab]);
 
   const fetchDaily = async (month: number) => {
     try {
@@ -976,6 +997,7 @@ export default function OrderStatusDashboard() {
             { key: 'trend', label: 'Trend' },
             { key: 'seller', label: 'Seller wise' },
             { key: 'demography', label: 'Demography' },
+            { key: 'rto', label: 'RTO' },
           ] as const).map((tab) => {
             const active = activeTab === tab.key;
             return (
@@ -3140,6 +3162,96 @@ export default function OrderStatusDashboard() {
                     </button>
                   </div>
                 </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'rto' && (
+          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+            <div className="px-8 py-6 border-b border-white/10">
+              <h2 className="text-2xl font-bold text-white">Return to Origin (RTO) — {currentYear}</h2>
+              <p className="text-white/60 text-sm mt-1">Monthly breakdown of orders where the buyer returned shipment to origin</p>
+            </div>
+            <div className="overflow-x-auto">
+              {rtoLoading ? (
+                <div className="py-12 text-center text-white/60">Loading RTO data...</div>
+              ) : !rtoData || !rtoData.data || rtoData.data.length === 0 ? (
+                <div className="py-12 text-center text-white/60">No RTO orders found for {currentYear}</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="text-left px-4 py-3 text-white/80 font-semibold">Status</th>
+                      {MONTH_NAMES.map((m) => (
+                        <th key={m} colSpan={2} className="px-2 py-3 text-center text-white/80 font-semibold border-l border-white/10">{m}</th>
+                      ))}
+                      <th colSpan={2} className="px-2 py-3 text-center text-white font-bold bg-purple-500/10 border-l border-white/10">Total</th>
+                    </tr>
+                    <tr className="border-b border-white/10 text-[11px] text-white/50 uppercase">
+                      <th></th>
+                      {MONTH_NAMES.map((m) => (
+                        <Fragment key={m}>
+                          <th className="px-2 py-2 text-right font-normal border-l border-white/10">Count</th>
+                          <th className="px-2 py-2 text-right font-normal">Amount</th>
+                        </Fragment>
+                      ))}
+                      <th className="px-2 py-2 text-right font-normal border-l border-white/10 bg-purple-500/10">Count</th>
+                      <th className="px-2 py-2 text-right font-normal bg-purple-500/10">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rtoData.data.map((row) => (
+                      <tr key={row.status} className="border-b border-white/5 hover:bg-white/5">
+                        <td className="px-4 py-3 text-white font-semibold">{row.status}</td>
+                        {MONTH_NAMES.map((_, idx) => {
+                          const monthNum = idx + 1;
+                          const cell = row.months[monthNum];
+                          const hasData = !!cell;
+                          return (
+                            <Fragment key={idx}>
+                              <td className={`px-2 py-3 text-right tabular-nums border-l border-white/10 ${hasData ? 'text-white' : 'text-white/30'}`}>
+                                {hasData ? cell.count : '—'}
+                              </td>
+                              <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-purple-100' : 'text-white/30'}`}>
+                                {hasData ? formatAmount(cell.amount) : '—'}
+                              </td>
+                            </Fragment>
+                          );
+                        })}
+                        <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10 border-l border-white/10">
+                          {row.total.count}
+                        </td>
+                        <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10">
+                          {formatAmount(row.total.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t-2 border-white/20 bg-purple-500/5">
+                      <td className="px-4 py-3 text-white font-bold">Grand Total</td>
+                      {MONTH_NAMES.map((_, idx) => {
+                        const monthNum = idx + 1;
+                        const cell = rtoData.totals.byMonth[monthNum];
+                        return (
+                          <Fragment key={idx}>
+                            <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/20 border-l border-white/10">
+                              {cell ? cell.count : '—'}
+                            </td>
+                            <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/20">
+                              {cell ? formatAmount(cell.amount) : '—'}
+                            </td>
+                          </Fragment>
+                        );
+                      })}
+                      <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/30 border-l border-white/10">
+                        {rtoData.totals.grand.count}
+                      </td>
+                      <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-50 bg-purple-500/30">
+                        {formatAmount(rtoData.totals.grand.amount)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               )}
             </div>
           </div>

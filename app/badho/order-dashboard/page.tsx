@@ -1455,216 +1455,6 @@ export default function OrderStatusDashboard() {
         </div>
 
 
-        {/* MonthWiseOrder funnel — rows = months desc, cols = totals + 5 stages */}
-        <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)] funnel-monthwise-marker">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <h2 className="text-2xl font-bold text-white">MonthWiseOrder</h2>
-              <p className="text-purple-300 text-sm mt-1">
-                Months × stages, bucketed by <span className="font-mono text-fuchsia-300">created_at</span>
-                {funnelData?.startDate && funnelData?.endDate && ` · ${funnelData.startDate} → ${funnelData.endDate}`}
-                {!funnelData?.startDate && !funnelData?.endDate && ' · all time'}
-                {' · '}<span className="text-purple-300/70">DRAFT included; no delivery-network filter</span>
-              </p>
-            </div>
-            {funnelData && funnelData.data.length > 0 && (
-              <button
-                className={DOWNLOAD_BTN_CLASS}
-                onClick={() => {
-                  const headers = [
-                    'Month', 'Total POs', 'Total Amount',
-                    'Draft Count', 'Draft Amount', 'Draft %', 'Draft Buyers', 'Draft Sellers',
-                    'Order Punched Count', 'Order Punched Amount', 'Order Punched %', 'Order Punched Buyers', 'Order Punched Sellers',
-                    'Pending Count', 'Pending Amount', 'Pending %', 'Pending Buyers', 'Pending Sellers',
-                    'InProgress Count', 'InProgress Amount', 'InProgress %', 'InProgress Buyers', 'InProgress Sellers',
-                    'Fulfilled Count', 'Fulfilled Amount', 'Fulfilled %', 'Fulfilled Buyers', 'Fulfilled Sellers',
-                  ];
-                  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                  const pct = (n: number, d: number) => d > 0 ? Number(((n / d) * 100).toFixed(1)) : 0;
-                  const rows: CsvCell[][] = funnelData.data.map((m) => {
-                    const label = `${monthNames[m.month - 1]} ${m.year}`;
-                    return [
-                      label, m.totalCount, m.totalAmount,
-                      m.draft.count,        m.draft.amount,        pct(m.draft.count, m.totalCount),        m.draft.buyers,        m.draft.sellers,
-                      m.orderPunched.count, m.orderPunched.amount, pct(m.orderPunched.count, m.totalCount), m.orderPunched.buyers, m.orderPunched.sellers,
-                      m.pending.count,      m.pending.amount,      pct(m.pending.count, m.totalCount),      m.pending.buyers,      m.pending.sellers,
-                      m.inProgress.count,   m.inProgress.amount,   pct(m.inProgress.count, m.totalCount),   m.inProgress.buyers,   m.inProgress.sellers,
-                      m.fulfilled.count,    m.fulfilled.amount,    pct(m.fulfilled.count, m.totalCount),    m.fulfilled.buyers,    m.fulfilled.sellers,
-                    ];
-                  });
-                  const rangeSuffix = funnelData.startDate && funnelData.endDate
-                    ? `${funnelData.startDate}_${funnelData.endDate}`
-                    : 'all-time';
-                  downloadCSV(`month-wise-order-${rangeSuffix}.csv`, headers, rows);
-                }}
-              >
-                ↓ CSV
-              </button>
-            )}
-          </div>
-          {/* Range chips */}
-          <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
-            <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">created_at</span>
-            {([
-              { key: 'all',    label: 'All time' },
-              { key: 'year',   label: `${currentYear}` },
-              { key: '12mo',   label: 'Last 12 months' },
-              { key: '30d',    label: 'Last 30 days' },
-              { key: '7d',     label: 'Last 7 days' },
-              { key: 'today',  label: 'Today' },
-              { key: 'custom', label: 'Custom' },
-            ] as const).map((opt) => {
-              const active = funnelRange === opt.key;
-              return (
-                <button
-                  key={opt.key}
-                  onClick={() => setFunnelRange(opt.key)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    active
-                      ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
-                      : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-            {funnelRange === 'custom' && (
-              <div className="flex items-center gap-2 ml-2">
-                <input
-                  type="date"
-                  value={funnelCustomFrom}
-                  onChange={(e) => setFunnelCustomFrom(e.target.value)}
-                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-                />
-                <span className="text-purple-300 text-xs">to</span>
-                <input
-                  type="date"
-                  value={funnelCustomTo}
-                  onChange={(e) => setFunnelCustomTo(e.target.value)}
-                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-                />
-              </div>
-            )}
-          </div>
-          {/* Table — months desc, totals + 5 stages */}
-          <div className="overflow-x-auto">
-            {funnelLoading || !funnelData ? (
-              <div className="px-8 py-12 text-center text-purple-300">Loading…</div>
-            ) : funnelData.data.length === 0 ? (
-              <div className="px-8 py-12 text-center text-purple-300">No orders in this range</div>
-            ) : (() => {
-              const months = funnelData.data; // already sorted desc
-              const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-              const dayName = (d: Date) => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
-              const labelFor = (y: number, m: number) => {
-                const d = new Date(y, m - 1, 1);
-                return `${dayName(d)}, ${monthNames[m - 1]} 1, ${y}`;
-              };
-              // Heatmap helpers — min/max across both numeric totals columns separately.
-              const counts  = months.map((r) => r.totalCount);
-              const amounts = months.map((r) => r.totalAmount);
-              const cMin = Math.min(...counts),  cMax = Math.max(...counts);
-              const aMin = Math.min(...amounts), aMax = Math.max(...amounts);
-              const heatColor = (v: number, lo: number, hi: number) => {
-                if (hi === lo) return 'rgba(255,255,255,0.04)';
-                const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
-                // red (0 hue) -> green (140 hue) via olive midpoint
-                const hue = Math.round(t * 140);
-                const sat = 60;
-                const light = 24 + Math.round(t * 6); // 24%..30%
-                return `hsl(${hue}, ${sat}%, ${light}%)`;
-              };
-              const heatText = (v: number, lo: number, hi: number) => {
-                if (hi === lo) return 'text-white';
-                const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
-                if (t > 0.6) return 'text-emerald-100';
-                if (t < 0.4) return 'text-rose-100';
-                return 'text-amber-100';
-              };
-              // Stage cell formatter — "count | ₹amount | pct% | buyers | sellers"
-              const fmtStage = (s: FunnelStage, total: number) => {
-                const pct = total > 0 ? ((s.count / total) * 100).toFixed(1) : '0.0';
-                return { pct, count: s.count.toLocaleString('en-IN'), amount: s.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 }), buyers: s.buyers.toLocaleString('en-IN'), sellers: s.sellers.toLocaleString('en-IN') };
-              };
-              const stageCols: Array<{ label: string; key: 'draft' | 'orderPunched' | 'pending' | 'inProgress' | 'fulfilled'; tone: string }> = [
-                { label: 'Draft',          key: 'draft',        tone: 'text-purple-100' },
-                { label: 'Order Punched',  key: 'orderPunched', tone: 'text-fuchsia-200' },
-                { label: 'Pending',        key: 'pending',      tone: 'text-amber-200' },
-                { label: 'InProgress',     key: 'inProgress',   tone: 'text-sky-200' },
-                { label: 'Fulfilled',      key: 'fulfilled',    tone: 'text-emerald-200' },
-              ];
-              return (
-                <table className="text-[11px] border-separate border-spacing-0 min-w-full">
-                  <thead className="sticky top-0 z-10 bg-slate-900">
-                    <tr>
-                      <th className="sticky left-0 z-20 bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-left font-semibold text-purple-200 uppercase tracking-wider whitespace-nowrap min-w-[200px]">
-                        monthly
-                      </th>
-                      <th className="bg-slate-900 border-b border-white/10 px-3 py-2 text-right font-semibold text-purple-200 uppercase tracking-wider whitespace-nowrap">
-                        totalpo
-                      </th>
-                      <th className="bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-right font-semibold text-purple-200 uppercase tracking-wider whitespace-nowrap">
-                        totalamount
-                      </th>
-                      {stageCols.map((sc) => (
-                        <th
-                          key={sc.key}
-                          className={`bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-left font-semibold ${sc.tone} whitespace-nowrap`}
-                        >
-                          {sc.label} <span className="text-purple-300/60 font-normal">(Ct|Amt|%|Buy|Sel)</span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {months.map((m) => {
-                      const label = labelFor(m.year, m.month);
-                      return (
-                        <tr key={`${m.year}-${m.month}`} className="hover:bg-white/5">
-                          <td className="sticky left-0 z-10 bg-slate-900 border-b border-r border-white/10 px-3 py-2 font-medium text-white whitespace-nowrap">
-                            {label}, 00:00
-                          </td>
-                          <td
-                            className={`border-b border-white/10 px-3 py-2 text-right tabular-nums font-bold ${heatText(m.totalCount, cMin, cMax)}`}
-                            style={{ background: heatColor(m.totalCount, cMin, cMax) }}
-                          >
-                            {m.totalCount.toLocaleString('en-IN')}
-                          </td>
-                          <td
-                            className={`border-b border-r border-white/10 px-3 py-2 text-right tabular-nums font-bold ${heatText(m.totalAmount, aMin, aMax)}`}
-                            style={{ background: heatColor(m.totalAmount, aMin, aMax) }}
-                          >
-                            {m.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                          </td>
-                          {stageCols.map((sc) => {
-                            const s = m[sc.key];
-                            const f = fmtStage(s, m.totalCount);
-                            return (
-                              <td
-                                key={sc.key}
-                                className={`border-b border-r border-white/10 px-3 py-2 text-left tabular-nums whitespace-nowrap ${sc.tone}`}
-                              >
-                                {f.count} <span className="text-purple-400/50">|</span> ₹{f.amount} <span className="text-purple-400/50">|</span> {f.pct}% <span className="text-purple-400/50">|</span> {f.buyers} <span className="text-purple-400/50">|</span> {f.sellers}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              );
-            })()}
-          </div>
-          {funnelData && funnelData.data.length > 0 && (
-            <div className="px-8 py-2 border-t border-white/10 bg-white/5 text-right text-xs text-purple-300/70">
-              {funnelData.data.length} {funnelData.data.length === 1 ? 'row' : 'rows'}
-            </div>
-          )}
-        </div>
-
-
         {/* Monthly Breakdown — Status × Delivery Status (expandable pivot) */}
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
@@ -2172,6 +1962,218 @@ export default function OrderStatusDashboard() {
             })()}
           </div>
         </div>
+
+
+
+        {/* MonthWiseOrder funnel — rows = months desc, cols = totals + 5 stages */}
+        <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)] funnel-monthwise-marker">
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white">MonthWiseOrder</h2>
+              <p className="text-purple-300 text-sm mt-1">
+                Months × stages, bucketed by <span className="font-mono text-fuchsia-300">created_at</span>
+                {funnelData?.startDate && funnelData?.endDate && ` · ${funnelData.startDate} → ${funnelData.endDate}`}
+                {!funnelData?.startDate && !funnelData?.endDate && ' · all time'}
+                {' · '}<span className="text-purple-300/70">DRAFT included; no delivery-network filter</span>
+              </p>
+            </div>
+            {funnelData && funnelData.data.length > 0 && (
+              <button
+                className={DOWNLOAD_BTN_CLASS}
+                onClick={() => {
+                  const headers = [
+                    'Month', 'Total POs', 'Total Amount',
+                    'Draft Count', 'Draft Amount', 'Draft %', 'Draft Buyers', 'Draft Sellers',
+                    'Order Punched Count', 'Order Punched Amount', 'Order Punched %', 'Order Punched Buyers', 'Order Punched Sellers',
+                    'Pending Count', 'Pending Amount', 'Pending %', 'Pending Buyers', 'Pending Sellers',
+                    'InProgress Count', 'InProgress Amount', 'InProgress %', 'InProgress Buyers', 'InProgress Sellers',
+                    'Fulfilled Count', 'Fulfilled Amount', 'Fulfilled %', 'Fulfilled Buyers', 'Fulfilled Sellers',
+                  ];
+                  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                  const pct = (n: number, d: number) => d > 0 ? Number(((n / d) * 100).toFixed(1)) : 0;
+                  const rows: CsvCell[][] = funnelData.data.map((m) => {
+                    const label = `${monthNames[m.month - 1]} ${m.year}`;
+                    return [
+                      label, m.totalCount, m.totalAmount,
+                      m.draft.count,        m.draft.amount,        pct(m.draft.count, m.totalCount),        m.draft.buyers,        m.draft.sellers,
+                      m.orderPunched.count, m.orderPunched.amount, pct(m.orderPunched.count, m.totalCount), m.orderPunched.buyers, m.orderPunched.sellers,
+                      m.pending.count,      m.pending.amount,      pct(m.pending.count, m.totalCount),      m.pending.buyers,      m.pending.sellers,
+                      m.inProgress.count,   m.inProgress.amount,   pct(m.inProgress.count, m.totalCount),   m.inProgress.buyers,   m.inProgress.sellers,
+                      m.fulfilled.count,    m.fulfilled.amount,    pct(m.fulfilled.count, m.totalCount),    m.fulfilled.buyers,    m.fulfilled.sellers,
+                    ];
+                  });
+                  const rangeSuffix = funnelData.startDate && funnelData.endDate
+                    ? `${funnelData.startDate}_${funnelData.endDate}`
+                    : 'all-time';
+                  downloadCSV(`month-wise-order-${rangeSuffix}.csv`, headers, rows);
+                }}
+              >
+                ↓ CSV
+              </button>
+            )}
+          </div>
+          {/* Range chips */}
+          <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">created_at</span>
+            {([
+              { key: 'all',    label: 'All time' },
+              { key: 'year',   label: `${currentYear}` },
+              { key: '12mo',   label: 'Last 12 months' },
+              { key: '30d',    label: 'Last 30 days' },
+              { key: '7d',     label: 'Last 7 days' },
+              { key: 'today',  label: 'Today' },
+              { key: 'custom', label: 'Custom' },
+            ] as const).map((opt) => {
+              const active = funnelRange === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setFunnelRange(opt.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    active
+                      ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
+                      : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+            {funnelRange === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input
+                  type="date"
+                  value={funnelCustomFrom}
+                  onChange={(e) => setFunnelCustomFrom(e.target.value)}
+                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                />
+                <span className="text-purple-300 text-xs">to</span>
+                <input
+                  type="date"
+                  value={funnelCustomTo}
+                  onChange={(e) => setFunnelCustomTo(e.target.value)}
+                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                />
+              </div>
+            )}
+          </div>
+          {/* Table — months desc, totals + 5 stages */}
+          <div className="overflow-x-auto">
+            {funnelLoading || !funnelData ? (
+              <div className="px-8 py-12 text-center text-purple-300">Loading…</div>
+            ) : funnelData.data.length === 0 ? (
+              <div className="px-8 py-12 text-center text-purple-300">No orders in this range</div>
+            ) : (() => {
+              const months = funnelData.data; // already sorted desc
+              const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+              const dayName = (d: Date) => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+              const labelFor = (y: number, m: number) => {
+                const d = new Date(y, m - 1, 1);
+                return `${dayName(d)}, ${monthNames[m - 1]} 1, ${y}`;
+              };
+              // Heatmap helpers — min/max across both numeric totals columns separately.
+              const counts  = months.map((r) => r.totalCount);
+              const amounts = months.map((r) => r.totalAmount);
+              const cMin = Math.min(...counts),  cMax = Math.max(...counts);
+              const aMin = Math.min(...amounts), aMax = Math.max(...amounts);
+              const heatColor = (v: number, lo: number, hi: number) => {
+                if (hi === lo) return 'rgba(255,255,255,0.04)';
+                const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+                // red (0 hue) -> green (140 hue) via olive midpoint
+                const hue = Math.round(t * 140);
+                const sat = 60;
+                const light = 24 + Math.round(t * 6); // 24%..30%
+                return `hsl(${hue}, ${sat}%, ${light}%)`;
+              };
+              const heatText = (v: number, lo: number, hi: number) => {
+                if (hi === lo) return 'text-white';
+                const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+                if (t > 0.6) return 'text-emerald-100';
+                if (t < 0.4) return 'text-rose-100';
+                return 'text-amber-100';
+              };
+              // Stage cell formatter — "count | ₹amount | pct% | buyers | sellers"
+              const fmtStage = (s: FunnelStage, total: number) => {
+                const pct = total > 0 ? ((s.count / total) * 100).toFixed(1) : '0.0';
+                return { pct, count: s.count.toLocaleString('en-IN'), amount: s.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 }), buyers: s.buyers.toLocaleString('en-IN'), sellers: s.sellers.toLocaleString('en-IN') };
+              };
+              const stageCols: Array<{ label: string; key: 'draft' | 'orderPunched' | 'pending' | 'inProgress' | 'fulfilled'; tone: string }> = [
+                { label: 'Draft',          key: 'draft',        tone: 'text-purple-100' },
+                { label: 'Order Punched',  key: 'orderPunched', tone: 'text-fuchsia-200' },
+                { label: 'Pending',        key: 'pending',      tone: 'text-amber-200' },
+                { label: 'InProgress',     key: 'inProgress',   tone: 'text-sky-200' },
+                { label: 'Fulfilled',      key: 'fulfilled',    tone: 'text-emerald-200' },
+              ];
+              return (
+                <table className="text-[11px] border-separate border-spacing-0 min-w-full">
+                  <thead className="sticky top-0 z-10 bg-slate-900">
+                    <tr>
+                      <th className="sticky left-0 z-20 bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-left font-semibold text-purple-200 uppercase tracking-wider whitespace-nowrap min-w-[200px]">
+                        monthly
+                      </th>
+                      <th className="bg-slate-900 border-b border-white/10 px-3 py-2 text-right font-semibold text-purple-200 uppercase tracking-wider whitespace-nowrap">
+                        totalpo
+                      </th>
+                      <th className="bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-right font-semibold text-purple-200 uppercase tracking-wider whitespace-nowrap">
+                        totalamount
+                      </th>
+                      {stageCols.map((sc) => (
+                        <th
+                          key={sc.key}
+                          className={`bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-left font-semibold ${sc.tone} whitespace-nowrap`}
+                        >
+                          {sc.label} <span className="text-purple-300/60 font-normal">(Ct|Amt|%|Buy|Sel)</span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {months.map((m) => {
+                      const label = labelFor(m.year, m.month);
+                      return (
+                        <tr key={`${m.year}-${m.month}`} className="hover:bg-white/5">
+                          <td className="sticky left-0 z-10 bg-slate-900 border-b border-r border-white/10 px-3 py-2 font-medium text-white whitespace-nowrap">
+                            {label}, 00:00
+                          </td>
+                          <td
+                            className={`border-b border-white/10 px-3 py-2 text-right tabular-nums font-bold ${heatText(m.totalCount, cMin, cMax)}`}
+                            style={{ background: heatColor(m.totalCount, cMin, cMax) }}
+                          >
+                            {m.totalCount.toLocaleString('en-IN')}
+                          </td>
+                          <td
+                            className={`border-b border-r border-white/10 px-3 py-2 text-right tabular-nums font-bold ${heatText(m.totalAmount, aMin, aMax)}`}
+                            style={{ background: heatColor(m.totalAmount, aMin, aMax) }}
+                          >
+                            {m.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                          </td>
+                          {stageCols.map((sc) => {
+                            const s = m[sc.key];
+                            const f = fmtStage(s, m.totalCount);
+                            return (
+                              <td
+                                key={sc.key}
+                                className={`border-b border-r border-white/10 px-3 py-2 text-left tabular-nums whitespace-nowrap ${sc.tone}`}
+                              >
+                                {f.count} <span className="text-purple-400/50">|</span> ₹{f.amount} <span className="text-purple-400/50">|</span> {f.pct}% <span className="text-purple-400/50">|</span> {f.buyers} <span className="text-purple-400/50">|</span> {f.sellers}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              );
+            })()}
+          </div>
+          {funnelData && funnelData.data.length > 0 && (
+            <div className="px-8 py-2 border-t border-white/10 bg-white/5 text-right text-xs text-purple-300/70">
+              {funnelData.data.length} {funnelData.data.length === 1 ? 'row' : 'rows'}
+            </div>
+          )}
+        </div>
+
         </>
         )}
 

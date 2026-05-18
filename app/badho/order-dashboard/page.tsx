@@ -409,7 +409,7 @@ export default function OrderStatusDashboard() {
   }
   const [funnelData, setFunnelData] = useState<FunnelData | null>(null);
   const [funnelLoading, setFunnelLoading] = useState(false);
-  const [funnelRange, setFunnelRange] = useState<'all' | 'year' | '12mo' | '30d' | '7d' | 'today' | 'custom'>('all');
+  const [funnelRange, setFunnelRange] = useState<'all' | 'year' | '12mo' | '30d' | '7d' | 'today' | 'custom'>('year');
   const [funnelCustomFrom, setFunnelCustomFrom] = useState('');
   const [funnelCustomTo, setFunnelCustomTo] = useState('');
   // RTO sub-tabs (Dashboard / Details)

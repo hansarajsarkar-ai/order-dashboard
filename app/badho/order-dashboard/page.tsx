@@ -364,6 +364,12 @@ export default function OrderStatusDashboard() {
   interface RtoRatePoint { month: number; label: string; rtoCount: number; deliveredCount: number; rtoRate: number; }
   const [rtoRateData, setRtoRateData] = useState<RtoRatePoint[] | null>(null);
   const [rtoRateLoading, setRtoRateLoading] = useState(false);
+  // KPI tile → orders modal
+  type RtoKpiKind = 'count' | 'value' | 'rate' | 'avg';
+  const [rtoKpiModal, setRtoKpiModal] = useState<RtoKpiKind | null>(null);
+  const [rtoKpiModalSearch, setRtoKpiModalSearch] = useState('');
+  const [rtoKpiModalData, setRtoKpiModalData] = useState<RtoOrderRow[] | null>(null);
+  const [rtoKpiModalLoading, setRtoKpiModalLoading] = useState(false);
   // RTO sub-tabs (Dashboard / Details)
   const [rtoSubTab, setRtoSubTab] = useState<'dashboard' | 'details'>('dashboard');
   interface RtoOrderRow {
@@ -678,6 +684,38 @@ export default function OrderStatusDashboard() {
     fetchRtoRate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // Modal fetcher — current year RTO orders (defaults; no params)
+  const fetchRtoKpiModalData = async () => {
+    try {
+      setRtoKpiModalLoading(true);
+      const res = await fetch(`/api/order-rto-list`);
+      if (!res.ok) throw new Error('Failed to fetch RTO orders for modal');
+      const json = await res.json();
+      setRtoKpiModalData(json.data);
+    } catch (err) {
+      console.error('RTO KPI modal fetch error:', err);
+      setRtoKpiModalData([]);
+    } finally {
+      setRtoKpiModalLoading(false);
+    }
+  };
+
+  // Open modal → ensure data loaded once
+  useEffect(() => {
+    if (!rtoKpiModal) return;
+    setRtoKpiModalSearch('');
+    if (!rtoKpiModalData) fetchRtoKpiModalData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rtoKpiModal]);
+
+  // ESC closes modal
+  useEffect(() => {
+    if (!rtoKpiModal) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setRtoKpiModal(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [rtoKpiModal]);
 
   const resolveRtoListRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
@@ -2259,23 +2297,43 @@ export default function OrderStatusDashboard() {
                   <div className="py-12 text-center text-purple-300">Loading RTO data…</div>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                    <button
+                      type="button"
+                      onClick={() => setRtoKpiModal('count')}
+                      className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                    >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">Total RTO orders</div>
                       <div className="text-3xl font-bold text-white tabular-nums mt-1">{rtoData.grand.count.toLocaleString()}</div>
-                    </div>
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                      <div className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRtoKpiModal('value')}
+                      className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                    >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">RTO order value</div>
                       <div className="text-3xl font-bold text-white tabular-nums mt-1">{formatAmount(rtoData.grand.amount)}</div>
-                    </div>
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                      <div className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRtoKpiModal('rate')}
+                      className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                    >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">RTO rate</div>
                       <div className="text-3xl font-bold text-rose-300 tabular-nums mt-1">{rtoData.rtoRate.toFixed(2)}%</div>
                       <div className="text-[10px] text-purple-300/60 mt-0.5">vs delivered+completed</div>
-                    </div>
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                      <div className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRtoKpiModal('avg')}
+                      className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                    >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">Avg RTO value</div>
                       <div className="text-3xl font-bold text-white tabular-nums mt-1">{formatAmount(rtoData.avgRtoValue)}</div>
-                    </div>
+                      <div className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</div>
+                    </button>
                   </div>
                 )}
               </div>
@@ -4070,6 +4128,168 @@ export default function OrderStatusDashboard() {
           </div>
         )}
 
+
+        {/* RTO KPI tile → orders modal */}
+        {rtoKpiModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => setRtoKpiModal(null)}
+          >
+            <div
+              className="bg-white text-slate-900 border border-slate-200 rounded-2xl max-w-7xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-rose-50 to-fuchsia-50">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">
+                    {rtoKpiModal === 'count' && 'Total RTO orders'}
+                    {rtoKpiModal === 'value' && 'RTO order value'}
+                    {rtoKpiModal === 'rate' && 'RTO rate'}
+                    {rtoKpiModal === 'avg' && 'Avg RTO value'}
+                    <span className="text-slate-500 text-base font-normal"> — {currentYear}</span>
+                  </h3>
+                  <p className="text-slate-500 text-sm mt-0.5">
+                    {rtoKpiModal === 'count' && `All ${rtoData?.grand.count.toLocaleString() ?? '—'} RTO orders this year`}
+                    {rtoKpiModal === 'value' && `Total value across all RTO orders — ${formatAmount(rtoData?.grand.amount ?? 0)}`}
+                    {rtoKpiModal === 'rate' && (
+                      <>
+                        {rtoData?.rtoRate.toFixed(2)}% = <span className="font-semibold text-rose-600">{rtoData?.grand.count.toLocaleString()} RTO</span> ÷ (<span className="font-semibold text-emerald-600">{rtoData?.deliveredCount.toLocaleString()} Delivered+Completed</span> + RTO)
+                      </>
+                    )}
+                    {rtoKpiModal === 'avg' && `Avg value per RTO order — ${formatAmount(rtoData?.avgRtoValue ?? 0)} across ${rtoData?.grand.count.toLocaleString()} orders`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setRtoKpiModal(null)}
+                  className="text-slate-400 hover:text-slate-700 text-2xl leading-none p-1"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Stats strip for rate */}
+              {rtoKpiModal === 'rate' && rtoData && (
+                <div className="px-6 py-3 border-b border-slate-200 bg-slate-50 grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">RTO (numerator)</div>
+                    <div className="text-lg font-bold text-rose-600 tabular-nums">{rtoData.grand.count.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">Delivered + Completed</div>
+                    <div className="text-lg font-bold text-emerald-600 tabular-nums">{rtoData.deliveredCount.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">Rate</div>
+                    <div className="text-lg font-bold text-fuchsia-600 tabular-nums">{rtoData.rtoRate.toFixed(2)}%</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Search + count + go-to-Details */}
+              <div className="px-6 py-3 border-b border-slate-200 bg-white flex items-center gap-3 flex-wrap">
+                <input
+                  type="text"
+                  value={rtoKpiModalSearch}
+                  onChange={(e) => setRtoKpiModalSearch(e.target.value)}
+                  placeholder="Search PO, brand, buyer, AWB, shipment status…"
+                  className="flex-1 min-w-[240px] px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                />
+                {rtoKpiModalData && (() => {
+                  const q = rtoKpiModalSearch.trim().toLowerCase();
+                  const filtered = q
+                    ? rtoKpiModalData.filter((r) =>
+                        String(r.poNumber || '').toLowerCase().includes(q) ||
+                        (r.brandName || '').toLowerCase().includes(q) ||
+                        (r.buyerPhone || '').toLowerCase().includes(q) ||
+                        (r.buyerName || '').toLowerCase().includes(q) ||
+                        (r.buyerBusinessName || '').toLowerCase().includes(q) ||
+                        (r.shipmentStatus || '').toLowerCase().includes(q) ||
+                        (r.awbNumber || '').toLowerCase().includes(q)
+                      )
+                    : rtoKpiModalData;
+                  return (
+                    <span className="text-xs text-slate-500 whitespace-nowrap">
+                      {filtered.length.toLocaleString()} of {rtoKpiModalData.length.toLocaleString()} orders
+                    </span>
+                  );
+                })()}
+                <button
+                  onClick={() => { setRtoKpiModal(null); setRtoSubTab('details'); }}
+                  className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white text-xs font-semibold hover:shadow-[0_0_18px_rgba(217,70,239,0.4)]"
+                >
+                  Open full Details tab →
+                </button>
+              </div>
+
+              {/* Table */}
+              <div className="flex-1 overflow-auto">
+                {rtoKpiModalLoading || !rtoKpiModalData ? (
+                  <div className="px-8 py-16 text-center text-slate-500">Loading RTO orders…</div>
+                ) : rtoKpiModalData.length === 0 ? (
+                  <div className="px-8 py-16 text-center text-slate-500">No RTO orders for {currentYear}</div>
+                ) : (() => {
+                  const q = rtoKpiModalSearch.trim().toLowerCase();
+                  const sorted = [...rtoKpiModalData].sort((a, b) => {
+                    if (rtoKpiModal === 'value' || rtoKpiModal === 'avg') {
+                      return (b.orderValue || 0) - (a.orderValue || 0);
+                    }
+                    const ta = a.markedRejectedAt ? new Date(a.markedRejectedAt).getTime() : 0;
+                    const tb = b.markedRejectedAt ? new Date(b.markedRejectedAt).getTime() : 0;
+                    return tb - ta;
+                  });
+                  const filtered = q
+                    ? sorted.filter((r) =>
+                        String(r.poNumber || '').toLowerCase().includes(q) ||
+                        (r.brandName || '').toLowerCase().includes(q) ||
+                        (r.buyerPhone || '').toLowerCase().includes(q) ||
+                        (r.buyerName || '').toLowerCase().includes(q) ||
+                        (r.buyerBusinessName || '').toLowerCase().includes(q) ||
+                        (r.shipmentStatus || '').toLowerCase().includes(q) ||
+                        (r.awbNumber || '').toLowerCase().includes(q)
+                      )
+                    : sorted;
+                  if (filtered.length === 0) {
+                    return <div className="px-8 py-16 text-center text-slate-500">No matches for &ldquo;{rtoKpiModalSearch}&rdquo;</div>;
+                  }
+                  return (
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200">
+                        <tr>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Brand</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
+                          <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Order Value</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-rose-600 whitespace-nowrap">Marked Rejected</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Shipment Status</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Business</th>
+                          <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Attempts</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-rose-600 whitespace-nowrap">Final Failure Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.map((r) => (
+                          <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-rose-50/40 align-top">
+                            <td className="px-3 py-2 text-slate-800 whitespace-nowrap font-medium">{r.brandName || '—'}</td>
+                            <td className="px-3 py-2 text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poNumber}</td>
+                            <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{formatAmount(r.orderValue)}</td>
+                            <td className="px-3 py-2 text-rose-700 whitespace-nowrap">{r.markedRejectedTime || '—'}</td>
+                            <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.shipmentStatus || '—'}</td>
+                            <td className="px-3 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
+                            <td className="px-3 py-2 text-slate-700">{r.buyerBusinessName || '—'}</td>
+                            <td className="px-3 py-2 text-right tabular-nums font-bold text-rose-700">{r.deliveryAttempt || 0}</td>
+                            <td className="px-3 py-2 text-rose-700 max-w-[280px]" title={r.finalFailureReason || ''}>{r.finalFailureReason || <span className="italic text-slate-400">—</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="mt-12 text-center text-purple-300/70 text-sm">

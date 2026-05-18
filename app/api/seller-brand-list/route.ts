@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
           AND s."isD2RBrandSeller" = TRUE
           AND po."deliveryNetwork" = 'THIRD_PARTY'
           AND po."deliveryType"    = 'INTERCITY'
-          AND po."status" != 'DRAFT'
+          AND po."status" IN ('DELIVERED', 'COMPLETED')
           AND po."markedPendingTime" IS NOT NULL
           ${whereDate}
       ),
@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
           AND s."isD2RBrandSeller" = TRUE
           AND po."deliveryNetwork" = 'THIRD_PARTY'
           AND po."deliveryType"    = 'INTERCITY'
-          AND po."status" != 'DRAFT'
+          AND po."status" IN ('DELIVERED', 'COMPLETED')
           AND po."markedPendingTime" IS NOT NULL
         GROUP BY po."sellerId"
       ),

@@ -3841,8 +3841,8 @@ export default function OrderStatusDashboard() {
                 <h2 className="text-2xl font-bold text-white">Demography</h2>
                 <p className="text-purple-300 text-sm mt-1">
                   {geoMode === 'state'
-                    ? 'Order distribution across Indian states — click any state to drill into its districts'
-                    : `District-level order distribution${districtSelectedState ? ` in ${districtSelectedState}` : ' across India'}`}
+                    ? 'Delivered + Completed orders across Indian states — click any state to drill into its districts'
+                    : `Delivered + Completed orders by district${districtSelectedState ? ` in ${districtSelectedState}` : ' across India'}`}
                 </p>
               </div>
               <div className="flex items-center gap-3">

@@ -395,7 +395,9 @@ export default function OrderStatusDashboard() {
   const [rtoListLoading, setRtoListLoading] = useState(false);
   const [rtoListSearch, setRtoListSearch] = useState('');
   const [rtoListPage, setRtoListPage] = useState(1);
-  const [rtoListDate, setRtoListDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [rtoListRange, setRtoListRange] = useState<'year' | 'today' | '7d' | 'custom'>('year');
+  const [rtoListCustomFrom, setRtoListCustomFrom] = useState('');
+  const [rtoListCustomTo, setRtoListCustomTo] = useState('');
   // Trend tab — daily order trend chart
   interface DailyTrendPoint { day: string; ordersCount: number; ordersAmount: number; deliveredCount: number; deliveredAmount: number; }
   const [trendData, setTrendData] = useState<DailyTrendPoint[] | null>(null);
@@ -650,10 +652,30 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, rtoTrendGranularity, rtoTrendCustomFrom, rtoTrendCustomTo]);
 
+  const resolveRtoListRange = (): { startDate: string | null; endDate: string | null } => {
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    if (rtoListRange === 'today') return { startDate: fmt(today), endDate: fmt(today) };
+    if (rtoListRange === '7d') {
+      const start = new Date(today);
+      start.setDate(start.getDate() - 6);
+      return { startDate: fmt(start), endDate: fmt(today) };
+    }
+    if (rtoListRange === 'custom') {
+      return { startDate: rtoListCustomFrom || null, endDate: rtoListCustomTo || null };
+    }
+    return { startDate: null, endDate: null }; // 'year' → API defaults to current year
+  };
+
   const fetchRtoList = async () => {
     try {
       setRtoListLoading(true);
-      const res = await fetch(`/api/order-rto-list?date=${rtoListDate}`);
+      const { startDate, endDate } = resolveRtoListRange();
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const url = `/api/order-rto-list${params.toString() ? `?${params}` : ''}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch RTO list');
       const json = await res.json();
       setRtoListData(json.data);
@@ -669,9 +691,9 @@ export default function OrderStatusDashboard() {
     if (activeTab !== 'rto' || rtoSubTab !== 'details') return;
     fetchRtoList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, rtoSubTab, rtoListDate]);
+  }, [activeTab, rtoSubTab, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
 
-  useEffect(() => { setRtoListPage(1); }, [rtoListSearch, rtoListDate]);
+  useEffect(() => { setRtoListPage(1); }, [rtoListSearch, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
 
   // Filtered + paged views of the RTO list
   const filteredRtoListRows = (() => {
@@ -2456,7 +2478,7 @@ export default function OrderStatusDashboard() {
                 <div>
                   <h2 className="text-2xl font-bold text-white">RTO Order Details</h2>
                   <p className="text-purple-300 text-sm mt-1">
-                    Latest intercity-delivery RTO scan for orders rejected on the selected date —
+                    RTO orders bucketed by <span className="font-mono text-fuchsia-300">markedRejectedTime</span> —
                     {' '}
                     {rtoListLoading
                       ? 'Loading…'
@@ -2466,19 +2488,6 @@ export default function OrderStatusDashboard() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <label className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Rejected on</label>
-                  <input
-                    type="date"
-                    value={rtoListDate}
-                    onChange={(e) => setRtoListDate(e.target.value)}
-                    className="px-3 py-1.5 text-xs bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-                  />
-                  <button
-                    onClick={() => setRtoListDate(new Date().toISOString().slice(0, 10))}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/15 border border-white/10 text-purple-200"
-                  >
-                    Today
-                  </button>
                   {rtoListData && rtoListData.length > 0 && (
                     <button
                       className={DOWNLOAD_BTN_CLASS}
@@ -2512,13 +2521,56 @@ export default function OrderStatusDashboard() {
                           r.buyerName, r.buyerBusinessName, r.buyerPhone,
                           r.buyerFullAddress, r.buyerLongitude, r.buyerLatitude,
                         ]);
-                        downloadCSV(`rto-orders-${rtoListDate}.csv`, headers, csvRows);
+                        const { startDate, endDate } = resolveRtoListRange();
+                        const suffix = rtoListRange === 'year' ? String(currentYear) : (startDate && endDate ? `${startDate}_${endDate}` : (startDate || endDate || 'all'));
+                        downloadCSV(`rto-orders-${suffix}.csv`, headers, csvRows);
                       }}
                     >
                       ↓ CSV
                     </button>
                   )}
                 </div>
+              </div>
+              <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+                <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Rejected</span>
+                {([
+                  { key: 'year',   label: `${currentYear}` },
+                  { key: 'today',  label: 'Today' },
+                  { key: '7d',     label: 'Last 7 days' },
+                  { key: 'custom', label: 'Custom' },
+                ] as const).map((opt) => {
+                  const active = rtoListRange === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      onClick={() => setRtoListRange(opt.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        active
+                          ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
+                          : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+                {rtoListRange === 'custom' && (
+                  <div className="flex items-center gap-2 ml-2">
+                    <input
+                      type="date"
+                      value={rtoListCustomFrom}
+                      onChange={(e) => setRtoListCustomFrom(e.target.value)}
+                      className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                    />
+                    <span className="text-purple-300 text-xs">to</span>
+                    <input
+                      type="date"
+                      value={rtoListCustomTo}
+                      onChange={(e) => setRtoListCustomTo(e.target.value)}
+                      className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                    />
+                  </div>
+                )}
               </div>
               <div className="px-8 py-3 border-b border-white/10 bg-white/5">
                 <input
@@ -2533,7 +2585,7 @@ export default function OrderStatusDashboard() {
                 {rtoListLoading ? (
                   <div className="px-8 py-12 text-center text-purple-300">Loading RTO orders…</div>
                 ) : !rtoListData || rtoListData.length === 0 ? (
-                  <div className="px-8 py-12 text-center text-purple-300">No RTO orders rejected on {rtoListDate}</div>
+                  <div className="px-8 py-12 text-center text-purple-300">No RTO orders in this range</div>
                 ) : !filteredRtoListRows || filteredRtoListRows.length === 0 ? (
                   <div className="px-8 py-12 text-center text-purple-300">No matches for &ldquo;{rtoListSearch}&rdquo;</div>
                 ) : (

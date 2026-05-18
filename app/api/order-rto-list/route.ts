@@ -42,17 +42,28 @@ interface Row {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  // Filter by rejection date — defaults to today.
-  const dateParam = searchParams.get('date');
+  // Filter by rejection date. Defaults to the current year.
+  // Accepts ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD for a custom window.
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
 
   try {
     const params: (string | number)[] = [];
     let dateFilter: string;
-    if (dateParam) {
-      params.push(dateParam);
-      dateFilter = `po."markedRejectedTime"::date = $${params.length}::date`;
+    if (startDate || endDate) {
+      const clauses: string[] = [];
+      if (startDate) {
+        params.push(startDate);
+        clauses.push(`po."markedRejectedTime"::date >= $${params.length}::date`);
+      }
+      if (endDate) {
+        params.push(endDate);
+        clauses.push(`po."markedRejectedTime"::date <= $${params.length}::date`);
+      }
+      dateFilter = clauses.join(' AND ');
     } else {
-      dateFilter = `po."markedRejectedTime"::date = CURRENT_DATE`;
+      // No range given → current year only
+      dateFilter = `EXTRACT(YEAR FROM po."markedRejectedTime") = EXTRACT(YEAR FROM CURRENT_DATE)`;
     }
 
     const sql = `
@@ -265,7 +276,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       data,
       count: data.length,
-      date: dateParam || new Date().toISOString().slice(0, 10),
+      startDate: startDate || null,
+      endDate: endDate || null,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

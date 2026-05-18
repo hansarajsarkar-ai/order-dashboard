@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
   RadialBarChart, RadialBar, PolarAngleAxis,
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, LabelList,
+  ComposedChart, Bar,
 } from 'recharts';
 import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
 import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
@@ -2312,118 +2313,90 @@ export default function OrderStatusDashboard() {
                 ) : rtoTrendData.length === 0 ? (
                   <div className="h-[320px] flex items-center justify-center text-purple-300">No RTO data for this range</div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={340}>
-                    <AreaChart
+                  <ResponsiveContainer width="100%" height={360}>
+                    <ComposedChart
                       data={rtoTrendData}
-                      margin={{ top: 28, right: 12, left: 8, bottom: 8 }}
+                      margin={{ top: 28, right: 24, left: 8, bottom: 8 }}
                     >
-                      <defs>
-                        <linearGradient id="gradRto" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%"  stopColor="#f43f5e" stopOpacity={0.55} />
-                          <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.02} />
-                        </linearGradient>
-                        <linearGradient id="gradRtoAmount" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%"  stopColor="#f59e0b" stopOpacity={0.45} />
-                          <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
                       <XAxis
                         dataKey="label"
-                        tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                        tick={{ fill: 'rgba(216,180,254,0.75)', fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
                         minTickGap={rtoTrendGranularity === 'day' || rtoTrendGranularity === 'custom' ? 20 : 5}
                       />
                       <YAxis
                         yAxisId="count"
-                        tick={{ fill: 'rgba(253,164,175,0.85)', fontSize: 11 }}
-                        width={50}
-                        label={{ value: 'Orders', angle: -90, position: 'insideLeft', style: { fill: '#fda4af', fontSize: 11 } }}
+                        tick={{ fill: 'rgba(253,164,175,0.9)', fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={false}
+                        width={44}
                       />
                       <YAxis
                         yAxisId="amount"
                         orientation="right"
-                        tick={{ fill: 'rgba(252,211,77,0.85)', fontSize: 11 }}
-                        width={70}
+                        tick={{ fill: 'rgba(252,211,77,0.9)', fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={false}
+                        width={56}
                         tickFormatter={(v: number) => {
                           if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
                           if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
                           if (v >= 1000) return `₹${(v / 1000).toFixed(0)}k`;
                           return `₹${v}`;
                         }}
-                        label={{ value: 'Value', angle: 90, position: 'insideRight', style: { fill: '#fcd34d', fontSize: 11 } }}
                       />
                       <Tooltip
+                        cursor={{ fill: 'rgba(244,63,94,0.08)' }}
                         contentStyle={{
-                          background: 'rgba(15,23,42,0.95)',
-                          border: '1px solid rgba(244,63,94,0.4)',
+                          background: 'rgba(15,23,42,0.96)',
+                          border: '1px solid rgba(244,63,94,0.35)',
                           borderRadius: 10,
                           color: '#fff',
                           fontSize: 12,
                         }}
-                        labelStyle={{ color: '#fda4af', fontWeight: 700 }}
+                        labelStyle={{ color: '#fda4af', fontWeight: 700, marginBottom: 4 }}
                         formatter={(v, name) => {
                           const n = typeof v === 'number' ? v : Number(v ?? 0);
                           const key = String(name);
                           return [key === 'Order value' ? formatAmount(n) : n.toLocaleString(), key];
                         }}
                       />
-                      <Legend wrapperStyle={{ paddingTop: 6, fontSize: 12 }} />
-                      <Area
+                      <Legend
+                        wrapperStyle={{ paddingTop: 6, fontSize: 12 }}
+                        iconType="circle"
+                      />
+                      <Bar
                         yAxisId="count"
-                        type="monotone"
                         dataKey="count"
                         name="RTO orders"
-                        stroke="#f43f5e"
-                        strokeWidth={2}
-                        fill="url(#gradRto)"
-                        dot={{ r: 3, fill: '#f43f5e', stroke: '#1e1b4b', strokeWidth: 1 }}
+                        fill="#f43f5e"
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={42}
                       >
                         <LabelList
                           dataKey="count"
                           position="top"
-                          offset={10}
+                          offset={8}
                           style={{
-                            fill: '#fff1f2',
+                            fill: '#fecdd3',
                             fontSize: 11,
                             fontWeight: 700,
-                            paintOrder: 'stroke',
-                            stroke: '#000',
-                            strokeWidth: 2,
                           }}
                         />
-                      </Area>
-                      <Area
+                      </Bar>
+                      <Line
                         yAxisId="amount"
                         type="monotone"
                         dataKey="amount"
                         name="Order value"
                         stroke="#f59e0b"
-                        strokeWidth={2}
-                        fill="url(#gradRtoAmount)"
-                        dot={{ r: 3, fill: '#f59e0b', stroke: '#1e1b4b', strokeWidth: 1 }}
-                      >
-                        <LabelList
-                          dataKey="amount"
-                          position="bottom"
-                          offset={8}
-                          formatter={(v: string | number | boolean | null | undefined) => {
-                            const n = typeof v === 'number' ? v : Number(v ?? 0);
-                            if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-                            if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-                            if (n >= 1000) return `₹${(n / 1000).toFixed(0)}k`;
-                            return `₹${n}`;
-                          }}
-                          style={{
-                            fill: '#fef3c7',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            paintOrder: 'stroke',
-                            stroke: '#000',
-                            strokeWidth: 2,
-                          }}
-                        />
-                      </Area>
-                    </AreaChart>
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: '#f59e0b', stroke: '#1e1b4b', strokeWidth: 2 }}
+                        activeDot={{ r: 6, fill: '#fbbf24', stroke: '#1e1b4b', strokeWidth: 2 }}
+                      />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 )}
               </div>

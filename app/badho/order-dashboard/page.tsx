@@ -359,6 +359,30 @@ export default function OrderStatusDashboard() {
   const [rtoTrendCustomTo, setRtoTrendCustomTo] = useState('');
   const [rtoTrendData, setRtoTrendData] = useState<RtoTrendPoint[] | null>(null);
   const [rtoTrendLoading, setRtoTrendLoading] = useState(false);
+  // RTO sub-tabs (Dashboard / Details)
+  const [rtoSubTab, setRtoSubTab] = useState<'dashboard' | 'details'>('dashboard');
+  interface RtoOrderRow {
+    poNumber: string;
+    amount: number;
+    deliveryStatus: string | null;
+    markedPendingTime: string | null;
+    markedRejectedTime: string | null;
+    sellerPhone: string | null;
+    sellerBusinessName: string | null;
+    sellerAddress: string;
+    sellerState: string | null;
+    buyerPhone: string | null;
+    buyerBusinessName: string | null;
+    buyerAddress: string;
+    buyerState: string | null;
+    rejectReason: string | null;
+    rejectedBy: string | null;
+    reasonAddedByBadhoTeam: string | null;
+  }
+  const [rtoListData, setRtoListData] = useState<RtoOrderRow[] | null>(null);
+  const [rtoListLoading, setRtoListLoading] = useState(false);
+  const [rtoListSearch, setRtoListSearch] = useState('');
+  const [rtoListPage, setRtoListPage] = useState(1);
   // Trend tab — daily order trend chart
   interface DailyTrendPoint { day: string; ordersCount: number; ordersAmount: number; deliveredCount: number; deliveredAmount: number; }
   const [trendData, setTrendData] = useState<DailyTrendPoint[] | null>(null);
@@ -612,6 +636,53 @@ export default function OrderStatusDashboard() {
     fetchRtoTrend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, rtoTrendGranularity, rtoTrendCustomFrom, rtoTrendCustomTo]);
+
+  const fetchRtoList = async () => {
+    try {
+      setRtoListLoading(true);
+      const res = await fetch(`/api/order-rto-list?year=${currentYear}`);
+      if (!res.ok) throw new Error('Failed to fetch RTO list');
+      const json = await res.json();
+      setRtoListData(json.data);
+    } catch (err) {
+      console.error('RTO list fetch error:', err);
+      setRtoListData([]);
+    } finally {
+      setRtoListLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'rto' || rtoSubTab !== 'details' || rtoListData) return;
+    fetchRtoList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, rtoSubTab]);
+
+  useEffect(() => { setRtoListPage(1); }, [rtoListSearch]);
+
+  // Filtered + paged views of the RTO list
+  const filteredRtoListRows = (() => {
+    if (!rtoListData) return null;
+    const q = rtoListSearch.trim().toLowerCase();
+    if (!q) return rtoListData;
+    return rtoListData.filter((r) =>
+      (r.poNumber || '').toLowerCase().includes(q) ||
+      (r.sellerPhone || '').toLowerCase().includes(q) ||
+      (r.buyerPhone || '').toLowerCase().includes(q) ||
+      (r.sellerBusinessName || '').toLowerCase().includes(q) ||
+      (r.buyerBusinessName || '').toLowerCase().includes(q) ||
+      (r.deliveryStatus || '').toLowerCase().includes(q)
+    );
+  })();
+
+  const rtoListPaged = (() => {
+    if (!filteredRtoListRows) return null;
+    const totalPages = Math.max(1, Math.ceil(filteredRtoListRows.length / PAGE_SIZE));
+    const safePage = Math.min(Math.max(1, rtoListPage), totalPages);
+    const startIdx = (safePage - 1) * PAGE_SIZE;
+    const endIdx = Math.min(startIdx + PAGE_SIZE, filteredRtoListRows.length);
+    return { totalPages, safePage, startIdx, endIdx, rows: filteredRtoListRows.slice(startIdx, endIdx) };
+  })();
 
   const toggleStatusExpansion = (status: string) => {
     setExpandedStatuses((prev) => {
@@ -2080,6 +2151,28 @@ export default function OrderStatusDashboard() {
 
         {activeTab === 'rto' && (
           <div className="space-y-8">
+            {/* RTO sub-tab navigation */}
+            <div className="flex gap-2 p-1.5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl w-fit">
+              {(['dashboard', 'details'] as const).map((sub) => {
+                const active = rtoSubTab === sub;
+                return (
+                  <button
+                    key={sub}
+                    onClick={() => setRtoSubTab(sub)}
+                    className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                      active
+                        ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.55),inset_0_0_18px_rgba(168,85,247,0.5)]'
+                        : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    {sub === 'dashboard' ? 'Dashboard' : 'Details'}
+                  </button>
+                );
+              })}
+            </div>
+
+            {rtoSubTab === 'dashboard' && (
+            <>
             {/* Header + KPI tiles */}
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
               <div className="px-8 py-6 border-b border-white/10 bg-white/5">
@@ -2338,6 +2431,123 @@ export default function OrderStatusDashboard() {
                 </div>
               </div>
             </div>
+            </>
+            )}
+
+            {rtoSubTab === 'details' && (
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+              <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">RTO Order Details</h2>
+                  <p className="text-purple-300 text-sm mt-1">
+                    {rtoListLoading
+                      ? 'Loading…'
+                      : rtoListData
+                      ? `${filteredRtoListRows?.length ?? 0} of ${rtoListData.length} RTO order${rtoListData.length === 1 ? '' : 's'} this year`
+                      : ''}
+                  </p>
+                </div>
+                {rtoListData && rtoListData.length > 0 && (
+                  <button
+                    className={DOWNLOAD_BTN_CLASS}
+                    onClick={() => {
+                      const rows = filteredRtoListRows || [];
+                      const headers = [
+                        'PO Number','Amount','Delivery Status','Marked Pending','Marked Rejected',
+                        'Seller Phone','Seller Business','Seller Address',
+                        'Buyer Phone','Buyer Business','Buyer Address','Buyer State',
+                        'Reject Reason','Rejected By','Reason Added By Badho Team',
+                      ];
+                      const csvRows: CsvCell[][] = rows.map((r) => [
+                        r.poNumber, r.amount, r.deliveryStatus, r.markedPendingTime, r.markedRejectedTime,
+                        r.sellerPhone, r.sellerBusinessName, r.sellerAddress,
+                        r.buyerPhone, r.buyerBusinessName, r.buyerAddress, r.buyerState,
+                        r.rejectReason, r.rejectedBy, r.reasonAddedByBadhoTeam,
+                      ]);
+                      downloadCSV(`rto-orders-${currentYear}.csv`, headers, csvRows);
+                    }}
+                  >
+                    ↓ CSV
+                  </button>
+                )}
+              </div>
+              <div className="px-8 py-3 border-b border-white/10 bg-white/5">
+                <input
+                  type="text"
+                  value={rtoListSearch}
+                  onChange={(e) => setRtoListSearch(e.target.value)}
+                  placeholder="Search by PO number, phone, business, delivery status…"
+                  className="w-full px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                />
+              </div>
+              <div className="overflow-auto max-h-[640px]">
+                {rtoListLoading ? (
+                  <div className="px-8 py-12 text-center text-purple-300">Loading RTO orders…</div>
+                ) : !rtoListData || rtoListData.length === 0 ? (
+                  <div className="px-8 py-12 text-center text-purple-300">No RTO orders this year</div>
+                ) : !filteredRtoListRows || filteredRtoListRows.length === 0 ? (
+                  <div className="px-8 py-12 text-center text-purple-300">No matches for &ldquo;{rtoListSearch}&rdquo;</div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur">
+                      <tr className="border-b border-white/10">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">PO Number</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Delivery Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Marked Rejected</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Seller Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Seller Business</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer Business</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer State</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-rose-200 bg-rose-500/10">Reject Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(rtoListPaged?.rows || filteredRtoListRows).map((r) => (
+                        <tr key={r.poNumber} className="border-b border-white/5 hover:bg-white/5">
+                          <td className="px-4 py-2.5 text-white tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
+                          <td className="px-4 py-2.5 text-right text-white tabular-nums whitespace-nowrap">{formatAmount(r.amount)}</td>
+                          <td className="px-4 py-2.5 text-purple-100 whitespace-nowrap">{r.deliveryStatus || '—'}</td>
+                          <td className="px-4 py-2.5 text-purple-100 whitespace-nowrap text-xs">{formatDateTime(r.markedRejectedTime)}</td>
+                          <td className="px-4 py-2.5 text-purple-100 tabular-nums whitespace-nowrap">{r.sellerPhone || '—'}</td>
+                          <td className="px-4 py-2.5 text-purple-100">{r.sellerBusinessName || '—'}</td>
+                          <td className="px-4 py-2.5 text-purple-100 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
+                          <td className="px-4 py-2.5 text-purple-100">{r.buyerBusinessName || '—'}</td>
+                          <td className="px-4 py-2.5 text-purple-100 whitespace-nowrap">{r.buyerState || '—'}</td>
+                          <td className="px-4 py-2.5 text-rose-200 bg-rose-500/5 max-w-xs" title={r.rejectReason || ''}>{r.rejectReason || <span className="italic text-purple-300/60">—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              {rtoListPaged && filteredRtoListRows && filteredRtoListRows.length > 0 && (
+                <div className="px-8 py-3 border-t border-white/10 bg-white/5 flex items-center justify-between text-sm text-purple-200 flex-wrap gap-3">
+                  <div>
+                    Showing <span className="font-semibold text-white">{rtoListPaged.startIdx + 1}</span>–<span className="font-semibold text-white">{rtoListPaged.endIdx}</span> of <span className="font-semibold text-white">{filteredRtoListRows.length}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setRtoListPage((p) => Math.max(1, p - 1))}
+                      disabled={rtoListPaged.safePage <= 1}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Prev
+                    </button>
+                    <span className="px-3 py-1.5 text-white/70">Page <span className="text-white font-semibold">{rtoListPaged.safePage}</span> of {rtoListPaged.totalPages}</span>
+                    <button
+                      onClick={() => setRtoListPage((p) => Math.min(rtoListPaged.totalPages, p + 1))}
+                      disabled={rtoListPaged.safePage >= rtoListPaged.totalPages}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            )}
           </div>
         )}
 

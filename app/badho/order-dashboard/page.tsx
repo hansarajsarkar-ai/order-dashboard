@@ -3914,7 +3914,7 @@ export default function OrderStatusDashboard() {
                             : 'text-purple-200 hover:bg-white/10'
                         }`}
                       >
-                        {m === 'count' ? 'By orders' : 'By revenue'}
+                        {m === 'count' ? 'By orders' : 'By GMV'}
                       </button>
                     );
                   })}
@@ -3927,7 +3927,7 @@ export default function OrderStatusDashboard() {
                       if (!stateData) return;
                       downloadCSV(
                         `demography-state-${currentYear}.csv`,
-                        ['State', 'Order Count', 'Order Amount'],
+                        ['State', 'Order Count', 'GMV'],
                         stateData.map((r) => [r.state ?? '(no state)', r.count, r.amount])
                       );
                     } else {
@@ -3937,7 +3937,7 @@ export default function OrderStatusDashboard() {
                         : `demography-district-${currentYear}.csv`;
                       downloadCSV(
                         filename,
-                        ['State', 'District', 'Order Count', 'Order Amount'],
+                        ['State', 'District', 'Order Count', 'GMV'],
                         districtData.map((r) => [r.state ?? '(no state)', r.district ?? '(no district)', r.count, r.amount])
                       );
                     }
@@ -4138,7 +4138,7 @@ export default function OrderStatusDashboard() {
                         <span className="text-purple-300/70">Orders:</span> <span className="font-semibold text-white tabular-nums">{b.totalOrders.toLocaleString()}</span>
                       </div>
                       <div className="text-purple-200">
-                        <span className="text-purple-300/70">Value:</span> <span className="font-semibold text-white tabular-nums">{formatAmount(b.totalAmount)}</span>
+                        <span className="text-purple-300/70">GMV:</span> <span className="font-semibold text-white tabular-nums">{formatAmount(b.totalAmount)}</span>
                       </div>
                       <div className="text-purple-200">
                         <span className="text-purple-300/70">Coverage:</span> <span className="font-semibold text-white tabular-nums">{b.statesCovered}</span> states · <span className="font-semibold text-white tabular-nums">{b.districtsCovered}</span> districts
@@ -4163,7 +4163,7 @@ export default function OrderStatusDashboard() {
                       <span className="text-purple-300/70">Orders:</span> <span className="font-semibold text-white tabular-nums">{totalOrders.toLocaleString()}</span>
                     </div>
                     <div className="text-purple-200">
-                      <span className="text-purple-300/70">Value:</span> <span className="font-semibold text-white tabular-nums">{formatAmount(totalAmount)}</span>
+                      <span className="text-purple-300/70">GMV:</span> <span className="font-semibold text-white tabular-nums">{formatAmount(totalAmount)}</span>
                     </div>
                     <div className="text-[10px] text-purple-300/70 truncate max-w-[260px]" title={selected.map((b) => b.brandName).join(', ')}>
                       {selected.map((b) => b.brandName).join(', ')}
@@ -4269,7 +4269,7 @@ export default function OrderStatusDashboard() {
                         })();
                         downloadCSV(
                           `demography-brand-state-${suffix}.csv`,
-                          ['Brand', 'State', 'Orders', 'Amount', 'Districts Covered'],
+                          ['Brand', 'State', 'Orders', 'GMV', 'Districts Covered'],
                           rows
                         );
                       }}
@@ -4332,7 +4332,7 @@ export default function OrderStatusDashboard() {
                             onClick={() => setBrandStateSort('amount')}
                             className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white"
                           >
-                            Amount{sortIndicator('amount')}
+                            GMV{sortIndicator('amount')}
                           </th>
                           <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Districts</th>
                         </tr>

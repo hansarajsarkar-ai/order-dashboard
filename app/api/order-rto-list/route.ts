@@ -229,6 +229,8 @@ export async function GET(req: NextRequest) {
         AND b."businessName" NOT ILIKE '%test%'
         AND s."isTest"           = FALSE
         AND s."businessName" NOT ILIKE '%test%'
+        AND po."deliveryNetwork" = 'THIRD_PARTY'
+        AND po."deliveryType"    = 'INTERCITY'
         AND di."isTest"          = FALSE
         AND di."id"              = di_latest."id"
         AND ${dateFilter}

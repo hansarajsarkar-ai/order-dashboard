@@ -32,6 +32,8 @@ export async function GET(req: NextRequest) {
         AND s."isTest" = FALSE
         AND s."businessName" NOT ILIKE '%test%'
         AND s."isD2RBrandSeller" = TRUE
+        AND po."deliveryNetwork" = 'THIRD_PARTY'
+        AND po."deliveryType"    = 'INTERCITY'
         AND po."status" IN ('RTO', 'RETURNED_TO_ORIGIN', 'RETURN_TO_ORIGIN')
         AND po."markedPendingTime" IS NOT NULL
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1

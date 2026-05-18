@@ -18,6 +18,8 @@ const STD_FILTERS = `
   AND s."businessName" NOT ILIKE '%test%'
   AND s."businessName" NOT ILIKE '%milko%'
   AND s."isD2RBrandSeller" = TRUE
+  AND po."deliveryNetwork" = 'THIRD_PARTY'
+  AND po."deliveryType"    = 'INTERCITY'
 `;
 
 export async function GET(req: NextRequest) {

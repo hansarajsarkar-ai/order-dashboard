@@ -2312,15 +2312,19 @@ export default function OrderStatusDashboard() {
                 ) : rtoTrendData.length === 0 ? (
                   <div className="h-[320px] flex items-center justify-center text-purple-300">No RTO data for this range</div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={320}>
+                  <ResponsiveContainer width="100%" height={340}>
                     <AreaChart
                       data={rtoTrendData}
-                      margin={{ top: 20, right: 16, left: 8, bottom: 8 }}
+                      margin={{ top: 28, right: 12, left: 8, bottom: 8 }}
                     >
                       <defs>
                         <linearGradient id="gradRto" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%"  stopColor="#f43f5e" stopOpacity={0.55} />
                           <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.02} />
+                        </linearGradient>
+                        <linearGradient id="gradRtoAmount" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%"  stopColor="#f59e0b" stopOpacity={0.45} />
+                          <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -2329,7 +2333,25 @@ export default function OrderStatusDashboard() {
                         tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
                         minTickGap={rtoTrendGranularity === 'day' || rtoTrendGranularity === 'custom' ? 20 : 5}
                       />
-                      <YAxis tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} width={50} />
+                      <YAxis
+                        yAxisId="count"
+                        tick={{ fill: 'rgba(253,164,175,0.85)', fontSize: 11 }}
+                        width={50}
+                        label={{ value: 'Orders', angle: -90, position: 'insideLeft', style: { fill: '#fda4af', fontSize: 11 } }}
+                      />
+                      <YAxis
+                        yAxisId="amount"
+                        orientation="right"
+                        tick={{ fill: 'rgba(252,211,77,0.85)', fontSize: 11 }}
+                        width={70}
+                        tickFormatter={(v: number) => {
+                          if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+                          if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
+                          if (v >= 1000) return `₹${(v / 1000).toFixed(0)}k`;
+                          return `₹${v}`;
+                        }}
+                        label={{ value: 'Value', angle: 90, position: 'insideRight', style: { fill: '#fcd34d', fontSize: 11 } }}
+                      />
                       <Tooltip
                         contentStyle={{
                           background: 'rgba(15,23,42,0.95)',
@@ -2341,10 +2363,13 @@ export default function OrderStatusDashboard() {
                         labelStyle={{ color: '#fda4af', fontWeight: 700 }}
                         formatter={(v, name) => {
                           const n = typeof v === 'number' ? v : Number(v ?? 0);
-                          return [name === 'amount' ? formatAmount(n) : n.toLocaleString(), String(name)];
+                          const key = String(name);
+                          return [key === 'Order value' ? formatAmount(n) : n.toLocaleString(), key];
                         }}
                       />
+                      <Legend wrapperStyle={{ paddingTop: 6, fontSize: 12 }} />
                       <Area
+                        yAxisId="count"
                         type="monotone"
                         dataKey="count"
                         name="RTO orders"
@@ -2360,6 +2385,37 @@ export default function OrderStatusDashboard() {
                           style={{
                             fill: '#fff1f2',
                             fontSize: 11,
+                            fontWeight: 700,
+                            paintOrder: 'stroke',
+                            stroke: '#000',
+                            strokeWidth: 2,
+                          }}
+                        />
+                      </Area>
+                      <Area
+                        yAxisId="amount"
+                        type="monotone"
+                        dataKey="amount"
+                        name="Order value"
+                        stroke="#f59e0b"
+                        strokeWidth={2}
+                        fill="url(#gradRtoAmount)"
+                        dot={{ r: 3, fill: '#f59e0b', stroke: '#1e1b4b', strokeWidth: 1 }}
+                      >
+                        <LabelList
+                          dataKey="amount"
+                          position="bottom"
+                          offset={8}
+                          formatter={(v: string | number | boolean | null | undefined) => {
+                            const n = typeof v === 'number' ? v : Number(v ?? 0);
+                            if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+                            if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+                            if (n >= 1000) return `₹${(n / 1000).toFixed(0)}k`;
+                            return `₹${n}`;
+                          }}
+                          style={{
+                            fill: '#fef3c7',
+                            fontSize: 10,
                             fontWeight: 700,
                             paintOrder: 'stroke',
                             stroke: '#000',
@@ -2504,7 +2560,7 @@ export default function OrderStatusDashboard() {
                         const rows = filteredRtoListRows || [];
                         const headers = [
                           'Brand Name', 'PO Number', 'Order Value', 'Marked Rejected Time',
-                          'ITL Date & Time', 'Shipment Status', 'Buyer Phone',
+                          'ITL Date & Time', 'Shipment Status', 'Buyer Phone', 'Buyer Business Name',
                           'Order Date & Time', 'Latest Attempt Time',
                           'Coupon Value', 'Payment Mode',
                           'Final Failure Reason', 'Delivery Attempt',
@@ -2515,13 +2571,13 @@ export default function OrderStatusDashboard() {
                           'Attempt 5 Time', 'Attempt 5 Remarks',
                           'Attempt 6 Time', 'Attempt 6 Remarks',
                           'AWB Number', 'Logistic Name', 'COD Collect',
-                          'Buyer Name', 'Buyer Business Name',
+                          'Buyer Name',
                           'Buyer Full Address', 'Buyer Longitude', 'Buyer Latitude',
                           'PO Status',
                         ];
                         const csvRows: CsvCell[][] = rows.map((r) => [
                           r.brandName, r.poNumber, r.orderValue, r.markedRejectedTime,
-                          r.itlDate, r.shipmentStatus, r.buyerPhone,
+                          r.itlDate, r.shipmentStatus, r.buyerPhone, r.buyerBusinessName,
                           r.orderDate, r.latestAttemptTime,
                           r.couponValue, r.paymentMode,
                           r.finalFailureReason, r.deliveryAttempt,
@@ -2532,7 +2588,7 @@ export default function OrderStatusDashboard() {
                           r.attempt5Time, r.attempt5Remarks,
                           r.attempt6Time, r.attempt6Remarks,
                           r.awbNumber, r.logisticName, r.codCollect,
-                          r.buyerName, r.buyerBusinessName,
+                          r.buyerName,
                           r.buyerFullAddress, r.buyerLongitude, r.buyerLatitude,
                           r.poStatus,
                         ]);
@@ -2616,6 +2672,7 @@ export default function OrderStatusDashboard() {
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">ITL Date</th>
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Shipment Status</th>
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Buyer Phone</th>
+                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Buyer Business</th>
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Order Date</th>
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Latest Attempt</th>
                         <th className="px-3 py-3 text-right font-semibold text-purple-200 whitespace-nowrap">Coupon</th>
@@ -2632,7 +2689,6 @@ export default function OrderStatusDashboard() {
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Courier</th>
                         <th className="px-3 py-3 text-right font-semibold text-purple-200 whitespace-nowrap">COD</th>
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Buyer Name</th>
-                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Buyer Business</th>
                         <th className="px-3 py-3 text-left font-semibold text-purple-200">Buyer Address</th>
                       </tr>
                     </thead>
@@ -2656,6 +2712,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.itlDate || '—'}</td>
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.shipmentStatus || '—'}</td>
                             <td className="px-3 py-2.5 text-purple-100 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
+                            <td className="px-3 py-2.5 text-purple-100">{r.buyerBusinessName || '—'}</td>
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.orderDate || '—'}</td>
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.latestAttemptTime || '—'}</td>
                             <td className="px-3 py-2.5 text-right text-purple-200 tabular-nums whitespace-nowrap">{r.couponValue ? formatAmount(r.couponValue) : '—'}</td>
@@ -2672,7 +2729,6 @@ export default function OrderStatusDashboard() {
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.logisticName || '—'}</td>
                             <td className="px-3 py-2.5 text-right text-purple-200 tabular-nums whitespace-nowrap">{r.codCollect ? formatAmount(r.codCollect) : '—'}</td>
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.buyerName || '—'}</td>
-                            <td className="px-3 py-2.5 text-purple-100">{r.buyerBusinessName || '—'}</td>
                             <td className="px-3 py-2.5 text-purple-100 max-w-[320px]" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                           </tr>
                         );

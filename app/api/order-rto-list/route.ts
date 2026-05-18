@@ -7,6 +7,7 @@ interface Row {
   order_date: string | null;
   itl_date: string | null;
   marked_rejected_time: string | null;
+  marked_rejected_at: string | null;
   latest_attempt_time: string | null;
   po_number: string;
   po_status: string;
@@ -71,6 +72,7 @@ export async function GET(req: NextRequest) {
         TO_CHAR(po."markedPendingTime",  'DD Mon YYYY HH12:MI AM') AS order_date,
         TO_CHAR(di."created_at",         'DD Mon YYYY HH12:MI AM') AS itl_date,
         TO_CHAR(po."markedRejectedTime", 'DD Mon YYYY HH12:MI AM') AS marked_rejected_time,
+        po."markedRejectedTime"                                    AS marked_rejected_at,
         CASE
           WHEN di."status" ILIKE '%out for delivery%'
             THEN attempt_data.out_for_delivery_time
@@ -240,6 +242,7 @@ export async function GET(req: NextRequest) {
       orderDate: r.order_date,
       itlDate: r.itl_date,
       markedRejectedTime: r.marked_rejected_time,
+      markedRejectedAt: r.marked_rejected_at,
       latestAttemptTime: r.latest_attempt_time,
       poNumber: r.po_number,
       poStatus: r.po_status,

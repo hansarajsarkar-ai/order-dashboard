@@ -365,6 +365,7 @@ export default function OrderStatusDashboard() {
     orderDate: string | null;
     itlDate: string | null;
     markedRejectedTime: string | null;
+    markedRejectedAt: string | null;
     latestAttemptTime: string | null;
     poNumber: string;
     poStatus: string;
@@ -696,21 +697,29 @@ export default function OrderStatusDashboard() {
   useEffect(() => { setRtoListPage(1); }, [rtoListSearch, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
 
   // Filtered + paged views of the RTO list
+  // Always sorted by markedRejectedTime DESC (newest rejection first).
   const filteredRtoListRows = (() => {
     if (!rtoListData) return null;
     const q = rtoListSearch.trim().toLowerCase();
-    if (!q) return rtoListData;
-    return rtoListData.filter((r) =>
-      String(r.poNumber || '').toLowerCase().includes(q) ||
-      (r.buyerPhone || '').toLowerCase().includes(q) ||
-      (r.buyerName || '').toLowerCase().includes(q) ||
-      (r.buyerBusinessName || '').toLowerCase().includes(q) ||
-      (r.brandName || '').toLowerCase().includes(q) ||
-      (r.shipmentStatus || '').toLowerCase().includes(q) ||
-      (r.awbNumber || '').toLowerCase().includes(q) ||
-      (r.logisticName || '').toLowerCase().includes(q) ||
-      (r.finalFailureReason || '').toLowerCase().includes(q)
-    );
+    const filtered = q
+      ? rtoListData.filter((r) =>
+          String(r.poNumber || '').toLowerCase().includes(q) ||
+          (r.buyerPhone || '').toLowerCase().includes(q) ||
+          (r.buyerName || '').toLowerCase().includes(q) ||
+          (r.buyerBusinessName || '').toLowerCase().includes(q) ||
+          (r.brandName || '').toLowerCase().includes(q) ||
+          (r.shipmentStatus || '').toLowerCase().includes(q) ||
+          (r.awbNumber || '').toLowerCase().includes(q) ||
+          (r.logisticName || '').toLowerCase().includes(q) ||
+          (r.finalFailureReason || '').toLowerCase().includes(q)
+        )
+      : [...rtoListData];
+    // Stable sort by markedRejectedTime DESC. Falls back to 0 epoch for any nulls.
+    return filtered.sort((a, b) => {
+      const ta = a.markedRejectedAt ? new Date(a.markedRejectedAt).getTime() : 0;
+      const tb = b.markedRejectedAt ? new Date(b.markedRejectedAt).getTime() : 0;
+      return tb - ta;
+    });
   })();
 
   const rtoListPaged = (() => {
@@ -1123,7 +1132,7 @@ export default function OrderStatusDashboard() {
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
 
-      <div className="max-w-7xl mx-auto relative z-10">
+      <div className="w-[95%] mx-auto relative z-10">
         {/* Top bar — back to /badho + signed-in user + logout */}
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <Link
@@ -2595,7 +2604,9 @@ export default function OrderStatusDashboard() {
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">PO Number</th>
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Order Date</th>
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">ITL Date</th>
-                        <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Marked Rejected</th>
+                        <th className="px-3 py-3 text-left font-semibold text-rose-200 whitespace-nowrap" title="Sorted newest first">
+                          Marked Rejected <span className="text-rose-300">↓</span>
+                        </th>
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Latest Attempt</th>
                         <th className="px-3 py-3 text-right font-semibold text-purple-200 whitespace-nowrap">Order Value</th>
                         <th className="px-3 py-3 text-right font-semibold text-purple-200 whitespace-nowrap">Coupon</th>

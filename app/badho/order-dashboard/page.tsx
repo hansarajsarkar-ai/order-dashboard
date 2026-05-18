@@ -335,9 +335,23 @@ export default function OrderStatusDashboard() {
   const [sellerDrillEndDate, setSellerDrillEndDate] = useState<string>('');
   const [sellerDrillStatus, setSellerDrillStatus] = useState<string>('all');
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'seller' | 'demography' | 'rto'>('dashboard');
-  const [rtoData, setRtoData] = useState<MonthlyStatusData | null>(null);
-  const [rtoLoading, setRtoLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography'>('dashboard');
+  // RTO tab
+  interface RtoMonth { month: number; count: number; amount: number; }
+  interface RtoSeller { sellerId: string; sellerPhone: string | null; sellerBusinessName: string | null; count: number; amount: number; }
+  interface RtoState { state: string | null; count: number; amount: number; }
+  interface RtoData {
+    grand: { count: number; amount: number };
+    deliveredCount: number;
+    rtoRate: number;
+    avgRtoValue: number;
+    byMonth: RtoMonth[];
+    topSellers: RtoSeller[];
+    topStates: RtoState[];
+    year: number;
+  }
+  const [rtoData, setRtoData] = useState<RtoData | null>(null);
+  const [rtoLoading, setRtoLoading] = useState(false);
   // Trend tab — daily order trend chart
   interface DailyTrendPoint { day: string; ordersCount: number; ordersAmount: number; deliveredCount: number; deliveredAmount: number; }
   const [trendData, setTrendData] = useState<DailyTrendPoint[] | null>(null);
@@ -403,25 +417,6 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     fetchMonthly();
   }, []);
-
-  const fetchRto = async () => {
-    try {
-      setRtoLoading(true);
-      const response = await fetch(`/api/order-rto-breakdown?year=${currentYear}`);
-      if (!response.ok) throw new Error('Failed to fetch RTO data');
-      const result: MonthlyStatusData = await response.json();
-      setRtoData(result);
-    } catch (err) {
-      console.error('RTO fetch error:', err);
-    } finally {
-      setRtoLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab !== 'rto') return;
-    fetchRto();
-  }, [activeTab]);
 
   const fetchDaily = async (month: number) => {
     try {
@@ -560,6 +555,27 @@ export default function OrderStatusDashboard() {
     fetchTrend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, trendRange, trendCustomFrom, trendCustomTo]);
+
+  const fetchRto = async () => {
+    try {
+      setRtoLoading(true);
+      const res = await fetch(`/api/order-rto?year=${currentYear}`);
+      if (!res.ok) throw new Error('Failed to fetch RTO');
+      const json = await res.json();
+      setRtoData(json);
+    } catch (err) {
+      console.error('RTO fetch error:', err);
+      setRtoData(null);
+    } finally {
+      setRtoLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'rto' || rtoData) return;
+    fetchRto();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const toggleStatusExpansion = (status: string) => {
     setExpandedStatuses((prev) => {
@@ -995,9 +1011,9 @@ export default function OrderStatusDashboard() {
           {([
             { key: 'dashboard', label: 'Dashboard' },
             { key: 'trend', label: 'Trend' },
+            { key: 'rto', label: 'RTO' },
             { key: 'seller', label: 'Seller wise' },
             { key: 'demography', label: 'Demography' },
-            { key: 'rto', label: 'RTO' },
           ] as const).map((tab) => {
             const active = activeTab === tab.key;
             return (
@@ -2024,6 +2040,216 @@ export default function OrderStatusDashboard() {
           </div>
         </div>
         </>
+        )}
+
+        {activeTab === 'rto' && (
+          <div className="space-y-8">
+            {/* Header + KPI tiles */}
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+              <div className="px-8 py-6 border-b border-white/10 bg-white/5">
+                <h2 className="text-2xl font-bold text-white">RTO — Return To Origin</h2>
+                <p className="text-purple-300 text-sm mt-1">
+                  Orders marked REJECTED with delivery status containing &ldquo;RTO&rdquo; — bucketed by <span className="font-mono text-fuchsia-300">markedRejectedTime</span>, year {currentYear}
+                </p>
+              </div>
+              <div className="p-6">
+                {rtoLoading || !rtoData ? (
+                  <div className="py-12 text-center text-purple-300">Loading RTO data…</div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                      <div className="text-[10px] text-purple-300 uppercase tracking-wider">Total RTO orders</div>
+                      <div className="text-3xl font-bold text-white tabular-nums mt-1">{rtoData.grand.count.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                      <div className="text-[10px] text-purple-300 uppercase tracking-wider">RTO order value</div>
+                      <div className="text-3xl font-bold text-white tabular-nums mt-1">{formatAmount(rtoData.grand.amount)}</div>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                      <div className="text-[10px] text-purple-300 uppercase tracking-wider">RTO rate</div>
+                      <div className="text-3xl font-bold text-rose-300 tabular-nums mt-1">{rtoData.rtoRate.toFixed(2)}%</div>
+                      <div className="text-[10px] text-purple-300/60 mt-0.5">vs delivered+completed</div>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                      <div className="text-[10px] text-purple-300 uppercase tracking-wider">Avg RTO value</div>
+                      <div className="text-3xl font-bold text-white tabular-nums mt-1">{formatAmount(rtoData.avgRtoValue)}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Monthly RTO chart */}
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+              <div className="px-8 py-6 border-b border-white/10 bg-white/5">
+                <h3 className="text-lg font-bold text-white">Monthly RTO trend</h3>
+                <p className="text-purple-300 text-xs mt-1">RTO orders bucketed by month of rejection</p>
+              </div>
+              <div className="p-6">
+                {rtoLoading || !rtoData ? (
+                  <div className="h-[320px] flex items-center justify-center text-purple-300">Loading…</div>
+                ) : rtoData.byMonth.length === 0 ? (
+                  <div className="h-[320px] flex items-center justify-center text-purple-300">No RTO orders this year</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={320}>
+                    <AreaChart
+                      data={rtoData.byMonth.map((m) => ({ ...m, monthLabel: MONTH_NAMES[m.month - 1] }))}
+                      margin={{ top: 20, right: 16, left: 8, bottom: 8 }}
+                    >
+                      <defs>
+                        <linearGradient id="gradRto" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%"  stopColor="#f43f5e" stopOpacity={0.55} />
+                          <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <XAxis dataKey="monthLabel" tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} />
+                      <YAxis tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} width={50} />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'rgba(15,23,42,0.95)',
+                          border: '1px solid rgba(244,63,94,0.4)',
+                          borderRadius: 10,
+                          color: '#fff',
+                          fontSize: 12,
+                        }}
+                        labelStyle={{ color: '#fda4af', fontWeight: 700 }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="count"
+                        name="RTO orders"
+                        stroke="#f43f5e"
+                        strokeWidth={2}
+                        fill="url(#gradRto)"
+                        dot={{ r: 3, fill: '#f43f5e', stroke: '#1e1b4b', strokeWidth: 1 }}
+                      >
+                        <LabelList
+                          dataKey="count"
+                          position="top"
+                          offset={10}
+                          style={{
+                            fill: '#fff1f2',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            paintOrder: 'stroke',
+                            stroke: '#000',
+                            strokeWidth: 2,
+                          }}
+                        />
+                      </Area>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* Two-column: top sellers + top states */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+                <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Top sellers by RTO</h3>
+                    <p className="text-purple-300/70 text-xs mt-0.5">Highest RTO order count this year</p>
+                  </div>
+                  {rtoData && rtoData.topSellers.length > 0 && (
+                    <button
+                      className={DOWNLOAD_BTN_CLASS}
+                      onClick={() => {
+                        const headers = ['Seller Business', 'Seller Phone', 'RTO Count', 'RTO Amount'];
+                        const rows: CsvCell[][] = rtoData.topSellers.map((s) => [
+                          s.sellerBusinessName, s.sellerPhone, s.count, s.amount,
+                        ]);
+                        downloadCSV(`rto-top-sellers-${currentYear}.csv`, headers, rows);
+                      }}
+                    >
+                      ↓ CSV
+                    </button>
+                  )}
+                </div>
+                <div className="overflow-x-auto">
+                  {rtoLoading || !rtoData ? (
+                    <div className="px-6 py-12 text-center text-purple-300">Loading…</div>
+                  ) : rtoData.topSellers.length === 0 ? (
+                    <div className="px-6 py-12 text-center text-purple-300">No RTO data</div>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="bg-white/5 border-b border-white/10">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200">#</th>
+                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200">Seller</th>
+                          <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200">RTO</th>
+                          <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rtoData.topSellers.slice(0, 10).map((s, i) => (
+                          <tr key={s.sellerId} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td className="px-4 py-2.5 text-purple-300 tabular-nums">{i + 1}</td>
+                            <td className="px-4 py-2.5">
+                              <div className="text-white font-medium leading-tight">{s.sellerBusinessName || '—'}</div>
+                              <div className="text-purple-300/70 text-[10px] tabular-nums leading-tight mt-0.5">{s.sellerPhone || '—'}</div>
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums font-bold text-rose-200">{s.count.toLocaleString()}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{formatAmount(s.amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+                <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Top states by RTO</h3>
+                    <p className="text-purple-300/70 text-xs mt-0.5">Highest RTO order count this year</p>
+                  </div>
+                  {rtoData && rtoData.topStates.length > 0 && (
+                    <button
+                      className={DOWNLOAD_BTN_CLASS}
+                      onClick={() => {
+                        const headers = ['State', 'RTO Count', 'RTO Amount'];
+                        const rows: CsvCell[][] = rtoData.topStates.map((s) => [s.state ?? '(no state)', s.count, s.amount]);
+                        downloadCSV(`rto-top-states-${currentYear}.csv`, headers, rows);
+                      }}
+                    >
+                      ↓ CSV
+                    </button>
+                  )}
+                </div>
+                <div className="overflow-x-auto">
+                  {rtoLoading || !rtoData ? (
+                    <div className="px-6 py-12 text-center text-purple-300">Loading…</div>
+                  ) : rtoData.topStates.length === 0 ? (
+                    <div className="px-6 py-12 text-center text-purple-300">No RTO data</div>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="bg-white/5 border-b border-white/10">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200">#</th>
+                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200">State</th>
+                          <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200">RTO</th>
+                          <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rtoData.topStates.slice(0, 10).map((st, i) => (
+                          <tr key={(st.state ?? 'unknown') + i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td className="px-4 py-2.5 text-purple-300 tabular-nums">{i + 1}</td>
+                            <td className="px-4 py-2.5 text-white">{st.state || <span className="text-purple-300/70 italic">(no state)</span>}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums font-bold text-rose-200">{st.count.toLocaleString()}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{formatAmount(st.amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'seller' && (
@@ -3167,95 +3393,6 @@ export default function OrderStatusDashboard() {
           </div>
         )}
 
-        {activeTab === 'rto' && (
-          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-            <div className="px-8 py-6 border-b border-white/10">
-              <h2 className="text-2xl font-bold text-white">Return to Origin (RTO) — {currentYear}</h2>
-              <p className="text-white/60 text-sm mt-1">Monthly breakdown of orders where the buyer returned shipment to origin</p>
-            </div>
-            <div className="overflow-x-auto">
-              {rtoLoading ? (
-                <div className="py-12 text-center text-white/60">Loading RTO data...</div>
-              ) : !rtoData || !rtoData.data || rtoData.data.length === 0 ? (
-                <div className="py-12 text-center text-white/60">No RTO orders found for {currentYear}</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="text-left px-4 py-3 text-white/80 font-semibold">Status</th>
-                      {MONTH_NAMES.map((m) => (
-                        <th key={m} colSpan={2} className="px-2 py-3 text-center text-white/80 font-semibold border-l border-white/10">{m}</th>
-                      ))}
-                      <th colSpan={2} className="px-2 py-3 text-center text-white font-bold bg-purple-500/10 border-l border-white/10">Total</th>
-                    </tr>
-                    <tr className="border-b border-white/10 text-[11px] text-white/50 uppercase">
-                      <th></th>
-                      {MONTH_NAMES.map((m) => (
-                        <Fragment key={m}>
-                          <th className="px-2 py-2 text-right font-normal border-l border-white/10">Count</th>
-                          <th className="px-2 py-2 text-right font-normal">Amount</th>
-                        </Fragment>
-                      ))}
-                      <th className="px-2 py-2 text-right font-normal border-l border-white/10 bg-purple-500/10">Count</th>
-                      <th className="px-2 py-2 text-right font-normal bg-purple-500/10">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rtoData.data.map((row) => (
-                      <tr key={row.status} className="border-b border-white/5 hover:bg-white/5">
-                        <td className="px-4 py-3 text-white font-semibold">{row.status}</td>
-                        {MONTH_NAMES.map((_, idx) => {
-                          const monthNum = idx + 1;
-                          const cell = row.months[monthNum];
-                          const hasData = !!cell;
-                          return (
-                            <Fragment key={idx}>
-                              <td className={`px-2 py-3 text-right tabular-nums border-l border-white/10 ${hasData ? 'text-white' : 'text-white/30'}`}>
-                                {hasData ? cell.count : '—'}
-                              </td>
-                              <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-purple-100' : 'text-white/30'}`}>
-                                {hasData ? formatAmount(cell.amount) : '—'}
-                              </td>
-                            </Fragment>
-                          );
-                        })}
-                        <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10 border-l border-white/10">
-                          {row.total.count}
-                        </td>
-                        <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10">
-                          {formatAmount(row.total.amount)}
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="border-t-2 border-white/20 bg-purple-500/5">
-                      <td className="px-4 py-3 text-white font-bold">Grand Total</td>
-                      {MONTH_NAMES.map((_, idx) => {
-                        const monthNum = idx + 1;
-                        const cell = rtoData.totals.byMonth[monthNum];
-                        return (
-                          <Fragment key={idx}>
-                            <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/20 border-l border-white/10">
-                              {cell ? cell.count : '—'}
-                            </td>
-                            <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/20">
-                              {cell ? formatAmount(cell.amount) : '—'}
-                            </td>
-                          </Fragment>
-                        );
-                      })}
-                      <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/30 border-l border-white/10">
-                        {rtoData.totals.grand.count}
-                      </td>
-                      <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-50 bg-purple-500/30">
-                        {formatAmount(rtoData.totals.grand.amount)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Footer */}
         <div className="mt-12 text-center text-purple-300/70 text-sm">

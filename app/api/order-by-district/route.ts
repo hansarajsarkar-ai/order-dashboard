@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
   const state = searchParams.get('state'); // optional — narrow to one state
+  const sellerId = searchParams.get('sellerId');
 
   try {
     const params: (string | number)[] = [];
@@ -41,6 +42,12 @@ export async function GET(req: NextRequest) {
       stateFilter = ` AND b."state" = $${params.length}`;
     }
 
+    let whereSeller = '';
+    if (sellerId) {
+      params.push(sellerId);
+      whereSeller = ` AND po."sellerId" = $${params.length}`;
+    }
+
     const sql = `
       SELECT
         b."state"                                    AS state,
@@ -63,6 +70,7 @@ export async function GET(req: NextRequest) {
         AND po."markedPendingTime" IS NOT NULL
         ${whereDate}
         ${stateFilter}
+        ${whereSeller}
       GROUP BY b."state", b."district"
       ORDER BY count DESC;
     `;

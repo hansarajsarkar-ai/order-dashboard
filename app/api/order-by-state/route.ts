@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
+  const sellerId = searchParams.get('sellerId');
 
   try {
     const params: (string | number)[] = [];
@@ -31,6 +32,12 @@ export async function GET(req: NextRequest) {
     } else {
       params.push(year);
       whereDate = ` AND EXTRACT(YEAR FROM po."markedPendingTime") = $${params.length}`;
+    }
+
+    let whereSeller = '';
+    if (sellerId) {
+      params.push(sellerId);
+      whereSeller = ` AND po."sellerId" = $${params.length}`;
     }
 
     const sql = `
@@ -53,6 +60,7 @@ export async function GET(req: NextRequest) {
         AND po."status" != 'DRAFT'
         AND po."markedPendingTime" IS NOT NULL
         ${whereDate}
+        ${whereSeller}
       GROUP BY b."state"
       ORDER BY count DESC;
     `;

@@ -326,6 +326,25 @@ export default function OrderStatusDashboard() {
   const [districtLoading, setDistrictLoading] = useState(false);
   // selected DB state name for the district view (null = show all districts)
   const [districtSelectedState, setDistrictSelectedState] = useState<string | null>(null);
+  // Brand (seller) filter for the demography view
+  interface SellerBrand {
+    sellerId: string;
+    sellerPhone: string | null;
+    sellerBusinessName: string | null;
+    lastOrderAt: string | null;
+    daysSinceLastOrder: number | null;
+    isActive: boolean;
+    totalOrders: number;
+    totalAmount: number;
+    deliveredOrders: number;
+    deliveredAmount: number;
+    statesCovered: number;
+    districtsCovered: number;
+  }
+  const [sellerBrandList, setSellerBrandList] = useState<SellerBrand[] | null>(null);
+  const [sellerBrandSearch, setSellerBrandSearch] = useState('');
+  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
+  const [sellerDropdownOpen, setSellerDropdownOpen] = useState(false);
   const [sellerDrillId, setSellerDrillId] = useState<string | null>(null);
   const [sellerDrillName, setSellerDrillName] = useState<string>('');
   const [sellerDrillPhone, setSellerDrillPhone] = useState<string>('');
@@ -1073,6 +1092,7 @@ export default function OrderStatusDashboard() {
       const params = new URLSearchParams({ year: String(currentYear) });
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
+      if (selectedSellerId) params.append('sellerId', selectedSellerId);
       const res = await fetch(`/api/order-by-state?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
@@ -1089,7 +1109,7 @@ export default function OrderStatusDashboard() {
     if (activeTab !== 'demography') return;
     fetchStateData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo]);
+  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedSellerId]);
 
   const fetchDistrictData = async () => {
     try {
@@ -1099,6 +1119,7 @@ export default function OrderStatusDashboard() {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       if (districtSelectedState) params.append('state', districtSelectedState);
+      if (selectedSellerId) params.append('sellerId', selectedSellerId);
       const res = await fetch(`/api/order-by-district?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
@@ -1116,7 +1137,30 @@ export default function OrderStatusDashboard() {
     if (geoMode !== 'district') return;
     fetchDistrictData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, geoMode, districtSelectedState, stateRange, stateCustomFrom, stateCustomTo]);
+  }, [activeTab, geoMode, districtSelectedState, stateRange, stateCustomFrom, stateCustomTo, selectedSellerId]);
+
+  // Seller brand list — fetched once when entering Demography tab
+  const fetchSellerBrandList = async () => {
+    try {
+      const { startDate, endDate } = resolveStateRange();
+      const params = new URLSearchParams({ year: String(currentYear) });
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const res = await fetch(`/api/seller-brand-list?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setSellerBrandList(json.data);
+    } catch (err) {
+      console.error('Seller brand list fetch error:', err);
+      setSellerBrandList([]);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'demography') return;
+    fetchSellerBrandList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo]);
 
   // Reverse alias: state-map's ST_NM (e.g. "Andaman & Nicobar") → DB state name.
   const GEO_TO_DB_STATE: Record<string, string> = {
@@ -3908,6 +3952,133 @@ export default function OrderStatusDashboard() {
                   ↺ Reset filter
                 </button>
               )}
+            </div>
+
+            {/* Brand (seller) selector + activity card */}
+            <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap relative">
+              <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Brand</span>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSellerDropdownOpen((v) => !v)}
+                  className="min-w-[260px] px-3 py-1.5 text-xs bg-white/10 border border-white/20 rounded-lg text-white text-left flex items-center justify-between gap-2 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                >
+                  {(() => {
+                    const selected = sellerBrandList?.find((s) => s.sellerId === selectedSellerId);
+                    return selected
+                      ? <span className="truncate">{selected.sellerBusinessName || '(no name)'}</span>
+                      : <span className="text-purple-300">All brands (no filter)</span>;
+                  })()}
+                  <span className="text-purple-300 text-[10px]">▾</span>
+                </button>
+                {sellerDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-1 z-30 w-[420px] max-h-[420px] bg-slate-900 border border-white/15 rounded-lg shadow-2xl flex flex-col overflow-hidden">
+                    <div className="p-2 border-b border-white/10">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={sellerBrandSearch}
+                        onChange={(e) => setSellerBrandSearch(e.target.value)}
+                        placeholder="Search brand name or phone…"
+                        className="w-full px-2 py-1.5 text-xs bg-white/10 border border-white/20 rounded text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                      />
+                    </div>
+                    <div className="overflow-y-auto flex-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSellerId(null);
+                          setSellerDropdownOpen(false);
+                          setSellerBrandSearch('');
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs border-b border-white/5 hover:bg-white/10 ${selectedSellerId === null ? 'bg-fuchsia-500/15 text-fuchsia-200' : 'text-purple-200'}`}
+                      >
+                        All brands (no filter)
+                      </button>
+                      {sellerBrandList === null ? (
+                        <div className="px-3 py-4 text-xs text-purple-300/60">Loading brands…</div>
+                      ) : (() => {
+                        const q = sellerBrandSearch.trim().toLowerCase();
+                        const filtered = q
+                          ? sellerBrandList.filter((s) =>
+                              (s.sellerBusinessName || '').toLowerCase().includes(q) ||
+                              (s.sellerPhone || '').toLowerCase().includes(q)
+                            )
+                          : sellerBrandList;
+                        if (filtered.length === 0) {
+                          return <div className="px-3 py-4 text-xs text-purple-300/60">No matches</div>;
+                        }
+                        return filtered.map((s) => {
+                          const active = s.sellerId === selectedSellerId;
+                          return (
+                            <button
+                              key={s.sellerId}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSellerId(s.sellerId);
+                                setSellerDropdownOpen(false);
+                                setSellerBrandSearch('');
+                              }}
+                              className={`w-full text-left px-3 py-2 border-b border-white/5 hover:bg-white/10 ${active ? 'bg-fuchsia-500/15' : ''}`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className={`text-xs font-semibold truncate ${active ? 'text-fuchsia-200' : 'text-white'}`}>
+                                    {s.sellerBusinessName || '(no name)'}
+                                  </div>
+                                  <div className="text-[10px] text-purple-300/70 tabular-nums">
+                                    {s.sellerPhone || '—'} · {s.totalOrders.toLocaleString()} orders · {s.statesCovered} states
+                                  </div>
+                                </div>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${s.isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-500/30 text-slate-300'}`}>
+                                  {s.isActive ? 'ACTIVE' : 'IDLE'}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {selectedSellerId && (
+                <button
+                  onClick={() => setSelectedSellerId(null)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-rose-500/20 text-purple-200 hover:text-rose-200 border border-white/10 hover:border-rose-400/40 transition-all"
+                >
+                  Clear
+                </button>
+              )}
+              {/* Selected-brand activity card */}
+              {selectedSellerId && (() => {
+                const s = sellerBrandList?.find((x) => x.sellerId === selectedSellerId);
+                if (!s) return null;
+                const days = s.daysSinceLastOrder;
+                const lastLabel = s.lastOrderAt
+                  ? new Date(s.lastOrderAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                  : 'never';
+                return (
+                  <div className="ml-auto flex items-center gap-3 flex-wrap text-xs">
+                    <span className={`px-2 py-1 rounded-md font-bold ${s.isActive ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30' : 'bg-rose-500/20 text-rose-200 border border-rose-400/30'}`}>
+                      {s.isActive ? '● ACTIVE' : '○ INACTIVE'}
+                    </span>
+                    <div className="text-purple-200">
+                      <span className="text-purple-300/70">Last order:</span> <span className="font-semibold text-white">{lastLabel}</span>
+                      {days !== null && <span className="text-purple-300/70"> ({days}d ago)</span>}
+                    </div>
+                    <div className="text-purple-200">
+                      <span className="text-purple-300/70">Orders:</span> <span className="font-semibold text-white tabular-nums">{s.totalOrders.toLocaleString()}</span>
+                    </div>
+                    <div className="text-purple-200">
+                      <span className="text-purple-300/70">Value:</span> <span className="font-semibold text-white tabular-nums">{formatAmount(s.totalAmount)}</span>
+                    </div>
+                    <div className="text-purple-200">
+                      <span className="text-purple-300/70">Coverage:</span> <span className="font-semibold text-white tabular-nums">{s.statesCovered}</span> states · <span className="font-semibold text-white tabular-nums">{s.districtsCovered}</span> districts
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {geoMode === 'district' && (

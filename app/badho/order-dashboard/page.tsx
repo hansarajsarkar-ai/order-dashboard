@@ -360,6 +360,10 @@ export default function OrderStatusDashboard() {
   const [rtoTrendCustomTo, setRtoTrendCustomTo] = useState('');
   const [rtoTrendData, setRtoTrendData] = useState<RtoTrendPoint[] | null>(null);
   const [rtoTrendLoading, setRtoTrendLoading] = useState(false);
+  // Monthly RTO rate trend (cohort by markedPendingTime month)
+  interface RtoRatePoint { month: number; label: string; rtoCount: number; deliveredCount: number; rtoRate: number; }
+  const [rtoRateData, setRtoRateData] = useState<RtoRatePoint[] | null>(null);
+  const [rtoRateLoading, setRtoRateLoading] = useState(false);
   // RTO sub-tabs (Dashboard / Details)
   const [rtoSubTab, setRtoSubTab] = useState<'dashboard' | 'details'>('dashboard');
   interface RtoOrderRow {
@@ -653,6 +657,27 @@ export default function OrderStatusDashboard() {
     fetchRtoTrend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, rtoTrendGranularity, rtoTrendCustomFrom, rtoTrendCustomTo]);
+
+  const fetchRtoRate = async () => {
+    try {
+      setRtoRateLoading(true);
+      const res = await fetch(`/api/order-rto-rate-monthly`);
+      if (!res.ok) throw new Error('Failed to fetch monthly RTO rate');
+      const json = await res.json();
+      setRtoRateData(json.data);
+    } catch (err) {
+      console.error('RTO rate fetch error:', err);
+      setRtoRateData([]);
+    } finally {
+      setRtoRateLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'rto' || rtoRateData) return;
+    fetchRtoRate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const resolveRtoListRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
@@ -2453,6 +2478,116 @@ export default function OrderStatusDashboard() {
                       </ResponsiveContainer>
                     </div>
                   </div>
+                )}
+              </div>
+            </div>
+
+            {/* Monthly RTO rate trend (cohort by markedPendingTime month) */}
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+              <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-white">Monthly RTO rate — {currentYear}</h3>
+                  <p className="text-purple-300 text-xs mt-1">
+                    RTO ÷ (RTO + Delivered + Completed) — bucketed by <span className="font-mono text-fuchsia-300">markedPendingTime</span> month (cohort view)
+                  </p>
+                </div>
+                {rtoRateData && rtoRateData.length > 0 && (
+                  <div className="flex items-center gap-6 text-sm">
+                    <div className="text-right">
+                      <div className="text-purple-300/80 text-[11px]">Avg rate</div>
+                      <div className="text-fuchsia-200 font-bold text-lg tabular-nums">
+                        {(() => {
+                          const totalRto = rtoRateData.reduce((s, r) => s + r.rtoCount, 0);
+                          const totalDen = rtoRateData.reduce((s, r) => s + r.rtoCount + r.deliveredCount, 0);
+                          return totalDen > 0 ? `${((totalRto / totalDen) * 100).toFixed(2)}%` : '—';
+                        })()}
+                      </div>
+                    </div>
+                    <button
+                      className={DOWNLOAD_BTN_CLASS}
+                      onClick={() => {
+                        const headers = ['Month', 'RTO Count', 'Delivered + Completed', 'Denominator', 'RTO Rate %'];
+                        const rows: CsvCell[][] = rtoRateData.map((r) => [
+                          r.label, r.rtoCount, r.deliveredCount, r.rtoCount + r.deliveredCount, r.rtoRate,
+                        ]);
+                        downloadCSV(`rto-rate-monthly-${currentYear}.csv`, headers, rows);
+                      }}
+                    >
+                      ↓ CSV
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="p-6">
+                {rtoRateLoading || !rtoRateData ? (
+                  <div className="h-[300px] flex items-center justify-center text-purple-300">Loading…</div>
+                ) : rtoRateData.length === 0 ? (
+                  <div className="h-[300px] flex items-center justify-center text-purple-300">No data for {currentYear}</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart
+                      data={rtoRateData}
+                      margin={{ top: 28, right: 24, left: 8, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fill: 'rgba(216,180,254,0.75)', fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                      />
+                      <YAxis
+                        tick={{ fill: 'rgba(232,121,249,0.9)', fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={false}
+                        width={50}
+                        tickFormatter={(v: number) => `${v}%`}
+                        domain={[0, (dataMax: number) => Math.max(40, Math.ceil(dataMax / 10) * 10 + 5)]}
+                      />
+                      <Tooltip
+                        cursor={{ stroke: 'rgba(217,70,239,0.4)', strokeWidth: 1, strokeDasharray: '3 3' }}
+                        contentStyle={{
+                          background: 'rgba(15,23,42,0.96)',
+                          border: '1px solid rgba(217,70,239,0.4)',
+                          borderRadius: 10,
+                          color: '#fff',
+                          fontSize: 12,
+                        }}
+                        labelStyle={{ color: '#f0abfc', fontWeight: 700, marginBottom: 4 }}
+                        formatter={(v, name, item) => {
+                          const p = (item as { payload?: RtoRatePoint } | undefined)?.payload;
+                          const rto = p?.rtoCount ?? 0;
+                          const del = p?.deliveredCount ?? 0;
+                          const n = typeof v === 'number' ? v : Number(v ?? 0);
+                          return [`${n.toFixed(2)}%  ·  ${rto.toLocaleString()} RTO / ${(rto + del).toLocaleString()} total`, String(name)];
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="rtoRate"
+                        name="RTO rate"
+                        stroke="#d946ef"
+                        strokeWidth={2.5}
+                        dot={{ r: 5, fill: '#d946ef', stroke: '#1e1b4b', strokeWidth: 2 }}
+                        activeDot={{ r: 7, fill: '#f0abfc', stroke: '#1e1b4b', strokeWidth: 2 }}
+                      >
+                        <LabelList
+                          dataKey="rtoRate"
+                          position="top"
+                          offset={10}
+                          formatter={(v: string | number | boolean | null | undefined) => {
+                            const n = typeof v === 'number' ? v : Number(v ?? 0);
+                            return `${n.toFixed(1)}%`;
+                          }}
+                          style={{
+                            fill: '#f5d0fe',
+                            fontSize: 12,
+                            fontWeight: 700,
+                          }}
+                        />
+                      </Line>
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 )}
               </div>
             </div>

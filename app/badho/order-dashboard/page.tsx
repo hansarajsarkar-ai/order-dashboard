@@ -391,13 +391,27 @@ export default function OrderStatusDashboard() {
   const [goalModalSearch, setGoalModalSearch] = useState('');
   const [goalModalData, setGoalModalData] = useState<GoalOrderRow[] | null>(null);
   const [goalModalLoading, setGoalModalLoading] = useState(false);
-  // Order funnel table (bucketed by created_at)
-  interface FunnelData {
-    totalCount: number; totalAmount: number;
+  // Order funnel table (monthly pivot, bucketed by created_at)
+  interface FunnelMonth {
+    month: number; label: string;
+    totalCount: number;     totalAmount: number;
+    pushedCount: number;    pushedAmount: number;
     deliveredCount: number; deliveredAmount: number;
-    rejectedCount: number; rejectedAmount: number;
+    rejectedCount: number;  rejectedAmount: number;
     cancelledCount: number; cancelledAmount: number;
-    inFlightCount: number; inFlightAmount: number;
+    inProgressCount: number; inProgressAmount: number;
+  }
+  interface FunnelTotals {
+    totalCount: number;     totalAmount: number;
+    pushedCount: number;    pushedAmount: number;
+    deliveredCount: number; deliveredAmount: number;
+    rejectedCount: number;  rejectedAmount: number;
+    cancelledCount: number; cancelledAmount: number;
+    inProgressCount: number; inProgressAmount: number;
+  }
+  interface FunnelData {
+    data: FunnelMonth[];
+    totals: FunnelTotals;
     year: number | null;
     startDate: string | null;
     endDate: string | null;
@@ -1443,36 +1457,42 @@ export default function OrderStatusDashboard() {
         </div>
 
 
-        {/* Order Funnel — Created → Delivered / Rejected / Cancelled (by created_at) */}
+        {/* Order Funnel — monthly pivot, months × 6 stages, bucketed by created_at */}
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Order Funnel</h2>
+              <h2 className="text-2xl font-bold text-white">Order Funnel — Monthly</h2>
               <p className="text-purple-300 text-sm mt-1">
-                Created → Delivered / Rejected / Cancelled — bucketed by <span className="font-mono text-fuchsia-300">created_at</span>
+                Stages per month, bucketed by <span className="font-mono text-fuchsia-300">created_at</span>
                 {funnelData?.year && ` · ${funnelData.year}`}
                 {funnelData?.startDate && funnelData?.endDate && ` · ${funnelData.startDate} → ${funnelData.endDate}`}
+                {' · '}<span className="text-purple-300/70">no delivery-network filter — DRAFT included in &ldquo;Total Created&rdquo;</span>
               </p>
             </div>
             {funnelData && (
               <button
                 className={DOWNLOAD_BTN_CLASS}
                 onClick={() => {
-                  const total = funnelData.totalCount || 1;
-                  const totalAmt = funnelData.totalAmount || 1;
-                  const headers = ['Stage', 'Orders', '% of Created', 'Value', '% of Value'];
-                  const pct = (n: number, d: number) => d > 0 ? `${((n / d) * 100).toFixed(2)}%` : '0%';
-                  const rows: CsvCell[][] = [
-                    ['Total Created',          funnelData.totalCount,     '100%',                                  funnelData.totalAmount,     '100%'],
-                    ['Delivered + Completed',  funnelData.deliveredCount, pct(funnelData.deliveredCount, total),   funnelData.deliveredAmount, pct(funnelData.deliveredAmount, totalAmt)],
-                    ['Rejected',               funnelData.rejectedCount,  pct(funnelData.rejectedCount,  total),   funnelData.rejectedAmount,  pct(funnelData.rejectedAmount,  totalAmt)],
-                    ['Cancelled',              funnelData.cancelledCount, pct(funnelData.cancelledCount, total),   funnelData.cancelledAmount, pct(funnelData.cancelledAmount, totalAmt)],
-                    ['In-flight (other)',      funnelData.inFlightCount,  pct(funnelData.inFlightCount,  total),   funnelData.inFlightAmount,  pct(funnelData.inFlightAmount,  totalAmt)],
+                  const months = funnelData.data;
+                  const stageKeys: Array<['Total Created' | 'Pushed to seller' | 'Delivered + Completed' | 'Rejected' | 'Cancelled' | 'In-progress', keyof FunnelMonth, keyof FunnelMonth]> = [
+                    ['Total Created',          'totalCount',     'totalAmount'],
+                    ['Pushed to seller',       'pushedCount',    'pushedAmount'],
+                    ['Delivered + Completed',  'deliveredCount', 'deliveredAmount'],
+                    ['Rejected',               'rejectedCount',  'rejectedAmount'],
+                    ['Cancelled',              'cancelledCount', 'cancelledAmount'],
+                    ['In-progress',            'inProgressCount','inProgressAmount'],
                   ];
+                  const headers = ['Month', ...stageKeys.flatMap(([label]) => [`${label} — Count`, `${label} — Amount`]), 'YEAR'];
+                  const rows: CsvCell[][] = months.map((m) => {
+                    return [m.label, ...stageKeys.flatMap(([, cKey, aKey]) => [m[cKey] as number, m[aKey] as number]), funnelData.year ?? ''];
+                  });
+                  // append totals row
+                  const t = funnelData.totals;
+                  rows.push(['TOTAL', ...stageKeys.flatMap(([, cKey, aKey]) => [t[cKey as keyof FunnelTotals], t[aKey as keyof FunnelTotals]]), funnelData.year ?? '']);
                   const rangeSuffix = funnelData.year ? String(funnelData.year)
                     : funnelData.startDate && funnelData.endDate ? `${funnelData.startDate}_${funnelData.endDate}`
                     : 'all';
-                  downloadCSV(`order-funnel-${rangeSuffix}.csv`, headers, rows);
+                  downloadCSV(`order-funnel-monthly-${rangeSuffix}.csv`, headers, rows);
                 }}
               >
                 ↓ CSV
@@ -1522,72 +1542,128 @@ export default function OrderStatusDashboard() {
               </div>
             )}
           </div>
-          {/* Table */}
+          {/* Pivot table — months as super-columns, stages as sub-columns */}
           <div className="overflow-x-auto">
             {funnelLoading || !funnelData ? (
               <div className="px-8 py-12 text-center text-purple-300">Loading funnel…</div>
+            ) : funnelData.data.length === 0 ? (
+              <div className="px-8 py-12 text-center text-purple-300">No orders in this range</div>
             ) : (() => {
-              const total = funnelData.totalCount || 1;
-              const totalAmt = funnelData.totalAmount || 1;
-              const pct = (n: number, d: number) => d > 0 ? (n / d) * 100 : 0;
-              const stages: Array<{ label: string; count: number; amount: number; tone: string; bg: string; pillBg: string; pillText: string }> = [
-                { label: 'Total Created',         count: funnelData.totalCount,     amount: funnelData.totalAmount,     tone: 'text-white',         bg: 'bg-white/10',         pillBg: 'bg-fuchsia-500/20',  pillText: 'text-fuchsia-200' },
-                { label: 'Delivered + Completed', count: funnelData.deliveredCount, amount: funnelData.deliveredAmount, tone: 'text-emerald-200',   bg: 'bg-emerald-500/5',    pillBg: 'bg-emerald-500/20',  pillText: 'text-emerald-200' },
-                { label: 'Rejected',              count: funnelData.rejectedCount,  amount: funnelData.rejectedAmount,  tone: 'text-rose-200',      bg: 'bg-rose-500/5',       pillBg: 'bg-rose-500/20',     pillText: 'text-rose-200' },
-                { label: 'Cancelled',             count: funnelData.cancelledCount, amount: funnelData.cancelledAmount, tone: 'text-amber-200',     bg: 'bg-amber-500/5',       pillBg: 'bg-amber-500/20',    pillText: 'text-amber-200' },
-                { label: 'In-flight (other)',     count: funnelData.inFlightCount,  amount: funnelData.inFlightAmount,  tone: 'text-purple-200',    bg: 'bg-purple-500/5',     pillBg: 'bg-purple-500/20',   pillText: 'text-purple-200' },
+              const months = funnelData.data;
+              const t = funnelData.totals;
+              const stageCols: Array<{ label: string; short: string; cKey: keyof FunnelMonth; aKey: keyof FunnelMonth; tone: string; bg: string }> = [
+                { label: 'Total Created',         short: 'Created',  cKey: 'totalCount',      aKey: 'totalAmount',     tone: 'text-white',        bg: 'bg-white/5' },
+                { label: 'Pushed to seller',      short: 'Pushed',   cKey: 'pushedCount',     aKey: 'pushedAmount',    tone: 'text-fuchsia-200',  bg: 'bg-fuchsia-500/5' },
+                { label: 'Delivered + Completed', short: 'Del+Comp', cKey: 'deliveredCount',  aKey: 'deliveredAmount', tone: 'text-emerald-200',  bg: 'bg-emerald-500/5' },
+                { label: 'Rejected',              short: 'Rejected', cKey: 'rejectedCount',   aKey: 'rejectedAmount',  tone: 'text-rose-200',     bg: 'bg-rose-500/5' },
+                { label: 'Cancelled',             short: 'Cancelled',cKey: 'cancelledCount',  aKey: 'cancelledAmount', tone: 'text-amber-200',    bg: 'bg-amber-500/5' },
+                { label: 'In-progress',           short: 'InProg',   cKey: 'inProgressCount', aKey: 'inProgressAmount',tone: 'text-purple-200',   bg: 'bg-purple-500/5' },
               ];
               return (
-                <table className="w-full text-sm">
-                  <thead className="bg-white/5 border-b border-white/10">
+                <table className="text-xs border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-10">
+                    {/* Row 1: month super-headers */}
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-purple-200 uppercase tracking-wider">Stage</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wider">Orders</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wider">% of Created</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wider">Value</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wider">% of Value</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200 uppercase tracking-wider w-[260px]">Share</th>
+                      <th rowSpan={3} className="sticky left-0 z-20 bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider min-w-[120px]">
+                        Metric
+                      </th>
+                      {months.map((m) => (
+                        <th
+                          key={m.month}
+                          colSpan={stageCols.length}
+                          className="bg-slate-800 border-b border-r border-white/10 px-2 py-2 text-center font-bold text-white"
+                        >
+                          {m.label}
+                        </th>
+                      ))}
+                      <th
+                        rowSpan={1}
+                        colSpan={stageCols.length}
+                        className="bg-gradient-to-r from-fuchsia-700/40 to-purple-700/40 border-b border-l-2 border-fuchsia-400/40 px-2 py-2 text-center font-bold text-white"
+                      >
+                        TOTAL
+                      </th>
+                    </tr>
+                    {/* Row 2: stage sub-headers under each month */}
+                    <tr>
+                      {months.flatMap((m) =>
+                        stageCols.map((sc, idx) => (
+                          <th
+                            key={`${m.month}-${sc.cKey}`}
+                            className={`bg-slate-900 border-b border-white/10 ${idx === stageCols.length - 1 ? 'border-r' : ''} px-2 py-1.5 text-[10px] font-semibold ${sc.tone} whitespace-nowrap`}
+                            title={sc.label}
+                          >
+                            {sc.short}
+                          </th>
+                        ))
+                      )}
+                      {stageCols.map((sc, idx) => (
+                        <th
+                          key={`tot-${sc.cKey}`}
+                          className={`bg-fuchsia-900/30 border-b border-white/10 ${idx === 0 ? 'border-l-2 border-l-fuchsia-400/40' : ''} ${idx === stageCols.length - 1 ? '' : ''} px-2 py-1.5 text-[10px] font-semibold ${sc.tone} whitespace-nowrap`}
+                          title={sc.label}
+                        >
+                          {sc.short}
+                        </th>
+                      ))}
+                    </tr>
+                    {/* Row 3: cell content key */}
+                    <tr>
+                      {months.flatMap((m) =>
+                        stageCols.map((sc, idx) => (
+                          <th
+                            key={`hd2-${m.month}-${sc.cKey}`}
+                            className={`bg-slate-900/80 border-b border-white/10 ${idx === stageCols.length - 1 ? 'border-r' : ''} px-2 py-1 text-[9px] font-normal text-purple-300/60 uppercase tracking-wider whitespace-nowrap`}
+                          >
+                            Cnt · ₹
+                          </th>
+                        ))
+                      )}
+                      {stageCols.map((sc, idx) => (
+                        <th
+                          key={`hd2-tot-${sc.cKey}`}
+                          className={`bg-fuchsia-900/30 border-b border-white/10 ${idx === 0 ? 'border-l-2 border-l-fuchsia-400/40' : ''} px-2 py-1 text-[9px] font-normal text-purple-300/60 uppercase tracking-wider whitespace-nowrap`}
+                        >
+                          Cnt · ₹
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {stages.map((s, i) => {
-                      const countPct = i === 0 ? 100 : pct(s.count, total);
-                      const amtPct   = i === 0 ? 100 : pct(s.amount, totalAmt);
-                      return (
-                        <tr key={s.label} className={`border-b border-white/5 ${s.bg} hover:bg-white/5 transition-colors`}>
-                          <td className="px-6 py-4">
-                            <div className={`font-semibold ${s.tone}`}>{s.label}</div>
-                            {i === 0 && <div className="text-[10px] text-purple-300/70 leading-tight mt-0.5">excluding DRAFT, test orders</div>}
+                    {/* Single data row: count + amount per cell, stacked */}
+                    <tr>
+                      <td className="sticky left-0 z-10 bg-slate-900 border-b border-r border-white/10 px-3 py-2 font-semibold text-purple-100 whitespace-nowrap">
+                        Order Count<br /><span className="text-purple-300/60 font-normal">Amount</span>
+                      </td>
+                      {months.flatMap((m) =>
+                        stageCols.map((sc, idx) => {
+                          const cnt = m[sc.cKey] as number;
+                          const amt = m[sc.aKey] as number;
+                          return (
+                            <td
+                              key={`d-${m.month}-${sc.cKey}`}
+                              className={`${sc.bg} border-b border-white/10 ${idx === stageCols.length - 1 ? 'border-r' : ''} px-2 py-2 text-right whitespace-nowrap`}
+                            >
+                              <div className={`text-sm font-bold tabular-nums ${sc.tone}`}>{cnt.toLocaleString()}</div>
+                              <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(amt)}</div>
+                            </td>
+                          );
+                        })
+                      )}
+                      {stageCols.map((sc, idx) => {
+                        const cnt = t[sc.cKey as keyof FunnelTotals];
+                        const amt = t[sc.aKey as keyof FunnelTotals];
+                        return (
+                          <td
+                            key={`d-tot-${sc.cKey}`}
+                            className={`bg-fuchsia-900/20 border-b border-white/10 ${idx === 0 ? 'border-l-2 border-l-fuchsia-400/40' : ''} px-2 py-2 text-right whitespace-nowrap`}
+                          >
+                            <div className={`text-sm font-bold tabular-nums ${sc.tone}`}>{cnt.toLocaleString()}</div>
+                            <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(amt)}</div>
                           </td>
-                          <td className={`px-4 py-4 text-right tabular-nums font-bold ${s.tone}`}>{s.count.toLocaleString()}</td>
-                          <td className="px-4 py-4 text-right tabular-nums text-purple-200">
-                            <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-semibold ${s.pillBg} ${s.pillText}`}>
-                              {countPct.toFixed(2)}%
-                            </span>
-                          </td>
-                          <td className={`px-4 py-4 text-right tabular-nums font-bold ${s.tone}`}>{formatAmount(s.amount)}</td>
-                          <td className="px-4 py-4 text-right tabular-nums text-purple-200">
-                            <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-semibold ${s.pillBg} ${s.pillText}`}>
-                              {amtPct.toFixed(2)}%
-                            </span>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full ${
-                                  i === 0 ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500'
-                                  : i === 1 ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
-                                  : i === 2 ? 'bg-gradient-to-r from-rose-500 to-red-500'
-                                  : i === 3 ? 'bg-gradient-to-r from-amber-500 to-orange-500'
-                                  : 'bg-gradient-to-r from-purple-500 to-indigo-500'
-                                }`}
-                                style={{ width: `${Math.min(countPct, 100)}%` }}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                        );
+                      })}
+                    </tr>
                   </tbody>
                 </table>
               );

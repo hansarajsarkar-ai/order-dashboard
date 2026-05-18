@@ -352,6 +352,13 @@ export default function OrderStatusDashboard() {
   }
   const [rtoData, setRtoData] = useState<RtoData | null>(null);
   const [rtoLoading, setRtoLoading] = useState(false);
+  // RTO trend chart granularity + data
+  interface RtoTrendPoint { bucket: string; label: string; count: number; amount: number; }
+  const [rtoTrendGranularity, setRtoTrendGranularity] = useState<'month' | 'week' | 'day' | 'custom'>('month');
+  const [rtoTrendCustomFrom, setRtoTrendCustomFrom] = useState('');
+  const [rtoTrendCustomTo, setRtoTrendCustomTo] = useState('');
+  const [rtoTrendData, setRtoTrendData] = useState<RtoTrendPoint[] | null>(null);
+  const [rtoTrendLoading, setRtoTrendLoading] = useState(false);
   // Trend tab — daily order trend chart
   interface DailyTrendPoint { day: string; ordersCount: number; ordersAmount: number; deliveredCount: number; deliveredAmount: number; }
   const [trendData, setTrendData] = useState<DailyTrendPoint[] | null>(null);
@@ -576,6 +583,35 @@ export default function OrderStatusDashboard() {
     fetchRto();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  const fetchRtoTrend = async () => {
+    try {
+      setRtoTrendLoading(true);
+      const params = new URLSearchParams();
+      if (rtoTrendGranularity === 'custom') {
+        params.set('granularity', 'day');
+        if (rtoTrendCustomFrom) params.set('startDate', rtoTrendCustomFrom);
+        if (rtoTrendCustomTo) params.set('endDate', rtoTrendCustomTo);
+      } else {
+        params.set('granularity', rtoTrendGranularity);
+      }
+      const res = await fetch(`/api/order-rto-trend?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch RTO trend');
+      const json = await res.json();
+      setRtoTrendData(json.data);
+    } catch (err) {
+      console.error('RTO trend fetch error:', err);
+      setRtoTrendData([]);
+    } finally {
+      setRtoTrendLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'rto') return;
+    fetchRtoTrend();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, rtoTrendGranularity, rtoTrendCustomFrom, rtoTrendCustomTo]);
 
   const toggleStatusExpansion = (status: string) => {
     setExpandedStatuses((prev) => {
@@ -2079,21 +2115,66 @@ export default function OrderStatusDashboard() {
               </div>
             </div>
 
-            {/* Monthly RTO chart */}
+            {/* RTO trend chart with granularity toggle */}
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-              <div className="px-8 py-6 border-b border-white/10 bg-white/5">
-                <h3 className="text-lg font-bold text-white">Monthly RTO trend</h3>
-                <p className="text-purple-300 text-xs mt-1">RTO orders bucketed by month of rejection</p>
+              <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-white">RTO trend</h3>
+                  <p className="text-purple-300 text-xs mt-1">
+                    {rtoTrendGranularity === 'month' && `RTO orders by month of rejection — ${currentYear}`}
+                    {rtoTrendGranularity === 'week' && `RTO orders by ISO week — ${currentYear}`}
+                    {rtoTrendGranularity === 'day' && `RTO orders by day — ${currentYear}`}
+                    {rtoTrendGranularity === 'custom' && `RTO orders by day — ${rtoTrendCustomFrom || '…'} to ${rtoTrendCustomTo || '…'}`}
+                  </p>
+                </div>
+                {/* Granularity toggle */}
+                <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                  {(['month', 'week', 'day', 'custom'] as const).map((g) => {
+                    const active = rtoTrendGranularity === g;
+                    return (
+                      <button
+                        key={g}
+                        onClick={() => setRtoTrendGranularity(g)}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                          active
+                            ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.5)]'
+                            : 'text-purple-200 hover:bg-white/10'
+                        }`}
+                      >
+                        {g === 'month' ? 'Month' : g === 'week' ? 'Week' : g === 'day' ? 'Day' : 'Custom'}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+              {/* Custom date pickers row */}
+              {rtoTrendGranularity === 'custom' && (
+                <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+                  <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Range</span>
+                  <input
+                    type="date"
+                    value={rtoTrendCustomFrom}
+                    onChange={(e) => setRtoTrendCustomFrom(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                  />
+                  <span className="text-purple-300 text-xs">to</span>
+                  <input
+                    type="date"
+                    value={rtoTrendCustomTo}
+                    onChange={(e) => setRtoTrendCustomTo(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                  />
+                </div>
+              )}
               <div className="p-6">
-                {rtoLoading || !rtoData ? (
+                {rtoTrendLoading || !rtoTrendData ? (
                   <div className="h-[320px] flex items-center justify-center text-purple-300">Loading…</div>
-                ) : rtoData.byMonth.length === 0 ? (
-                  <div className="h-[320px] flex items-center justify-center text-purple-300">No RTO orders this year</div>
+                ) : rtoTrendData.length === 0 ? (
+                  <div className="h-[320px] flex items-center justify-center text-purple-300">No RTO data for this range</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={320}>
                     <AreaChart
-                      data={rtoData.byMonth.map((m) => ({ ...m, monthLabel: MONTH_NAMES[m.month - 1] }))}
+                      data={rtoTrendData}
                       margin={{ top: 20, right: 16, left: 8, bottom: 8 }}
                     >
                       <defs>
@@ -2103,7 +2184,11 @@ export default function OrderStatusDashboard() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                      <XAxis dataKey="monthLabel" tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                        minTickGap={rtoTrendGranularity === 'day' || rtoTrendGranularity === 'custom' ? 20 : 5}
+                      />
                       <YAxis tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} width={50} />
                       <Tooltip
                         contentStyle={{
@@ -2114,6 +2199,10 @@ export default function OrderStatusDashboard() {
                           fontSize: 12,
                         }}
                         labelStyle={{ color: '#fda4af', fontWeight: 700 }}
+                        formatter={(v, name) => {
+                          const n = typeof v === 'number' ? v : Number(v ?? 0);
+                          return [name === 'amount' ? formatAmount(n) : n.toLocaleString(), String(name)];
+                        }}
                       />
                       <Area
                         type="monotone"

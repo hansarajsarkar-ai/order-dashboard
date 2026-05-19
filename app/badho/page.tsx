@@ -51,6 +51,14 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '📊',
     status: 'live',
   },
+  {
+    slug: 'brand-performance',
+    title: 'Brand Performance Dashboard',
+    description:
+      'Brand-level visibility — live vs inactive brand mappings, GMV per brand, coverage, and seller→brand catalog health.',
+    icon: '🏷️',
+    status: 'live',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

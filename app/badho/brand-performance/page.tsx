@@ -244,8 +244,8 @@ export default function BrandPerformanceDashboard() {
           })}
         </div>
 
-        {bpTab === 'dashboard' && (
-        /* Pivot section */
+        {bpTab === 'details' && (
+        /* Pivot section — Brand × Month × Status now lives under the Details tab */
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
@@ -499,8 +499,8 @@ export default function BrandPerformanceDashboard() {
         </div>
         )}
 
-        {bpTab === 'details' && (
-        /* Details data — flat row-level table at the (brand, month, status, deliveryStatus) grain */
+        {bpTab === 'dashboard' && (
+        /* Dashboard — flat row-level table at the (brand, month, status, deliveryStatus) grain */
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>

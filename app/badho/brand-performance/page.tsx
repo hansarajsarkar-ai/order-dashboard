@@ -466,7 +466,7 @@ export default function BrandPerformanceDashboard() {
         <div className={`mb-6 ${t.tabWrap}`}>
           {([
             { key: 'dashboard', label: 'Dashboard', icon: '▤' },
-            { key: 'details',   label: 'Details data', icon: '▥' },
+            { key: 'details',   label: 'Pivot',     icon: '▥' },
           ] as const).map((tab) => {
             const active = bpTab === tab.key;
             return (

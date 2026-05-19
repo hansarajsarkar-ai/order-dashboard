@@ -454,12 +454,32 @@ export default function BrandPerformanceDashboard() {
         </div>
 
         {/* Title */}
-        <div className="mb-7 relative">
+        <div className="mb-5 relative">
           <div className="flex items-center gap-3 mb-1">
             <div className={t.titleBar} />
             <h1 className={t.titleText}>Brand Performance</h1>
           </div>
           <p className={t.subtitle}>How every brand stacks up — orders, GMV, and delivery quality across months.</p>
+        </div>
+
+        {/* Sub-tab — sits directly beneath the title */}
+        <div className={`mb-6 ${t.tabWrap}`}>
+          {([
+            { key: 'dashboard', label: 'Dashboard', icon: '▤' },
+            { key: 'details',   label: 'Details data', icon: '▥' },
+          ] as const).map((tab) => {
+            const active = bpTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setBpTab(tab.key)}
+                className={`relative px-5 py-2 rounded-lg text-sm font-bold transition-all duration-300 inline-flex items-center gap-2 ${active ? t.tabActive : t.tabInactive}`}
+              >
+                <span className={`text-base leading-none ${active ? 'opacity-90' : 'opacity-60'}`}>{tab.icon}</span>
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* KPI strip */}
@@ -491,26 +511,6 @@ export default function BrandPerformanceDashboard() {
             </div>
           );
         })()}
-
-        {/* Sub-tab */}
-        <div className={`mb-5 ${t.tabWrap}`}>
-          {([
-            { key: 'dashboard', label: 'Dashboard', icon: '▤' },
-            { key: 'details',   label: 'Details data', icon: '▥' },
-          ] as const).map((tab) => {
-            const active = bpTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setBpTab(tab.key)}
-                className={`relative px-5 py-2 rounded-lg text-sm font-bold transition-all duration-300 inline-flex items-center gap-2 ${active ? t.tabActive : t.tabInactive}`}
-              >
-                <span className={`text-base leading-none ${active ? 'opacity-90' : 'opacity-60'}`}>{tab.icon}</span>
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
 
         {bpTab === 'details' && (
         /* Pivot section */

@@ -374,7 +374,7 @@ export default function OrderStatusDashboard() {
   const [sellerDrillEndDate, setSellerDrillEndDate] = useState<string>('');
   const [sellerDrillStatus, setSellerDrillStatus] = useState<string>('all');
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography' | 'live-brand'>('dashboard');
   // RTO tab
   interface RtoMonth { month: number; count: number; amount: number; }
   interface RtoSeller { sellerId: string; sellerPhone: string | null; sellerBusinessName: string | null; count: number; amount: number; }
@@ -1178,10 +1178,15 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'demography') return;
+    if (activeTab !== 'demography' && activeTab !== 'live-brand') return;
     fetchSellerBrandList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, stateRange, stateCustomFrom, stateCustomTo]);
+
+  // Live brand tab UI state
+  const [liveBrandStatusFilter, setLiveBrandStatusFilter] = useState<'all' | 'live' | 'inactive'>('all');
+  const [liveBrandSearch, setLiveBrandSearch] = useState('');
+  const [liveBrandSort, setLiveBrandSort] = useState<'gmv' | 'orders' | 'last' | 'brand' | 'states'>('last');
 
   // Brand × State table
   const fetchBrandStateData = async () => {
@@ -1447,6 +1452,7 @@ export default function OrderStatusDashboard() {
             { key: 'rto', label: 'RTO' },
             { key: 'seller', label: 'Seller wise' },
             { key: 'demography', label: 'Demography' },
+            { key: 'live-brand', label: 'Live brand' },
           ] as const).map((tab) => {
             const active = activeTab === tab.key;
             return (
@@ -4363,6 +4369,251 @@ export default function OrderStatusDashboard() {
                   );
                 })()}
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'live-brand' && (
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Live brand</h2>
+                <p className="text-purple-300 text-sm mt-1">
+                  Brand activity status — <span className="text-emerald-300 font-semibold">Live</span> = last order within 30 days
+                </p>
+              </div>
+              {sellerBrandList && sellerBrandList.length > 0 && (
+                <button
+                  className={DOWNLOAD_BTN_CLASS}
+                  onClick={() => {
+                    const rows: CsvCell[][] = (sellerBrandList || []).map((b) => [
+                      b.brandName, b.isActive ? 'LIVE' : 'INACTIVE',
+                      b.lastOrderAt ?? '', b.daysSinceLastOrder ?? '',
+                      b.sellerIds.length, b.totalOrders, b.totalAmount,
+                      b.statesCovered, b.districtsCovered,
+                      b.sellerBusinessNames.join(' | '),
+                    ]);
+                    downloadCSV(
+                      `live-brand-${currentYear}.csv`,
+                      ['Brand', 'Status', 'Last Order At', 'Days Since Last Order', 'Sellers', 'Orders', 'GMV', 'States Covered', 'Districts Covered', 'Underlying sellers'],
+                      rows
+                    );
+                  }}
+                >
+                  ↓ CSV
+                </button>
+              )}
+            </div>
+
+            {/* Date chips — reuses the demography range state for consistency */}
+            <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Date (markedPendingTime)</span>
+              {([
+                { key: 'all',    label: `${currentYear} (full year)` },
+                { key: '7d',     label: 'Last 7 days' },
+                { key: '14d',    label: 'Last 14 days' },
+                { key: '15d',    label: 'Last 15 days' },
+                { key: 'custom', label: 'Custom' },
+              ] as const).map((opt) => {
+                const active = stateRange === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => setStateRange(opt.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      active
+                        ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
+                        : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+              {stateRange === 'custom' && (
+                <div className="flex items-center gap-2 ml-2">
+                  <input
+                    type="date"
+                    value={stateCustomFrom}
+                    onChange={(e) => setStateCustomFrom(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                  <span className="text-purple-300 text-xs">to</span>
+                  <input
+                    type="date"
+                    value={stateCustomTo}
+                    onChange={(e) => setStateCustomTo(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+              )}
+              <span className="ml-2 text-[10px] text-purple-300/60">last-order-at is all-time (drives Live status); orders / GMV / coverage respect the date window</span>
+            </div>
+
+            {/* KPI tiles */}
+            {sellerBrandList && (() => {
+              const live = sellerBrandList.filter((b) => b.isActive);
+              const inactive = sellerBrandList.filter((b) => !b.isActive);
+              const total = sellerBrandList;
+              const totalOrders = total.reduce((s, b) => s + b.totalOrders, 0);
+              const totalGmv = total.reduce((s, b) => s + b.totalAmount, 0);
+              return (
+                <div className="px-8 py-5 border-b border-white/10 grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-emerald-500/10 border border-emerald-400/30 rounded-xl p-4">
+                    <div className="text-[10px] uppercase tracking-wider text-emerald-200/80">● Live brands</div>
+                    <div className="text-3xl font-bold text-emerald-200 tabular-nums mt-1">{live.length.toLocaleString()}</div>
+                    <div className="text-[10px] text-emerald-300/70 mt-0.5">last order ≤ 30 days</div>
+                  </div>
+                  <div className="bg-rose-500/10 border border-rose-400/30 rounded-xl p-4">
+                    <div className="text-[10px] uppercase tracking-wider text-rose-200/80">○ Inactive brands</div>
+                    <div className="text-3xl font-bold text-rose-200 tabular-nums mt-1">{inactive.length.toLocaleString()}</div>
+                    <div className="text-[10px] text-rose-300/70 mt-0.5">{total.length > 0 ? `${((inactive.length / total.length) * 100).toFixed(1)}%` : '0%'} of total</div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <div className="text-[10px] uppercase tracking-wider text-purple-300">Total brands</div>
+                    <div className="text-3xl font-bold text-white tabular-nums mt-1">{total.length.toLocaleString()}</div>
+                    <div className="text-[10px] text-purple-300/70 mt-0.5">D2R brand sellers</div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <div className="text-[10px] uppercase tracking-wider text-purple-300">Combined GMV</div>
+                    <div className="text-3xl font-bold text-fuchsia-200 tabular-nums mt-1">{formatAmount(totalGmv)}</div>
+                    <div className="text-[10px] text-purple-300/70 mt-0.5">{totalOrders.toLocaleString()} orders in window</div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Status filter + search */}
+            <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Status</span>
+              {([
+                { key: 'all',      label: 'All', tone: 'from-fuchsia-500 to-purple-500' },
+                { key: 'live',     label: '● Live', tone: 'from-emerald-500 to-teal-500' },
+                { key: 'inactive', label: '○ Inactive', tone: 'from-rose-500 to-red-500' },
+              ] as const).map((opt) => {
+                const active = liveBrandStatusFilter === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => setLiveBrandStatusFilter(opt.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      active
+                        ? `bg-gradient-to-r ${opt.tone} text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]`
+                        : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+              <input
+                type="text"
+                value={liveBrandSearch}
+                onChange={(e) => setLiveBrandSearch(e.target.value)}
+                placeholder="Search brand or seller…"
+                className="ml-auto px-3 py-1.5 text-xs bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-[240px]"
+              />
+            </div>
+
+            {/* Brand table */}
+            <div className="overflow-auto max-h-[640px]">
+              {!sellerBrandList ? (
+                <div className="px-8 py-12 text-center text-purple-300">Loading brands…</div>
+              ) : (() => {
+                const q = liveBrandSearch.trim().toLowerCase();
+                let filtered = sellerBrandList;
+                if (liveBrandStatusFilter === 'live')     filtered = filtered.filter((b) => b.isActive);
+                if (liveBrandStatusFilter === 'inactive') filtered = filtered.filter((b) => !b.isActive);
+                if (q) {
+                  filtered = filtered.filter((b) =>
+                    b.brandName.toLowerCase().includes(q) ||
+                    b.sellerBusinessNames.some((n) => (n || '').toLowerCase().includes(q))
+                  );
+                }
+                const sorted = [...filtered].sort((a, b) => {
+                  if (liveBrandSort === 'gmv')    return b.totalAmount - a.totalAmount;
+                  if (liveBrandSort === 'orders') return b.totalOrders - a.totalOrders;
+                  if (liveBrandSort === 'last') {
+                    const ta = a.lastOrderAt ? new Date(a.lastOrderAt).getTime() : 0;
+                    const tb = b.lastOrderAt ? new Date(b.lastOrderAt).getTime() : 0;
+                    return tb - ta;
+                  }
+                  if (liveBrandSort === 'brand')  return a.brandName.localeCompare(b.brandName);
+                  if (liveBrandSort === 'states') return b.statesCovered - a.statesCovered;
+                  return 0;
+                });
+                if (sorted.length === 0) {
+                  return <div className="px-8 py-12 text-center text-purple-300">No matches</div>;
+                }
+                const ind = (col: typeof liveBrandSort) => liveBrandSort === col ? ' ↓' : '';
+                return (
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-white/10">
+                      <tr>
+                        <th className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider w-12">#</th>
+                        <th onClick={() => setLiveBrandSort('brand')} className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Brand{ind('brand')}</th>
+                        <th className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Status</th>
+                        <th onClick={() => setLiveBrandSort('last')} className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Last Order{ind('last')}</th>
+                        <th className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Days Ago</th>
+                        <th className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Sellers</th>
+                        <th onClick={() => setLiveBrandSort('orders')} className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Orders{ind('orders')}</th>
+                        <th onClick={() => setLiveBrandSort('gmv')} className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">GMV{ind('gmv')}</th>
+                        <th onClick={() => setLiveBrandSort('states')} className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">States{ind('states')}</th>
+                        <th className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Districts</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sorted.map((b, i) => {
+                        const lastLabel = b.lastOrderAt
+                          ? new Date(b.lastOrderAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                          : '—';
+                        const multiSeller = b.sellerIds.length > 1;
+                        return (
+                          <tr key={b.brandName} className="border-b border-white/5 hover:bg-white/5 align-top">
+                            <td className="px-3 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
+                            <td className="px-3 py-2.5">
+                              <div className="text-white font-semibold whitespace-nowrap">{b.brandName}</div>
+                              {multiSeller && (
+                                <div className="text-[10px] text-purple-300/70 truncate max-w-[280px]" title={b.sellerBusinessNames.join(' | ')}>
+                                  {b.sellerIds.length} sellers · {b.sellerBusinessNames.join(', ')}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${b.isActive ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30' : 'bg-rose-500/20 text-rose-200 border border-rose-400/30'}`}>
+                                {b.isActive ? '● LIVE' : '○ INACTIVE'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{lastLabel}</td>
+                            <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${b.daysSinceLastOrder === null ? 'text-purple-400/50 italic' : b.isActive ? 'text-emerald-200' : 'text-rose-200'}`}>
+                              {b.daysSinceLastOrder === null ? 'never' : `${b.daysSinceLastOrder}d`}
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-purple-200">{b.sellerIds.length}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-white font-semibold">{b.totalOrders.toLocaleString('en-IN')}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-fuchsia-200 font-semibold">{formatAmount(b.totalAmount)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-purple-200">{b.statesCovered}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-purple-200">{b.districtsCovered}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="sticky bottom-0 bg-slate-900/95 backdrop-blur border-t border-white/10">
+                      <tr>
+                        <td className="px-3 py-2.5" />
+                        <td className="px-3 py-2.5 text-purple-200 font-bold uppercase text-[11px] tracking-wider">Filtered total</td>
+                        <td className="px-3 py-2.5 text-purple-300/70 text-xs">{filtered.length} brands</td>
+                        <td className="px-3 py-2.5" />
+                        <td className="px-3 py-2.5" />
+                        <td className="px-3 py-2.5" />
+                        <td className="px-3 py-2.5 text-right tabular-nums text-white font-bold">{filtered.reduce((s, b) => s + b.totalOrders, 0).toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-fuchsia-300 font-bold">{formatAmount(filtered.reduce((s, b) => s + b.totalAmount, 0))}</td>
+                        <td className="px-3 py-2.5" />
+                        <td className="px-3 py-2.5" />
+                      </tr>
+                    </tfoot>
+                  </table>
+                );
+              })()}
             </div>
           </div>
         )}

@@ -54,18 +54,28 @@ interface PivotData {
   endDate: string | null;
 }
 
+// Brighter, punchier tones for the count digits (was 200; now 50/100).
 const STATUS_TONE: Record<string, string> = {
-  DELIVERED: 'text-emerald-200',  COMPLETED: 'text-emerald-200',
-  REJECTED:  'text-rose-200',     CANCELLED: 'text-amber-200',
-  PENDING:   'text-sky-200',      ACCEPTED:  'text-purple-200',
-  INVOICED:  'text-fuchsia-200',
+  DELIVERED: 'text-emerald-50',   COMPLETED: 'text-emerald-50',
+  REJECTED:  'text-rose-50',      CANCELLED: 'text-amber-50',
+  PENDING:   'text-sky-50',       ACCEPTED:  'text-purple-50',
+  INVOICED:  'text-fuchsia-50',
 };
+// Amount line color — softer than counts but still high-contrast.
+const AMOUNT_TONE: Record<string, string> = {
+  DELIVERED: 'text-emerald-200/90',  COMPLETED: 'text-emerald-200/90',
+  REJECTED:  'text-rose-200/90',     CANCELLED: 'text-amber-200/90',
+  PENDING:   'text-sky-200/90',      ACCEPTED:  'text-purple-200/90',
+  INVOICED:  'text-fuchsia-200/90',
+};
+// Slightly stronger cell tinting so the column groups are visible.
 const STATUS_BG: Record<string, string> = {
-  DELIVERED: 'bg-emerald-500/5',  COMPLETED: 'bg-emerald-500/5',
-  REJECTED:  'bg-rose-500/5',     CANCELLED: 'bg-amber-500/5',
-  PENDING:   'bg-sky-500/5',      ACCEPTED:  'bg-purple-500/5',
-  INVOICED:  'bg-fuchsia-500/5',
+  DELIVERED: 'bg-emerald-500/10', COMPLETED: 'bg-emerald-500/10',
+  REJECTED:  'bg-rose-500/10',    CANCELLED: 'bg-amber-500/10',
+  PENDING:   'bg-sky-500/10',     ACCEPTED:  'bg-purple-500/10',
+  INVOICED:  'bg-fuchsia-500/10',
 };
+const amountToneFor = (s: string) => AMOUNT_TONE[s] || 'text-purple-100/90';
 const toneFor = (s: string) => STATUS_TONE[s] || 'text-white';
 const bgFor   = (s: string) => STATUS_BG[s] || 'bg-white/5';
 
@@ -309,7 +319,7 @@ export default function BrandPerformanceDashboard() {
             ) : visibleBrands.length === 0 ? (
               <div className="px-8 py-12 text-center text-purple-300">No brands in this slice</div>
             ) : (
-              <table className="w-full text-xs border-separate border-spacing-0">
+              <table className="w-full text-sm border-separate border-spacing-0">
                 <thead className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur">
                   {/* Row 1: month super-headers */}
                   <tr>
@@ -322,11 +332,11 @@ export default function BrandPerformanceDashboard() {
                         <th
                           key={`m_${m}`}
                           colSpan={totalSubCols}
-                          className="bg-slate-800 border-b border-r border-white/10 px-2 py-2 text-center font-bold text-white whitespace-nowrap"
+                          className="bg-slate-800 border-b border-r border-white/10 px-3 py-2.5 text-center font-bold text-white whitespace-nowrap text-sm"
                         >
                           {MONTH_NAMES[m - 1] || m}
-                          <span className="ml-2 text-[10px] text-purple-300/60 font-normal tabular-nums">
-                            {(pivotData.monthTotals[m]?.count ?? 0).toLocaleString()} · {formatAmount(pivotData.monthTotals[m]?.amount ?? 0)}
+                          <span className="ml-2 text-[11px] text-purple-200/70 font-semibold tabular-nums">
+                            {(pivotData.monthTotals[m]?.count ?? 0).toLocaleString('en-IN')} · {formatAmount(pivotData.monthTotals[m]?.amount ?? 0)}
                           </span>
                         </th>
                       );
@@ -342,10 +352,10 @@ export default function BrandPerformanceDashboard() {
                         key={`m${m}_${sc.status}`}
                         colSpan={subColsFor(sc)}
                         onClick={() => toggleStatus(sc.status)}
-                        className={`bg-slate-900 border-b border-r border-white/10 px-2 py-1.5 text-center font-semibold ${toneFor(sc.status)} cursor-pointer hover:bg-white/10 select-none whitespace-nowrap text-[10px] uppercase tracking-wider`}
+                        className={`bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-center font-semibold ${toneFor(sc.status)} cursor-pointer hover:bg-white/10 select-none whitespace-nowrap text-[11px] uppercase tracking-wider`}
                         title={`Click to ${expandedStatuses.has(sc.status) ? 'collapse' : 'expand'} ${sc.status} delivery-status breakdown`}
                       >
-                        <span className="text-[9px] opacity-70 mr-0.5">{expandedStatuses.has(sc.status) ? '▾' : '▸'}</span>{sc.status}
+                        <span className="text-[10px] opacity-70 mr-0.5">{expandedStatuses.has(sc.status) ? '▾' : '▸'}</span>{sc.status}
                       </th>
                     )))}
                   </tr>
@@ -354,15 +364,15 @@ export default function BrandPerformanceDashboard() {
                     {pivotData.months.flatMap((m) => pivotData.statusColumns.flatMap((sc) => {
                       if (!expandedStatuses.has(sc.status)) {
                         return [
-                          <th key={`d_${m}_${sc.status}`} className={`${bgFor(sc.status)} border-b border-r border-white/10 px-2 py-1 text-[9px] text-purple-300/50 font-normal whitespace-nowrap`}>
-                            cnt · ₹
+                          <th key={`d_${m}_${sc.status}`} className={`${bgFor(sc.status)} border-b border-r border-white/10 px-3 py-1.5 text-[10px] text-purple-300/60 font-medium tracking-wide whitespace-nowrap`}>
+                            count · ₹
                           </th>
                         ];
                       }
                       return sc.deliveryStatuses.map((ds, idx) => (
                         <th
                           key={`d_${m}_${sc.status}_${ds.deliveryStatus ?? '_'}_${idx}`}
-                          className={`${bgFor(sc.status)} border-b border-r border-white/10 px-2 py-1 text-[9px] font-semibold ${toneFor(sc.status)} whitespace-nowrap`}
+                          className={`${bgFor(sc.status)} border-b border-r border-white/10 px-3 py-1.5 text-[11px] font-bold ${toneFor(sc.status)} whitespace-nowrap`}
                           title={ds.deliveryStatus ?? '(no delivery status)'}
                         >
                           {ds.deliveryStatus ?? '∅ none'}
@@ -374,10 +384,10 @@ export default function BrandPerformanceDashboard() {
                 <tbody>
                   {visibleBrands.map((br, idx) => (
                     <tr key={br.brandName} className="hover:bg-white/5">
-                      <td className="sticky left-0 z-10 bg-slate-900 border-b border-r border-white/10 px-3 py-2 whitespace-nowrap">
+                      <td className="sticky left-0 z-10 bg-slate-900 border-b border-r border-white/10 px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-purple-300/60 tabular-nums w-6">{idx + 1}</span>
-                          <span className="text-white font-semibold">{br.brandName}</span>
+                          <span className="text-[11px] text-purple-300/60 tabular-nums w-6">{idx + 1}</span>
+                          <span className="text-white font-bold text-sm">{br.brandName}</span>
                         </div>
                       </td>
                       {pivotData.months.flatMap((m) => pivotData.statusColumns.flatMap((sc) => {
@@ -385,13 +395,13 @@ export default function BrandPerformanceDashboard() {
                           const cell = brandMonthStatusCell(br, m, sc.status);
                           if (!cell || cell.count === 0) {
                             return [
-                              <td key={`c_${br.brandName}_${m}_${sc.status}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right text-purple-400/30 tabular-nums`}>—</td>
+                              <td key={`c_${br.brandName}_${m}_${sc.status}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-3 py-3 text-right text-purple-400/40 text-base tabular-nums`}>—</td>
                             ];
                           }
                           return [
-                            <td key={`c_${br.brandName}_${m}_${sc.status}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right whitespace-nowrap`}>
-                              <div className={`font-bold tabular-nums ${toneFor(sc.status)}`}>{cell.count.toLocaleString()}</div>
-                              <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(cell.amount)}</div>
+                            <td key={`c_${br.brandName}_${m}_${sc.status}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-3 py-3 text-right whitespace-nowrap`}>
+                              <div className={`text-base font-extrabold tabular-nums leading-tight ${toneFor(sc.status)}`}>{cell.count.toLocaleString('en-IN')}</div>
+                              <div className={`text-xs font-semibold tabular-nums mt-0.5 ${amountToneFor(sc.status)}`}>{formatAmount(cell.amount)}</div>
                             </td>
                           ];
                         }
@@ -400,20 +410,20 @@ export default function BrandPerformanceDashboard() {
                           const cell = brandMonthStatusDeliveryCell(br, m, sc.status, dKey);
                           if (!cell || cell.count === 0) {
                             return (
-                              <td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right text-purple-400/30 tabular-nums`}>—</td>
+                              <td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-3 py-3 text-right text-purple-400/40 text-base tabular-nums`}>—</td>
                             );
                           }
                           return (
-                            <td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right whitespace-nowrap`}>
-                              <div className={`font-bold tabular-nums ${toneFor(sc.status)}`}>{cell.count.toLocaleString()}</div>
-                              <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(cell.amount)}</div>
+                            <td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-3 py-3 text-right whitespace-nowrap`}>
+                              <div className={`text-base font-extrabold tabular-nums leading-tight ${toneFor(sc.status)}`}>{cell.count.toLocaleString('en-IN')}</div>
+                              <div className={`text-xs font-semibold tabular-nums mt-0.5 ${amountToneFor(sc.status)}`}>{formatAmount(cell.amount)}</div>
                             </td>
                           );
                         });
                       }))}
-                      <td className="sticky right-0 z-10 bg-fuchsia-900/20 border-b border-l-2 border-fuchsia-400/40 px-3 py-2 text-right whitespace-nowrap">
-                        <div className="font-bold tabular-nums text-white">{br.total.count.toLocaleString()}</div>
-                        <div className="text-[10px] text-fuchsia-200/80 tabular-nums">{formatAmount(br.total.amount)}</div>
+                      <td className="sticky right-0 z-10 bg-fuchsia-900/30 border-b border-l-2 border-fuchsia-400/40 px-4 py-3 text-right whitespace-nowrap">
+                        <div className="text-base font-extrabold tabular-nums leading-tight text-white">{br.total.count.toLocaleString('en-IN')}</div>
+                        <div className="text-xs font-semibold tabular-nums mt-0.5 text-fuchsia-100">{formatAmount(br.total.amount)}</div>
                       </td>
                     </tr>
                   ))}
@@ -427,9 +437,9 @@ export default function BrandPerformanceDashboard() {
                       if (!expandedStatuses.has(sc.status)) {
                         const t = pivotData.monthStatusTotals[`${m}__${sc.status}`] ?? { count: 0, amount: 0 };
                         return [
-                          <td key={`t_${m}_${sc.status}`} className={`border-t border-r border-white/10 ${bgFor(sc.status)} px-2 py-3 text-right whitespace-nowrap`}>
-                            <div className={`font-bold tabular-nums ${toneFor(sc.status)}`}>{t.count.toLocaleString()}</div>
-                            <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(t.amount)}</div>
+                          <td key={`t_${m}_${sc.status}`} className={`border-t border-r border-white/10 ${bgFor(sc.status)} px-3 py-3 text-right whitespace-nowrap`}>
+                            <div className={`text-base font-extrabold tabular-nums leading-tight ${toneFor(sc.status)}`}>{t.count.toLocaleString('en-IN')}</div>
+                            <div className={`text-xs font-semibold tabular-nums mt-0.5 ${amountToneFor(sc.status)}`}>{formatAmount(t.amount)}</div>
                           </td>
                         ];
                       }
@@ -437,16 +447,16 @@ export default function BrandPerformanceDashboard() {
                         const dKey = ds.deliveryStatus ?? '__NULL__';
                         const t = pivotData.monthStatusDeliveryTotals[`${m}__${sc.status}__${dKey}`] ?? { count: 0, amount: 0 };
                         return (
-                          <td key={`t_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-t border-r border-white/10 ${bgFor(sc.status)} px-2 py-3 text-right whitespace-nowrap`}>
-                            <div className={`font-bold tabular-nums ${toneFor(sc.status)}`}>{t.count.toLocaleString()}</div>
-                            <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(t.amount)}</div>
+                          <td key={`t_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-t border-r border-white/10 ${bgFor(sc.status)} px-3 py-3 text-right whitespace-nowrap`}>
+                            <div className={`text-base font-extrabold tabular-nums leading-tight ${toneFor(sc.status)}`}>{t.count.toLocaleString('en-IN')}</div>
+                            <div className={`text-xs font-semibold tabular-nums mt-0.5 ${amountToneFor(sc.status)}`}>{formatAmount(t.amount)}</div>
                           </td>
                         );
                       });
                     }))}
-                    <td className="sticky right-0 z-30 bg-fuchsia-900/30 border-t border-l-2 border-fuchsia-400/40 px-3 py-3 text-right whitespace-nowrap">
-                      <div className="font-bold tabular-nums text-white">{pivotData.grand.count.toLocaleString()}</div>
-                      <div className="text-[10px] text-fuchsia-200 tabular-nums">{formatAmount(pivotData.grand.amount)}</div>
+                    <td className="sticky right-0 z-30 bg-fuchsia-900/40 border-t border-l-2 border-fuchsia-400/40 px-4 py-3 text-right whitespace-nowrap">
+                      <div className="text-lg font-extrabold tabular-nums leading-tight text-white">{pivotData.grand.count.toLocaleString('en-IN')}</div>
+                      <div className="text-sm font-semibold tabular-nums mt-0.5 text-fuchsia-100">{formatAmount(pivotData.grand.amount)}</div>
                     </td>
                   </tr>
                 </tfoot>

@@ -332,9 +332,10 @@ export default function OrderStatusDashboard() {
     brandName: string;
     sellerIds: string[];
     sellerBusinessNames: string[];
+    brandLabels: string | null;
     lastOrderAt: string | null;
     daysSinceLastOrder: number | null;
-    isActive: boolean;
+    isActive: boolean;            // LIVE = matches the seller_brand eligibility query
     totalOrders: number;
     totalAmount: number;
     deliveredOrders: number;
@@ -4379,7 +4380,7 @@ export default function OrderStatusDashboard() {
               <div>
                 <h2 className="text-2xl font-bold text-white">Live brand</h2>
                 <p className="text-purple-300 text-sm mt-1">
-                  Brand activity status — <span className="text-emerald-300 font-semibold">Live</span> = last order within 30 days
+                  <span className="text-emerald-300 font-semibold">Live</span> = seller is D2R + isActive + INTERCITY × THIRD_PARTY, has pickup address, and at least one active <span className="font-mono text-fuchsia-300">seller_brand</span> mapping with a non-empty fulfilmentZone
                 </p>
               </div>
               {sellerBrandList && sellerBrandList.length > 0 && (
@@ -4387,7 +4388,8 @@ export default function OrderStatusDashboard() {
                   className={DOWNLOAD_BTN_CLASS}
                   onClick={() => {
                     const rows: CsvCell[][] = (sellerBrandList || []).map((b) => [
-                      b.brandName, b.isActive ? 'LIVE' : 'INACTIVE',
+                      b.brandName, b.brandLabels ?? '',
+                      b.isActive ? 'LIVE' : 'INACTIVE',
                       b.lastOrderAt ?? '', b.daysSinceLastOrder ?? '',
                       b.sellerIds.length, b.totalOrders, b.totalAmount,
                       b.statesCovered, b.districtsCovered,
@@ -4395,7 +4397,7 @@ export default function OrderStatusDashboard() {
                     ]);
                     downloadCSV(
                       `live-brand-${currentYear}.csv`,
-                      ['Brand', 'Status', 'Last Order At', 'Days Since Last Order', 'Sellers', 'Orders', 'GMV', 'States Covered', 'Districts Covered', 'Underlying sellers'],
+                      ['Brand', 'Brand Labels (from brands.brand)', 'Status', 'Last Order At', 'Days Since Last Order', 'Sellers', 'Orders', 'GMV', 'States Covered', 'Districts Covered', 'Underlying sellers'],
                       rows
                     );
                   }}
@@ -4462,7 +4464,7 @@ export default function OrderStatusDashboard() {
                   <div className="bg-emerald-500/10 border border-emerald-400/30 rounded-xl p-4">
                     <div className="text-[10px] uppercase tracking-wider text-emerald-200/80">● Live brands</div>
                     <div className="text-3xl font-bold text-emerald-200 tabular-nums mt-1">{live.length.toLocaleString()}</div>
-                    <div className="text-[10px] text-emerald-300/70 mt-0.5">last order ≤ 30 days</div>
+                    <div className="text-[10px] text-emerald-300/70 mt-0.5">currently shippable</div>
                   </div>
                   <div className="bg-rose-500/10 border border-rose-400/30 rounded-xl p-4">
                     <div className="text-[10px] uppercase tracking-wider text-rose-200/80">○ Inactive brands</div>
@@ -4573,6 +4575,11 @@ export default function OrderStatusDashboard() {
                             <td className="px-3 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
                             <td className="px-3 py-2.5">
                               <div className="text-white font-semibold whitespace-nowrap">{b.brandName}</div>
+                              {b.brandLabels && b.brandLabels !== b.brandName && (
+                                <div className="text-[10px] text-fuchsia-300/80 truncate max-w-[280px]" title={b.brandLabels}>
+                                  brands: {b.brandLabels}
+                                </div>
+                              )}
                               {multiSeller && (
                                 <div className="text-[10px] text-purple-300/70 truncate max-w-[280px]" title={b.sellerBusinessNames.join(' | ')}>
                                   {b.sellerIds.length} sellers · {b.sellerBusinessNames.join(', ')}

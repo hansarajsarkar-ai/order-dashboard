@@ -7,6 +7,8 @@ interface Row {
   brand_name: string;
   seller_ids: string;
   seller_business_names: string;
+  brand_labels: string | null;
+  is_live: boolean | string;
   last_order_at: string | null;
   days_since_last_order: string | null;
   total_orders: string;
@@ -17,13 +19,15 @@ interface Row {
   districts_covered: string;
 }
 
-// Groups D2R sellers by brand prefix — `TRIM(SPLIT_PART(businessName, '-', 1))`.
-// One brand row per prefix. Sellers like "Chuk De - GT" and "Chuk De - NonGT"
-// merge into a single "Chuk De" row. Sellers without a '-' use their full name.
+// LIVE definition (drives the ACTIVE / INACTIVE pill across the dashboard) is the
+// user's canonical "active brand" eligibility query:
+//   - seller is D2R, isActive, INTERCITY × THIRD_PARTY, has pickup address, not test/milko
+//   - has at least one active seller_brand mapping with a non-empty fulfilmentZone
+// (recency / lastOrderAt stays as informational data; it no longer drives the pill)
 //
-// Per-brand stats: total orders + value in the window, distinct states / districts
-// shipped to, and the all-time last_order_at across the brand's sellers (drives the
-// ACTIVE / IDLE badge).
+// Display brand name still groups by TRIM(SPLIT_PART(businessName, '-', 1)) so
+// "ChukDe - GT" + "ChukDe - NonGT" collapse into one row; the actual brand record
+// labels from "brands"."brand" are surfaced alongside via the brand_labels column.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const currentYear = new Date().getFullYear();
@@ -49,7 +53,35 @@ export async function GET(req: NextRequest) {
     }
 
     const sql = `
-      WITH seller_brand AS (
+      WITH eligible_sellers AS (
+        -- User's canonical "active brand" query, distilled to seller IDs.
+        SELECT DISTINCT s."id"::text AS seller_id
+        FROM "users"."seller" s
+        JOIN "users"."seller_brand" sbm ON sbm."sellerId" = s."id"
+        WHERE s."isD2RBrandSeller" = TRUE
+          AND s."isActive"          = TRUE
+          AND s."deliveryType"      = 'INTERCITY'
+          AND s."deliveryNetwork"   = 'THIRD_PARTY'
+          AND s."pickupAddressName" IS NOT NULL
+          AND s."isTest"            = FALSE
+          AND s."businessName" NOT ILIKE '%test%'
+          AND s."businessName" NOT ILIKE '%milko%'
+          AND sbm."isActive"        = TRUE
+          AND sbm."fulfilmentZone"  IS NOT NULL
+          AND sbm."fulfilmentZone"::text != '[]'
+      ),
+      brand_labels_per_seller AS (
+        -- Resolve human-readable brand labels per seller from brands.brand.
+        SELECT
+          s."id"::text AS seller_id,
+          STRING_AGG(DISTINCT br."label", ', ') AS brand_labels
+        FROM "users"."seller" s
+        JOIN "users"."seller_brand" sbm ON sbm."sellerId" = s."id"
+        JOIN "brands"."brand"        br  ON br."id"       = sbm."brandId"
+        WHERE sbm."isActive" = TRUE
+        GROUP BY s."id"
+      ),
+      seller_brand AS (
         SELECT
           s."id"::text       AS seller_id,
           s."businessName"   AS seller_business_name,
@@ -57,6 +89,7 @@ export async function GET(req: NextRequest) {
         FROM "users"."seller" s
         WHERE s."isTest"           = FALSE
           AND s."businessName" NOT ILIKE '%test%'
+          AND s."businessName" NOT ILIKE '%milko%'
           AND s."isD2RBrandSeller" = TRUE
       ),
       windowed AS (
@@ -75,6 +108,7 @@ export async function GET(req: NextRequest) {
           AND b."businessName" NOT ILIKE '%test%'
           AND s."isTest"           = FALSE
           AND s."businessName" NOT ILIKE '%test%'
+          AND s."businessName" NOT ILIKE '%milko%'
           AND s."isD2RBrandSeller" = TRUE
           AND po."deliveryNetwork" = 'THIRD_PARTY'
           AND po."deliveryType"    = 'INTERCITY'
@@ -95,6 +129,7 @@ export async function GET(req: NextRequest) {
           AND b."businessName" NOT ILIKE '%test%'
           AND s."isTest"           = FALSE
           AND s."businessName" NOT ILIKE '%test%'
+          AND s."businessName" NOT ILIKE '%milko%'
           AND s."isD2RBrandSeller" = TRUE
           AND po."deliveryNetwork" = 'THIRD_PARTY'
           AND po."deliveryType"    = 'INTERCITY'
@@ -105,20 +140,24 @@ export async function GET(req: NextRequest) {
       brand_sellers AS (
         SELECT
           sb.brand_name,
-          STRING_AGG(sb.seller_id,            ',' ORDER BY sb.seller_id)             AS seller_ids,
-          STRING_AGG(sb.seller_business_name, '|' ORDER BY sb.seller_business_name)  AS seller_business_names
+          STRING_AGG(sb.seller_id,            ',' ORDER BY sb.seller_id)            AS seller_ids,
+          STRING_AGG(sb.seller_business_name, '|' ORDER BY sb.seller_business_name) AS seller_business_names,
+          STRING_AGG(blps.brand_labels, ' · ')                                       AS brand_labels,
+          BOOL_OR(es.seller_id IS NOT NULL)                                          AS is_live
         FROM seller_brand sb
+        LEFT JOIN eligible_sellers          es   ON es.seller_id   = sb.seller_id
+        LEFT JOIN brand_labels_per_seller   blps ON blps.seller_id = sb.seller_id
         GROUP BY sb.brand_name
       ),
       brand_metrics AS (
         SELECT
           sb.brand_name,
-          COUNT(w.*)                                                                                   AS total_orders,
-          COALESCE(SUM(w.amount), 0)                                                                   AS total_amount,
-          COUNT(*) FILTER (WHERE w.status IN ('DELIVERED','COMPLETED'))                                AS delivered_orders,
-          COALESCE(SUM(w.amount) FILTER (WHERE w.status IN ('DELIVERED','COMPLETED')), 0)              AS delivered_amount,
-          COUNT(DISTINCT w.buyer_state)    FILTER (WHERE w.buyer_state    IS NOT NULL)                 AS states_covered,
-          COUNT(DISTINCT w.buyer_district) FILTER (WHERE w.buyer_district IS NOT NULL)                 AS districts_covered
+          COUNT(w.*)                                                                      AS total_orders,
+          COALESCE(SUM(w.amount), 0)                                                      AS total_amount,
+          COUNT(*) FILTER (WHERE w.status IN ('DELIVERED','COMPLETED'))                   AS delivered_orders,
+          COALESCE(SUM(w.amount) FILTER (WHERE w.status IN ('DELIVERED','COMPLETED')), 0) AS delivered_amount,
+          COUNT(DISTINCT w.buyer_state)    FILTER (WHERE w.buyer_state    IS NOT NULL)    AS states_covered,
+          COUNT(DISTINCT w.buyer_district) FILTER (WHERE w.buyer_district IS NOT NULL)    AS districts_covered
         FROM seller_brand sb
         LEFT JOIN windowed w ON w.seller_id = sb.seller_id
         GROUP BY sb.brand_name
@@ -133,6 +172,8 @@ export async function GET(req: NextRequest) {
         bs.brand_name,
         bs.seller_ids,
         bs.seller_business_names,
+        bs.brand_labels,
+        bs.is_live,
         bl.last_order_at,
         EXTRACT(DAY FROM (NOW() - bl.last_order_at))::int::text AS days_since_last_order,
         bm.total_orders::text,
@@ -144,20 +185,21 @@ export async function GET(req: NextRequest) {
       FROM brand_sellers bs
       LEFT JOIN brand_metrics bm ON bm.brand_name = bs.brand_name
       LEFT JOIN brand_last    bl ON bl.brand_name = bs.brand_name
-      ORDER BY bm.total_orders DESC NULLS LAST, bs.brand_name ASC;
+      ORDER BY bs.is_live DESC, bm.total_orders DESC NULLS LAST, bs.brand_name ASC;
     `;
     const rows = await query<Row>(sql, params);
 
     const data = rows.map((r) => {
       const days = r.days_since_last_order ? parseInt(r.days_since_last_order) : null;
-      const isActive = days !== null && days <= 30;
+      const isLive = r.is_live === true || r.is_live === 'true' || r.is_live === 't';
       return {
         brandName: r.brand_name || '(no name)',
         sellerIds: (r.seller_ids || '').split(',').filter(Boolean),
         sellerBusinessNames: (r.seller_business_names || '').split('|').filter(Boolean),
+        brandLabels: r.brand_labels,
+        isActive: isLive,
         lastOrderAt: r.last_order_at,
         daysSinceLastOrder: days,
-        isActive,
         totalOrders: parseInt(r.total_orders || '0'),
         totalAmount: parseFloat(r.total_amount || '0'),
         deliveredOrders: parseInt(r.delivered_orders || '0'),

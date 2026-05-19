@@ -189,9 +189,20 @@ export default function BrandPerformanceDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8 relative overflow-hidden">
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 p-8 relative overflow-hidden">
+      {/* Ambient glow blobs */}
+      <div className="absolute top-0 left-1/4 w-[28rem] h-[28rem] bg-fuchsia-500 rounded-full mix-blend-screen filter blur-[120px] opacity-[0.12] animate-pulse" />
+      <div className="absolute bottom-0 right-1/4 w-[28rem] h-[28rem] bg-indigo-500 rounded-full mix-blend-screen filter blur-[120px] opacity-[0.12] animate-pulse animation-delay-2000" />
+      <div className="absolute top-1/3 right-0 w-72 h-72 bg-purple-500 rounded-full mix-blend-screen filter blur-[100px] opacity-[0.08]" />
+      {/* Subtle grid pattern */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.025]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }}
+      />
 
       <div className="w-[95%] mx-auto relative z-10">
         {/* Top bar */}
@@ -214,30 +225,65 @@ export default function BrandPerformanceDashboard() {
           </div>
         </div>
 
-        {/* Title */}
-        <div className="mb-5">
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-            Brand Performance Dashboard
-          </h1>
+        {/* Title — gradient text + glowing underline */}
+        <div className="mb-7 relative">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-1.5 h-9 rounded-full bg-gradient-to-b from-fuchsia-400 via-purple-500 to-indigo-500 shadow-[0_0_24px_rgba(217,70,239,0.6)]" />
+            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-300 to-indigo-300 bg-clip-text text-transparent">
+              Brand Performance
+            </h1>
+          </div>
+          <p className="text-purple-300/70 text-sm ml-4">How every brand stacks up — orders, GMV, and delivery quality across months.</p>
         </div>
 
-        {/* Sub-tab toggle */}
-        <div className="mb-5 flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl w-fit">
+        {/* KPI strip — high-level overview */}
+        {pivotData && (() => {
+          const totalBrands = pivotData.brands.length;
+          const liveBrands = pivotData.brands.filter((b) => b.total.count > 0).length;
+          const topBrand = pivotData.brands[0];
+          const tiles: Array<{ label: string; primary: string; sub: string; accent: string }> = [
+            { label: 'Brands with orders', primary: `${liveBrands.toLocaleString('en-IN')}`, sub: `of ${totalBrands} total`, accent: 'from-fuchsia-500/25 to-purple-500/10' },
+            { label: 'Total orders',       primary: pivotData.grand.count.toLocaleString('en-IN'), sub: `${pivotData.months.length} month${pivotData.months.length === 1 ? '' : 's'} in scope`, accent: 'from-sky-500/25 to-blue-500/10' },
+            { label: 'Total GMV',          primary: formatAmount(pivotData.grand.amount), sub: 'orders × amount', accent: 'from-emerald-500/25 to-teal-500/10' },
+            { label: 'Top brand',          primary: topBrand?.brandName ?? '—', sub: topBrand ? `${topBrand.total.count.toLocaleString('en-IN')} orders · ${formatAmount(topBrand.total.amount)}` : '', accent: 'from-amber-500/25 to-orange-500/10' },
+          ];
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              {tiles.map((t, i) => (
+                <div
+                  key={i}
+                  className={`relative rounded-2xl p-5 bg-gradient-to-br ${t.accent} border border-white/10 backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-white/30 hover:shadow-[0_0_40px_rgba(217,70,239,0.18)] hover:-translate-y-0.5`}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent pointer-events-none" />
+                  <div className="relative">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-purple-200/70 font-semibold">{t.label}</div>
+                    <div className="text-3xl font-extrabold text-white tabular-nums mt-1.5 truncate" title={t.primary}>{t.primary}</div>
+                    <div className="text-[11px] text-purple-200/70 mt-1 truncate" title={t.sub}>{t.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Sub-tab toggle — premium pill switcher */}
+        <div className="mb-5 inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_4px_24px_-8px_rgba(0,0,0,0.6)]">
           {([
-            { key: 'dashboard', label: 'Dashboard' },
-            { key: 'details',   label: 'Details data' },
+            { key: 'dashboard', label: 'Dashboard', icon: '▤' },
+            { key: 'details',   label: 'Details data', icon: '▥' },
           ] as const).map((t) => {
             const active = bpTab === t.key;
             return (
               <button
                 key={t.key}
                 onClick={() => setBpTab(t.key)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 ${
+                className={`relative px-5 py-2 rounded-lg text-sm font-bold transition-all duration-300 inline-flex items-center gap-2 ${
                   active
-                    ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.55),inset_0_0_18px_rgba(168,85,247,0.5)]'
+                    ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_28px_rgba(217,70,239,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]'
                     : 'text-purple-200 hover:bg-white/10 hover:text-white'
                 }`}
               >
+                <span className={`text-base leading-none ${active ? 'opacity-90' : 'opacity-60'}`}>{t.icon}</span>
                 {t.label}
               </button>
             );
@@ -246,17 +292,22 @@ export default function BrandPerformanceDashboard() {
 
         {bpTab === 'details' && (
         /* Pivot section — Brand × Month × Status now lives under the Details tab */
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+        <div className="relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:border-fuchsia-400/40 hover:shadow-[0_0_60px_rgba(217,70,239,0.18)]">
+          {/* Gradient top accent */}
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent" />
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Brand × Month × Status</h2>
-              <p className="text-purple-300 text-sm mt-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-fuchsia-300/80 bg-fuchsia-500/15 border border-fuchsia-400/30 rounded-md px-2 py-0.5">PIVOT</span>
+                <h2 className="text-2xl font-bold text-white">Brand × Month × Status</h2>
+              </div>
+              <p className="text-purple-300/80 text-sm mt-2">
                 Rows = brand (businessName prefix; ChukDe-GT + ChukDe-NonGT merged). Top columns = month. Sub-columns = status — click any status header to reveal its delivery-status breakdown.
               </p>
             </div>
             {pivotData && (
               <button
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)] hover:shadow-[0_0_24px_rgba(217,70,239,0.6)]"
+                className="group px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_4px_18px_-4px_rgba(217,70,239,0.5),inset_0_1px_0_rgba(255,255,255,0.25)] hover:shadow-[0_6px_28px_-4px_rgba(217,70,239,0.7),inset_0_1px_0_rgba(255,255,255,0.3)] transition-shadow"
                 onClick={() => {
                   if (!pivotData) return;
                   const headers = ['Brand', 'Month', 'Status', 'Delivery Status', 'Orders', 'GMV'];
@@ -415,9 +466,10 @@ export default function BrandPerformanceDashboard() {
                   {visibleBrands.map((br, idx) => (
                     <tr key={br.brandName} className={`${idx % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'} hover:bg-white/10 transition-colors`}>
                       <td className="sticky left-0 z-10 bg-slate-900 border-b border-r border-white/10 px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-purple-300/60 tabular-nums w-6">{idx + 1}</span>
-                          <span className="text-white font-bold text-sm">{br.brandName}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] text-purple-400/60 tabular-nums font-bold w-5 text-right">{idx + 1}</span>
+                          <span className="block w-0.5 h-5 rounded-full bg-gradient-to-b from-fuchsia-400/60 to-purple-500/40" />
+                          <span className="text-white font-bold text-sm tracking-tight">{br.brandName}</span>
                         </div>
                       </td>
                       {pivotData.months.flatMap((m) => pivotData.statusColumns.flatMap((sc) => {
@@ -503,17 +555,22 @@ export default function BrandPerformanceDashboard() {
 
         {bpTab === 'dashboard' && (
         /* Dashboard — flat row-level table at the (brand, month, status, deliveryStatus) grain */
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+        <div className="relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:border-fuchsia-400/40 hover:shadow-[0_0_60px_rgba(217,70,239,0.18)]">
+          {/* Gradient top accent */}
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent" />
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Details data</h2>
-              <p className="text-purple-300 text-sm mt-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-300/80 bg-sky-500/15 border border-sky-400/30 rounded-md px-2 py-0.5">DETAILS</span>
+                <h2 className="text-2xl font-bold text-white">Details data</h2>
+              </div>
+              <p className="text-purple-300/80 text-sm mt-2">
                 Flat row per <span className="font-mono text-fuchsia-300">(brand, month, status, deliveryStatus)</span>. Same WHERE as the pivot, just un-pivoted.
               </p>
             </div>
             {pivotData && (
               <button
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)] hover:shadow-[0_0_24px_rgba(217,70,239,0.6)]"
+                className="group px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_4px_18px_-4px_rgba(217,70,239,0.5),inset_0_1px_0_rgba(255,255,255,0.25)] hover:shadow-[0_6px_28px_-4px_rgba(217,70,239,0.7),inset_0_1px_0_rgba(255,255,255,0.3)] transition-shadow"
                 onClick={() => {
                   if (!pivotData) return;
                   const headers = ['Brand', 'Month', 'Status', 'Delivery Status', 'Orders', 'GMV'];
@@ -633,8 +690,13 @@ export default function BrandPerformanceDashboard() {
                   <tbody>
                     {sorted.map((r, i) => (
                       <tr key={`${r.brandName}__${r.month}__${r.status}__${r.deliveryStatus ?? '_'}__${i}`} className={`border-b border-white/5 hover:bg-white/10 transition-colors ${i % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'}`}>
-                        <td className="px-3 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
-                        <td className="px-4 py-2.5 text-white font-bold whitespace-nowrap">{r.brandName}</td>
+                        <td className="px-3 py-2.5 text-purple-300/60 tabular-nums w-12">{i + 1}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="block w-0.5 h-4 rounded-full bg-gradient-to-b from-fuchsia-400/60 to-purple-500/40" />
+                            <span className="text-white font-bold text-sm tracking-tight">{r.brandName}</span>
+                          </div>
+                        </td>
                         <td className="px-3 py-2.5 text-purple-200 whitespace-nowrap">{MONTH_NAMES[r.month - 1] || r.month}</td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${pillBgFor(r.status)} ${toneFor(r.status)} border border-white/10`}>

@@ -501,69 +501,68 @@ export default function BrandPerformanceDashboard() {
 
           const pct = (n: number) => totalCount > 0 ? ((n / totalCount) * 100).toFixed(1) : '0.0';
 
+          interface TileCls { bg: string; border: string; label: string; count: string; amount: string; caption: string; chip: string; }
           interface Tile {
             label: string;
             count: number;
             amount: number;
             pctLabel: string | null;
-            accentBar: string;          // light-mode left bar gradient
-            tint: string;               // dark-mode background gradient
-            pctClass: string;           // pct chip color
+            cls: TileCls;
           }
           const tiles: Tile[] = [
             {
               label: 'Total orders',
               count: totalCount, amount: totalAmount, pctLabel: null,
-              accentBar: 'from-purple-500 to-indigo-500',
-              tint: 'bg-gradient-to-br from-purple-500/25 to-indigo-500/10',
-              pctClass: t.isDark ? 'bg-purple-500/20 text-purple-200 border-purple-400/30' : 'bg-purple-100 text-purple-700 border-purple-200',
+              cls: t.isDark
+                ? { bg: 'bg-gradient-to-br from-purple-600/35 via-purple-700/25 to-indigo-700/20', border: 'border-purple-400/40', label: 'text-purple-200',  count: 'text-white',       amount: 'text-purple-50',    caption: 'text-purple-300/70',  chip: '' }
+                : { bg: 'bg-gradient-to-br from-purple-100 to-indigo-100',                          border: 'border-purple-300',   label: 'text-purple-700',  count: 'text-purple-900',  amount: 'text-purple-800',   caption: 'text-purple-600',     chip: '' },
             },
             {
               label: 'Delivered + Completed',
               count: delCount, amount: delAmount, pctLabel: `${pct(delCount)}% of total`,
-              accentBar: 'from-emerald-500 to-teal-500',
-              tint: 'bg-gradient-to-br from-emerald-500/25 to-teal-500/10',
-              pctClass: t.isDark ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30' : 'bg-emerald-100 text-emerald-700 border-emerald-200',
+              cls: t.isDark
+                ? { bg: 'bg-gradient-to-br from-emerald-500/35 via-emerald-600/25 to-teal-700/20',  border: 'border-emerald-400/40', label: 'text-emerald-200', count: 'text-white',        amount: 'text-emerald-50',   caption: 'text-emerald-300/70', chip: 'bg-emerald-500/25 text-emerald-100 border-emerald-400/50' }
+                : { bg: 'bg-gradient-to-br from-emerald-100 to-teal-100',                          border: 'border-emerald-300',    label: 'text-emerald-700', count: 'text-emerald-900',  amount: 'text-emerald-800',  caption: 'text-emerald-600',    chip: 'bg-emerald-200 text-emerald-800 border-emerald-300' },
             },
             {
               label: 'Rejected',
               count: rejCount, amount: rejAmount, pctLabel: `${pct(rejCount)}% of total`,
-              accentBar: 'from-rose-500 to-red-500',
-              tint: 'bg-gradient-to-br from-rose-500/25 to-red-500/10',
-              pctClass: t.isDark ? 'bg-rose-500/20 text-rose-200 border-rose-400/30' : 'bg-rose-100 text-rose-700 border-rose-200',
+              cls: t.isDark
+                ? { bg: 'bg-gradient-to-br from-rose-500/35 via-rose-600/25 to-red-700/20',         border: 'border-rose-400/40',    label: 'text-rose-200',    count: 'text-white',        amount: 'text-rose-50',      caption: 'text-rose-300/70',    chip: 'bg-rose-500/25 text-rose-100 border-rose-400/50' }
+                : { bg: 'bg-gradient-to-br from-rose-100 to-red-100',                              border: 'border-rose-300',       label: 'text-rose-700',    count: 'text-rose-900',     amount: 'text-rose-800',     caption: 'text-rose-600',       chip: 'bg-rose-200 text-rose-800 border-rose-300' },
             },
             {
               label: 'Cancelled',
               count: canCount, amount: canAmount, pctLabel: `${pct(canCount)}% of total`,
-              accentBar: 'from-amber-500 to-orange-500',
-              tint: 'bg-gradient-to-br from-amber-500/25 to-orange-500/10',
-              pctClass: t.isDark ? 'bg-amber-500/20 text-amber-200 border-amber-400/30' : 'bg-amber-100 text-amber-700 border-amber-200',
+              cls: t.isDark
+                ? { bg: 'bg-gradient-to-br from-amber-500/35 via-amber-600/25 to-orange-700/20',   border: 'border-amber-400/40',   label: 'text-amber-200',   count: 'text-white',        amount: 'text-amber-50',     caption: 'text-amber-300/70',   chip: 'bg-amber-500/25 text-amber-100 border-amber-400/50' }
+                : { bg: 'bg-gradient-to-br from-amber-100 to-orange-100',                          border: 'border-amber-300',      label: 'text-amber-700',   count: 'text-amber-900',    amount: 'text-amber-800',    caption: 'text-amber-600',      chip: 'bg-amber-200 text-amber-800 border-amber-300' },
             },
           ];
           return (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               {tiles.map((tile, idx) => (
-                <div key={idx} className={`${t.kpiCard} ${t.isDark ? tile.tint : ''}`}>
-                  {t.isDark && <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent pointer-events-none" />}
-                  {!t.isDark && (
-                    <div className={`absolute top-0 left-0 h-full w-1 bg-gradient-to-b ${tile.accentBar}`} />
-                  )}
+                <div
+                  key={idx}
+                  className={`relative rounded-2xl p-6 border overflow-hidden transition-all duration-300 hover:-translate-y-0.5 ${tile.cls.bg} ${tile.cls.border} ${t.isDark ? 'backdrop-blur-xl hover:shadow-[0_0_40px_rgba(217,70,239,0.18)]' : 'shadow-sm hover:shadow-md'}`}
+                >
+                  {t.isDark && <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] via-transparent to-transparent pointer-events-none" />}
                   <div className="relative">
                     <div className="flex items-start justify-between gap-2">
-                      <div className={t.kpiLabel}>{tile.label}</div>
+                      <div className={`text-[11px] uppercase tracking-[0.18em] font-bold ${tile.cls.label}`}>{tile.label}</div>
                       {tile.pctLabel && (
-                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${tile.pctClass} whitespace-nowrap`}>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${tile.cls.chip} whitespace-nowrap`}>
                           {tile.pctLabel}
                         </span>
                       )}
                     </div>
-                    <div className={t.kpiValue} title={String(tile.count)}>
+                    <div className={`text-5xl font-black tabular-nums tracking-tight leading-none mt-3 truncate ${tile.cls.count}`} title={String(tile.count)}>
                       {tile.count.toLocaleString('en-IN')}
                     </div>
-                    <div className={`text-3xl font-black tabular-nums tracking-tight leading-none mt-2 ${t.isDark ? 'text-white' : 'text-slate-900'}`}>
+                    <div className={`text-3xl font-black tabular-nums tracking-tight leading-none mt-2 ${tile.cls.amount}`}>
                       {formatAmount(tile.amount)}
                     </div>
-                    <div className={`text-[10px] uppercase tracking-[0.18em] mt-3 font-semibold ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>
+                    <div className={`text-[10px] uppercase tracking-[0.18em] mt-3 font-bold ${tile.cls.caption}`}>
                       orders · value
                     </div>
                   </div>

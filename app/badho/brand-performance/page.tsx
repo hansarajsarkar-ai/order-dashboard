@@ -114,14 +114,14 @@ function buildTheme(theme: Theme) {
     subtitle: isDark ? 'text-purple-300/70 text-sm ml-4' : 'text-slate-500 text-sm ml-4',
     // KPI tile
     kpiCard: isDark
-      ? 'relative rounded-2xl p-5 border border-white/10 backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-white/30 hover:shadow-[0_0_40px_rgba(217,70,239,0.18)] hover:-translate-y-0.5'
-      : 'relative rounded-2xl p-5 bg-white border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5',
+      ? 'relative rounded-2xl p-6 border border-white/10 backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-white/30 hover:shadow-[0_0_40px_rgba(217,70,239,0.18)] hover:-translate-y-0.5'
+      : 'relative rounded-2xl p-6 bg-white border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5',
     kpiLabel: isDark
-      ? 'text-[10px] uppercase tracking-[0.18em] text-purple-200/70 font-semibold'
-      : 'text-[10px] uppercase tracking-[0.18em] text-slate-500 font-semibold',
+      ? 'text-[11px] uppercase tracking-[0.18em] text-purple-200/70 font-semibold'
+      : 'text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold',
     kpiValue: isDark
-      ? 'text-3xl font-extrabold text-white tabular-nums mt-1.5 truncate'
-      : 'text-3xl font-extrabold text-slate-900 tabular-nums mt-1.5 truncate',
+      ? 'text-5xl font-black text-white tabular-nums tracking-tight leading-none mt-3 truncate'
+      : 'text-5xl font-black text-slate-900 tabular-nums tracking-tight leading-none mt-3 truncate',
     kpiSub: isDark
       ? 'text-[11px] text-purple-200/70 mt-1 truncate'
       : 'text-[11px] text-slate-500 mt-1 truncate',
@@ -557,13 +557,13 @@ export default function BrandPerformanceDashboard() {
                         </span>
                       )}
                     </div>
-                    <div className={`${t.kpiValue} mt-1.5`} title={String(tile.count)}>
+                    <div className={t.kpiValue} title={String(tile.count)}>
                       {tile.count.toLocaleString('en-IN')}
                     </div>
-                    <div className={`text-xl font-extrabold tabular-nums mt-1 ${t.isDark ? 'text-white' : 'text-slate-900'}`}>
+                    <div className={`text-3xl font-black tabular-nums tracking-tight leading-none mt-2 ${t.isDark ? 'text-white' : 'text-slate-900'}`}>
                       {formatAmount(tile.amount)}
                     </div>
-                    <div className={`text-[10px] uppercase tracking-wider mt-1 font-semibold ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>
+                    <div className={`text-[10px] uppercase tracking-[0.18em] mt-3 font-semibold ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>
                       orders · value
                     </div>
                   </div>

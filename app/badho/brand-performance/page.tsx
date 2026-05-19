@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -324,6 +324,23 @@ export default function BrandPerformanceDashboard() {
   const [detailsSearch, setDetailsSearch] = useState('');
   const [detailsSort, setDetailsSort] = useState<'orders' | 'gmv' | 'brand' | 'month' | 'status'>('orders');
 
+  // Monthly Breakdown by Order Status (status × month × deliveryStatus, with optional brand filter + buyers)
+  interface MbsCell { count: number; amount: number; buyers: number; }
+  interface MbsDelivery { deliveryStatus: string | null; months: Record<number, MbsCell>; total: MbsCell; }
+  interface MbsStatusRow { status: string; months: Record<number, MbsCell>; total: MbsCell; deliveryStatuses: MbsDelivery[]; }
+  interface MbsData {
+    data: MbsStatusRow[];
+    months: number[];
+    totals: { byMonth: Record<number, MbsCell>; grand: MbsCell };
+    brand: string | null;
+  }
+  const [mbsData, setMbsData] = useState<MbsData | null>(null);
+  const [mbsLoading, setMbsLoading] = useState(false);
+  const [mbsBrand, setMbsBrand] = useState<string>('');           // '' = all brands
+  const [mbsBrandSearch, setMbsBrandSearch] = useState('');
+  const [mbsBrandDropdownOpen, setMbsBrandDropdownOpen] = useState(false);
+  const [mbsExpanded, setMbsExpanded] = useState<Set<string>>(new Set());
+
   const resolveRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
@@ -359,8 +376,37 @@ export default function BrandPerformanceDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, range, customFrom, customTo]);
 
+  const fetchMbs = async () => {
+    try {
+      setMbsLoading(true);
+      const params = new URLSearchParams({ year: String(currentYear) });
+      const { startDate, endDate } = resolveRange();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      if (mbsBrand)  params.append('brand',     mbsBrand);
+      const res = await fetch(`/api/brand-performance/monthly-by-status?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setMbsData(json);
+    } catch (err) {
+      console.error('MBS fetch error:', err);
+      setMbsData(null);
+    } finally {
+      setMbsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authChecked || bpTab !== 'dashboard') return;
+    fetchMbs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, bpTab, range, customFrom, customTo, mbsBrand]);
+
   const toggleStatus = (s: string) => {
     setExpandedStatuses((prev) => { const n = new Set(prev); if (n.has(s)) n.delete(s); else n.add(s); return n; });
+  };
+  const toggleMbsStatus = (s: string) => {
+    setMbsExpanded((prev) => { const n = new Set(prev); if (n.has(s)) n.delete(s); else n.add(s); return n; });
   };
 
   if (!authChecked) {
@@ -571,6 +617,302 @@ export default function BrandPerformanceDashboard() {
             </div>
           );
         })()}
+
+        {/* Monthly Breakdown by Order Status — Dashboard tab only */}
+        {bpTab === 'dashboard' && (
+        <div className={`${t.sectionCard} mb-6`}>
+          <div className={t.sectionAccent} />
+          <div className={t.sectionHeader}>
+            <div>
+              <h2 className={t.h2}>Monthly Breakdown by Order Status</h2>
+              <p className={t.p}>
+                Rows = status (click to drill into delivery sub-status). Each cell shows orders · ₹value · unique buyers.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Brand picker */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMbsBrandDropdownOpen((v) => !v)}
+                  className={`min-w-[220px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+                >
+                  <span className="truncate font-semibold">
+                    {mbsBrand || <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All brands</span>}
+                  </span>
+                  <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
+                </button>
+                {mbsBrandDropdownOpen && (
+                  <div className={`absolute top-full right-0 mt-1 z-30 w-[320px] max-h-[380px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-900 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                    <div className={`p-2 border-b ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={mbsBrandSearch}
+                        onChange={(e) => setMbsBrandSearch(e.target.value)}
+                        placeholder="Search brand…"
+                        className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'w-full')}
+                      />
+                    </div>
+                    <div className="overflow-y-auto flex-1">
+                      <button
+                        type="button"
+                        onClick={() => { setMbsBrand(''); setMbsBrandDropdownOpen(false); setMbsBrandSearch(''); }}
+                        className={`w-full text-left px-3 py-2 text-xs border-b ${t.isDark ? 'border-white/5 hover:bg-white/10' : 'border-slate-100 hover:bg-slate-100'} ${!mbsBrand ? (t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200' : 'bg-purple-50 text-purple-700') : (t.isDark ? 'text-purple-200' : 'text-slate-700')}`}
+                      >
+                        All brands (no filter)
+                      </button>
+                      {(() => {
+                        const allBrands = pivotData?.brands?.map((b) => b.brandName) ?? [];
+                        const q = mbsBrandSearch.trim().toLowerCase();
+                        const filtered = q ? allBrands.filter((n) => n.toLowerCase().includes(q)) : allBrands;
+                        if (filtered.length === 0) {
+                          return <div className={`px-3 py-4 text-xs ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>No matches</div>;
+                        }
+                        return filtered.map((name) => {
+                          const active = name === mbsBrand;
+                          return (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => { setMbsBrand(name); setMbsBrandDropdownOpen(false); setMbsBrandSearch(''); }}
+                              className={`w-full text-left px-3 py-2 text-xs border-b ${t.isDark ? 'border-white/5 hover:bg-white/10' : 'border-slate-100 hover:bg-slate-100'} ${active ? (t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 font-semibold' : 'bg-purple-50 text-purple-700 font-semibold') : (t.isDark ? 'text-white' : 'text-slate-800')}`}
+                            >
+                              {name}
+                            </button>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {mbsBrand && (
+                <button
+                  onClick={() => setMbsBrand('')}
+                  className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
+                  title="Clear brand filter"
+                >
+                  ✕ Clear
+                </button>
+              )}
+              {mbsData && (
+                <button
+                  className={t.csvBtn}
+                  onClick={() => {
+                    if (!mbsData) return;
+                    const headers = ['Status', 'Delivery Status', 'Month', 'Orders', 'GMV', 'Distinct Buyers'];
+                    const rows: CsvCell[][] = [];
+                    for (const row of mbsData.data) {
+                      for (const ds of row.deliveryStatuses) {
+                        for (const m of mbsData.months) {
+                          const c = ds.months[m];
+                          if (!c || c.count === 0) continue;
+                          rows.push([row.status, ds.deliveryStatus ?? '(none)', MONTH_NAMES[m - 1] || m, c.count, c.amount, c.buyers]);
+                        }
+                      }
+                    }
+                    const suffix = mbsBrand ? `${mbsBrand.toLowerCase().replace(/\s+/g, '-')}` : 'all-brands';
+                    downloadCSV(`monthly-by-status-${suffix}-${currentYear}.csv`, headers, rows);
+                  }}
+                >
+                  ↓ CSV
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className={t.chipRow}>
+            <span className={t.chipLabel}>Date (markedPendingTime)</span>
+            {([
+              { key: 'year',   label: `${currentYear} (full year)` },
+              { key: '30d',    label: 'Last 30 days' },
+              { key: '7d',     label: 'Last 7 days' },
+              { key: 'today',  label: 'Today' },
+              { key: 'custom', label: 'Custom' },
+            ] as const).map((opt) => {
+              const active = range === opt.key;
+              return (
+                <button key={opt.key} onClick={() => setRange(opt.key)} className={active ? t.chipActive : t.chipInactive}>
+                  {opt.label}
+                </button>
+              );
+            })}
+            {range === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={t.dateInput} />
+                <span className={t.dateLabel}>to</span>
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
+              </div>
+            )}
+            {mbsData && (
+              <span className={`ml-auto text-xs font-semibold ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                {mbsBrand ? <>Filtered to <span className={t.isDark ? 'text-fuchsia-300' : 'text-purple-700'}>{mbsBrand}</span></> : 'All brands'}
+                {' · '}
+                <span className={t.isDark ? 'text-white' : 'text-slate-900'}>{mbsData.totals.grand.count.toLocaleString('en-IN')} orders</span>
+                {' · '}
+                <span className={t.isDark ? 'text-white' : 'text-slate-900'}>{formatAmount(mbsData.totals.grand.amount)}</span>
+              </span>
+            )}
+          </div>
+
+          <div className="overflow-auto max-h-[720px]">
+            {mbsLoading || !mbsData ? (
+              <div className={t.loading}>Loading…</div>
+            ) : mbsData.data.length === 0 ? (
+              <div className={t.loading}>No orders for this selection</div>
+            ) : (() => {
+              const months = mbsData.months;
+              return (
+                <table className="w-full text-sm border-separate border-spacing-0">
+                  <thead className={`sticky top-0 z-20 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                    <tr>
+                      <th rowSpan={2} className={`${t.brandCell} text-left font-semibold uppercase tracking-wider min-w-[220px] ${t.isDark ? 'text-purple-200' : 'text-slate-500'}`}>
+                        Status / Delivery Status
+                      </th>
+                      {months.map((m) => (
+                        <th key={`mh_${m}`} colSpan={3} className={t.monthHeader}>
+                          {MONTH_NAMES[m - 1] || m}
+                        </th>
+                      ))}
+                      <th rowSpan={2} colSpan={3} className={t.totalHeader}>Total</th>
+                    </tr>
+                    <tr>
+                      {months.flatMap((m) => [
+                        <th key={`s_${m}_c`} className={`${t.deliveryHeader} text-right`}>Orders</th>,
+                        <th key={`s_${m}_a`} className={`${t.deliveryHeader} text-right`}>₹ Value</th>,
+                        <th key={`s_${m}_b`} className={`${t.deliveryHeader} text-right`}>Buyers</th>,
+                      ])}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mbsData.data.map((row, idx) => {
+                      const expanded = mbsExpanded.has(row.status);
+                      const subCount = row.deliveryStatuses.length;
+                      return (
+                        <Fragment key={row.status}>
+                          <tr
+                            onClick={() => toggleMbsStatus(row.status)}
+                            className={`cursor-pointer ${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover} select-none`}
+                          >
+                            <td className={`${t.brandCell}`}>
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-block w-4 text-center text-[11px] ${t.isDark ? 'text-purple-300' : 'text-slate-400'}`}>{expanded ? '▾' : '▸'}</span>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${t.pillBgFor(row.status)}`}>
+                                  {row.status}
+                                </span>
+                                <span className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>
+                                  {subCount} sub
+                                </span>
+                              </div>
+                            </td>
+                            {months.flatMap((m) => {
+                              const c = row.months[m];
+                              if (!c || c.count === 0) {
+                                return [
+                                  <td key={`r_${row.status}_${m}_c`} className={t.emptyCell}>—</td>,
+                                  <td key={`r_${row.status}_${m}_a`} className={t.emptyCell}>—</td>,
+                                  <td key={`r_${row.status}_${m}_b`} className={t.emptyCell}>—</td>,
+                                ];
+                              }
+                              return [
+                                <td key={`r_${row.status}_${m}_c`} className={t.dataCell}>
+                                  <div className={t.cellCount}>{c.count.toLocaleString('en-IN')}</div>
+                                </td>,
+                                <td key={`r_${row.status}_${m}_a`} className={t.dataCell}>
+                                  <div className={t.cellAmount.replace('text-xs', 'text-sm').replace('mt-0.5', '').replace('font-semibold', 'font-bold')}>
+                                    {formatAmount(c.amount)}
+                                  </div>
+                                </td>,
+                                <td key={`r_${row.status}_${m}_b`} className={t.dataCell}>
+                                  <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{c.buyers.toLocaleString('en-IN')}</div>
+                                </td>,
+                              ];
+                            })}
+                            <td className={t.totalBody} colSpan={3}>
+                              <div className="flex items-baseline justify-end gap-3 whitespace-nowrap">
+                                <div className={t.totalBodyCount}>{row.total.count.toLocaleString('en-IN')}</div>
+                                <div className={t.totalBodyAmount}>{formatAmount(row.total.amount)}</div>
+                                <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{row.total.buyers.toLocaleString('en-IN')} buyers</div>
+                              </div>
+                            </td>
+                          </tr>
+                          {expanded && row.deliveryStatuses.map((ds, dIdx) => (
+                            <tr key={`${row.status}_${ds.deliveryStatus ?? '_'}_${dIdx}`} className={`${t.isDark ? 'bg-white/[0.015]' : 'bg-slate-50/40'} ${t.rowHover}`}>
+                              <td className={`${t.brandCell} pl-12 italic`}>
+                                <span className={`text-[11px] font-semibold ${t.isDark ? 'text-purple-200' : 'text-slate-600'}`}>
+                                  └ {ds.deliveryStatus ?? '(no delivery status)'}
+                                </span>
+                              </td>
+                              {months.flatMap((m) => {
+                                const c = ds.months[m];
+                                if (!c || c.count === 0) {
+                                  return [
+                                    <td key={`d_${row.status}_${ds.deliveryStatus ?? '_'}_${m}_c`} className={t.emptyCell}>—</td>,
+                                    <td key={`d_${row.status}_${ds.deliveryStatus ?? '_'}_${m}_a`} className={t.emptyCell}>—</td>,
+                                    <td key={`d_${row.status}_${ds.deliveryStatus ?? '_'}_${m}_b`} className={t.emptyCell}>—</td>,
+                                  ];
+                                }
+                                return [
+                                  <td key={`d_${row.status}_${ds.deliveryStatus ?? '_'}_${m}_c`} className={t.dataCell}>
+                                    <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{c.count.toLocaleString('en-IN')}</div>
+                                  </td>,
+                                  <td key={`d_${row.status}_${ds.deliveryStatus ?? '_'}_${m}_a`} className={t.dataCell}>
+                                    <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-purple-300/80' : 'text-slate-500'}`}>{formatAmount(c.amount)}</div>
+                                  </td>,
+                                  <td key={`d_${row.status}_${ds.deliveryStatus ?? '_'}_${m}_b`} className={t.dataCell}>
+                                    <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-300/80' : 'text-sky-600'}`}>{c.buyers.toLocaleString('en-IN')}</div>
+                                  </td>,
+                                ];
+                              })}
+                              <td className={t.totalBody} colSpan={3}>
+                                <div className="flex items-baseline justify-end gap-3 whitespace-nowrap">
+                                  <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{ds.total.count.toLocaleString('en-IN')}</div>
+                                  <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-purple-300/80' : 'text-slate-500'}`}>{formatAmount(ds.total.amount)}</div>
+                                  <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-300/80' : 'text-sky-600'}`}>{ds.total.buyers.toLocaleString('en-IN')}</div>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className={t.footRow}>
+                    <tr>
+                      <td className={t.footLabel}>Total</td>
+                      {months.flatMap((m) => {
+                        const c = mbsData.totals.byMonth[m] ?? { count: 0, amount: 0, buyers: 0 };
+                        return [
+                          <td key={`tot_${m}_c`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                            <div className={t.cellCount}>{c.count.toLocaleString('en-IN')}</div>
+                          </td>,
+                          <td key={`tot_${m}_a`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(c.amount)}</div>
+                          </td>,
+                          <td key={`tot_${m}_b`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{c.buyers.toLocaleString('en-IN')}</div>
+                          </td>,
+                        ];
+                      })}
+                      <td className={t.totalFoot} colSpan={3}>
+                        <div className="flex items-baseline justify-end gap-3 whitespace-nowrap">
+                          <div className={t.totalFootCount}>{mbsData.totals.grand.count.toLocaleString('en-IN')}</div>
+                          <div className={t.totalFootAmount}>{formatAmount(mbsData.totals.grand.amount)}</div>
+                          <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-100' : 'text-sky-50'}`}>{mbsData.totals.grand.buyers.toLocaleString('en-IN')} buyers</div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              );
+            })()}
+          </div>
+          <div className={t.footnote}>
+            Buyer counts are distinct per cell. Row / column / grand totals are the sum of those per-cell distinct counts — buyers who shop across multiple statuses or months are counted in each bucket they appear in.
+          </div>
+        </div>
+        )}
 
         {bpTab === 'details' && (
         /* Pivot section */

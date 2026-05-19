@@ -3,6 +3,7 @@
 import { useEffect, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import IndiaStateMap, { type StateRow } from '../order-dashboard/components/IndiaStateMap';
 
 // ─── CSV utility ─────────────────────────────────────────────────────────
 type CsvCell = string | number | null | undefined;
@@ -341,6 +342,11 @@ export default function BrandPerformanceDashboard() {
   const [mbsBrandDropdownOpen, setMbsBrandDropdownOpen] = useState(false);
   const [mbsExpanded, setMbsExpanded] = useState<Set<string>>(new Set());
 
+  // India state map — shares the brand multi-select with the MBS table
+  const [mapData, setMapData] = useState<StateRow[] | null>(null);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapMetric, setMapMetric] = useState<'count' | 'amount'>('count');
+
   const resolveRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
@@ -399,6 +405,32 @@ export default function BrandPerformanceDashboard() {
   useEffect(() => {
     if (!authChecked || bpTab !== 'dashboard') return;
     fetchMbs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands]);
+
+  const fetchMap = async () => {
+    try {
+      setMapLoading(true);
+      const params = new URLSearchParams({ year: String(currentYear) });
+      const { startDate, endDate } = resolveRange();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+      const res = await fetch(`/api/brand-performance/by-state?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setMapData(json.data);
+    } catch (err) {
+      console.error('Map fetch error:', err);
+      setMapData(null);
+    } finally {
+      setMapLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authChecked || bpTab !== 'dashboard') return;
+    fetchMap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands]);
 
@@ -529,95 +561,6 @@ export default function BrandPerformanceDashboard() {
         </div>
 
         {/* KPI strip — Dashboard tab only */}
-        {bpTab === 'dashboard' && pivotData && (() => {
-          const find = (s: string) => pivotData.statusColumns.find((sc) => sc.status === s);
-          const delCol = find('DELIVERED');
-          const compCol = find('COMPLETED');
-          const rejCol = find('REJECTED');
-          const canCol = find('CANCELLED');
-
-          const totalCount  = pivotData.grand.count;
-          const totalAmount = pivotData.grand.amount;
-          const delCount    = (delCol?.total.count  ?? 0) + (compCol?.total.count  ?? 0);
-          const delAmount   = (delCol?.total.amount ?? 0) + (compCol?.total.amount ?? 0);
-          const rejCount    = rejCol?.total.count   ?? 0;
-          const rejAmount   = rejCol?.total.amount  ?? 0;
-          const canCount    = canCol?.total.count   ?? 0;
-          const canAmount   = canCol?.total.amount  ?? 0;
-
-          const pct = (n: number) => totalCount > 0 ? ((n / totalCount) * 100).toFixed(1) : '0.0';
-
-          interface TileCls { bg: string; border: string; label: string; count: string; amount: string; caption: string; chip: string; }
-          interface Tile {
-            label: string;
-            count: number;
-            amount: number;
-            pctLabel: string | null;
-            cls: TileCls;
-          }
-          const tiles: Tile[] = [
-            {
-              label: 'Total orders',
-              count: totalCount, amount: totalAmount, pctLabel: null,
-              cls: t.isDark
-                ? { bg: 'bg-gradient-to-br from-purple-600/35 via-purple-700/25 to-indigo-700/20', border: 'border-purple-400/40', label: 'text-purple-200',  count: 'text-white',       amount: 'text-purple-50',    caption: 'text-purple-300/70',  chip: '' }
-                : { bg: 'bg-gradient-to-br from-purple-100 to-indigo-100',                          border: 'border-purple-300',   label: 'text-purple-700',  count: 'text-purple-900',  amount: 'text-purple-800',   caption: 'text-purple-600',     chip: '' },
-            },
-            {
-              label: 'Delivered + Completed',
-              count: delCount, amount: delAmount, pctLabel: `${pct(delCount)}% of total`,
-              cls: t.isDark
-                ? { bg: 'bg-gradient-to-br from-emerald-500/35 via-emerald-600/25 to-teal-700/20',  border: 'border-emerald-400/40', label: 'text-emerald-200', count: 'text-white',        amount: 'text-emerald-50',   caption: 'text-emerald-300/70', chip: 'bg-emerald-500/25 text-emerald-100 border-emerald-400/50' }
-                : { bg: 'bg-gradient-to-br from-emerald-100 to-teal-100',                          border: 'border-emerald-300',    label: 'text-emerald-700', count: 'text-emerald-900',  amount: 'text-emerald-800',  caption: 'text-emerald-600',    chip: 'bg-emerald-200 text-emerald-800 border-emerald-300' },
-            },
-            {
-              label: 'Rejected',
-              count: rejCount, amount: rejAmount, pctLabel: `${pct(rejCount)}% of total`,
-              cls: t.isDark
-                ? { bg: 'bg-gradient-to-br from-rose-500/35 via-rose-600/25 to-red-700/20',         border: 'border-rose-400/40',    label: 'text-rose-200',    count: 'text-white',        amount: 'text-rose-50',      caption: 'text-rose-300/70',    chip: 'bg-rose-500/25 text-rose-100 border-rose-400/50' }
-                : { bg: 'bg-gradient-to-br from-rose-100 to-red-100',                              border: 'border-rose-300',       label: 'text-rose-700',    count: 'text-rose-900',     amount: 'text-rose-800',     caption: 'text-rose-600',       chip: 'bg-rose-200 text-rose-800 border-rose-300' },
-            },
-            {
-              label: 'Cancelled',
-              count: canCount, amount: canAmount, pctLabel: `${pct(canCount)}% of total`,
-              cls: t.isDark
-                ? { bg: 'bg-gradient-to-br from-amber-500/35 via-amber-600/25 to-orange-700/20',   border: 'border-amber-400/40',   label: 'text-amber-200',   count: 'text-white',        amount: 'text-amber-50',     caption: 'text-amber-300/70',   chip: 'bg-amber-500/25 text-amber-100 border-amber-400/50' }
-                : { bg: 'bg-gradient-to-br from-amber-100 to-orange-100',                          border: 'border-amber-300',      label: 'text-amber-700',   count: 'text-amber-900',    amount: 'text-amber-800',    caption: 'text-amber-600',      chip: 'bg-amber-200 text-amber-800 border-amber-300' },
-            },
-          ];
-          return (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              {tiles.map((tile, idx) => (
-                <div
-                  key={idx}
-                  className={`relative rounded-2xl p-6 border overflow-hidden transition-all duration-300 hover:-translate-y-0.5 ${tile.cls.bg} ${tile.cls.border} ${t.isDark ? 'backdrop-blur-xl hover:shadow-[0_0_40px_rgba(217,70,239,0.18)]' : 'shadow-sm hover:shadow-md'}`}
-                >
-                  {t.isDark && <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] via-transparent to-transparent pointer-events-none" />}
-                  <div className="relative">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className={`text-[11px] uppercase tracking-[0.18em] font-bold ${tile.cls.label}`}>{tile.label}</div>
-                      {tile.pctLabel && (
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${tile.cls.chip} whitespace-nowrap`}>
-                          {tile.pctLabel}
-                        </span>
-                      )}
-                    </div>
-                    <div className={`text-5xl font-black tabular-nums tracking-tight leading-none mt-3 truncate ${tile.cls.count}`} title={String(tile.count)}>
-                      {tile.count.toLocaleString('en-IN')}
-                    </div>
-                    <div className={`text-3xl font-black tabular-nums tracking-tight leading-none mt-2 ${tile.cls.amount}`}>
-                      {formatAmount(tile.amount)}
-                    </div>
-                    <div className={`text-[10px] uppercase tracking-[0.18em] mt-3 font-bold ${tile.cls.caption}`}>
-                      orders · value
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-
         {/* Monthly Breakdown by Order Status — Dashboard tab only */}
         {bpTab === 'dashboard' && (
         <div className={`${t.sectionCard} mb-6`}>
@@ -956,6 +899,148 @@ export default function BrandPerformanceDashboard() {
           </div>
         </div>
         )}
+
+        {bpTab === 'dashboard' && pivotData && (() => {
+          const find = (s: string) => pivotData.statusColumns.find((sc) => sc.status === s);
+          const delCol = find('DELIVERED');
+          const compCol = find('COMPLETED');
+          const rejCol = find('REJECTED');
+          const canCol = find('CANCELLED');
+
+          const totalCount  = pivotData.grand.count;
+          const totalAmount = pivotData.grand.amount;
+          const delCount    = (delCol?.total.count  ?? 0) + (compCol?.total.count  ?? 0);
+          const delAmount   = (delCol?.total.amount ?? 0) + (compCol?.total.amount ?? 0);
+          const rejCount    = rejCol?.total.count   ?? 0;
+          const rejAmount   = rejCol?.total.amount  ?? 0;
+          const canCount    = canCol?.total.count   ?? 0;
+          const canAmount   = canCol?.total.amount  ?? 0;
+
+          const pct = (n: number) => totalCount > 0 ? ((n / totalCount) * 100).toFixed(1) : '0.0';
+
+          interface TileCls { bg: string; border: string; label: string; count: string; amount: string; caption: string; chip: string; }
+          interface Tile {
+            label: string;
+            count: number;
+            amount: number;
+            pctLabel: string | null;
+            cls: TileCls;
+          }
+          const tiles: Tile[] = [
+            {
+              label: 'Total orders',
+              count: totalCount, amount: totalAmount, pctLabel: null,
+              cls: t.isDark
+                ? { bg: 'bg-gradient-to-br from-purple-600/35 via-purple-700/25 to-indigo-700/20', border: 'border-purple-400/40', label: 'text-purple-200',  count: 'text-white',       amount: 'text-purple-50',    caption: 'text-purple-300/70',  chip: '' }
+                : { bg: 'bg-gradient-to-br from-purple-100 to-indigo-100',                          border: 'border-purple-300',   label: 'text-purple-700',  count: 'text-purple-900',  amount: 'text-purple-800',   caption: 'text-purple-600',     chip: '' },
+            },
+            {
+              label: 'Delivered + Completed',
+              count: delCount, amount: delAmount, pctLabel: `${pct(delCount)}% of total`,
+              cls: t.isDark
+                ? { bg: 'bg-gradient-to-br from-emerald-500/35 via-emerald-600/25 to-teal-700/20',  border: 'border-emerald-400/40', label: 'text-emerald-200', count: 'text-white',        amount: 'text-emerald-50',   caption: 'text-emerald-300/70', chip: 'bg-emerald-500/25 text-emerald-100 border-emerald-400/50' }
+                : { bg: 'bg-gradient-to-br from-emerald-100 to-teal-100',                          border: 'border-emerald-300',    label: 'text-emerald-700', count: 'text-emerald-900',  amount: 'text-emerald-800',  caption: 'text-emerald-600',    chip: 'bg-emerald-200 text-emerald-800 border-emerald-300' },
+            },
+            {
+              label: 'Rejected',
+              count: rejCount, amount: rejAmount, pctLabel: `${pct(rejCount)}% of total`,
+              cls: t.isDark
+                ? { bg: 'bg-gradient-to-br from-rose-500/35 via-rose-600/25 to-red-700/20',         border: 'border-rose-400/40',    label: 'text-rose-200',    count: 'text-white',        amount: 'text-rose-50',      caption: 'text-rose-300/70',    chip: 'bg-rose-500/25 text-rose-100 border-rose-400/50' }
+                : { bg: 'bg-gradient-to-br from-rose-100 to-red-100',                              border: 'border-rose-300',       label: 'text-rose-700',    count: 'text-rose-900',     amount: 'text-rose-800',     caption: 'text-rose-600',       chip: 'bg-rose-200 text-rose-800 border-rose-300' },
+            },
+            {
+              label: 'Cancelled',
+              count: canCount, amount: canAmount, pctLabel: `${pct(canCount)}% of total`,
+              cls: t.isDark
+                ? { bg: 'bg-gradient-to-br from-amber-500/35 via-amber-600/25 to-orange-700/20',   border: 'border-amber-400/40',   label: 'text-amber-200',   count: 'text-white',        amount: 'text-amber-50',     caption: 'text-amber-300/70',   chip: 'bg-amber-500/25 text-amber-100 border-amber-400/50' }
+                : { bg: 'bg-gradient-to-br from-amber-100 to-orange-100',                          border: 'border-amber-300',      label: 'text-amber-700',   count: 'text-amber-900',    amount: 'text-amber-800',    caption: 'text-amber-600',      chip: 'bg-amber-200 text-amber-800 border-amber-300' },
+            },
+          ];
+          return (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* Left column — 4 KPI tiles in a 2×2 grid */}
+              <div className="grid grid-cols-2 gap-4 content-start">
+                {tiles.map((tile, idx) => (
+                  <div
+                    key={idx}
+                    className={`relative rounded-2xl p-6 border overflow-hidden transition-all duration-300 hover:-translate-y-0.5 ${tile.cls.bg} ${tile.cls.border} ${t.isDark ? 'backdrop-blur-xl hover:shadow-[0_0_40px_rgba(217,70,239,0.18)]' : 'shadow-sm hover:shadow-md'}`}
+                  >
+                    {t.isDark && <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] via-transparent to-transparent pointer-events-none" />}
+                    <div className="relative">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className={`text-[11px] uppercase tracking-[0.18em] font-bold ${tile.cls.label}`}>{tile.label}</div>
+                        {tile.pctLabel && (
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${tile.cls.chip} whitespace-nowrap`}>
+                            {tile.pctLabel}
+                          </span>
+                        )}
+                      </div>
+                      <div className={`text-5xl font-black tabular-nums tracking-tight leading-none mt-3 truncate ${tile.cls.count}`} title={String(tile.count)}>
+                        {tile.count.toLocaleString('en-IN')}
+                      </div>
+                      <div className={`text-3xl font-black tabular-nums tracking-tight leading-none mt-2 ${tile.cls.amount}`}>
+                        {formatAmount(tile.amount)}
+                      </div>
+                      <div className={`text-[10px] uppercase tracking-[0.18em] mt-3 font-bold ${tile.cls.caption}`}>
+                        orders · value
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Right column — India state map */}
+              <div className={t.sectionCard}>
+                <div className={t.sectionAccent} />
+                <div className={t.sectionHeader}>
+                  <div>
+                    <h2 className={`${t.h2} text-lg`}>Where they sell</h2>
+                    <p className={`${t.p} mt-1`}>
+                      State-wise delivered orders.
+                      {mbsBrands.size === 0
+                        ? ' Showing all brands — pick brand(s) above to narrow.'
+                        : mbsBrands.size === 1
+                          ? <> Filtered to <span className={t.isDark ? 'text-fuchsia-300 font-semibold' : 'text-purple-700 font-semibold'}>{Array.from(mbsBrands)[0]}</span>.</>
+                          : <> Filtered to <span className={t.isDark ? 'text-fuchsia-300 font-semibold' : 'text-purple-700 font-semibold'}>{mbsBrands.size} brands</span>.</>}
+                    </p>
+                  </div>
+                  <div className={`inline-flex gap-1 p-1 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
+                    {(['count', 'amount'] as const).map((m) => {
+                      const active = mapMetric === m;
+                      return (
+                        <button
+                          key={m}
+                          onClick={() => setMapMetric(m)}
+                          className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}
+                        >
+                          {m === 'count' ? 'By orders' : 'By GMV'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="p-4">
+                  {mapLoading || !mapData ? (
+                    <div className={`h-[420px] flex items-center justify-center ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                      <div className="flex flex-col items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full border-2 ${t.isDark ? 'border-fuchsia-500/30 border-t-fuchsia-500' : 'border-purple-300 border-t-purple-600'} animate-spin`} />
+                        <span className="text-xs">Loading map…</span>
+                      </div>
+                    </div>
+                  ) : mapData.length === 0 ? (
+                    <div className={`h-[420px] flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                      No delivered orders for this selection
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: 460, overflow: 'hidden' }}>
+                      <IndiaStateMap data={mapData} metric={mapMetric} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {bpTab === 'details' && (
         /* Pivot section */

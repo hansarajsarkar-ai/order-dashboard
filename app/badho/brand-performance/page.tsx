@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-// ─── CSV utility (same shape as order-dashboard) ─────────────────────────
+// ─── CSV utility ─────────────────────────────────────────────────────────
 type CsvCell = string | number | null | undefined;
 function csvEscape(v: CsvCell): string {
   if (v === null || v === undefined) return '';
@@ -19,7 +19,6 @@ function downloadCSV(filename: string, headers: string[], rows: CsvCell[][]) {
   a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
 }
-
 function formatAmount(amount: number): string {
   if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(2)}Cr`;
   if (amount >= 100000)   return `₹${(amount / 100000).toFixed(2)}L`;
@@ -27,15 +26,28 @@ function formatAmount(amount: number): string {
   return `₹${Math.round(amount)}`;
 }
 
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 // ─── Types ───────────────────────────────────────────────────────────────
 interface Cell { count: number; amount: number; }
-interface DeliveryAgg { deliveryStatus: string | null; total: Cell; }
-interface StatusAgg { status: string; total: Cell; deliveryStatuses: DeliveryAgg[]; }
-interface BrandRow { brandName: string; total: Cell; byStatus: StatusAgg[]; }
-interface StatusColumn { status: string; total: Cell; deliveryStatuses: DeliveryAgg[]; }
+interface MonthStatusAgg { total: Cell; byDelivery: Record<string, Cell>; }
+interface BrandRow {
+  brandName: string;
+  total: Cell;
+  byMonth: Record<number, { total: Cell; byStatus: Record<string, MonthStatusAgg> }>;
+}
+interface StatusColumn {
+  status: string;
+  total: Cell;
+  deliveryStatuses: { deliveryStatus: string | null; total: Cell }[];
+}
 interface PivotData {
   brands: BrandRow[];
+  months: number[];
   statusColumns: StatusColumn[];
+  monthTotals: Record<number, Cell>;
+  monthStatusTotals: Record<string, Cell>;
+  monthStatusDeliveryTotals: Record<string, Cell>;
   grand: Cell;
   year: number | null;
   startDate: string | null;
@@ -43,21 +55,15 @@ interface PivotData {
 }
 
 const STATUS_TONE: Record<string, string> = {
-  DELIVERED: 'text-emerald-200',
-  COMPLETED: 'text-emerald-200',
-  REJECTED:  'text-rose-200',
-  CANCELLED: 'text-amber-200',
-  PENDING:   'text-sky-200',
-  ACCEPTED:  'text-purple-200',
+  DELIVERED: 'text-emerald-200',  COMPLETED: 'text-emerald-200',
+  REJECTED:  'text-rose-200',     CANCELLED: 'text-amber-200',
+  PENDING:   'text-sky-200',      ACCEPTED:  'text-purple-200',
   INVOICED:  'text-fuchsia-200',
 };
 const STATUS_BG: Record<string, string> = {
-  DELIVERED: 'bg-emerald-500/5',
-  COMPLETED: 'bg-emerald-500/5',
-  REJECTED:  'bg-rose-500/5',
-  CANCELLED: 'bg-amber-500/5',
-  PENDING:   'bg-sky-500/5',
-  ACCEPTED:  'bg-purple-500/5',
+  DELIVERED: 'bg-emerald-500/5',  COMPLETED: 'bg-emerald-500/5',
+  REJECTED:  'bg-rose-500/5',     CANCELLED: 'bg-amber-500/5',
+  PENDING:   'bg-sky-500/5',      ACCEPTED:  'bg-purple-500/5',
   INVOICED:  'bg-fuchsia-500/5',
 };
 const toneFor = (s: string) => STATUS_TONE[s] || 'text-white';
@@ -87,7 +93,6 @@ export default function BrandPerformanceDashboard() {
     router.replace('/login');
   };
 
-  // ─── Data + filters ─────────────────────────────────────────────────
   const currentYear = new Date().getFullYear();
   const [pivotData, setPivotData] = useState<PivotData | null>(null);
   const [pivotLoading, setPivotLoading] = useState(false);
@@ -101,16 +106,10 @@ export default function BrandPerformanceDashboard() {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
     if (range === 'today') return { startDate: fmt(today), endDate: fmt(today) };
-    if (range === '7d') {
-      const start = new Date(today); start.setDate(start.getDate() - 6);
-      return { startDate: fmt(start), endDate: fmt(today) };
-    }
-    if (range === '30d') {
-      const start = new Date(today); start.setDate(start.getDate() - 29);
-      return { startDate: fmt(start), endDate: fmt(today) };
-    }
+    if (range === '7d') { const s = new Date(today); s.setDate(s.getDate() - 6); return { startDate: fmt(s), endDate: fmt(today) }; }
+    if (range === '30d') { const s = new Date(today); s.setDate(s.getDate() - 29); return { startDate: fmt(s), endDate: fmt(today) }; }
     if (range === 'custom') return { startDate: customFrom || null, endDate: customTo || null };
-    return { startDate: null, endDate: null }; // year
+    return { startDate: null, endDate: null };
   };
 
   const fetchPivot = async () => {
@@ -139,11 +138,7 @@ export default function BrandPerformanceDashboard() {
   }, [authChecked, range, customFrom, customTo]);
 
   const toggleStatus = (s: string) => {
-    setExpandedStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s); else next.add(s);
-      return next;
-    });
+    setExpandedStatuses((prev) => { const n = new Set(prev); if (n.has(s)) n.delete(s); else n.add(s); return n; });
   };
 
   if (!authChecked) {
@@ -154,7 +149,6 @@ export default function BrandPerformanceDashboard() {
     );
   }
 
-  // Filter brand rows by search
   const visibleBrands = (() => {
     if (!pivotData) return [];
     const q = search.trim().toLowerCase();
@@ -162,13 +156,22 @@ export default function BrandPerformanceDashboard() {
     return pivotData.brands.filter((b) => b.brandName.toLowerCase().includes(q));
   })();
 
-  // Helper: lookup a brand's stat for a given (status, deliveryStatus or null)
-  const cellFor = (brand: BrandRow, status: string, deliveryStatus: string | null | undefined): Cell | null => {
-    const st = brand.byStatus.find((s) => s.status === status);
-    if (!st) return null;
-    if (deliveryStatus === undefined) return st.total; // status total
-    const ds = st.deliveryStatuses.find((d) => (d.deliveryStatus ?? null) === deliveryStatus);
-    return ds ? ds.total : { count: 0, amount: 0 };
+  // Per-status sub-column count when expanded (uses the global statusColumns deliveryStatuses union)
+  const subColsFor = (sc: StatusColumn) => expandedStatuses.has(sc.status) ? sc.deliveryStatuses.length : 1;
+  // Total sub-columns per month (= sum of subColsFor across statuses)
+  const subColsPerMonth = (statusColumns: StatusColumn[]) =>
+    statusColumns.reduce((s, sc) => s + subColsFor(sc), 0);
+
+  // Cell lookup helpers
+  const brandMonthStatusCell = (br: BrandRow, month: number, status: string): Cell | null => {
+    const m = br.byMonth[month]; if (!m) return null;
+    const s = m.byStatus[status]; if (!s) return null;
+    return s.total;
+  };
+  const brandMonthStatusDeliveryCell = (br: BrandRow, month: number, status: string, deliveryKey: string): Cell | null => {
+    const m = br.byMonth[month]; if (!m) return null;
+    const s = m.byStatus[status]; if (!s) return null;
+    return s.byDelivery[deliveryKey] ?? null;
   };
 
   return (
@@ -208,9 +211,9 @@ export default function BrandPerformanceDashboard() {
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Brand × Order Status</h2>
+              <h2 className="text-2xl font-bold text-white">Brand × Month × Status</h2>
               <p className="text-purple-300 text-sm mt-1">
-                Rows = brand (businessName prefix; ChukDe-GT + ChukDe-NonGT merged). Click any status column header to reveal its delivery-status breakdown.
+                Rows = brand (businessName prefix; ChukDe-GT + ChukDe-NonGT merged). Top columns = month. Sub-columns = status — click any status header to reveal its delivery-status breakdown.
               </p>
             </div>
             {pivotData && (
@@ -218,20 +221,23 @@ export default function BrandPerformanceDashboard() {
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)] hover:shadow-[0_0_24px_rgba(217,70,239,0.6)]"
                 onClick={() => {
                   if (!pivotData) return;
-                  // Flat CSV: one row per (brand, status, deliveryStatus)
-                  const headers = ['Brand', 'Status', 'Delivery Status', 'Orders', 'GMV'];
+                  const headers = ['Brand', 'Month', 'Status', 'Delivery Status', 'Orders', 'GMV'];
                   const rows: CsvCell[][] = [];
                   for (const br of pivotData.brands) {
-                    for (const st of br.byStatus) {
-                      for (const ds of st.deliveryStatuses) {
-                        rows.push([br.brandName, st.status, ds.deliveryStatus ?? '(no delivery status)', ds.total.count, ds.total.amount]);
+                    for (const m of pivotData.months) {
+                      const monthData = br.byMonth[m];
+                      if (!monthData) continue;
+                      for (const status of Object.keys(monthData.byStatus)) {
+                        const sd = monthData.byStatus[status];
+                        for (const dKey of Object.keys(sd.byDelivery)) {
+                          const ds = sd.byDelivery[dKey];
+                          rows.push([br.brandName, MONTH_NAMES[m - 1] || m, status, dKey === '__NULL__' ? '(no delivery status)' : dKey, ds.count, ds.amount]);
+                        }
                       }
                     }
                   }
-                  const suffix = pivotData.startDate && pivotData.endDate
-                    ? `${pivotData.startDate}_${pivotData.endDate}`
-                    : String(pivotData.year ?? currentYear);
-                  downloadCSV(`brand-status-pivot-${suffix}.csv`, headers, rows);
+                  const suffix = pivotData.startDate && pivotData.endDate ? `${pivotData.startDate}_${pivotData.endDate}` : String(pivotData.year ?? currentYear);
+                  downloadCSV(`brand-month-status-${suffix}.csv`, headers, rows);
                 }}
               >
                 ↓ CSV
@@ -239,7 +245,7 @@ export default function BrandPerformanceDashboard() {
             )}
           </div>
 
-          {/* Date chips */}
+          {/* Date chips + search */}
           <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
             <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Date (markedPendingTime)</span>
             {([
@@ -252,21 +258,15 @@ export default function BrandPerformanceDashboard() {
               const active = range === opt.key;
               return (
                 <button key={opt.key} onClick={() => setRange(opt.key)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  active
-                    ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
-                    : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
-                }`}>
-                  {opt.label}
-                </button>
+                  active ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]' : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                }`}>{opt.label}</button>
               );
             })}
             {range === 'custom' && (
               <div className="flex items-center gap-2 ml-2">
-                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
-                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400" />
                 <span className="text-purple-300 text-xs">to</span>
-                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
-                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400" />
               </div>
             )}
             <input
@@ -278,64 +278,97 @@ export default function BrandPerformanceDashboard() {
             />
           </div>
 
+          {/* Status legend / quick expand */}
+          {pivotData && pivotData.statusColumns.length > 0 && (
+            <div className="px-8 py-2 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap text-[11px]">
+              <span className="text-purple-300/70 uppercase tracking-wide font-semibold">Statuses</span>
+              {pivotData.statusColumns.map((sc) => {
+                const expanded = expandedStatuses.has(sc.status);
+                return (
+                  <button
+                    key={sc.status}
+                    onClick={() => toggleStatus(sc.status)}
+                    className={`px-2 py-0.5 rounded-md font-semibold ${bgFor(sc.status)} ${toneFor(sc.status)} border ${expanded ? 'border-white/30' : 'border-white/10'} hover:border-white/40`}
+                  >
+                    {expanded ? '▾' : '▸'} {sc.status} <span className="text-purple-300/60 font-normal">({sc.total.count.toLocaleString()})</span>
+                  </button>
+                );
+              })}
+              {expandedStatuses.size > 0 && (
+                <button onClick={() => setExpandedStatuses(new Set())} className="ml-2 px-2 py-0.5 rounded-md text-rose-200 hover:bg-rose-500/20 border border-rose-400/30">
+                  collapse all
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Pivot table */}
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[720px]">
             {pivotLoading || !pivotData ? (
               <div className="px-8 py-12 text-center text-purple-300">Loading…</div>
             ) : visibleBrands.length === 0 ? (
               <div className="px-8 py-12 text-center text-purple-300">No brands in this slice</div>
             ) : (
               <table className="w-full text-xs border-separate border-spacing-0">
-                <thead className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur">
-                  {/* Row 1: status column headers (with expand toggle) */}
+                <thead className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur">
+                  {/* Row 1: month super-headers */}
                   <tr>
-                    <th rowSpan={2} className="sticky left-0 z-20 bg-slate-900 border-b border-r border-white/10 px-3 py-3 text-left font-semibold text-purple-200 uppercase tracking-wider min-w-[220px]">
+                    <th rowSpan={3} className="sticky left-0 z-30 bg-slate-900 border-b border-r border-white/10 px-3 py-3 text-left font-semibold text-purple-200 uppercase tracking-wider min-w-[220px]">
                       Brand
                     </th>
-                    {pivotData.statusColumns.map((sc) => {
-                      const expanded = expandedStatuses.has(sc.status);
-                      const subCount = sc.deliveryStatuses.length;
+                    {pivotData.months.map((m) => {
+                      const totalSubCols = subColsPerMonth(pivotData.statusColumns);
                       return (
                         <th
-                          key={sc.status}
-                          colSpan={expanded ? subCount : 1}
-                          onClick={() => toggleStatus(sc.status)}
-                          className={`border-b border-r border-white/10 px-3 py-3 text-center font-semibold ${toneFor(sc.status)} cursor-pointer hover:bg-white/10 select-none whitespace-nowrap`}
-                          title={`Click to ${expanded ? 'collapse' : 'expand'} delivery-status breakdown`}
+                          key={`m_${m}`}
+                          colSpan={totalSubCols}
+                          className="bg-slate-800 border-b border-r border-white/10 px-2 py-2 text-center font-bold text-white whitespace-nowrap"
                         >
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-[10px] opacity-70">{expanded ? '▾' : '▸'}</span>
-                            <span>{sc.status}</span>
-                            <span className="text-[10px] text-purple-300/60 font-normal">({sc.total.count.toLocaleString()})</span>
-                          </div>
+                          {MONTH_NAMES[m - 1] || m}
+                          <span className="ml-2 text-[10px] text-purple-300/60 font-normal tabular-nums">
+                            {(pivotData.monthTotals[m]?.count ?? 0).toLocaleString()} · {formatAmount(pivotData.monthTotals[m]?.amount ?? 0)}
+                          </span>
                         </th>
                       );
                     })}
-                    <th rowSpan={2} className="sticky right-0 z-20 bg-fuchsia-900/30 border-b border-l-2 border-fuchsia-400/40 px-3 py-3 text-right font-semibold text-fuchsia-200 uppercase tracking-wider">
+                    <th rowSpan={3} className="sticky right-0 z-30 bg-fuchsia-900/30 border-b border-l-2 border-fuchsia-400/40 px-3 py-3 text-right font-semibold text-fuchsia-200 uppercase tracking-wider min-w-[120px]">
                       Total
                     </th>
                   </tr>
-                  {/* Row 2: sub-headers for expanded statuses (delivery status names) */}
+                  {/* Row 2: status sub-headers under each month */}
                   <tr>
-                    {pivotData.statusColumns.flatMap((sc) => {
+                    {pivotData.months.flatMap((m) => pivotData.statusColumns.map((sc) => (
+                      <th
+                        key={`m${m}_${sc.status}`}
+                        colSpan={subColsFor(sc)}
+                        onClick={() => toggleStatus(sc.status)}
+                        className={`bg-slate-900 border-b border-r border-white/10 px-2 py-1.5 text-center font-semibold ${toneFor(sc.status)} cursor-pointer hover:bg-white/10 select-none whitespace-nowrap text-[10px] uppercase tracking-wider`}
+                        title={`Click to ${expandedStatuses.has(sc.status) ? 'collapse' : 'expand'} ${sc.status} delivery-status breakdown`}
+                      >
+                        <span className="text-[9px] opacity-70 mr-0.5">{expandedStatuses.has(sc.status) ? '▾' : '▸'}</span>{sc.status}
+                      </th>
+                    )))}
+                  </tr>
+                  {/* Row 3: delivery-status sub-sub-headers (only for expanded statuses; placeholder cells otherwise) */}
+                  <tr>
+                    {pivotData.months.flatMap((m) => pivotData.statusColumns.flatMap((sc) => {
                       if (!expandedStatuses.has(sc.status)) {
                         return [
-                          <th key={`${sc.status}_sub_collapsed`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-1.5 text-[9px] text-purple-300/60 font-normal uppercase tracking-wider whitespace-nowrap`}>
-                            count · ₹
-                          </th>,
+                          <th key={`d_${m}_${sc.status}`} className={`${bgFor(sc.status)} border-b border-r border-white/10 px-2 py-1 text-[9px] text-purple-300/50 font-normal whitespace-nowrap`}>
+                            cnt · ₹
+                          </th>
                         ];
                       }
                       return sc.deliveryStatuses.map((ds, idx) => (
                         <th
-                          key={`${sc.status}_${ds.deliveryStatus ?? '_'}_${idx}`}
-                          className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-1.5 text-[9px] font-semibold ${toneFor(sc.status)} uppercase tracking-wider whitespace-nowrap`}
+                          key={`d_${m}_${sc.status}_${ds.deliveryStatus ?? '_'}_${idx}`}
+                          className={`${bgFor(sc.status)} border-b border-r border-white/10 px-2 py-1 text-[9px] font-semibold ${toneFor(sc.status)} whitespace-nowrap`}
                           title={ds.deliveryStatus ?? '(no delivery status)'}
                         >
-                          <div className="font-bold text-[10px]">{ds.deliveryStatus ?? '∅ none'}</div>
-                          <div className="text-[9px] text-purple-300/60 font-normal mt-0.5">{ds.total.count.toLocaleString()} · {formatAmount(ds.total.amount)}</div>
+                          {ds.deliveryStatus ?? '∅ none'}
                         </th>
                       ));
-                    })}
+                    }))}
                   </tr>
                 </thead>
                 <tbody>
@@ -347,36 +380,37 @@ export default function BrandPerformanceDashboard() {
                           <span className="text-white font-semibold">{br.brandName}</span>
                         </div>
                       </td>
-                      {pivotData.statusColumns.flatMap((sc) => {
+                      {pivotData.months.flatMap((m) => pivotData.statusColumns.flatMap((sc) => {
                         if (!expandedStatuses.has(sc.status)) {
-                          const cell = cellFor(br, sc.status, undefined);
+                          const cell = brandMonthStatusCell(br, m, sc.status);
                           if (!cell || cell.count === 0) {
                             return [
-                              <td key={`${br.brandName}_${sc.status}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right text-purple-400/30 tabular-nums`}>—</td>,
+                              <td key={`c_${br.brandName}_${m}_${sc.status}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right text-purple-400/30 tabular-nums`}>—</td>
                             ];
                           }
                           return [
-                            <td key={`${br.brandName}_${sc.status}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right whitespace-nowrap`}>
+                            <td key={`c_${br.brandName}_${m}_${sc.status}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right whitespace-nowrap`}>
                               <div className={`font-bold tabular-nums ${toneFor(sc.status)}`}>{cell.count.toLocaleString()}</div>
                               <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(cell.amount)}</div>
-                            </td>,
+                            </td>
                           ];
                         }
                         return sc.deliveryStatuses.map((ds, dIdx) => {
-                          const cell = cellFor(br, sc.status, ds.deliveryStatus ?? null);
+                          const dKey = ds.deliveryStatus ?? '__NULL__';
+                          const cell = brandMonthStatusDeliveryCell(br, m, sc.status, dKey);
                           if (!cell || cell.count === 0) {
                             return (
-                              <td key={`${br.brandName}_${sc.status}_${ds.deliveryStatus ?? '_'}_${dIdx}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right text-purple-400/30 tabular-nums`}>—</td>
+                              <td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right text-purple-400/30 tabular-nums`}>—</td>
                             );
                           }
                           return (
-                            <td key={`${br.brandName}_${sc.status}_${ds.deliveryStatus ?? '_'}_${dIdx}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right whitespace-nowrap`}>
+                            <td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-2 py-2 text-right whitespace-nowrap`}>
                               <div className={`font-bold tabular-nums ${toneFor(sc.status)}`}>{cell.count.toLocaleString()}</div>
                               <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(cell.amount)}</div>
                             </td>
                           );
                         });
-                      })}
+                      }))}
                       <td className="sticky right-0 z-10 bg-fuchsia-900/20 border-b border-l-2 border-fuchsia-400/40 px-3 py-2 text-right whitespace-nowrap">
                         <div className="font-bold tabular-nums text-white">{br.total.count.toLocaleString()}</div>
                         <div className="text-[10px] text-fuchsia-200/80 tabular-nums">{formatAmount(br.total.amount)}</div>
@@ -384,28 +418,33 @@ export default function BrandPerformanceDashboard() {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="sticky bottom-0 bg-slate-900/95 backdrop-blur">
+                <tfoot className="sticky bottom-0 z-20 bg-slate-900/95 backdrop-blur">
                   <tr>
-                    <td className="sticky left-0 z-10 bg-slate-900 border-t border-r border-white/10 px-3 py-3 font-bold text-purple-200 uppercase tracking-wider text-[11px]">
+                    <td className="sticky left-0 z-30 bg-slate-900 border-t border-r border-white/10 px-3 py-3 font-bold text-purple-200 uppercase tracking-wider text-[11px]">
                       Total
                     </td>
-                    {pivotData.statusColumns.flatMap((sc) => {
+                    {pivotData.months.flatMap((m) => pivotData.statusColumns.flatMap((sc) => {
                       if (!expandedStatuses.has(sc.status)) {
+                        const t = pivotData.monthStatusTotals[`${m}__${sc.status}`] ?? { count: 0, amount: 0 };
                         return [
-                          <td key={`tot_${sc.status}`} className={`border-t border-r border-white/10 ${bgFor(sc.status)} px-2 py-3 text-right whitespace-nowrap`}>
-                            <div className={`font-bold tabular-nums ${toneFor(sc.status)}`}>{sc.total.count.toLocaleString()}</div>
-                            <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(sc.total.amount)}</div>
-                          </td>,
+                          <td key={`t_${m}_${sc.status}`} className={`border-t border-r border-white/10 ${bgFor(sc.status)} px-2 py-3 text-right whitespace-nowrap`}>
+                            <div className={`font-bold tabular-nums ${toneFor(sc.status)}`}>{t.count.toLocaleString()}</div>
+                            <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(t.amount)}</div>
+                          </td>
                         ];
                       }
-                      return sc.deliveryStatuses.map((ds, dIdx) => (
-                        <td key={`tot_${sc.status}_${ds.deliveryStatus ?? '_'}_${dIdx}`} className={`border-t border-r border-white/10 ${bgFor(sc.status)} px-2 py-3 text-right whitespace-nowrap`}>
-                          <div className={`font-bold tabular-nums ${toneFor(sc.status)}`}>{ds.total.count.toLocaleString()}</div>
-                          <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(ds.total.amount)}</div>
-                        </td>
-                      ));
-                    })}
-                    <td className="sticky right-0 z-10 bg-fuchsia-900/30 border-t border-l-2 border-fuchsia-400/40 px-3 py-3 text-right whitespace-nowrap">
+                      return sc.deliveryStatuses.map((ds, dIdx) => {
+                        const dKey = ds.deliveryStatus ?? '__NULL__';
+                        const t = pivotData.monthStatusDeliveryTotals[`${m}__${sc.status}__${dKey}`] ?? { count: 0, amount: 0 };
+                        return (
+                          <td key={`t_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-t border-r border-white/10 ${bgFor(sc.status)} px-2 py-3 text-right whitespace-nowrap`}>
+                            <div className={`font-bold tabular-nums ${toneFor(sc.status)}`}>{t.count.toLocaleString()}</div>
+                            <div className="text-[10px] text-purple-300/70 tabular-nums">{formatAmount(t.amount)}</div>
+                          </td>
+                        );
+                      });
+                    }))}
+                    <td className="sticky right-0 z-30 bg-fuchsia-900/30 border-t border-l-2 border-fuchsia-400/40 px-3 py-3 text-right whitespace-nowrap">
                       <div className="font-bold tabular-nums text-white">{pivotData.grand.count.toLocaleString()}</div>
                       <div className="text-[10px] text-fuchsia-200 tabular-nums">{formatAmount(pivotData.grand.amount)}</div>
                     </td>
@@ -416,7 +455,7 @@ export default function BrandPerformanceDashboard() {
           </div>
           {pivotData && visibleBrands.length > 0 && (
             <div className="px-8 py-2 border-t border-white/10 bg-white/5 text-right text-xs text-purple-300/70">
-              {visibleBrands.length} brand{visibleBrands.length === 1 ? '' : 's'}
+              {visibleBrands.length} brand{visibleBrands.length === 1 ? '' : 's'} · {pivotData.months.length} month{pivotData.months.length === 1 ? '' : 's'}
             </div>
           )}
         </div>
@@ -428,7 +467,3 @@ export default function BrandPerformanceDashboard() {
     </div>
   );
 }
-
-// Fragment is imported but tree-shaken if unused; keeping for future row expansion patterns.
-const _unused = Fragment;
-void _unused;

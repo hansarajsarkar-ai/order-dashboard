@@ -5,15 +5,20 @@ export const dynamic = 'force-dynamic';
 
 interface Row {
   brand_name: string;
+  month: string;
   status: string;
   delivery_status: string | null;
   count: string;
   amount: string;
 }
 
-// Brand × Status × DeliveryStatus pivot — frontend collapses sub-status by default,
-// expands on click. Brand grain is the businessName prefix so ChukDe-GT + ChukDe-NonGT
-// merge into one row (matching the Demography brand picker).
+// 4-dim pivot: brand × month × status × deliveryStatus.
+// Brand grain is the businessName prefix so ChukDe-GT + ChukDe-NonGT merge.
+// The frontend lays it out as:
+//   rows         = brand
+//   col level 1  = month
+//   col level 2  = status (collapsible to reveal level 3)
+//   col level 3  = deliveryStatus (visible only for expanded statuses)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const currentYear = new Date().getFullYear();
@@ -41,6 +46,7 @@ export async function GET(req: NextRequest) {
     const sql = `
       SELECT
         TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) AS brand_name,
+        EXTRACT(MONTH FROM po."markedPendingTime")::int          AS month,
         po."status"                                              AS status,
         po."deliveryStatus"                                      AS delivery_status,
         COUNT(*)                                                 AS count,
@@ -60,113 +66,130 @@ export async function GET(req: NextRequest) {
         AND po."status"          != 'DRAFT'
         AND po."markedPendingTime" IS NOT NULL
         ${whereDate}
-      GROUP BY TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)), po."status", po."deliveryStatus"
-      ORDER BY brand_name, status, delivery_status NULLS LAST;
+      GROUP BY TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)),
+               EXTRACT(MONTH FROM po."markedPendingTime"),
+               po."status", po."deliveryStatus"
+      ORDER BY brand_name, month, status, delivery_status NULLS LAST;
     `;
     const rows = await query<Row>(sql, params);
 
     type Cell = { count: number; amount: number };
-    interface DeliveryAgg { deliveryStatus: string | null; total: Cell; }
-    interface StatusAgg {
-      status: string;
+    interface MonthStatusAgg {
       total: Cell;
-      deliveryStatuses: Map<string, DeliveryAgg>;
+      byDelivery: Record<string, Cell>; // key: deliveryStatus or '__NULL__'
     }
     interface BrandAgg {
       brandName: string;
       total: Cell;
-      byStatus: Map<string, StatusAgg>;
+      // brand[month][status] = { total, byDelivery }
+      byMonth: Record<number, { total: Cell; byStatus: Record<string, MonthStatusAgg> }>;
     }
 
     const brands = new Map<string, BrandAgg>();
-    const statusTotals = new Map<string, Cell>();
-    const statusDeliveryTotals = new Map<string, Map<string, Cell>>(); // status -> deliveryStatus -> totals (for column union)
+    const monthSet = new Set<number>();
+    const statusColumnTotals = new Map<string, Cell>();
+    const statusDeliverySet = new Map<string, Map<string, Cell>>(); // status -> deliveryKey -> total (union for expanded columns)
+    const monthTotals = new Map<number, Cell>(); // column-1 totals per month
+    const monthStatusTotals = new Map<string, Cell>(); // key: `${month}__${status}` for footer
+    const monthStatusDeliveryTotals = new Map<string, Cell>(); // key: `${month}__${status}__${deliveryKey}` for footer when expanded
     const grand: Cell = { count: 0, amount: 0 };
 
     for (const r of rows) {
       const brandKey = r.brand_name || '(no name)';
+      const month = parseInt(String(r.month));
       const count = parseInt(r.count);
       const amount = parseFloat(r.amount);
+      const deliveryKey = r.delivery_status ?? '__NULL__';
+
+      monthSet.add(month);
 
       // brand
       let br = brands.get(brandKey);
-      if (!br) {
-        br = { brandName: brandKey, total: { count: 0, amount: 0 }, byStatus: new Map() };
-        brands.set(brandKey, br);
-      }
+      if (!br) { br = { brandName: brandKey, total: { count: 0, amount: 0 }, byMonth: {} }; brands.set(brandKey, br); }
       br.total.count += count;
       br.total.amount += amount;
 
-      // brand × status
-      let st = br.byStatus.get(r.status);
-      if (!st) {
-        st = { status: r.status, total: { count: 0, amount: 0 }, deliveryStatuses: new Map() };
-        br.byStatus.set(r.status, st);
-      }
-      st.total.count += count;
-      st.total.amount += amount;
+      // brand × month
+      if (!br.byMonth[month]) br.byMonth[month] = { total: { count: 0, amount: 0 }, byStatus: {} };
+      br.byMonth[month].total.count += count;
+      br.byMonth[month].total.amount += amount;
 
-      // brand × status × deliveryStatus
-      const deliveryKey = r.delivery_status ?? '__NULL__';
-      let dl = st.deliveryStatuses.get(deliveryKey);
-      if (!dl) {
-        dl = { deliveryStatus: r.delivery_status, total: { count: 0, amount: 0 } };
-        st.deliveryStatuses.set(deliveryKey, dl);
-      }
-      dl.total.count += count;
-      dl.total.amount += amount;
+      // brand × month × status
+      if (!br.byMonth[month].byStatus[r.status]) br.byMonth[month].byStatus[r.status] = { total: { count: 0, amount: 0 }, byDelivery: {} };
+      br.byMonth[month].byStatus[r.status].total.count += count;
+      br.byMonth[month].byStatus[r.status].total.amount += amount;
 
-      // status column totals
-      const sTotal = statusTotals.get(r.status) ?? { count: 0, amount: 0 };
-      sTotal.count += count;
-      sTotal.amount += amount;
-      statusTotals.set(r.status, sTotal);
+      // brand × month × status × deliveryStatus
+      const ds = br.byMonth[month].byStatus[r.status].byDelivery;
+      if (!ds[deliveryKey]) ds[deliveryKey] = { count: 0, amount: 0 };
+      ds[deliveryKey].count += count;
+      ds[deliveryKey].amount += amount;
 
-      // status × deliveryStatus totals (for expanded column union)
-      if (!statusDeliveryTotals.has(r.status)) statusDeliveryTotals.set(r.status, new Map());
-      const dMap = statusDeliveryTotals.get(r.status)!;
+      // column-side aggregates
+      const stTotal = statusColumnTotals.get(r.status) ?? { count: 0, amount: 0 };
+      stTotal.count += count; stTotal.amount += amount;
+      statusColumnTotals.set(r.status, stTotal);
+
+      if (!statusDeliverySet.has(r.status)) statusDeliverySet.set(r.status, new Map());
+      const dMap = statusDeliverySet.get(r.status)!;
       const dTotal = dMap.get(deliveryKey) ?? { count: 0, amount: 0 };
-      dTotal.count += count;
-      dTotal.amount += amount;
+      dTotal.count += count; dTotal.amount += amount;
       dMap.set(deliveryKey, dTotal);
+
+      const mTotal = monthTotals.get(month) ?? { count: 0, amount: 0 };
+      mTotal.count += count; mTotal.amount += amount;
+      monthTotals.set(month, mTotal);
+
+      const msKey = `${month}__${r.status}`;
+      const msTotal = monthStatusTotals.get(msKey) ?? { count: 0, amount: 0 };
+      msTotal.count += count; msTotal.amount += amount;
+      monthStatusTotals.set(msKey, msTotal);
+
+      const msdKey = `${month}__${r.status}__${deliveryKey}`;
+      const msdTotal = monthStatusDeliveryTotals.get(msdKey) ?? { count: 0, amount: 0 };
+      msdTotal.count += count; msdTotal.amount += amount;
+      monthStatusDeliveryTotals.set(msdKey, msdTotal);
 
       grand.count += count;
       grand.amount += amount;
     }
 
-    // Order brand rows by total count DESC
+    const months = Array.from(monthSet).sort((a, b) => a - b);
+
+    // Status columns: sorted by global total count DESC
+    const statusColumns = Array.from(statusColumnTotals.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([status, total]) => ({
+        status,
+        total,
+        deliveryStatuses: Array.from(statusDeliverySet.get(status)!.entries())
+          .sort((a, b) => b[1].count - a[1].count)
+          .map(([key, t]) => ({ deliveryStatus: key === '__NULL__' ? null : key, total: t })),
+      }));
+
     const brandRows = Array.from(brands.values())
       .sort((a, b) => b.total.count - a.total.count)
       .map((br) => ({
         brandName: br.brandName,
         total: br.total,
-        byStatus: Array.from(br.byStatus.values())
-          .sort((a, b) => b.total.count - a.total.count)
-          .map((s) => ({
-            status: s.status,
-            total: s.total,
-            deliveryStatuses: Array.from(s.deliveryStatuses.values())
-              .sort((a, b) => b.total.count - a.total.count),
-          })),
+        byMonth: br.byMonth, // raw map
       }));
 
-    // Status column order: by total count DESC across all brands
-    const statusColumns = Array.from(statusTotals.entries())
-      .sort((a, b) => b[1].count - a[1].count)
-      .map(([status, total]) => ({
-        status,
-        total,
-        deliveryStatuses: Array.from(statusDeliveryTotals.get(status)!.entries())
-          .sort((a, b) => b[1].count - a[1].count)
-          .map(([key, dt]) => ({
-            deliveryStatus: key === '__NULL__' ? null : key,
-            total: dt,
-          })),
-      }));
+    // Footer totals — serialize the maps for transit
+    const monthTotalsObj: Record<number, Cell> = {};
+    for (const [m, t] of monthTotals) monthTotalsObj[m] = t;
+    const monthStatusTotalsObj: Record<string, Cell> = {};
+    for (const [k, t] of monthStatusTotals) monthStatusTotalsObj[k] = t;
+    const monthStatusDeliveryTotalsObj: Record<string, Cell> = {};
+    for (const [k, t] of monthStatusDeliveryTotals) monthStatusDeliveryTotalsObj[k] = t;
 
     return NextResponse.json({
       brands: brandRows,
+      months,
       statusColumns,
+      monthTotals: monthTotalsObj,
+      monthStatusTotals: monthStatusTotalsObj,
+      monthStatusDeliveryTotals: monthStatusDeliveryTotalsObj,
       grand,
       year,
       startDate: startDate || null,

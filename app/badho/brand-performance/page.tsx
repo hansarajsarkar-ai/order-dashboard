@@ -336,7 +336,7 @@ export default function BrandPerformanceDashboard() {
   }
   const [mbsData, setMbsData] = useState<MbsData | null>(null);
   const [mbsLoading, setMbsLoading] = useState(false);
-  const [mbsBrand, setMbsBrand] = useState<string>('');           // '' = all brands
+  const [mbsBrands, setMbsBrands] = useState<Set<string>>(new Set()); // empty = all brands
   const [mbsBrandSearch, setMbsBrandSearch] = useState('');
   const [mbsBrandDropdownOpen, setMbsBrandDropdownOpen] = useState(false);
   const [mbsExpanded, setMbsExpanded] = useState<Set<string>>(new Set());
@@ -383,7 +383,7 @@ export default function BrandPerformanceDashboard() {
       const { startDate, endDate } = resolveRange();
       if (startDate) params.append('startDate', startDate);
       if (endDate)   params.append('endDate',   endDate);
-      if (mbsBrand)  params.append('brand',     mbsBrand);
+      if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
       const res = await fetch(`/api/brand-performance/monthly-by-status?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
@@ -400,7 +400,7 @@ export default function BrandPerformanceDashboard() {
     if (!authChecked || bpTab !== 'dashboard') return;
     fetchMbs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, bpTab, range, customFrom, customTo, mbsBrand]);
+  }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands]);
 
   const toggleStatus = (s: string) => {
     setExpandedStatuses((prev) => { const n = new Set(prev); if (n.has(s)) n.delete(s); else n.add(s); return n; });
@@ -630,41 +630,44 @@ export default function BrandPerformanceDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Brand picker */}
+              {/* Brand multi-select picker */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setMbsBrandDropdownOpen((v) => !v)}
-                  className={`min-w-[220px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+                  className={`min-w-[240px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
                 >
                   <span className="truncate font-semibold">
-                    {mbsBrand || <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All brands</span>}
+                    {mbsBrands.size === 0 && <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All brands</span>}
+                    {mbsBrands.size === 1 && Array.from(mbsBrands)[0]}
+                    {mbsBrands.size > 1 && <span className={t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}>{mbsBrands.size} brands selected</span>}
                   </span>
                   <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
                 </button>
                 {mbsBrandDropdownOpen && (
                   <>
-                    {/* Backdrop closes on outside click */}
                     <div className="fixed inset-0 z-[55]" onClick={() => setMbsBrandDropdownOpen(false)} />
-                    <div className={`absolute top-full right-0 mt-1 z-[60] w-[320px] max-h-[380px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
-                      <div className={`p-2 border-b ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
+                    <div className={`absolute top-full right-0 mt-1 z-[60] w-[340px] max-h-[420px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                      <div className={`p-2 border-b flex items-center gap-2 ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
                         <input
                           type="text"
                           autoFocus
                           value={mbsBrandSearch}
                           onChange={(e) => setMbsBrandSearch(e.target.value)}
                           placeholder="Search brand…"
-                          className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'w-full')}
+                          className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'flex-1 min-w-0')}
                         />
+                        {mbsBrands.size > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setMbsBrands(new Set())}
+                            className={`px-2 py-1.5 text-[10px] font-bold rounded border whitespace-nowrap ${t.isDark ? 'bg-rose-500/20 text-rose-200 border-rose-400/40 hover:bg-rose-500/30' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'}`}
+                          >
+                            Clear all
+                          </button>
+                        )}
                       </div>
                       <div className={`overflow-y-auto flex-1 ${t.isDark ? 'bg-slate-950' : 'bg-white'}`}>
-                        <button
-                          type="button"
-                          onClick={() => { setMbsBrand(''); setMbsBrandDropdownOpen(false); setMbsBrandSearch(''); }}
-                          className={`w-full text-left px-3 py-2 text-xs border-b ${t.isDark ? 'bg-slate-950 border-white/5 hover:bg-white/10' : 'bg-white border-slate-100 hover:bg-slate-100'} ${!mbsBrand ? (t.isDark ? 'bg-fuchsia-500/20 text-fuchsia-200' : 'bg-purple-50 text-purple-700') : (t.isDark ? 'text-purple-200' : 'text-slate-700')}`}
-                        >
-                          All brands (no filter)
-                        </button>
                         {(() => {
                           const allBrands = pivotData?.brands?.map((b) => b.brandName) ?? [];
                           const q = mbsBrandSearch.trim().toLowerCase();
@@ -672,28 +675,53 @@ export default function BrandPerformanceDashboard() {
                           if (filtered.length === 0) {
                             return <div className={`px-3 py-4 text-xs ${t.isDark ? 'bg-slate-950 text-purple-300/60' : 'bg-white text-slate-400'}`}>No matches</div>;
                           }
+                          const toggle = (name: string) => {
+                            setMbsBrands((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(name)) next.delete(name); else next.add(name);
+                              return next;
+                            });
+                          };
                           return filtered.map((name) => {
-                            const active = name === mbsBrand;
+                            const checked = mbsBrands.has(name);
                             return (
-                              <button
+                              <label
                                 key={name}
-                                type="button"
-                                onClick={() => { setMbsBrand(name); setMbsBrandDropdownOpen(false); setMbsBrandSearch(''); }}
-                                className={`w-full text-left px-3 py-2 text-xs border-b ${t.isDark ? 'bg-slate-950 border-white/5 hover:bg-white/10' : 'bg-white border-slate-100 hover:bg-slate-100'} ${active ? (t.isDark ? 'bg-fuchsia-500/20 text-fuchsia-200 font-semibold' : 'bg-purple-50 text-purple-700 font-semibold') : (t.isDark ? 'text-white' : 'text-slate-800')}`}
+                                className={`flex items-center gap-2 px-3 py-2 text-xs border-b cursor-pointer ${t.isDark ? 'bg-slate-950 border-white/5 hover:bg-white/10' : 'bg-white border-slate-100 hover:bg-slate-100'} ${checked ? (t.isDark ? 'bg-fuchsia-500/15' : 'bg-purple-50') : ''}`}
                               >
-                                {name}
-                              </button>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggle(name)}
+                                  className="accent-fuchsia-500 w-3.5 h-3.5"
+                                />
+                                <span className={checked ? (t.isDark ? 'text-fuchsia-200 font-semibold' : 'text-purple-700 font-semibold') : (t.isDark ? 'text-white' : 'text-slate-800')}>
+                                  {name}
+                                </span>
+                              </label>
                             );
                           });
                         })()}
+                      </div>
+                      <div className={`p-2 border-t flex items-center justify-between gap-2 ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
+                        <span className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                          {mbsBrands.size === 0 ? 'no filter — showing all brands' : `${mbsBrands.size} selected`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setMbsBrandDropdownOpen(false)}
+                          className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm"
+                        >
+                          Apply
+                        </button>
                       </div>
                     </div>
                   </>
                 )}
               </div>
-              {mbsBrand && (
+              {mbsBrands.size > 0 && (
                 <button
-                  onClick={() => setMbsBrand('')}
+                  onClick={() => setMbsBrands(new Set())}
                   className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
                   title="Clear brand filter"
                 >
@@ -716,7 +744,11 @@ export default function BrandPerformanceDashboard() {
                         }
                       }
                     }
-                    const suffix = mbsBrand ? `${mbsBrand.toLowerCase().replace(/\s+/g, '-')}` : 'all-brands';
+                    const suffix = mbsBrands.size === 0
+                      ? 'all-brands'
+                      : mbsBrands.size === 1
+                        ? Array.from(mbsBrands)[0].toLowerCase().replace(/\s+/g, '-')
+                        : `${mbsBrands.size}-brands`;
                     downloadCSV(`monthly-by-status-${suffix}-${currentYear}.csv`, headers, rows);
                   }}
                 >
@@ -751,7 +783,14 @@ export default function BrandPerformanceDashboard() {
             )}
             {mbsData && (
               <span className={`ml-auto text-xs font-semibold ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                {mbsBrand ? <>Filtered to <span className={t.isDark ? 'text-fuchsia-300' : 'text-purple-700'}>{mbsBrand}</span></> : 'All brands'}
+                {mbsBrands.size === 0 ? 'All brands' : (
+                  <>
+                    Filtered to{' '}
+                    <span className={t.isDark ? 'text-fuchsia-300' : 'text-purple-700'} title={Array.from(mbsBrands).join(', ')}>
+                      {mbsBrands.size === 1 ? Array.from(mbsBrands)[0] : `${mbsBrands.size} brands`}
+                    </span>
+                  </>
+                )}
                 {' · '}
                 <span className={t.isDark ? 'text-white' : 'text-slate-900'}>{mbsData.totals.grand.count.toLocaleString('en-IN')} orders</span>
                 {' · '}

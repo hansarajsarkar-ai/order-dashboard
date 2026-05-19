@@ -41,10 +41,11 @@ export async function GET(req: NextRequest) {
       whereDate = ` AND EXTRACT(YEAR FROM po."markedPendingTime") = $${params.length}`;
     }
 
+    // brand can be a comma-separated list of brand prefixes for multi-select.
     let brandFilter = '';
     if (brand) {
       params.push(brand);
-      brandFilter = ` AND TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) = $${params.length}`;
+      brandFilter = ` AND TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) = ANY(string_to_array($${params.length}, ','))`;
     }
 
     const sql = `

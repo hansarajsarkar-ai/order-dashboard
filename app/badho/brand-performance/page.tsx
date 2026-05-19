@@ -111,6 +111,10 @@ export default function BrandPerformanceDashboard() {
   const [customTo, setCustomTo] = useState('');
   const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  // Sub-tab switch: 'dashboard' = pivot, 'details' = flat row-level table
+  const [bpTab, setBpTab] = useState<'dashboard' | 'details'>('dashboard');
+  const [detailsSearch, setDetailsSearch] = useState('');
+  const [detailsSort, setDetailsSort] = useState<'orders' | 'gmv' | 'brand' | 'month' | 'status'>('orders');
 
   const resolveRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
@@ -217,7 +221,31 @@ export default function BrandPerformanceDashboard() {
           </h1>
         </div>
 
-        {/* Pivot section */}
+        {/* Sub-tab toggle */}
+        <div className="mb-5 flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl w-fit">
+          {([
+            { key: 'dashboard', label: 'Dashboard' },
+            { key: 'details',   label: 'Details data' },
+          ] as const).map((t) => {
+            const active = bpTab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setBpTab(t.key)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 ${
+                  active
+                    ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.55),inset_0_0_18px_rgba(168,85,247,0.5)]'
+                    : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {bpTab === 'dashboard' && (
+        /* Pivot section */
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
@@ -469,6 +497,167 @@ export default function BrandPerformanceDashboard() {
             </div>
           )}
         </div>
+        )}
+
+        {bpTab === 'details' && (
+        /* Details data — flat row-level table at the (brand, month, status, deliveryStatus) grain */
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Details data</h2>
+              <p className="text-purple-300 text-sm mt-1">
+                Flat row per <span className="font-mono text-fuchsia-300">(brand, month, status, deliveryStatus)</span>. Same WHERE as the pivot, just un-pivoted.
+              </p>
+            </div>
+            {pivotData && (
+              <button
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)] hover:shadow-[0_0_24px_rgba(217,70,239,0.6)]"
+                onClick={() => {
+                  if (!pivotData) return;
+                  const headers = ['Brand', 'Month', 'Status', 'Delivery Status', 'Orders', 'GMV'];
+                  const rows: CsvCell[][] = [];
+                  for (const br of pivotData.brands) {
+                    for (const m of pivotData.months) {
+                      const md = br.byMonth[m];
+                      if (!md) continue;
+                      for (const status of Object.keys(md.byStatus)) {
+                        const sd = md.byStatus[status];
+                        for (const dKey of Object.keys(sd.byDelivery)) {
+                          const ds = sd.byDelivery[dKey];
+                          rows.push([br.brandName, MONTH_NAMES[m - 1] || m, status, dKey === '__NULL__' ? '(no delivery status)' : dKey, ds.count, ds.amount]);
+                        }
+                      }
+                    }
+                  }
+                  const suffix = pivotData.startDate && pivotData.endDate ? `${pivotData.startDate}_${pivotData.endDate}` : String(pivotData.year ?? currentYear);
+                  downloadCSV(`brand-performance-details-${suffix}.csv`, headers, rows);
+                }}
+              >
+                ↓ CSV
+              </button>
+            )}
+          </div>
+
+          {/* Date chips (same as Dashboard for symmetry) + search */}
+          <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Date (markedPendingTime)</span>
+            {([
+              { key: 'year',   label: `${currentYear} (full year)` },
+              { key: '30d',    label: 'Last 30 days' },
+              { key: '7d',     label: 'Last 7 days' },
+              { key: 'today',  label: 'Today' },
+              { key: 'custom', label: 'Custom' },
+            ] as const).map((opt) => {
+              const active = range === opt.key;
+              return (
+                <button key={opt.key} onClick={() => setRange(opt.key)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  active ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]' : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                }`}>{opt.label}</button>
+              );
+            })}
+            {range === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                <span className="text-purple-300 text-xs">to</span>
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400" />
+              </div>
+            )}
+            <input
+              type="text"
+              value={detailsSearch}
+              onChange={(e) => setDetailsSearch(e.target.value)}
+              placeholder="Search brand / status / delivery…"
+              className="ml-auto px-3 py-1.5 text-xs bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-[260px]"
+            />
+          </div>
+
+          {/* Flat table */}
+          <div className="overflow-auto max-h-[720px]">
+            {pivotLoading || !pivotData ? (
+              <div className="px-8 py-12 text-center text-purple-300">Loading…</div>
+            ) : (() => {
+              // Flatten pivot into one row per (brand, month, status, deliveryStatus)
+              type DetailRow = { brandName: string; month: number; status: string; deliveryStatus: string | null; count: number; amount: number; };
+              const flat: DetailRow[] = [];
+              for (const br of pivotData.brands) {
+                for (const m of pivotData.months) {
+                  const md = br.byMonth[m];
+                  if (!md) continue;
+                  for (const status of Object.keys(md.byStatus)) {
+                    const sd = md.byStatus[status];
+                    for (const dKey of Object.keys(sd.byDelivery)) {
+                      const ds = sd.byDelivery[dKey];
+                      flat.push({ brandName: br.brandName, month: m, status, deliveryStatus: dKey === '__NULL__' ? null : dKey, count: ds.count, amount: ds.amount });
+                    }
+                  }
+                }
+              }
+              const q = detailsSearch.trim().toLowerCase();
+              let filtered = flat;
+              if (q) {
+                filtered = filtered.filter((r) =>
+                  r.brandName.toLowerCase().includes(q) ||
+                  r.status.toLowerCase().includes(q) ||
+                  (r.deliveryStatus || '').toLowerCase().includes(q)
+                );
+              }
+              const sorted = [...filtered].sort((a, b) => {
+                if (detailsSort === 'orders') return b.count - a.count;
+                if (detailsSort === 'gmv')    return b.amount - a.amount;
+                if (detailsSort === 'brand')  return a.brandName.localeCompare(b.brandName);
+                if (detailsSort === 'month')  return a.month - b.month;
+                if (detailsSort === 'status') return a.status.localeCompare(b.status);
+                return 0;
+              });
+              if (sorted.length === 0) {
+                return <div className="px-8 py-12 text-center text-purple-300">No rows</div>;
+              }
+              const totalOrders = filtered.reduce((s, r) => s + r.count, 0);
+              const totalGmv    = filtered.reduce((s, r) => s + r.amount, 0);
+              const ind = (col: typeof detailsSort) => detailsSort === col ? ' ↓' : '';
+              return (
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-white/10">
+                    <tr>
+                      <th className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider w-12">#</th>
+                      <th onClick={() => setDetailsSort('brand')}  className="px-4 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Brand{ind('brand')}</th>
+                      <th onClick={() => setDetailsSort('month')}  className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Month{ind('month')}</th>
+                      <th onClick={() => setDetailsSort('status')} className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Status{ind('status')}</th>
+                      <th className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Delivery Status</th>
+                      <th onClick={() => setDetailsSort('orders')} className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Orders{ind('orders')}</th>
+                      <th onClick={() => setDetailsSort('gmv')}    className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">GMV{ind('gmv')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((r, i) => (
+                      <tr key={`${r.brandName}__${r.month}__${r.status}__${r.deliveryStatus ?? '_'}__${i}`} className={`border-b border-white/5 hover:bg-white/5 ${bgFor(r.status)}`}>
+                        <td className="px-3 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
+                        <td className="px-4 py-2.5 text-white font-semibold whitespace-nowrap">{r.brandName}</td>
+                        <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{MONTH_NAMES[r.month - 1] || r.month}</td>
+                        <td className={`px-3 py-2.5 font-semibold whitespace-nowrap ${toneFor(r.status)}`}>{r.status}</td>
+                        <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.deliveryStatus || <span className="italic text-purple-400/60">(none)</span>}</td>
+                        <td className={`px-3 py-2.5 text-right text-base font-extrabold tabular-nums ${toneFor(r.status)}`}>{r.count.toLocaleString('en-IN')}</td>
+                        <td className={`px-3 py-2.5 text-right text-sm font-semibold tabular-nums ${amountToneFor(r.status)}`}>{formatAmount(r.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="sticky bottom-0 bg-slate-900/95 backdrop-blur border-t border-white/10">
+                    <tr>
+                      <td className="px-3 py-3" />
+                      <td className="px-4 py-3 text-purple-200 font-bold uppercase text-[11px] tracking-wider">Filtered total</td>
+                      <td className="px-3 py-3 text-purple-300/70 text-xs">{filtered.length} rows</td>
+                      <td className="px-3 py-3" />
+                      <td className="px-3 py-3" />
+                      <td className="px-3 py-3 text-right text-base font-extrabold tabular-nums text-white">{totalOrders.toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-3 text-right text-sm font-semibold tabular-nums text-fuchsia-200">{formatAmount(totalGmv)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              );
+            })()}
+          </div>
+        </div>
+        )}
       </div>
 
       <style jsx>{`

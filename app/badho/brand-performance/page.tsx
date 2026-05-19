@@ -763,11 +763,7 @@ export default function BrandPerformanceDashboard() {
           <div className={t.sectionAccent} />
           <div className={t.sectionHeader}>
             <div>
-              <div className="flex items-center gap-2">
-                <span className={t.sectionTag('details')}>DETAILS</span>
-                <h2 className={t.h2}>Details data</h2>
-              </div>
-              <p className={t.p}>
+              <p className={`${t.p} mt-0`}>
                 Flat row per <span className={t.monoAccent}>(brand, month, status, deliveryStatus)</span>. Same WHERE as the pivot, just un-pivoted.
               </p>
             </div>

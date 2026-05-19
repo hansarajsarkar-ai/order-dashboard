@@ -487,10 +487,15 @@ export default function BrandPerformanceDashboard() {
           const totalBrands = pivotData.brands.length;
           const liveBrands = pivotData.brands.filter((b) => b.total.count > 0).length;
           const topBrand = pivotData.brands[0];
+          // GMV = DELIVERED + COMPLETED only (matches Order Dashboard's ACHIEVED definition).
+          const deliveredCol = pivotData.statusColumns.find((sc) => sc.status === 'DELIVERED');
+          const completedCol = pivotData.statusColumns.find((sc) => sc.status === 'COMPLETED');
+          const gmvAmount = (deliveredCol?.total.amount ?? 0) + (completedCol?.total.amount ?? 0);
+          const gmvOrders = (deliveredCol?.total.count  ?? 0) + (completedCol?.total.count  ?? 0);
           const tiles: Array<{ label: string; primary: string; sub: string; idx: number }> = [
             { label: 'Brands with orders', primary: `${liveBrands.toLocaleString('en-IN')}`, sub: `of ${totalBrands} total`, idx: 0 },
             { label: 'Total orders',       primary: pivotData.grand.count.toLocaleString('en-IN'), sub: `${pivotData.months.length} month${pivotData.months.length === 1 ? '' : 's'} in scope`, idx: 1 },
-            { label: 'Total GMV',          primary: formatAmount(pivotData.grand.amount), sub: 'orders × amount', idx: 2 },
+            { label: 'Total GMV',          primary: formatAmount(gmvAmount), sub: `${gmvOrders.toLocaleString('en-IN')} orders · DELIVERED + COMPLETED`, idx: 2 },
             { label: 'Top brand',          primary: topBrand?.brandName ?? '—', sub: topBrand ? `${topBrand.total.count.toLocaleString('en-IN')} orders · ${formatAmount(topBrand.total.amount)}` : '', idx: 3 },
           ];
           return (

@@ -1180,15 +1180,55 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'demography' && activeTab !== 'live-brand') return;
+    if (activeTab !== 'demography') return;
     fetchSellerBrandList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, stateRange, stateCustomFrom, stateCustomTo]);
 
-  // Live brand tab UI state
-  const [liveBrandStatusFilter, setLiveBrandStatusFilter] = useState<'all' | 'live' | 'inactive'>('all');
+  // Live brand tab — fetch (seller, brand) mapping rows
+  const fetchLiveBrandMappings = async () => {
+    try {
+      const { startDate, endDate } = resolveStateRange();
+      const params = new URLSearchParams({ year: String(currentYear) });
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      const res = await fetch(`/api/live-brand-mappings?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setLiveBrandMappings(json.data);
+    } catch (err) {
+      console.error('Live brand mappings fetch error:', err);
+      setLiveBrandMappings([]);
+    }
+  };
+  useEffect(() => {
+    if (activeTab !== 'live-brand') return;
+    fetchLiveBrandMappings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo]);
+
+  // Live brand tab — one row per (seller, brand) mapping from users.seller_brand.
+  interface LiveBrandMapping {
+    sellerId: string;
+    sellerPhone: string | null;
+    sellerBusinessName: string | null;
+    sellerEmail: string | null;
+    minimumOrderValue: number | null;
+    commissionPct: number | null;
+    brandId: string;
+    brandLabel: string;
+    isLive: boolean;
+    lastOrderAt: string | null;
+    daysSinceLastOrder: number | null;
+    sellerTotalOrders: number;
+    sellerTotalAmount: number;
+    sellerStatesCovered: number;
+    sellerDistrictsCovered: number;
+  }
+  const [liveBrandMappings, setLiveBrandMappings] = useState<LiveBrandMapping[] | null>(null);
+  const [liveBrandStatusFilter, setLiveBrandStatusFilter] = useState<'all' | 'live' | 'inactive'>('live');
   const [liveBrandSearch, setLiveBrandSearch] = useState('');
-  const [liveBrandSort, setLiveBrandSort] = useState<'gmv' | 'orders' | 'last' | 'brand' | 'states'>('last');
+  const [liveBrandSort, setLiveBrandSort] = useState<'gmv' | 'orders' | 'last' | 'brand' | 'seller' | 'states'>('gmv');
 
   // Brand × State table
   const fetchBrandStateData = async () => {
@@ -4381,24 +4421,30 @@ export default function OrderStatusDashboard() {
               <div>
                 <h2 className="text-2xl font-bold text-white">Live brand</h2>
                 <p className="text-purple-300 text-sm mt-1">
-                  <span className="text-emerald-300 font-semibold">Live</span> = seller is D2R + isActive + INTERCITY × THIRD_PARTY, has pickup address, and at least one active <span className="font-mono text-fuchsia-300">seller_brand</span> mapping with a non-empty fulfilmentZone
+                  One row per (seller, brand) mapping from <span className="font-mono text-fuchsia-300">users.seller_brand</span>.
+                  {' '}<span className="text-emerald-300 font-semibold">Live</span> = seller is D2R + isActive + INTERCITY × THIRD_PARTY, has pickup, plus the seller_brand row is active with a non-empty fulfilmentZone.
                 </p>
               </div>
-              {sellerBrandList && sellerBrandList.length > 0 && (
+              {liveBrandMappings && liveBrandMappings.length > 0 && (
                 <button
                   className={DOWNLOAD_BTN_CLASS}
                   onClick={() => {
-                    const rows: CsvCell[][] = (sellerBrandList || []).map((b) => [
-                      b.brandName, b.brandLabels ?? '',
-                      b.isLive ? 'LIVE' : 'INACTIVE',
-                      b.lastOrderAt ?? '', b.daysSinceLastOrder ?? '',
-                      b.sellerIds.length, b.totalOrders, b.totalAmount,
-                      b.statesCovered, b.districtsCovered,
-                      b.sellerBusinessNames.join(' | '),
+                    const rows: CsvCell[][] = (liveBrandMappings || []).map((m) => [
+                      m.brandLabel, m.sellerBusinessName ?? '', m.sellerPhone ?? '', m.sellerEmail ?? '',
+                      m.isLive ? 'LIVE' : 'INACTIVE',
+                      m.minimumOrderValue ?? '', m.commissionPct ?? '',
+                      m.lastOrderAt ?? '', m.daysSinceLastOrder ?? '',
+                      m.sellerTotalOrders, m.sellerTotalAmount,
+                      m.sellerStatesCovered, m.sellerDistrictsCovered,
+                      m.brandId, m.sellerId,
                     ]);
                     downloadCSV(
-                      `live-brand-${currentYear}.csv`,
-                      ['Brand', 'Brand Labels (from brands.brand)', 'Status', 'Last Order At', 'Days Since Last Order', 'Sellers', 'Orders', 'GMV', 'States Covered', 'Districts Covered', 'Underlying sellers'],
+                      `live-brand-mappings-${currentYear}.csv`,
+                      ['Brand', 'Seller (businessName)', 'Phone', 'Email', 'Status', 'Min Order Value', 'CommissionSet%',
+                       'Last Order At (seller)', 'Days Since Last Order',
+                       'Seller Orders (window)', 'Seller GMV (window)',
+                       'Seller States (window)', 'Seller Districts (window)',
+                       'brandId', 'sellerId'],
                       rows
                     );
                   }}
@@ -4435,52 +4481,47 @@ export default function OrderStatusDashboard() {
               })}
               {stateRange === 'custom' && (
                 <div className="flex items-center gap-2 ml-2">
-                  <input
-                    type="date"
-                    value={stateCustomFrom}
-                    onChange={(e) => setStateCustomFrom(e.target.value)}
-                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  />
+                  <input type="date" value={stateCustomFrom} onChange={(e) => setStateCustomFrom(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400" />
                   <span className="text-purple-300 text-xs">to</span>
-                  <input
-                    type="date"
-                    value={stateCustomTo}
-                    onChange={(e) => setStateCustomTo(e.target.value)}
-                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  />
+                  <input type="date" value={stateCustomTo} onChange={(e) => setStateCustomTo(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-400" />
                 </div>
               )}
-              <span className="ml-2 text-[10px] text-purple-300/60">Live status is configuration-based (independent of dates); orders / GMV / coverage respect the date window</span>
+              <span className="ml-2 text-[10px] text-purple-300/60">Live status is configuration-based (independent of dates); orders / GMV / coverage respect the date window. Seller-level metrics repeat across a seller&apos;s mapping rows — KPI / footer GMV dedupe by seller.</span>
             </div>
 
             {/* KPI tiles */}
-            {sellerBrandList && (() => {
-              const live = sellerBrandList.filter((b) => b.isLive);
-              const inactive = sellerBrandList.filter((b) => !b.isLive);
-              const total = sellerBrandList;
-              const totalOrders = total.reduce((s, b) => s + b.totalOrders, 0);
-              const totalGmv = total.reduce((s, b) => s + b.totalAmount, 0);
+            {liveBrandMappings && (() => {
+              const live = liveBrandMappings.filter((m) => m.isLive);
+              const inactive = liveBrandMappings.filter((m) => !m.isLive);
+              // Dedupe by seller_id when summing GMV / orders (a seller's totals repeat per mapping row).
+              const liveSellers = new Map<string, LiveBrandMapping>();
+              for (const m of live) if (!liveSellers.has(m.sellerId)) liveSellers.set(m.sellerId, m);
+              const liveSellerArr = Array.from(liveSellers.values());
+              const liveOrders = liveSellerArr.reduce((s, m) => s + m.sellerTotalOrders, 0);
+              const liveGmv = liveSellerArr.reduce((s, m) => s + m.sellerTotalAmount, 0);
               return (
                 <div className="px-8 py-5 border-b border-white/10 grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-emerald-500/10 border border-emerald-400/30 rounded-xl p-4">
-                    <div className="text-[10px] uppercase tracking-wider text-emerald-200/80">● Live brands</div>
+                    <div className="text-[10px] uppercase tracking-wider text-emerald-200/80">● Live mappings</div>
                     <div className="text-3xl font-bold text-emerald-200 tabular-nums mt-1">{live.length.toLocaleString()}</div>
-                    <div className="text-[10px] text-emerald-300/70 mt-0.5">currently shippable</div>
+                    <div className="text-[10px] text-emerald-300/70 mt-0.5">{liveSellerArr.length} unique sellers</div>
                   </div>
                   <div className="bg-rose-500/10 border border-rose-400/30 rounded-xl p-4">
-                    <div className="text-[10px] uppercase tracking-wider text-rose-200/80">○ Inactive brands</div>
+                    <div className="text-[10px] uppercase tracking-wider text-rose-200/80">○ Inactive mappings</div>
                     <div className="text-3xl font-bold text-rose-200 tabular-nums mt-1">{inactive.length.toLocaleString()}</div>
-                    <div className="text-[10px] text-rose-300/70 mt-0.5">{total.length > 0 ? `${((inactive.length / total.length) * 100).toFixed(1)}%` : '0%'} of total</div>
+                    <div className="text-[10px] text-rose-300/70 mt-0.5">{liveBrandMappings.length > 0 ? `${((inactive.length / liveBrandMappings.length) * 100).toFixed(1)}%` : '0%'} of total</div>
                   </div>
                   <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                    <div className="text-[10px] uppercase tracking-wider text-purple-300">Total brands</div>
-                    <div className="text-3xl font-bold text-white tabular-nums mt-1">{total.length.toLocaleString()}</div>
-                    <div className="text-[10px] text-purple-300/70 mt-0.5">D2R brand sellers</div>
+                    <div className="text-[10px] uppercase tracking-wider text-purple-300">Total mappings</div>
+                    <div className="text-3xl font-bold text-white tabular-nums mt-1">{liveBrandMappings.length.toLocaleString()}</div>
+                    <div className="text-[10px] text-purple-300/70 mt-0.5">D2R seller_brand rows</div>
                   </div>
                   <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                    <div className="text-[10px] uppercase tracking-wider text-purple-300">Combined GMV</div>
-                    <div className="text-3xl font-bold text-fuchsia-200 tabular-nums mt-1">{formatAmount(totalGmv)}</div>
-                    <div className="text-[10px] text-purple-300/70 mt-0.5">{totalOrders.toLocaleString()} orders in window</div>
+                    <div className="text-[10px] uppercase tracking-wider text-purple-300">Combined GMV (Live)</div>
+                    <div className="text-3xl font-bold text-fuchsia-200 tabular-nums mt-1">{formatAmount(liveGmv)}</div>
+                    <div className="text-[10px] text-purple-300/70 mt-0.5">{liveOrders.toLocaleString()} orders · deduped by seller</div>
                   </div>
                 </div>
               );
@@ -4518,89 +4559,93 @@ export default function OrderStatusDashboard() {
               />
             </div>
 
-            {/* Brand table */}
+            {/* Mapping table */}
             <div className="overflow-auto max-h-[640px]">
-              {!sellerBrandList ? (
-                <div className="px-8 py-12 text-center text-purple-300">Loading brands…</div>
+              {!liveBrandMappings ? (
+                <div className="px-8 py-12 text-center text-purple-300">Loading mappings…</div>
               ) : (() => {
                 const q = liveBrandSearch.trim().toLowerCase();
-                let filtered = sellerBrandList;
-                if (liveBrandStatusFilter === 'live')     filtered = filtered.filter((b) => b.isLive);
-                if (liveBrandStatusFilter === 'inactive') filtered = filtered.filter((b) => !b.isLive);
+                let filtered = liveBrandMappings;
+                if (liveBrandStatusFilter === 'live')     filtered = filtered.filter((m) => m.isLive);
+                if (liveBrandStatusFilter === 'inactive') filtered = filtered.filter((m) => !m.isLive);
                 if (q) {
-                  filtered = filtered.filter((b) =>
-                    b.brandName.toLowerCase().includes(q) ||
-                    b.sellerBusinessNames.some((n) => (n || '').toLowerCase().includes(q))
+                  filtered = filtered.filter((m) =>
+                    (m.brandLabel || '').toLowerCase().includes(q) ||
+                    (m.sellerBusinessName || '').toLowerCase().includes(q) ||
+                    (m.sellerPhone || '').toLowerCase().includes(q)
                   );
                 }
                 const sorted = [...filtered].sort((a, b) => {
-                  if (liveBrandSort === 'gmv')    return b.totalAmount - a.totalAmount;
-                  if (liveBrandSort === 'orders') return b.totalOrders - a.totalOrders;
+                  if (liveBrandSort === 'gmv')    return b.sellerTotalAmount - a.sellerTotalAmount;
+                  if (liveBrandSort === 'orders') return b.sellerTotalOrders - a.sellerTotalOrders;
                   if (liveBrandSort === 'last') {
                     const ta = a.lastOrderAt ? new Date(a.lastOrderAt).getTime() : 0;
                     const tb = b.lastOrderAt ? new Date(b.lastOrderAt).getTime() : 0;
                     return tb - ta;
                   }
-                  if (liveBrandSort === 'brand')  return a.brandName.localeCompare(b.brandName);
-                  if (liveBrandSort === 'states') return b.statesCovered - a.statesCovered;
+                  if (liveBrandSort === 'brand')  return (a.brandLabel || '').localeCompare(b.brandLabel || '');
+                  if (liveBrandSort === 'seller') return (a.sellerBusinessName || '').localeCompare(b.sellerBusinessName || '');
+                  if (liveBrandSort === 'states') return b.sellerStatesCovered - a.sellerStatesCovered;
                   return 0;
                 });
                 if (sorted.length === 0) {
                   return <div className="px-8 py-12 text-center text-purple-300">No matches</div>;
                 }
+                // Footer: dedupe by seller for GMV / orders so a multi-brand seller isn't summed N times.
+                const filteredSellers = new Map<string, LiveBrandMapping>();
+                for (const m of filtered) if (!filteredSellers.has(m.sellerId)) filteredSellers.set(m.sellerId, m);
+                const filteredSellerArr = Array.from(filteredSellers.values());
+                const dedupedOrders = filteredSellerArr.reduce((s, m) => s + m.sellerTotalOrders, 0);
+                const dedupedGmv    = filteredSellerArr.reduce((s, m) => s + m.sellerTotalAmount, 0);
                 const ind = (col: typeof liveBrandSort) => liveBrandSort === col ? ' ↓' : '';
+                const fmtMoney = (n: number | null) => n === null ? '—' : `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+                const fmtPct   = (n: number | null) => n === null ? '—' : `${n}%`;
                 return (
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-white/10">
                       <tr>
                         <th className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider w-12">#</th>
-                        <th onClick={() => setLiveBrandSort('brand')} className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Brand{ind('brand')}</th>
+                        <th onClick={() => setLiveBrandSort('brand')}  className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Brand{ind('brand')}</th>
+                        <th onClick={() => setLiveBrandSort('seller')} className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Seller{ind('seller')}</th>
                         <th className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Status</th>
-                        <th onClick={() => setLiveBrandSort('last')} className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Last Order{ind('last')}</th>
+                        <th className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Min Order</th>
+                        <th className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Commission</th>
+                        <th onClick={() => setLiveBrandSort('last')}   className="px-3 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Last Order{ind('last')}</th>
                         <th className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Days Ago</th>
-                        <th className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Sellers</th>
-                        <th onClick={() => setLiveBrandSort('orders')} className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Orders{ind('orders')}</th>
-                        <th onClick={() => setLiveBrandSort('gmv')} className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">GMV{ind('gmv')}</th>
+                        <th onClick={() => setLiveBrandSort('orders')} className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">Orders (seller){ind('orders')}</th>
+                        <th onClick={() => setLiveBrandSort('gmv')}    className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">GMV (seller){ind('gmv')}</th>
                         <th onClick={() => setLiveBrandSort('states')} className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white">States{ind('states')}</th>
-                        <th className="px-3 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider">Districts</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sorted.map((b, i) => {
-                        const lastLabel = b.lastOrderAt
-                          ? new Date(b.lastOrderAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                      {sorted.map((m, i) => {
+                        const lastLabel = m.lastOrderAt
+                          ? new Date(m.lastOrderAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
                           : '—';
-                        const multiSeller = b.sellerIds.length > 1;
                         return (
-                          <tr key={b.brandName} className="border-b border-white/5 hover:bg-white/5 align-top">
+                          <tr key={`${m.sellerId}__${m.brandId}`} className="border-b border-white/5 hover:bg-white/5 align-top">
                             <td className="px-3 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
                             <td className="px-3 py-2.5">
-                              <div className="text-white font-semibold whitespace-nowrap">{b.brandName}</div>
-                              {b.brandLabels && b.brandLabels !== b.brandName && (
-                                <div className="text-[10px] text-fuchsia-300/80 truncate max-w-[280px]" title={b.brandLabels}>
-                                  brands: {b.brandLabels}
-                                </div>
-                              )}
-                              {multiSeller && (
-                                <div className="text-[10px] text-purple-300/70 truncate max-w-[280px]" title={b.sellerBusinessNames.join(' | ')}>
-                                  {b.sellerIds.length} sellers · {b.sellerBusinessNames.join(', ')}
-                                </div>
-                              )}
+                              <div className="text-white font-semibold whitespace-nowrap">{m.brandLabel || '—'}</div>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <div className="text-purple-100 font-medium whitespace-nowrap">{m.sellerBusinessName || '—'}</div>
+                              <div className="text-[10px] text-purple-300/70 tabular-nums whitespace-nowrap">{m.sellerPhone || '—'}</div>
                             </td>
                             <td className="px-3 py-2.5 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${b.isLive ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30' : 'bg-rose-500/20 text-rose-200 border border-rose-400/30'}`}>
-                                {b.isLive ? '● LIVE' : '○ INACTIVE'}
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${m.isLive ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30' : 'bg-rose-500/20 text-rose-200 border border-rose-400/30'}`}>
+                                {m.isLive ? '● LIVE' : '○ INACTIVE'}
                               </span>
                             </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-purple-200 whitespace-nowrap">{fmtMoney(m.minimumOrderValue)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-purple-200 whitespace-nowrap">{fmtPct(m.commissionPct)}</td>
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{lastLabel}</td>
-                            <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${b.daysSinceLastOrder === null ? 'text-purple-400/50 italic' : (b.daysSinceLastOrder <= 30 ? 'text-emerald-200' : 'text-rose-200')}`}>
-                              {b.daysSinceLastOrder === null ? 'never' : `${b.daysSinceLastOrder}d`}
+                            <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${m.daysSinceLastOrder === null ? 'text-purple-400/50 italic' : (m.daysSinceLastOrder <= 30 ? 'text-emerald-200' : 'text-rose-200')}`}>
+                              {m.daysSinceLastOrder === null ? 'never' : `${m.daysSinceLastOrder}d`}
                             </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-purple-200">{b.sellerIds.length}</td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-white font-semibold">{b.totalOrders.toLocaleString('en-IN')}</td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-fuchsia-200 font-semibold">{formatAmount(b.totalAmount)}</td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-purple-200">{b.statesCovered}</td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-purple-200">{b.districtsCovered}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-white font-semibold">{m.sellerTotalOrders.toLocaleString('en-IN')}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-fuchsia-200 font-semibold">{formatAmount(m.sellerTotalAmount)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-purple-200">{m.sellerStatesCovered}</td>
                           </tr>
                         );
                       })}
@@ -4609,13 +4654,18 @@ export default function OrderStatusDashboard() {
                       <tr>
                         <td className="px-3 py-2.5" />
                         <td className="px-3 py-2.5 text-purple-200 font-bold uppercase text-[11px] tracking-wider">Filtered total</td>
-                        <td className="px-3 py-2.5 text-purple-300/70 text-xs">{filtered.length} brands</td>
+                        <td className="px-3 py-2.5 text-purple-300/70 text-xs">{filteredSellerArr.length} unique sellers</td>
+                        <td className="px-3 py-2.5 text-purple-300/70 text-xs">{filtered.length} mappings</td>
                         <td className="px-3 py-2.5" />
                         <td className="px-3 py-2.5" />
                         <td className="px-3 py-2.5" />
-                        <td className="px-3 py-2.5 text-right tabular-nums text-white font-bold">{filtered.reduce((s, b) => s + b.totalOrders, 0).toLocaleString('en-IN')}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-fuchsia-300 font-bold">{formatAmount(filtered.reduce((s, b) => s + b.totalAmount, 0))}</td>
                         <td className="px-3 py-2.5" />
+                        <td className="px-3 py-2.5 text-right tabular-nums text-white font-bold" title="Deduped by seller (a multi-brand seller's totals are counted once)">
+                          {dedupedOrders.toLocaleString('en-IN')}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-fuchsia-300 font-bold" title="Deduped by seller">
+                          {formatAmount(dedupedGmv)}
+                        </td>
                         <td className="px-3 py-2.5" />
                       </tr>
                     </tfoot>

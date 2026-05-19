@@ -560,7 +560,7 @@ export default function BrandPerformanceDashboard() {
                     <div className={`${t.kpiValue} mt-1.5`} title={String(tile.count)}>
                       {tile.count.toLocaleString('en-IN')}
                     </div>
-                    <div className={`text-sm font-semibold tabular-nums mt-1 ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>
+                    <div className={`text-xl font-extrabold tabular-nums mt-1 ${t.isDark ? 'text-white' : 'text-slate-900'}`}>
                       {formatAmount(tile.amount)}
                     </div>
                     <div className={`text-[10px] uppercase tracking-wider mt-1 font-semibold ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>

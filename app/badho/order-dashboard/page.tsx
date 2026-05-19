@@ -335,7 +335,8 @@ export default function OrderStatusDashboard() {
     brandLabels: string | null;
     lastOrderAt: string | null;
     daysSinceLastOrder: number | null;
-    isActive: boolean;            // LIVE = matches the seller_brand eligibility query
+    isActive: boolean;  // recency-based (last order ≤ 30 days) — used by Demography
+    isLive: boolean;    // eligibility-based (seller_brand canonical query) — used by Live brand tab
     totalOrders: number;
     totalAmount: number;
     deliveredOrders: number;
@@ -4389,7 +4390,7 @@ export default function OrderStatusDashboard() {
                   onClick={() => {
                     const rows: CsvCell[][] = (sellerBrandList || []).map((b) => [
                       b.brandName, b.brandLabels ?? '',
-                      b.isActive ? 'LIVE' : 'INACTIVE',
+                      b.isLive ? 'LIVE' : 'INACTIVE',
                       b.lastOrderAt ?? '', b.daysSinceLastOrder ?? '',
                       b.sellerIds.length, b.totalOrders, b.totalAmount,
                       b.statesCovered, b.districtsCovered,
@@ -4449,13 +4450,13 @@ export default function OrderStatusDashboard() {
                   />
                 </div>
               )}
-              <span className="ml-2 text-[10px] text-purple-300/60">last-order-at is all-time (drives Live status); orders / GMV / coverage respect the date window</span>
+              <span className="ml-2 text-[10px] text-purple-300/60">Live status is configuration-based (independent of dates); orders / GMV / coverage respect the date window</span>
             </div>
 
             {/* KPI tiles */}
             {sellerBrandList && (() => {
-              const live = sellerBrandList.filter((b) => b.isActive);
-              const inactive = sellerBrandList.filter((b) => !b.isActive);
+              const live = sellerBrandList.filter((b) => b.isLive);
+              const inactive = sellerBrandList.filter((b) => !b.isLive);
               const total = sellerBrandList;
               const totalOrders = total.reduce((s, b) => s + b.totalOrders, 0);
               const totalGmv = total.reduce((s, b) => s + b.totalAmount, 0);
@@ -4524,8 +4525,8 @@ export default function OrderStatusDashboard() {
               ) : (() => {
                 const q = liveBrandSearch.trim().toLowerCase();
                 let filtered = sellerBrandList;
-                if (liveBrandStatusFilter === 'live')     filtered = filtered.filter((b) => b.isActive);
-                if (liveBrandStatusFilter === 'inactive') filtered = filtered.filter((b) => !b.isActive);
+                if (liveBrandStatusFilter === 'live')     filtered = filtered.filter((b) => b.isLive);
+                if (liveBrandStatusFilter === 'inactive') filtered = filtered.filter((b) => !b.isLive);
                 if (q) {
                   filtered = filtered.filter((b) =>
                     b.brandName.toLowerCase().includes(q) ||
@@ -4587,12 +4588,12 @@ export default function OrderStatusDashboard() {
                               )}
                             </td>
                             <td className="px-3 py-2.5 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${b.isActive ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30' : 'bg-rose-500/20 text-rose-200 border border-rose-400/30'}`}>
-                                {b.isActive ? '● LIVE' : '○ INACTIVE'}
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${b.isLive ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30' : 'bg-rose-500/20 text-rose-200 border border-rose-400/30'}`}>
+                                {b.isLive ? '● LIVE' : '○ INACTIVE'}
                               </span>
                             </td>
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{lastLabel}</td>
-                            <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${b.daysSinceLastOrder === null ? 'text-purple-400/50 italic' : b.isActive ? 'text-emerald-200' : 'text-rose-200'}`}>
+                            <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${b.daysSinceLastOrder === null ? 'text-purple-400/50 italic' : (b.daysSinceLastOrder <= 30 ? 'text-emerald-200' : 'text-rose-200')}`}>
                               {b.daysSinceLastOrder === null ? 'never' : `${b.daysSinceLastOrder}d`}
                             </td>
                             <td className="px-3 py-2.5 text-right tabular-nums text-purple-200">{b.sellerIds.length}</td>

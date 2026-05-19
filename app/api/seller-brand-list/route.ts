@@ -19,14 +19,16 @@ interface Row {
   districts_covered: string;
 }
 
-// LIVE definition (drives the ACTIVE / INACTIVE pill across the dashboard) is the
-// user's canonical "active brand" eligibility query:
-//   - seller is D2R, isActive, INTERCITY × THIRD_PARTY, has pickup address, not test/milko
-//   - has at least one active seller_brand mapping with a non-empty fulfilmentZone
-// (recency / lastOrderAt stays as informational data; it no longer drives the pill)
+// Returns two distinct status flags per brand:
+//   - is_active = recency-based (last order within 30 days). Used by Demography UI.
+//   - is_live   = configuration-based, from the user's canonical "active brand" query:
+//                   seller is D2R, isActive, INTERCITY × THIRD_PARTY, has pickup address,
+//                   not test/milko, and has at least one active seller_brand mapping with
+//                   a non-empty fulfilmentZone.
+//                 Used by the Live brand tab.
 //
-// Display brand name still groups by TRIM(SPLIT_PART(businessName, '-', 1)) so
-// "ChukDe - GT" + "ChukDe - NonGT" collapse into one row; the actual brand record
+// Display brand name groups by TRIM(SPLIT_PART(businessName, '-', 1)) so
+// "ChukDe - GT" + "ChukDe - NonGT" collapse into one row; actual brand record
 // labels from "brands"."brand" are surfaced alongside via the brand_labels column.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -89,7 +91,6 @@ export async function GET(req: NextRequest) {
         FROM "users"."seller" s
         WHERE s."isTest"           = FALSE
           AND s."businessName" NOT ILIKE '%test%'
-          AND s."businessName" NOT ILIKE '%milko%'
           AND s."isD2RBrandSeller" = TRUE
       ),
       windowed AS (
@@ -108,7 +109,6 @@ export async function GET(req: NextRequest) {
           AND b."businessName" NOT ILIKE '%test%'
           AND s."isTest"           = FALSE
           AND s."businessName" NOT ILIKE '%test%'
-          AND s."businessName" NOT ILIKE '%milko%'
           AND s."isD2RBrandSeller" = TRUE
           AND po."deliveryNetwork" = 'THIRD_PARTY'
           AND po."deliveryType"    = 'INTERCITY'
@@ -129,7 +129,6 @@ export async function GET(req: NextRequest) {
           AND b."businessName" NOT ILIKE '%test%'
           AND s."isTest"           = FALSE
           AND s."businessName" NOT ILIKE '%test%'
-          AND s."businessName" NOT ILIKE '%milko%'
           AND s."isD2RBrandSeller" = TRUE
           AND po."deliveryNetwork" = 'THIRD_PARTY'
           AND po."deliveryType"    = 'INTERCITY'
@@ -185,19 +184,22 @@ export async function GET(req: NextRequest) {
       FROM brand_sellers bs
       LEFT JOIN brand_metrics bm ON bm.brand_name = bs.brand_name
       LEFT JOIN brand_last    bl ON bl.brand_name = bs.brand_name
-      ORDER BY bs.is_live DESC, bm.total_orders DESC NULLS LAST, bs.brand_name ASC;
+      ORDER BY bm.total_orders DESC NULLS LAST, bs.brand_name ASC;
     `;
     const rows = await query<Row>(sql, params);
 
     const data = rows.map((r) => {
       const days = r.days_since_last_order ? parseInt(r.days_since_last_order) : null;
+      // isActive = recency (used by Demography). isLive = eligibility (used by Live brand tab).
+      const isActive = days !== null && days <= 30;
       const isLive = r.is_live === true || r.is_live === 'true' || r.is_live === 't';
       return {
         brandName: r.brand_name || '(no name)',
         sellerIds: (r.seller_ids || '').split(',').filter(Boolean),
         sellerBusinessNames: (r.seller_business_names || '').split('|').filter(Boolean),
         brandLabels: r.brand_labels,
-        isActive: isLive,
+        isActive,
+        isLive,
         lastOrderAt: r.last_order_at,
         daysSinceLastOrder: days,
         totalOrders: parseInt(r.total_orders || '0'),

@@ -341,7 +341,7 @@ export default function BrandPerformanceDashboard() {
                         </th>
                       );
                     })}
-                    <th rowSpan={3} className="sticky right-0 z-30 bg-fuchsia-900/30 border-b border-l-2 border-fuchsia-400/40 px-3 py-3 text-right font-semibold text-fuchsia-200 uppercase tracking-wider min-w-[120px]">
+                    <th rowSpan={3} className="sticky right-0 z-30 bg-fuchsia-950 border-b border-l-2 border-fuchsia-400/70 px-4 py-3 text-right font-bold text-fuchsia-100 uppercase tracking-wider min-w-[130px] shadow-[-8px_0_24px_-12px_rgba(0,0,0,0.6)]">
                       Total
                     </th>
                   </tr>
@@ -421,9 +421,9 @@ export default function BrandPerformanceDashboard() {
                           );
                         });
                       }))}
-                      <td className="sticky right-0 z-10 bg-fuchsia-900/30 border-b border-l-2 border-fuchsia-400/40 px-4 py-3 text-right whitespace-nowrap">
+                      <td className="sticky right-0 z-10 bg-fuchsia-950 border-b border-l-2 border-fuchsia-400/70 px-4 py-3 text-right whitespace-nowrap shadow-[-8px_0_24px_-12px_rgba(0,0,0,0.6)]">
                         <div className="text-base font-extrabold tabular-nums leading-tight text-white">{br.total.count.toLocaleString('en-IN')}</div>
-                        <div className="text-xs font-semibold tabular-nums mt-0.5 text-fuchsia-100">{formatAmount(br.total.amount)}</div>
+                        <div className="text-xs font-semibold tabular-nums mt-0.5 text-fuchsia-200">{formatAmount(br.total.amount)}</div>
                       </td>
                     </tr>
                   ))}
@@ -454,7 +454,7 @@ export default function BrandPerformanceDashboard() {
                         );
                       });
                     }))}
-                    <td className="sticky right-0 z-30 bg-fuchsia-900/40 border-t border-l-2 border-fuchsia-400/40 px-4 py-3 text-right whitespace-nowrap">
+                    <td className="sticky right-0 z-30 bg-gradient-to-r from-fuchsia-950 to-purple-950 border-t border-l-2 border-fuchsia-400/70 px-4 py-3 text-right whitespace-nowrap shadow-[-8px_0_24px_-12px_rgba(0,0,0,0.6)]">
                       <div className="text-lg font-extrabold tabular-nums leading-tight text-white">{pivotData.grand.count.toLocaleString('en-IN')}</div>
                       <div className="text-sm font-semibold tabular-nums mt-0.5 text-fuchsia-100">{formatAmount(pivotData.grand.amount)}</div>
                     </td>

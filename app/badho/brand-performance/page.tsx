@@ -54,30 +54,30 @@ interface PivotData {
   endDate: string | null;
 }
 
-// Brighter, punchier tones for the count digits (was 200; now 50/100).
+// Single sexy palette — keep status color only for the small header pills
+// so context isn't lost, but every data cell uses one neutral background and
+// pure-white counts so the numbers actually pop.
 const STATUS_TONE: Record<string, string> = {
-  DELIVERED: 'text-emerald-50',   COMPLETED: 'text-emerald-50',
-  REJECTED:  'text-rose-50',      CANCELLED: 'text-amber-50',
-  PENDING:   'text-sky-50',       ACCEPTED:  'text-purple-50',
-  INVOICED:  'text-fuchsia-50',
+  DELIVERED: 'text-emerald-300',  COMPLETED: 'text-emerald-300',
+  REJECTED:  'text-rose-300',     CANCELLED: 'text-amber-300',
+  PENDING:   'text-sky-300',      ACCEPTED:  'text-violet-300',
+  INVOICED:  'text-fuchsia-300',
 };
-// Amount line color — softer than counts but still high-contrast.
-const AMOUNT_TONE: Record<string, string> = {
-  DELIVERED: 'text-emerald-200/90',  COMPLETED: 'text-emerald-200/90',
-  REJECTED:  'text-rose-200/90',     CANCELLED: 'text-amber-200/90',
-  PENDING:   'text-sky-200/90',      ACCEPTED:  'text-purple-200/90',
-  INVOICED:  'text-fuchsia-200/90',
+// Tiny status-tinted pill background for header chips (NOT used on data cells).
+const STATUS_PILL_BG: Record<string, string> = {
+  DELIVERED: 'bg-emerald-500/15', COMPLETED: 'bg-emerald-500/15',
+  REJECTED:  'bg-rose-500/15',    CANCELLED: 'bg-amber-500/15',
+  PENDING:   'bg-sky-500/15',     ACCEPTED:  'bg-violet-500/15',
+  INVOICED:  'bg-fuchsia-500/15',
 };
-// Slightly stronger cell tinting so the column groups are visible.
-const STATUS_BG: Record<string, string> = {
-  DELIVERED: 'bg-emerald-500/10', COMPLETED: 'bg-emerald-500/10',
-  REJECTED:  'bg-rose-500/10',    CANCELLED: 'bg-amber-500/10',
-  PENDING:   'bg-sky-500/10',     ACCEPTED:  'bg-purple-500/10',
-  INVOICED:  'bg-fuchsia-500/10',
-};
-const amountToneFor = (s: string) => AMOUNT_TONE[s] || 'text-purple-100/90';
+// All data cells share one quiet background — alternated per row for scannability.
+const STATUS_BG: Record<string, string> = {};
+const pillBgFor = (s: string) => STATUS_PILL_BG[s] || 'bg-white/10';
+// All amounts share a single muted purple so the column doesn't fight the count.
+const amountToneFor = (_s: string) => 'text-purple-300/80';
 const toneFor = (s: string) => STATUS_TONE[s] || 'text-white';
-const bgFor   = (s: string) => STATUS_BG[s] || 'bg-white/5';
+// Data cells: no status tint. Caller passes a neutral or alternating background.
+const bgFor   = (_s: string) => '';
 
 export default function BrandPerformanceDashboard() {
   const router = useRouter();
@@ -326,7 +326,7 @@ export default function BrandPerformanceDashboard() {
                   <button
                     key={sc.status}
                     onClick={() => toggleStatus(sc.status)}
-                    className={`px-2 py-0.5 rounded-md font-semibold ${bgFor(sc.status)} ${toneFor(sc.status)} border ${expanded ? 'border-white/30' : 'border-white/10'} hover:border-white/40`}
+                    className={`px-2 py-0.5 rounded-md font-semibold ${pillBgFor(sc.status)} ${toneFor(sc.status)} border ${expanded ? 'border-white/30' : 'border-white/10'} hover:border-white/40`}
                   >
                     {expanded ? '▾' : '▸'} {sc.status} <span className="text-purple-300/60 font-normal">({sc.total.count.toLocaleString()})</span>
                   </button>
@@ -380,10 +380,12 @@ export default function BrandPerformanceDashboard() {
                         key={`m${m}_${sc.status}`}
                         colSpan={subColsFor(sc)}
                         onClick={() => toggleStatus(sc.status)}
-                        className={`bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-center font-semibold ${toneFor(sc.status)} cursor-pointer hover:bg-white/10 select-none whitespace-nowrap text-[11px] uppercase tracking-wider`}
+                        className="bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-center cursor-pointer hover:bg-white/10 select-none whitespace-nowrap"
                         title={`Click to ${expandedStatuses.has(sc.status) ? 'collapse' : 'expand'} ${sc.status} delivery-status breakdown`}
                       >
-                        <span className="text-[10px] opacity-70 mr-0.5">{expandedStatuses.has(sc.status) ? '▾' : '▸'}</span>{sc.status}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${pillBgFor(sc.status)} ${toneFor(sc.status)} border border-white/10`}>
+                          <span className="text-[10px] opacity-70">{expandedStatuses.has(sc.status) ? '▾' : '▸'}</span>{sc.status}
+                        </span>
                       </th>
                     )))}
                   </tr>
@@ -411,7 +413,7 @@ export default function BrandPerformanceDashboard() {
                 </thead>
                 <tbody>
                   {visibleBrands.map((br, idx) => (
-                    <tr key={br.brandName} className="hover:bg-white/5">
+                    <tr key={br.brandName} className={`${idx % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'} hover:bg-white/10 transition-colors`}>
                       <td className="sticky left-0 z-10 bg-slate-900 border-b border-r border-white/10 px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-purple-300/60 tabular-nums w-6">{idx + 1}</span>
@@ -428,7 +430,7 @@ export default function BrandPerformanceDashboard() {
                           }
                           return [
                             <td key={`c_${br.brandName}_${m}_${sc.status}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-3 py-3 text-right whitespace-nowrap`}>
-                              <div className={`text-base font-extrabold tabular-nums leading-tight ${toneFor(sc.status)}`}>{cell.count.toLocaleString('en-IN')}</div>
+                              <div className="text-base font-extrabold tabular-nums leading-tight text-white">{cell.count.toLocaleString('en-IN')}</div>
                               <div className={`text-xs font-semibold tabular-nums mt-0.5 ${amountToneFor(sc.status)}`}>{formatAmount(cell.amount)}</div>
                             </td>
                           ];
@@ -443,7 +445,7 @@ export default function BrandPerformanceDashboard() {
                           }
                           return (
                             <td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-b border-r border-white/10 ${bgFor(sc.status)} px-3 py-3 text-right whitespace-nowrap`}>
-                              <div className={`text-base font-extrabold tabular-nums leading-tight ${toneFor(sc.status)}`}>{cell.count.toLocaleString('en-IN')}</div>
+                              <div className="text-base font-extrabold tabular-nums leading-tight text-white">{cell.count.toLocaleString('en-IN')}</div>
                               <div className={`text-xs font-semibold tabular-nums mt-0.5 ${amountToneFor(sc.status)}`}>{formatAmount(cell.amount)}</div>
                             </td>
                           );
@@ -466,7 +468,7 @@ export default function BrandPerformanceDashboard() {
                         const t = pivotData.monthStatusTotals[`${m}__${sc.status}`] ?? { count: 0, amount: 0 };
                         return [
                           <td key={`t_${m}_${sc.status}`} className={`border-t border-r border-white/10 ${bgFor(sc.status)} px-3 py-3 text-right whitespace-nowrap`}>
-                            <div className={`text-base font-extrabold tabular-nums leading-tight ${toneFor(sc.status)}`}>{t.count.toLocaleString('en-IN')}</div>
+                            <div className="text-base font-extrabold tabular-nums leading-tight text-white">{t.count.toLocaleString('en-IN')}</div>
                             <div className={`text-xs font-semibold tabular-nums mt-0.5 ${amountToneFor(sc.status)}`}>{formatAmount(t.amount)}</div>
                           </td>
                         ];
@@ -476,7 +478,7 @@ export default function BrandPerformanceDashboard() {
                         const t = pivotData.monthStatusDeliveryTotals[`${m}__${sc.status}__${dKey}`] ?? { count: 0, amount: 0 };
                         return (
                           <td key={`t_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-t border-r border-white/10 ${bgFor(sc.status)} px-3 py-3 text-right whitespace-nowrap`}>
-                            <div className={`text-base font-extrabold tabular-nums leading-tight ${toneFor(sc.status)}`}>{t.count.toLocaleString('en-IN')}</div>
+                            <div className="text-base font-extrabold tabular-nums leading-tight text-white">{t.count.toLocaleString('en-IN')}</div>
                             <div className={`text-xs font-semibold tabular-nums mt-0.5 ${amountToneFor(sc.status)}`}>{formatAmount(t.amount)}</div>
                           </td>
                         );
@@ -630,13 +632,17 @@ export default function BrandPerformanceDashboard() {
                   </thead>
                   <tbody>
                     {sorted.map((r, i) => (
-                      <tr key={`${r.brandName}__${r.month}__${r.status}__${r.deliveryStatus ?? '_'}__${i}`} className={`border-b border-white/5 hover:bg-white/5 ${bgFor(r.status)}`}>
+                      <tr key={`${r.brandName}__${r.month}__${r.status}__${r.deliveryStatus ?? '_'}__${i}`} className={`border-b border-white/5 hover:bg-white/10 transition-colors ${i % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'}`}>
                         <td className="px-3 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
-                        <td className="px-4 py-2.5 text-white font-semibold whitespace-nowrap">{r.brandName}</td>
-                        <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{MONTH_NAMES[r.month - 1] || r.month}</td>
-                        <td className={`px-3 py-2.5 font-semibold whitespace-nowrap ${toneFor(r.status)}`}>{r.status}</td>
-                        <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.deliveryStatus || <span className="italic text-purple-400/60">(none)</span>}</td>
-                        <td className={`px-3 py-2.5 text-right text-base font-extrabold tabular-nums ${toneFor(r.status)}`}>{r.count.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 text-white font-bold whitespace-nowrap">{r.brandName}</td>
+                        <td className="px-3 py-2.5 text-purple-200 whitespace-nowrap">{MONTH_NAMES[r.month - 1] || r.month}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${pillBgFor(r.status)} ${toneFor(r.status)} border border-white/10`}>
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-purple-200 whitespace-nowrap">{r.deliveryStatus || <span className="italic text-purple-400/60">(none)</span>}</td>
+                        <td className="px-3 py-2.5 text-right text-base font-extrabold tabular-nums text-white">{r.count.toLocaleString('en-IN')}</td>
                         <td className={`px-3 py-2.5 text-right text-sm font-semibold tabular-nums ${amountToneFor(r.status)}`}>{formatAmount(r.amount)}</td>
                       </tr>
                     ))}

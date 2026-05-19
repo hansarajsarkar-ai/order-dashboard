@@ -482,8 +482,8 @@ export default function BrandPerformanceDashboard() {
           })}
         </div>
 
-        {/* KPI strip */}
-        {pivotData && (() => {
+        {/* KPI strip — Dashboard tab only */}
+        {bpTab === 'dashboard' && pivotData && (() => {
           const totalBrands = pivotData.brands.length;
           const liveBrands = pivotData.brands.filter((b) => b.total.count > 0).length;
           const topBrand = pivotData.brands[0];

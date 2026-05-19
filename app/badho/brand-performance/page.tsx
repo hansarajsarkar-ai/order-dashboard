@@ -484,32 +484,88 @@ export default function BrandPerformanceDashboard() {
 
         {/* KPI strip — Dashboard tab only */}
         {bpTab === 'dashboard' && pivotData && (() => {
-          const totalBrands = pivotData.brands.length;
-          const liveBrands = pivotData.brands.filter((b) => b.total.count > 0).length;
-          const topBrand = pivotData.brands[0];
-          // GMV = DELIVERED + COMPLETED only (matches Order Dashboard's ACHIEVED definition).
-          const deliveredCol = pivotData.statusColumns.find((sc) => sc.status === 'DELIVERED');
-          const completedCol = pivotData.statusColumns.find((sc) => sc.status === 'COMPLETED');
-          const gmvAmount = (deliveredCol?.total.amount ?? 0) + (completedCol?.total.amount ?? 0);
-          const gmvOrders = (deliveredCol?.total.count  ?? 0) + (completedCol?.total.count  ?? 0);
-          const tiles: Array<{ label: string; primary: string; sub: string; idx: number }> = [
-            { label: 'Brands with orders', primary: `${liveBrands.toLocaleString('en-IN')}`, sub: `of ${totalBrands} total`, idx: 0 },
-            { label: 'Total orders',       primary: pivotData.grand.count.toLocaleString('en-IN'), sub: `${pivotData.months.length} month${pivotData.months.length === 1 ? '' : 's'} in scope`, idx: 1 },
-            { label: 'Total GMV',          primary: formatAmount(gmvAmount), sub: `${gmvOrders.toLocaleString('en-IN')} orders · DELIVERED + COMPLETED`, idx: 2 },
-            { label: 'Top brand',          primary: topBrand?.brandName ?? '—', sub: topBrand ? `${topBrand.total.count.toLocaleString('en-IN')} orders · ${formatAmount(topBrand.total.amount)}` : '', idx: 3 },
+          const find = (s: string) => pivotData.statusColumns.find((sc) => sc.status === s);
+          const delCol = find('DELIVERED');
+          const compCol = find('COMPLETED');
+          const rejCol = find('REJECTED');
+          const canCol = find('CANCELLED');
+
+          const totalCount  = pivotData.grand.count;
+          const totalAmount = pivotData.grand.amount;
+          const delCount    = (delCol?.total.count  ?? 0) + (compCol?.total.count  ?? 0);
+          const delAmount   = (delCol?.total.amount ?? 0) + (compCol?.total.amount ?? 0);
+          const rejCount    = rejCol?.total.count   ?? 0;
+          const rejAmount   = rejCol?.total.amount  ?? 0;
+          const canCount    = canCol?.total.count   ?? 0;
+          const canAmount   = canCol?.total.amount  ?? 0;
+
+          const pct = (n: number) => totalCount > 0 ? ((n / totalCount) * 100).toFixed(1) : '0.0';
+
+          interface Tile {
+            label: string;
+            count: number;
+            amount: number;
+            pctLabel: string | null;
+            accentBar: string;          // light-mode left bar gradient
+            tint: string;               // dark-mode background gradient
+            pctClass: string;           // pct chip color
+          }
+          const tiles: Tile[] = [
+            {
+              label: 'Total orders',
+              count: totalCount, amount: totalAmount, pctLabel: null,
+              accentBar: 'from-purple-500 to-indigo-500',
+              tint: 'bg-gradient-to-br from-purple-500/25 to-indigo-500/10',
+              pctClass: t.isDark ? 'bg-purple-500/20 text-purple-200 border-purple-400/30' : 'bg-purple-100 text-purple-700 border-purple-200',
+            },
+            {
+              label: 'Delivered + Completed',
+              count: delCount, amount: delAmount, pctLabel: `${pct(delCount)}% of total`,
+              accentBar: 'from-emerald-500 to-teal-500',
+              tint: 'bg-gradient-to-br from-emerald-500/25 to-teal-500/10',
+              pctClass: t.isDark ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30' : 'bg-emerald-100 text-emerald-700 border-emerald-200',
+            },
+            {
+              label: 'Rejected',
+              count: rejCount, amount: rejAmount, pctLabel: `${pct(rejCount)}% of total`,
+              accentBar: 'from-rose-500 to-red-500',
+              tint: 'bg-gradient-to-br from-rose-500/25 to-red-500/10',
+              pctClass: t.isDark ? 'bg-rose-500/20 text-rose-200 border-rose-400/30' : 'bg-rose-100 text-rose-700 border-rose-200',
+            },
+            {
+              label: 'Cancelled',
+              count: canCount, amount: canAmount, pctLabel: `${pct(canCount)}% of total`,
+              accentBar: 'from-amber-500 to-orange-500',
+              tint: 'bg-gradient-to-br from-amber-500/25 to-orange-500/10',
+              pctClass: t.isDark ? 'bg-amber-500/20 text-amber-200 border-amber-400/30' : 'bg-amber-100 text-amber-700 border-amber-200',
+            },
           ];
           return (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              {tiles.map((tile) => (
-                <div key={tile.idx} className={`${t.kpiCard} ${t.isDark ? t.kpiTint[tile.idx] : ''}`}>
+              {tiles.map((tile, idx) => (
+                <div key={idx} className={`${t.kpiCard} ${t.isDark ? tile.tint : ''}`}>
                   {t.isDark && <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent pointer-events-none" />}
                   {!t.isDark && (
-                    <div className={`absolute top-0 left-0 h-full w-1 bg-gradient-to-b ${t.kpiIconBar[tile.idx]}`} />
+                    <div className={`absolute top-0 left-0 h-full w-1 bg-gradient-to-b ${tile.accentBar}`} />
                   )}
                   <div className="relative">
-                    <div className={t.kpiLabel}>{tile.label}</div>
-                    <div className={t.kpiValue} title={tile.primary}>{tile.primary}</div>
-                    <div className={t.kpiSub} title={tile.sub}>{tile.sub}</div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className={t.kpiLabel}>{tile.label}</div>
+                      {tile.pctLabel && (
+                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${tile.pctClass} whitespace-nowrap`}>
+                          {tile.pctLabel}
+                        </span>
+                      )}
+                    </div>
+                    <div className={`${t.kpiValue} mt-1.5`} title={String(tile.count)}>
+                      {tile.count.toLocaleString('en-IN')}
+                    </div>
+                    <div className={`text-sm font-semibold tabular-nums mt-1 ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>
+                      {formatAmount(tile.amount)}
+                    </div>
+                    <div className={`text-[10px] uppercase tracking-wider mt-1 font-semibold ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>
+                      orders · value
+                    </div>
                   </div>
                 </div>
               ))}

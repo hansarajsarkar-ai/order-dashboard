@@ -22,6 +22,9 @@ interface Row {
   marked_status_initiated_time: string | null;
   refund_processing_hours: string | null;
   hours_till_refund: string | null;
+  reject_reason: string | null;
+  rejected_by: string | null;
+  reason_added_by_badho_team: string | null;
 }
 
 // Mirrors the source CTE in the main route.
@@ -83,7 +86,10 @@ export async function GET(req: NextRequest) {
                                                                               AS refund_processing_hours,
         (EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime"
           - COALESCE(a."markedRejectedTime", a."markedCancelledTime"))) / 3600)::text
-                                                                              AS hours_till_refund
+                                                                              AS hours_till_refund,
+        a."rejectReason"                                                      AS reject_reason,
+        a."rejectedBy"                                                        AS rejected_by,
+        a."reasonAddedByBadhoTeam"                                            AS reason_added_by_badho_team
       FROM "purchaseOrder"."purchaseOrder" a
       JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
       JOIN "users"."seller" s   ON s."id" = a."sellerId"
@@ -120,6 +126,9 @@ export async function GET(req: NextRequest) {
       markedStatusInitiatedTime: r.marked_status_initiated_time,
       refundProcessingHours: r.refund_processing_hours ? parseFloat(r.refund_processing_hours) : null,
       hoursTillRefund: r.hours_till_refund ? parseFloat(r.hours_till_refund) : null,
+      rejectReason: r.reject_reason,
+      rejectedBy: r.rejected_by,
+      reasonAddedByBadhoTeam: r.reason_added_by_badho_team,
     }));
 
     return NextResponse.json({

@@ -105,6 +105,9 @@ interface ListRow {
   markedStatusInitiatedTime: string | null;
   refundProcessingHours: number | null;
   hoursTillRefund: number | null;
+  rejectReason: string | null;
+  rejectedBy: string | null;
+  reasonAddedByBadhoTeam: string | null;
 }
 interface AlertItem {
   purchaseOrderId: string;
@@ -645,12 +648,13 @@ export default function RefundOrderAmountDashboard() {
                   onClick={() => {
                     downloadCSV(
                       `refund-orders-${year}.csv`,
-                      ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone'],
+                      ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                       filteredList.map((r) => [
                         r.poNumber, r.status, r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
                         r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
                         r.hoursTillRefund ?? '', r.buyerBusinessName ?? '', r.buyerPhone ?? '',
                         r.sellerBusinessName ?? '', r.sellerPhone ?? '',
+                        r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? '',
                       ]),
                     );
                   }}
@@ -675,6 +679,9 @@ export default function RefundOrderAmountDashboard() {
                     <th className="px-3 py-2 text-right">Hrs→Refund</th>
                     <th className="px-3 py-2 text-left">Buyer</th>
                     <th className="px-3 py-2 text-left">Seller</th>
+                    <th className="px-3 py-2 text-left">Reject Reason</th>
+                    <th className="px-3 py-2 text-left">Rejected By</th>
+                    <th className="px-3 py-2 text-left">Badho Team Reason</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -704,11 +711,18 @@ export default function RefundOrderAmountDashboard() {
                         <div className="text-white">{r.sellerBusinessName || '—'}</div>
                         <div className="text-purple-300/70 text-[10px]">{r.sellerPhone || ''}</div>
                       </td>
+                      <td className="px-3 py-2 text-purple-200 max-w-[200px]" title={r.rejectReason || ''}>
+                        {r.rejectReason ? <span className="block truncate">{r.rejectReason}</span> : <span className="text-purple-400/50 italic">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-purple-200">{r.rejectedBy || <span className="text-purple-400/50 italic">—</span>}</td>
+                      <td className="px-3 py-2 text-purple-200 max-w-[200px]" title={r.reasonAddedByBadhoTeam || ''}>
+                        {r.reasonAddedByBadhoTeam ? <span className="block truncate">{r.reasonAddedByBadhoTeam}</span> : <span className="text-purple-400/50 italic">—</span>}
+                      </td>
                     </tr>
                   ))}
                   {!loading && filteredList.length === 0 && (
                     <tr>
-                      <td colSpan={11} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
+                      <td colSpan={14} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
                     </tr>
                   )}
                 </tbody>
@@ -754,12 +768,13 @@ export default function RefundOrderAmountDashboard() {
                     onClick={() => {
                       downloadCSV(
                         `refund-${modal.filter}-${modal.startDate}-${modal.endDate}.csv`,
-                        ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone'],
+                        ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                         modalOrders.map((r) => [
                           r.poNumber, r.status, r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
                           r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
                           r.hoursTillRefund ?? '', r.buyerBusinessName ?? '', r.buyerPhone ?? '',
                           r.sellerBusinessName ?? '', r.sellerPhone ?? '',
+                          r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? '',
                         ]),
                       );
                     }}
@@ -802,6 +817,9 @@ export default function RefundOrderAmountDashboard() {
                         <th className="px-3 py-2 text-right">Hrs→Refund</th>
                         <th className="px-3 py-2 text-left">Buyer</th>
                         <th className="px-3 py-2 text-left">Seller</th>
+                        <th className="px-3 py-2 text-left">Reject Reason</th>
+                        <th className="px-3 py-2 text-left">Rejected By</th>
+                        <th className="px-3 py-2 text-left">Badho Team Reason</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -830,6 +848,13 @@ export default function RefundOrderAmountDashboard() {
                           <td className="px-3 py-2 text-purple-200">
                             <div className="text-white">{r.sellerBusinessName || '—'}</div>
                             <div className="text-purple-300/70 text-[10px]">{r.sellerPhone || ''}</div>
+                          </td>
+                          <td className="px-3 py-2 text-purple-200 max-w-[200px]" title={r.rejectReason || ''}>
+                            {r.rejectReason ? <span className="block truncate">{r.rejectReason}</span> : <span className="text-purple-400/50 italic">—</span>}
+                          </td>
+                          <td className="px-3 py-2 text-purple-200">{r.rejectedBy || <span className="text-purple-400/50 italic">—</span>}</td>
+                          <td className="px-3 py-2 text-purple-200 max-w-[200px]" title={r.reasonAddedByBadhoTeam || ''}>
+                            {r.reasonAddedByBadhoTeam ? <span className="block truncate">{r.reasonAddedByBadhoTeam}</span> : <span className="text-purple-400/50 italic">—</span>}
                           </td>
                         </tr>
                       ))}

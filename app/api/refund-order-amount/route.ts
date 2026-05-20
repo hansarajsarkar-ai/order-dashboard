@@ -58,6 +58,9 @@ interface ListItem {
   markedStatusInitiatedTime: string | null;
   refundProcessingHours: number | null;
   hoursTillRefund: number | null;
+  rejectReason: string | null;
+  rejectedBy: string | null;
+  reasonAddedByBadhoTeam: string | null;
 }
 
 interface AlertItem {
@@ -133,7 +136,10 @@ export async function GET(req: NextRequest) {
                                                   AS refund_processing_hours,
           EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime"
             - COALESCE(a."markedRejectedTime", a."markedCancelledTime"))) / 3600
-                                                  AS hours_till_refund
+                                                  AS hours_till_refund,
+          a."rejectReason"                        AS reject_reason,
+          a."rejectedBy"                          AS rejected_by,
+          a."reasonAddedByBadhoTeam"              AS reason_added_by_badho_team
         FROM "purchaseOrder"."purchaseOrder" a
         JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
         JOIN "users"."seller" s   ON s."id" = a."sellerId"
@@ -322,7 +328,10 @@ export async function GET(req: NextRequest) {
             'markedStatusCompletedTime',  marked_status_completed_time,
             'markedStatusInitiatedTime',  marked_status_initiated_time,
             'refundProcessingHours',      refund_processing_hours,
-            'hoursTillRefund',            hours_till_refund
+            'hoursTillRefund',            hours_till_refund,
+            'rejectReason',               reject_reason,
+            'rejectedBy',                 rejected_by,
+            'reasonAddedByBadhoTeam',     reason_added_by_badho_team
           ))
           FROM list_data
         ),

@@ -32,6 +32,7 @@ interface OrderListRow {
   RefundIntiatedTime?: string | null;
   RefundCompletedTime?: string | null;
   codAmountToBeCollected?: number | null;
+  pushedStatus?: string;
   MarkedpendingTime?: string | null;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
@@ -4431,7 +4432,7 @@ export default function OrderStatusDashboard() {
                         'PO Number', 'Status', 'PO Amount', 'Paid Amount', 'Coupon Amount',
                         'Seller Discount', 'Payment Option Badho Discount', 'Wallet Amount',
                         'Payment Option', 'Payment Date', 'Payment Event',
-                        'AWB Number', 'Courier Name', 'Delivery Status', 'COD Amount',
+                        'AWB Number', 'Courier Name', 'Delivery Status', 'Pushed', 'COD Amount',
                         'Buyer Phone', 'Buyer Business', 'Seller Phone', 'Seller Business',
                         'Marked Pending', 'Refund Initiated', 'Refund Completed',
                         ...(isRejected ? ['Reject Reason', 'Rejected By', 'Reason Added By Badho Team'] : []),
@@ -4441,7 +4442,7 @@ export default function OrderStatusDashboard() {
                         r.poAmount ?? '', r.paidAmount ?? '', r.CoupanAmount ?? '',
                         r.discountBySeller ?? '', r.PaymentOptionDiscountByBadho ?? '', r.appliedWalletAmount ?? '',
                         r.PaymentOption ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
-                        r.awbNumber ?? '', r.courierName ?? '', r.deliveryStatus ?? '', r.codAmountToBeCollected ?? '',
+                        r.awbNumber ?? '', r.courierName ?? '', r.deliveryStatus ?? '', r.pushedStatus ?? 'Not Pushed', r.codAmountToBeCollected ?? '',
                         r.buyerPhone ?? '', r.buyerBusinessName ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
                         r.MarkedpendingTime ?? r.markedPendingTime ?? '',
                         r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '',
@@ -4498,6 +4499,7 @@ export default function OrderStatusDashboard() {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">AWB Number</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Courier Name</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Delivery Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Pushed</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">COD Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
@@ -4532,6 +4534,11 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {r.pushedStatus || 'Not Pushed'}
+                            </span>
+                          </td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>

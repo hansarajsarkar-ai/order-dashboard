@@ -26,6 +26,7 @@ interface Row {
   RefundIntiatedTime: string | null;
   RefundCompletedTime: string | null;
   codAmountToBeCollected: number | null;
+  pushedStatus: string;
   rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
@@ -95,6 +96,7 @@ export async function GET(req: NextRequest) {
         pf."markedStatusInitiatedTime" AS "RefundIntiatedTime",
         pf."markedStatusCompletedTime" AS "RefundCompletedTime",
         dv."codAmountToBeCollected" AS "codAmountToBeCollected",
+        CASE WHEN dv."deliveryId" IS NOT NULL THEN 'Pushed' ELSE 'Not Pushed' END AS "pushedStatus",
         po."rejectReason",
         po."rejectedBy" AS "rejectedBy",
         po."reasonAddedByBadhoTeam" AS "reasonAddedByBadhoTeam",
@@ -109,7 +111,8 @@ export async function GET(req: NextRequest) {
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
       LEFT JOIN LATERAL (
-        SELECT di."trackingInfo",
+        SELECT di."id" AS "deliveryId",
+               di."trackingInfo",
                di."status",
                di."codAmountToBeCollected"
         FROM "deliveries"."intercityDelivery" di
@@ -168,6 +171,7 @@ export async function GET(req: NextRequest) {
       RefundIntiatedTime: r.RefundIntiatedTime,
       RefundCompletedTime: r.RefundCompletedTime,
       codAmountToBeCollected: r.codAmountToBeCollected,
+      pushedStatus: r.pushedStatus,
       rejectReason: r.rejectReason,
       rejectedBy: r.rejectedBy,
       reasonAddedByBadhoTeam: r.reasonAddedByBadhoTeam,

@@ -4426,14 +4426,15 @@ export default function OrderStatusDashboard() {
                     disabled={!filteredPivotDrillRows || filteredPivotDrillRows.length === 0}
                     onClick={() => {
                       if (!filteredPivotDrillRows) return;
+                      const isRejected = pivotDrillStatus === 'REJECTED';
                       const headers = [
                         'PO Number', 'Status', 'PO Amount', 'Paid Amount', 'Coupon Amount',
                         'Seller Discount', 'Payment Option Badho Discount', 'Wallet Amount',
                         'Payment Option', 'Payment Date', 'Payment Event',
                         'AWB Number', 'Courier Name', 'Delivery Status', 'COD Amount',
                         'Buyer Phone', 'Buyer Business', 'Seller Phone', 'Seller Business',
-                        'Marked Pending', 'Refund Initiated', 'Refund Completed', 'Reject Reason',
-                        'Rejected By', 'Reason Added By Badho Team',
+                        'Marked Pending', 'Refund Initiated', 'Refund Completed',
+                        ...(isRejected ? ['Reject Reason', 'Rejected By', 'Reason Added By Badho Team'] : []),
                       ];
                       const rows: CsvCell[][] = filteredPivotDrillRows.map((r) => [
                         r.poNumber, r.orderStatus ?? r.status,
@@ -4444,7 +4445,7 @@ export default function OrderStatusDashboard() {
                         r.buyerPhone ?? '', r.buyerBusinessName ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
                         r.MarkedpendingTime ?? r.markedPendingTime ?? '',
                         r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '',
-                        r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? '',
+                        ...(isRejected ? [r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? ''] : []),
                       ]);
                       const monthTag = pivotDrillMonth ? MONTH_NAMES[pivotDrillMonth - 1] : 'all';
                       const deliveryTag = pivotDrillDelivery === undefined ? 'all' : (pivotDrillDelivery ?? 'null');
@@ -4505,9 +4506,13 @@ export default function OrderStatusDashboard() {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Refund Initiated</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Refund Completed</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Reject Reason</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Rejected By</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Reason Added By Badho Team</th>
+                        {pivotDrillStatus === 'REJECTED' && (
+                          <>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Reject Reason</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Rejected By</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Reason Added By Badho Team</th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -4535,9 +4540,13 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-2 text-slate-700 max-w-[260px] truncate" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-2 text-slate-700 whitespace-nowrap">{r.rejectedBy || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-2 text-slate-700 max-w-[260px] truncate" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400 italic">—</span>}</td>
+                          {pivotDrillStatus === 'REJECTED' && (
+                            <>
+                              <td className="px-4 py-2 text-slate-700 max-w-[260px] truncate bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-4 py-2 text-slate-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-4 py-2 text-slate-700 max-w-[260px] truncate bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400 italic">—</span>}</td>
+                            </>
+                          )}
                         </tr>
                       ))}
                     </tbody>

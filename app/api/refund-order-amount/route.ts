@@ -61,6 +61,7 @@ interface ListItem {
   rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
+  reasonCategory: string;
 }
 
 interface AlertItem {
@@ -360,7 +361,8 @@ export async function GET(req: NextRequest) {
             'hoursTillRefund',            hours_till_refund,
             'rejectReason',               reject_reason,
             'rejectedBy',                 rejected_by,
-            'reasonAddedByBadhoTeam',     reason_added_by_badho_team
+            'reasonAddedByBadhoTeam',     reason_added_by_badho_team,
+            'reasonCategory',             reason_category
           ))
           FROM list_data
         ),

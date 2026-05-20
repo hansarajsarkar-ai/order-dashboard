@@ -108,6 +108,7 @@ interface ListRow {
   rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
+  reasonCategory: string;
 }
 interface AlertItem {
   purchaseOrderId: string;
@@ -654,9 +655,10 @@ export default function RefundOrderAmountDashboard() {
                   onClick={() => {
                     downloadCSV(
                       `refund-orders-${year}.csv`,
-                      ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                      ['PO Number', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                       filteredList.map((r) => [
-                        r.poNumber, r.status, r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
+                        r.poNumber, r.status, r.reasonCategory,
+                        r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
                         r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
                         r.hoursTillRefund ?? '', r.buyerBusinessName ?? '', r.buyerPhone ?? '',
                         r.sellerBusinessName ?? '', r.sellerPhone ?? '',
@@ -676,6 +678,7 @@ export default function RefundOrderAmountDashboard() {
                   <tr className="text-purple-200 uppercase">
                     <th className="px-3 py-2 text-left">PO Number</th>
                     <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-left">Reason Category</th>
                     <th className="px-3 py-2 text-right">Order Amt</th>
                     <th className="px-3 py-2 text-right">Paid</th>
                     <th className="px-3 py-2 text-right">Refund</th>
@@ -699,6 +702,16 @@ export default function RefundOrderAmountDashboard() {
                           r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
                           : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
                         }`}>{r.status}</span>
+                      </td>
+                      <td className="px-3 py-2">
+                        {(() => {
+                          const cat = categoryStyleFor(r.reasonCategory);
+                          return (
+                            <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ring-1 whitespace-nowrap ${cat.bg} ${cat.tone} ${cat.ring}`}>
+                              {r.reasonCategory}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.amount)}</td>
                       <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.orderPaidAmount)}</td>
@@ -728,7 +741,7 @@ export default function RefundOrderAmountDashboard() {
                   ))}
                   {!loading && filteredList.length === 0 && (
                     <tr>
-                      <td colSpan={14} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
+                      <td colSpan={15} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
                     </tr>
                   )}
                 </tbody>
@@ -774,9 +787,10 @@ export default function RefundOrderAmountDashboard() {
                     onClick={() => {
                       downloadCSV(
                         `refund-${modal.filter}-${modal.startDate}-${modal.endDate}.csv`,
-                        ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                        ['PO Number', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                         modalOrders.map((r) => [
-                          r.poNumber, r.status, r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
+                          r.poNumber, r.status, r.reasonCategory,
+                          r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
                           r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
                           r.hoursTillRefund ?? '', r.buyerBusinessName ?? '', r.buyerPhone ?? '',
                           r.sellerBusinessName ?? '', r.sellerPhone ?? '',
@@ -814,6 +828,7 @@ export default function RefundOrderAmountDashboard() {
                       <tr className="text-purple-200 uppercase">
                         <th className="px-3 py-2 text-left">PO Number</th>
                         <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-left">Reason Category</th>
                         <th className="px-3 py-2 text-right">Order Amt</th>
                         <th className="px-3 py-2 text-right">Paid</th>
                         <th className="px-3 py-2 text-right">Refund</th>
@@ -837,6 +852,16 @@ export default function RefundOrderAmountDashboard() {
                               r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
                               : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
                             }`}>{r.status}</span>
+                          </td>
+                          <td className="px-3 py-2">
+                            {(() => {
+                              const cat = categoryStyleFor(r.reasonCategory);
+                              return (
+                                <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ring-1 whitespace-nowrap ${cat.bg} ${cat.tone} ${cat.ring}`}>
+                                  {r.reasonCategory}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.amount)}</td>
                           <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.orderPaidAmount)}</td>

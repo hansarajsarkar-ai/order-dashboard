@@ -265,7 +265,7 @@ export default function Scheme1RsPriceChangeDashboard() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
+    const out = rows.filter((r) => {
       if (liveFilter !== 'all' && r.brandLive !== liveFilter) return false;
       if (!q) return true;
       const hay = [
@@ -283,6 +283,14 @@ export default function Scheme1RsPriceChangeDashboard() {
         .toLowerCase();
       return hay.includes(q);
     });
+    // Sort by brand (asc), then product (asc) so rows of the same brand
+    // sit next to each other and read predictably.
+    out.sort((a, b) => {
+      const ab = (a.brand_name ?? '').localeCompare(b.brand_name ?? '');
+      if (ab !== 0) return ab;
+      return (a.product_name ?? '').localeCompare(b.product_name ?? '');
+    });
+    return out;
   }, [rows, search, liveFilter]);
 
   // Brand-level counts: a brand is "live" if any of its rows are LIVE.

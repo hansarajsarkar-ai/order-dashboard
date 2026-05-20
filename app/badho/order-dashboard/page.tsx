@@ -4395,7 +4395,7 @@ export default function OrderStatusDashboard() {
             onClick={closePivotDrill}
           >
             <div
-              className="bg-white text-slate-900 border border-slate-200 rounded-2xl max-w-7xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl"
+              className="bg-white text-slate-900 border border-slate-200 rounded-2xl w-[95vw] max-w-[95vw] max-h-[95vh] flex flex-col overflow-hidden shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-purple-50">

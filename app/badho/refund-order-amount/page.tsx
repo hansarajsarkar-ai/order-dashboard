@@ -161,8 +161,6 @@ export default function RefundOrderAmountDashboard() {
   const [granularity, setGranularity] = useState<Granularity>('day');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  // Chart has its own granularity — independent from the breakdown table.
-  const [chartGranularity, setChartGranularity] = useState<'day' | 'week' | 'month'>('day');
 
   // Seed custom-range inputs the first time the user switches to Custom.
   useEffect(() => {
@@ -266,17 +264,11 @@ export default function RefundOrderAmountDashboard() {
     return data.byDay.filter((b) => b.bucketStart >= lo && b.bucketStart <= hi);
   }, [data, granularity, customStart, customEnd]);
 
-  // Trend chart — independent of the breakdown table's granularity.
-  // Uses its own chartGranularity (day/week/month), sorted oldest → newest.
+  // Trend chart — uses the same buckets the breakdown table uses, sorted oldest → newest.
   const trendChart = useMemo(() => {
-    if (!data) return [];
-    const src =
-      chartGranularity === 'day'   ? data.byDay
-      : chartGranularity === 'week' ? data.byWeek
-      : data.byMonth;
-    const arr = [...src].sort((a, b) => a.bucketStart.localeCompare(b.bucketStart));
+    const arr = [...buckets].sort((a, b) => a.bucketStart.localeCompare(b.bucketStart));
     return arr.map((b) => ({
-      label: formatBucketLabel(b, chartGranularity),
+      label: formatBucketLabel(b, granularity),
       bucketStart: b.bucketStart,
       bucketEnd: b.bucketEnd,
       avgProcessing: b.avgRefundProcessingHours,
@@ -286,7 +278,7 @@ export default function RefundOrderAmountDashboard() {
       paidAmount: b.paidAmount,
       refundedAmount: b.refundedAmount,
     }));
-  }, [data, chartGranularity]);
+  }, [buckets, granularity]);
 
   // Aging chart — color-coded by staleness
   const agingChart = useMemo(() => {
@@ -414,6 +406,47 @@ export default function RefundOrderAmountDashboard() {
           ))}
         </div>
 
+        {/* Master granularity toggle — drives chart + breakdown table (Monthly Overview only) */}
+        {tab === 'overview' && (
+          <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
+            <div className="inline-flex gap-1 p-1.5 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]">
+              {(['day', 'week', 'month', 'custom'] as const).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setGranularity(g)}
+                  className={`px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-150 ${
+                    granularity === g
+                      ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_22px_rgba(217,70,239,0.55)]'
+                      : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_14px_rgba(217,70,239,0.5)]'
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+            {granularity === 'custom' && (
+              <div className="inline-flex items-center gap-2 px-3 py-2 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl">
+                <label className="text-[11px] uppercase tracking-wider text-purple-300/80 font-semibold">From</label>
+                <input
+                  type="date"
+                  value={customStart}
+                  max={customEnd || undefined}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                />
+                <label className="text-[11px] uppercase tracking-wider text-purple-300/80 font-semibold">To</label>
+                <input
+                  type="date"
+                  value={customEnd}
+                  min={customStart || undefined}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* KPI cards — only on Monthly Overview */}
         {tab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -457,29 +490,11 @@ export default function RefundOrderAmountDashboard() {
             <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Refund time trend */}
               <div className="lg:col-span-2 rounded-xl border border-white/10 bg-white/5 p-4">
-                <div className="mb-3 flex items-start justify-between gap-3 flex-wrap">
-                  <div>
-                    <h3 className="text-base font-bold text-white">Refund Time Trend</h3>
-                    <p className="text-purple-300/70 text-xs">
-                      Avg processing time and reject→refund latency, per {chartGranularity}. Bars show refunds completed. Hover any point for details.
-                    </p>
-                  </div>
-                  {/* Chart-only granularity toggle */}
-                  <div className="inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
-                    {(['day', 'week', 'month'] as const).map((g) => (
-                      <button
-                        key={g}
-                        onClick={() => setChartGranularity(g)}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all duration-150 ${
-                          chartGranularity === g
-                            ? 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_12px_rgba(34,211,238,0.5)]'
-                            : 'text-purple-200 hover:bg-cyan-500 hover:text-white hover:shadow-[0_0_12px_rgba(34,211,238,0.5)]'
-                        }`}
-                      >
-                        {g}
-                      </button>
-                    ))}
-                  </div>
+                <div className="mb-3">
+                  <h3 className="text-base font-bold text-white">Refund Time Trend</h3>
+                  <p className="text-purple-300/70 text-xs">
+                    Avg processing time and reject→refund latency, per {granularity === 'custom' ? 'day' : granularity}. Bars show refunds completed. Hover any point for details.
+                  </p>
                 </div>
                 <div style={{ width: '100%', height: 300 }}>
                   <ResponsiveContainer>
@@ -561,42 +576,6 @@ export default function RefundOrderAmountDashboard() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* Granularity toggle */}
-                  <div className="inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
-                    {(['day', 'week', 'month', 'custom'] as const).map((g) => (
-                      <button
-                        key={g}
-                        onClick={() => setGranularity(g)}
-                        className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all duration-150 ${
-                          granularity === g
-                            ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_12px_rgba(217,70,239,0.5)]'
-                            : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_12px_rgba(217,70,239,0.5)]'
-                        }`}
-                      >
-                        {g}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Custom date pickers */}
-                  {granularity === 'custom' && (
-                    <div className="inline-flex items-center gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
-                      <input
-                        type="date"
-                        value={customStart}
-                        max={customEnd || undefined}
-                        onChange={(e) => setCustomStart(e.target.value)}
-                        className="px-2 py-1 text-[11px] bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-                      />
-                      <span className="text-purple-300 text-[11px]">→</span>
-                      <input
-                        type="date"
-                        value={customEnd}
-                        min={customStart || undefined}
-                        onChange={(e) => setCustomEnd(e.target.value)}
-                        className="px-2 py-1 text-[11px] bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-                      />
-                    </div>
-                  )}
                   <button
                     onClick={() => {
                       if (!buckets.length) return;

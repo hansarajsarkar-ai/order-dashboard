@@ -42,7 +42,7 @@ export default function Scheme1RsPriceChangeDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [liveFilter, setLiveFilter] = useState<LiveFilter>('all');
-  const [tab, setTab] = useState<Tab>('products');
+  const [tab, setTab] = useState<Tab>('brands');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -187,8 +187,8 @@ export default function Scheme1RsPriceChangeDashboard() {
         {/* Top-level tabs */}
         <div className="mb-6 flex items-center gap-2 border-b border-white/10">
           {([
-            { id: 'products', label: 'Products' },
             { id: 'brands', label: 'Brand-wise' },
+            { id: 'products', label: 'Product and Price' },
           ] as const).map((t) => (
             <button
               key={t.id}

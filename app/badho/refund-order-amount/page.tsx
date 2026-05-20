@@ -169,6 +169,7 @@ export default function RefundOrderAmountDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'overview' | 'sellers' | 'orders' | 'alerts'>('overview');
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [granularity, setGranularity] = useState<Granularity>('month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -276,16 +277,25 @@ export default function RefundOrderAmountDashboard() {
   }, [data, granularity, customStart, customEnd]);
 
 
+  // Category options derived from the data so the dropdown only shows what's
+  // actually present in the current year — and always sorted alphabetically.
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    (data?.list ?? []).forEach((r) => { if (r.reasonCategory) set.add(r.reasonCategory); });
+    return Array.from(set).sort();
+  }, [data]);
+
   const filteredList = useMemo(() => {
     if (!data?.list) return [];
     const q = search.trim().toLowerCase();
-    if (!q) return data.list;
-    return data.list.filter((r) =>
-      [r.poNumber, r.buyerBusinessName, r.buyerPhone, r.sellerBusinessName, r.sellerPhone, r.paymentOption, r.status]
+    return data.list.filter((r) => {
+      if (categoryFilter !== 'all' && r.reasonCategory !== categoryFilter) return false;
+      if (!q) return true;
+      return [r.poNumber, r.buyerBusinessName, r.buyerPhone, r.sellerBusinessName, r.sellerPhone, r.paymentOption, r.status, r.reasonCategory]
         .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q))
-    );
-  }, [data, search]);
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+  }, [data, search, categoryFilter]);
 
   if (!authChecked) {
     return (
@@ -641,9 +651,21 @@ export default function RefundOrderAmountDashboard() {
                 <h2 className="text-lg font-bold text-white">Order Details</h2>
                 <p className="text-purple-300/70 text-xs mt-0.5">
                   {data?.list.length ?? 0} orders (showing latest 2,000) · {filteredList.length} match filter
+                  {categoryFilter !== 'all' && <span className="text-fuchsia-300"> · category: {categoryFilter}</span>}
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg text-xs bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                  aria-label="Filter by reason category"
+                >
+                  <option value="all" className="bg-slate-900">All Categories</option>
+                  {categoryOptions.map((c) => (
+                    <option key={c} value={c} className="bg-slate-900">{c}</option>
+                  ))}
+                </select>
                 <input
                   type="text"
                   placeholder="Search PO, buyer, seller…"
@@ -651,6 +673,15 @@ export default function RefundOrderAmountDashboard() {
                   onChange={(e) => setSearch(e.target.value)}
                   className="px-3 py-1.5 rounded-lg text-xs bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 min-w-[220px]"
                 />
+                {(categoryFilter !== 'all' || search) && (
+                  <button
+                    onClick={() => { setCategoryFilter('all'); setSearch(''); }}
+                    className="px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 hover:bg-rose-500 hover:text-white border border-white/10 hover:border-rose-300/60 text-purple-200 transition-all duration-150"
+                    title="Clear filters"
+                  >
+                    Clear
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     downloadCSV(

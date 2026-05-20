@@ -96,7 +96,6 @@ interface UpdateRow {
 const ALLOWED_EDITOR_EMAILS = new Set([
   'chandan@badho.in',
   'rishi@badho.in',
-  'sahil@badho.in',
   'sahil.rohera@badho.in',
 ]);
 

@@ -216,7 +216,6 @@ type Tab = 'products' | 'brands';
 const ALLOWED_EDITOR_EMAILS = new Set([
   'chandan@badho.in',
   'rishi@badho.in',
-  'sahil@badho.in',
   'sahil.rohera@badho.in',
 ]);
 
@@ -608,7 +607,7 @@ export default function Scheme1RsPriceChangeDashboard() {
           </div>
           ) : (
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3 mb-4 text-xs text-purple-200/80">
-              View only — margin edits are restricted to <span className="text-purple-100 font-mono">chandan@badho.in</span>, <span className="text-purple-100 font-mono">rishi@badho.in</span>, <span className="text-purple-100 font-mono">sahil@badho.in</span>, and <span className="text-purple-100 font-mono">sahil.rohera@badho.in</span>.
+              View only — margin edits are restricted to <span className="text-purple-100 font-mono">chandan@badho.in</span>, <span className="text-purple-100 font-mono">rishi@badho.in</span>, and <span className="text-purple-100 font-mono">sahil.rohera@badho.in</span>.
             </div>
           )
         )}

@@ -383,10 +383,10 @@ export default function RefundOrderAmountDashboard() {
             <div>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div>
-                  <h3 className="text-base font-bold text-white">
+                  <h3 className="text-xl font-bold text-white">
                     {granularity === 'day' ? 'Day-wise' : granularity === 'week' ? 'Week-wise' : 'Month-wise'} Breakdown
                   </h3>
-                  <p className="text-purple-300/70 text-xs mt-0.5">
+                  <p className="text-purple-300/80 text-sm mt-1">
                     Orders grouped by reject/cancel {granularity} · {buckets.length} {granularity === 'day' ? 'days' : granularity === 'week' ? 'weeks' : 'months'}. Click any number to see the orders behind it.
                   </p>
                 </div>
@@ -427,20 +427,20 @@ export default function RefundOrderAmountDashboard() {
                   </button>
                 </div>
               </div>
-              <div className="overflow-x-auto max-h-[480px] rounded-xl border border-white/10">
-                <table className="w-full text-xs">
+              <div className="overflow-x-auto max-h-[520px] rounded-xl border border-white/10">
+                <table className="w-full text-sm">
                   <thead className="bg-slate-900/80 backdrop-blur sticky top-0 z-10">
-                    <tr className="text-purple-200 uppercase">
-                      <th className="px-3 py-2 text-left">
+                    <tr className="text-purple-200 uppercase text-xs">
+                      <th className="px-4 py-3 text-left">
                         {granularity === 'day' ? 'Date' : granularity === 'week' ? 'Week' : 'Month'}
                       </th>
-                      <th className="px-3 py-2 text-right">Rejected</th>
-                      <th className="px-3 py-2 text-right">Cancelled</th>
-                      <th className="px-3 py-2 text-right">Total</th>
-                      <th className="px-3 py-2 text-right">Paid</th>
-                      <th className="px-3 py-2 text-right">Refunded</th>
-                      <th className="px-3 py-2 text-right">Pending</th>
-                      <th className="px-3 py-2 text-right">Avg Refund Time</th>
+                      <th className="px-4 py-3 text-right">Rejected</th>
+                      <th className="px-4 py-3 text-right">Cancelled</th>
+                      <th className="px-4 py-3 text-right">Total</th>
+                      <th className="px-4 py-3 text-right">Paid</th>
+                      <th className="px-4 py-3 text-right">Refunded</th>
+                      <th className="px-4 py-3 text-right">Pending</th>
+                      <th className="px-4 py-3 text-right">Avg Refund Time</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -454,32 +454,32 @@ export default function RefundOrderAmountDashboard() {
                       });
                       return (
                         <tr key={b.bucketStart} className="border-t border-white/5 hover:bg-white/5">
-                          <td className="px-3 py-2 text-white whitespace-nowrap">{label}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-white whitespace-nowrap font-medium">{label}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">
                             <CellButton color="rose" onClick={() => openModal('rejected', 'Rejected')}>{b.rejectedCount.toLocaleString('en-IN')}</CellButton>
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-right tabular-nums">
                             <CellButton color="amber" onClick={() => openModal('cancelled', 'Cancelled')}>{b.cancelledCount.toLocaleString('en-IN')}</CellButton>
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-right tabular-nums">
                             <CellButton color="purple" bold onClick={() => openModal('all', 'All orders')}>{b.orderCount.toLocaleString('en-IN')}</CellButton>
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-right tabular-nums">
                             <CellButton color="purple" onClick={() => openModal('all', 'Paid')}>{formatAmount(b.paidAmount)}</CellButton>
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-right tabular-nums">
                             <CellButton color="emerald" onClick={() => openModal('refunded', 'Refunded')}>{formatAmount(b.refundedAmount)}</CellButton>
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-right tabular-nums">
                             <CellButton color="rose" onClick={() => openModal('pending', 'Pending refund')}>{formatAmount(b.pendingAmount)}</CellButton>
                           </td>
-                          <td className="px-3 py-2 text-right text-sky-300 tabular-nums">{formatHours(b.avgRefundProcessingHours)}</td>
+                          <td className="px-4 py-2.5 text-right text-sky-300 tabular-nums">{formatHours(b.avgRefundProcessingHours)}</td>
                         </tr>
                       );
                     })}
                     {!loading && !buckets.length && (
                       <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-purple-300/70">No data for {year}.</td>
+                        <td colSpan={8} className="px-4 py-10 text-center text-purple-300/70">No data for {year}.</td>
                       </tr>
                     )}
                   </tbody>

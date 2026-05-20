@@ -280,33 +280,35 @@ export default function RefundOrderAmountDashboard() {
           ))}
         </div>
 
-        {/* KPI cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <KpiCard
-            label="Total Paid Amount"
-            value={s ? formatAmount(s.totalPaidAmount) : '—'}
-            hint={s ? `${s.totalOrders.toLocaleString('en-IN')} prepaid orders rejected / cancelled` : 'Sum of paidAmount'}
-            tint="from-fuchsia-500/30 to-purple-500/10"
-          />
-          <KpiCard
-            label="Refunded Amount"
-            value={s ? formatAmount(s.totalRefundedAmount) : '—'}
-            hint={s ? `${s.refundedOrders.toLocaleString('en-IN')} refunds completed` : 'Sum of refundAmount (COMPLETED)'}
-            tint="from-emerald-500/30 to-teal-500/10"
-          />
-          <KpiCard
-            label="Pending Refund"
-            value={s ? formatAmount(s.pendingRefundAmount) : '—'}
-            hint={s ? `${(s.totalOrders - s.refundedOrders).toLocaleString('en-IN')} orders awaiting refund` : 'Paid − Refunded'}
-            tint="from-rose-500/30 to-orange-500/10"
-          />
-          <KpiCard
-            label="Refund Rate"
-            value={s ? `${s.refundRate}%` : '—'}
-            hint={s ? `Avg refund time: ${formatHours(s.avgRefundProcessingHours)}` : '% of orders refunded'}
-            tint="from-sky-500/30 to-blue-500/10"
-          />
-        </div>
+        {/* KPI cards — only on Monthly Overview */}
+        {tab === 'overview' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <KpiCard
+              label="Total Paid Amount"
+              value={s ? formatAmount(s.totalPaidAmount) : '—'}
+              hint={s ? `${s.totalOrders.toLocaleString('en-IN')} prepaid orders rejected / cancelled` : 'Sum of paidAmount'}
+              tint="from-fuchsia-500/30 to-purple-500/10"
+            />
+            <KpiCard
+              label="Refunded Amount"
+              value={s ? formatAmount(s.totalRefundedAmount) : '—'}
+              hint={s ? `${s.refundedOrders.toLocaleString('en-IN')} refunds completed` : 'Sum of refundAmount (COMPLETED)'}
+              tint="from-emerald-500/30 to-teal-500/10"
+            />
+            <KpiCard
+              label="Pending Refund"
+              value={s ? formatAmount(s.pendingRefundAmount) : '—'}
+              hint={s ? `${(s.totalOrders - s.refundedOrders).toLocaleString('en-IN')} orders awaiting refund` : 'Paid − Refunded'}
+              tint="from-rose-500/30 to-orange-500/10"
+            />
+            <KpiCard
+              label="Refund Rate"
+              value={s ? `${s.refundRate}%` : '—'}
+              hint={s ? `Avg refund time: ${formatHours(s.avgRefundProcessingHours)}` : '% of orders refunded'}
+              tint="from-sky-500/30 to-blue-500/10"
+            />
+          </div>
+        )}
 
         {tab === 'overview' && (
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">

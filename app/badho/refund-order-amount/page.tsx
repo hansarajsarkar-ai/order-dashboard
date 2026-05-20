@@ -3,10 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import {
-  ResponsiveContainer, ComposedChart,
-  Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LabelList,
-} from 'recharts';
 
 function formatAmount(amount: number): string {
   if (!amount || !Number.isFinite(amount)) return '₹0';
@@ -77,7 +73,6 @@ interface Bucket {
   pendingAmount: number;
   refundedOrders: number;
   avgRefundProcessingHours: number | null;
-  avgHoursTillRefund: number | null;
 }
 type Granularity = 'day' | 'week' | 'month' | 'custom';
 type CellFilter = 'all' | 'rejected' | 'cancelled' | 'refunded' | 'pending';
@@ -256,21 +251,6 @@ export default function RefundOrderAmountDashboard() {
     return data.byDay.filter((b) => b.bucketStart >= lo && b.bucketStart <= hi);
   }, [data, granularity, customStart, customEnd]);
 
-  // Trend chart — uses the same buckets the breakdown table uses, sorted oldest → newest.
-  const trendChart = useMemo(() => {
-    const arr = [...buckets].sort((a, b) => a.bucketStart.localeCompare(b.bucketStart));
-    return arr.map((b) => ({
-      label: formatBucketLabel(b, granularity),
-      bucketStart: b.bucketStart,
-      bucketEnd: b.bucketEnd,
-      avgProcessing: b.avgRefundProcessingHours,
-      avgTillRefund: b.avgHoursTillRefund,
-      refundedOrders: b.refundedOrders,
-      orderCount: b.orderCount,
-      paidAmount: b.paidAmount,
-      refundedAmount: b.refundedAmount,
-    }));
-  }, [buckets, granularity]);
 
   const filteredList = useMemo(() => {
     if (!data?.list) return [];
@@ -458,45 +438,6 @@ export default function RefundOrderAmountDashboard() {
               <MiniStat label="Refund Processing" value={formatHours(s?.avgRefundProcessingHours ?? null)} hint="initiated → completed" />
               <MiniStat label="Reject/Cancel → Refund" value={formatHours(s?.avgHoursTillRefund ?? null)} hint="reject/cancel → completed" />
               <MiniStat label="Unrefunded Orders" value={s ? (s.totalOrders - s.refundedOrders).toLocaleString('en-IN') : '—'} />
-            </div>
-
-            {/* Refund Time Trend */}
-            <div className="mb-6">
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <div className="mb-3">
-                  <h3 className="text-base font-bold text-white">Refund Time Trend</h3>
-                  <p className="text-purple-300/70 text-xs">
-                    Pink line = average hours from reject/cancel until the refund is paid. Bars = number of refunds completed per {granularity === 'custom' ? 'day' : granularity}. Hover any point for the full breakdown.
-                  </p>
-                </div>
-                <div style={{ width: '100%', height: 340 }}>
-                  <ResponsiveContainer>
-                    <ComposedChart data={trendChart} margin={{ top: 28, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                      <XAxis dataKey="label" stroke="#c4b5fd" tick={{ fontSize: 11, fontWeight: 600 }} interval="preserveStartEnd" minTickGap={20} />
-                      <YAxis yAxisId="hours" stroke="#f472b6" tick={{ fontSize: 11, fontWeight: 600 }} tickFormatter={(v) => `${v}h`} label={{ value: 'Hours to refund', angle: -90, position: 'insideLeft', fill: '#f472b6', fontSize: 11, fontWeight: 600 }} />
-                      <YAxis yAxisId="count" orientation="right" stroke="#a855f7" tick={{ fontSize: 11, fontWeight: 600 }} label={{ value: 'Refunds completed', angle: 90, position: 'insideRight', fill: '#a855f7', fontSize: 11, fontWeight: 600 }} />
-                      <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'rgba(244,114,182,0.5)', strokeWidth: 1 }} />
-                      <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingTop: 4 }} iconType="plainline" />
-                      <Bar yAxisId="count" dataKey="refundedOrders" name="Refunds completed" fill="#a855f7" opacity={0.18} radius={[4, 4, 0, 0]} maxBarSize={48} />
-                      <Line yAxisId="hours" type="monotone" dataKey="avgTillRefund" name="Avg hours to refund" stroke="#f472b6" strokeWidth={3} dot={{ r: 5, strokeWidth: 2, stroke: '#0f172a', fill: '#f472b6' }} activeDot={{ r: 7, strokeWidth: 2, stroke: '#fff' }} connectNulls>
-                        <LabelList
-                          dataKey="avgTillRefund"
-                          position="top"
-                          offset={12}
-                          formatter={(v: unknown) => (v == null || !Number.isFinite(Number(v))) ? '' : formatHours(Number(v))}
-                          fill="#fbcfe8"
-                          fontSize={11}
-                          fontWeight={700}
-                          stroke="#0f172a"
-                          strokeWidth={3}
-                          paintOrder="stroke"
-                        />
-                      </Line>
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
             </div>
 
             {/* Granular breakdown — Day / Week / Month / Custom */}
@@ -885,58 +826,6 @@ function MiniStat({ label, value, hint }: { label: string; value: string; hint?:
       <div className="text-[10px] uppercase tracking-wider text-purple-300/80">{label}</div>
       <div className="text-base font-bold text-white tabular-nums">{value}</div>
       {hint && <div className="text-[10px] text-purple-300/60">{hint}</div>}
-    </div>
-  );
-}
-
-interface TrendPoint {
-  label: string;
-  bucketStart: string;
-  bucketEnd: string;
-  avgProcessing: number | null;
-  avgTillRefund: number | null;
-  refundedOrders: number;
-  orderCount: number;
-  paidAmount: number;
-  refundedAmount: number;
-}
-
-function TrendTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: TrendPoint }> }) {
-  if (!active || !payload?.length) return null;
-  const p = payload[0].payload;
-  return (
-    <div className="rounded-lg border border-fuchsia-400/50 bg-slate-950/95 backdrop-blur-xl px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)] min-w-[240px]">
-      <div className="text-sm font-bold text-fuchsia-200 mb-2 border-b border-white/10 pb-1.5">{p.label}</div>
-      <Row swatch="#f472b6" label="Avg hours to refund" value={formatHours(p.avgTillRefund)} hint="reject → paid" />
-      <Row swatch="#a855f7" label="Refunds completed" value={p.refundedOrders.toLocaleString('en-IN')} />
-      <Row swatch="#22d3ee" label="Processing time" value={formatHours(p.avgProcessing)} hint="initiated → done" />
-      <div className="mt-2 pt-2 border-t border-white/10 grid grid-cols-3 gap-2 text-[11px]">
-        <div>
-          <div className="text-purple-300/70">Orders</div>
-          <div className="font-bold text-white tabular-nums">{p.orderCount.toLocaleString('en-IN')}</div>
-        </div>
-        <div>
-          <div className="text-purple-300/70">Paid</div>
-          <div className="font-bold text-white tabular-nums">{formatAmount(p.paidAmount)}</div>
-        </div>
-        <div>
-          <div className="text-purple-300/70">Refunded</div>
-          <div className="font-bold text-emerald-300 tabular-nums">{formatAmount(p.refundedAmount)}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Row({ swatch, label, value, hint }: { swatch: string; label: string; value: string; hint?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-xs py-0.5">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: swatch }} />
-        <span className="text-purple-100 truncate">{label}</span>
-        {hint && <span className="text-purple-400/70 text-[10px]">· {hint}</span>}
-      </div>
-      <span className="font-bold text-white tabular-nums">{value}</span>
     </div>
   );
 }

@@ -14,7 +14,6 @@ interface Bucket {
   pendingAmount: number;
   refundedOrders: number;
   avgRefundProcessingHours: number | null;
-  avgHoursTillRefund: number | null;
 }
 
 interface Summary {
@@ -151,8 +150,7 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
           COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
-          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours,
-          AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_hours_till_refund
+          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
         FROM source
         WHERE rejected_or_cancelled_time IS NOT NULL
         GROUP BY date_trunc('day', rejected_or_cancelled_time)
@@ -167,8 +165,7 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
           COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
-          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours,
-          AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_hours_till_refund
+          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
         FROM source
         WHERE rejected_or_cancelled_time IS NOT NULL
         GROUP BY date_trunc('week', rejected_or_cancelled_time)
@@ -183,8 +180,7 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
           COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
-          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours,
-          AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_hours_till_refund
+          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
         FROM source
         WHERE rejected_or_cancelled_time IS NOT NULL
         GROUP BY date_trunc('month', rejected_or_cancelled_time)
@@ -235,8 +231,7 @@ export async function GET(req: NextRequest) {
             'refundedAmount',             refunded_amount,
             'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
             'refundedOrders',             refunded_orders,
-            'avgRefundProcessingHours',   avg_refund_processing_hours,
-            'avgHoursTillRefund',         avg_hours_till_refund
+            'avgRefundProcessingHours',   avg_refund_processing_hours
           ) ORDER BY bucket_start DESC)
           FROM day_agg
         ),
@@ -251,8 +246,7 @@ export async function GET(req: NextRequest) {
             'refundedAmount',             refunded_amount,
             'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
             'refundedOrders',             refunded_orders,
-            'avgRefundProcessingHours',   avg_refund_processing_hours,
-            'avgHoursTillRefund',         avg_hours_till_refund
+            'avgRefundProcessingHours',   avg_refund_processing_hours
           ) ORDER BY bucket_start DESC)
           FROM week_agg
         ),
@@ -267,8 +261,7 @@ export async function GET(req: NextRequest) {
             'refundedAmount',             refunded_amount,
             'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
             'refundedOrders',             refunded_orders,
-            'avgRefundProcessingHours',   avg_refund_processing_hours,
-            'avgHoursTillRefund',         avg_hours_till_refund
+            'avgRefundProcessingHours',   avg_refund_processing_hours
           ) ORDER BY bucket_start DESC)
           FROM month_agg
         ),

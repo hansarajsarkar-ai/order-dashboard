@@ -516,17 +516,6 @@ export default function Scheme1RsPriceChangeDashboard() {
           ))}
         </div>
 
-        {tab === 'brands' && (
-          <div className="mb-6">
-            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-              Scheme 1 Rs Price Change
-            </h1>
-            <p className="text-purple-200 text-sm mt-1">
-              Seller × brand × SKU rows with margin, MRP and brand-live status from purchase order term slabs.
-            </p>
-          </div>
-        )}
-
         {tab === 'brands' ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3">

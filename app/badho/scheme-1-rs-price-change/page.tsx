@@ -103,14 +103,21 @@ export default function Scheme1RsPriceChangeDashboard() {
     });
   }, [rows, search, liveFilter]);
 
+  // Brand-level counts: a brand is "live" if any of its rows are LIVE.
   const counts = useMemo(() => {
+    const brandHasLive = new Map<string, boolean>();
+    for (const r of rows) {
+      const brand = r.brand_name ?? '(no brand)';
+      const prev = brandHasLive.get(brand) ?? false;
+      brandHasLive.set(brand, prev || r.brandLive === 'LIVE');
+    }
     let live = 0;
     let inactive = 0;
-    for (const r of rows) {
-      if (r.brandLive === 'LIVE') live++;
+    for (const hasLive of brandHasLive.values()) {
+      if (hasLive) live++;
       else inactive++;
     }
-    return { total: rows.length, live, inactive };
+    return { totalBrand: brandHasLive.size, liveBrand: live, inactiveBrand: inactive };
   }, [rows]);
 
   // Per-brand aggregation over the *filtered* rows so search + LIVE/INACTIVE
@@ -215,16 +222,16 @@ export default function Scheme1RsPriceChangeDashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wider text-purple-300/70">Total rows</div>
-            <div className="text-2xl font-bold text-white mt-0.5">{counts.total.toLocaleString()}</div>
+            <div className="text-[11px] uppercase tracking-wider text-purple-300/70">Total brand</div>
+            <div className="text-2xl font-bold text-white mt-0.5">{counts.totalBrand.toLocaleString()}</div>
           </div>
           <div className="bg-emerald-500/5 backdrop-blur-xl border border-emerald-400/20 rounded-xl px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wider text-emerald-300/80">Live</div>
-            <div className="text-2xl font-bold text-emerald-200 mt-0.5">{counts.live.toLocaleString()}</div>
+            <div className="text-[11px] uppercase tracking-wider text-emerald-300/80">Live brand</div>
+            <div className="text-2xl font-bold text-emerald-200 mt-0.5">{counts.liveBrand.toLocaleString()}</div>
           </div>
           <div className="bg-rose-500/5 backdrop-blur-xl border border-rose-400/20 rounded-xl px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wider text-rose-300/80">Inactive</div>
-            <div className="text-2xl font-bold text-rose-200 mt-0.5">{counts.inactive.toLocaleString()}</div>
+            <div className="text-[11px] uppercase tracking-wider text-rose-300/80">Inactive brand</div>
+            <div className="text-2xl font-bold text-rose-200 mt-0.5">{counts.inactiveBrand.toLocaleString()}</div>
           </div>
         </div>
 

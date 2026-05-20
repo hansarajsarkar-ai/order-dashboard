@@ -5,7 +5,6 @@ export const dynamic = 'force-dynamic';
 
 interface Row {
   poNumber: string;
-  PurchaseorderId: string | null;
   MarkedpendingTime: string | null;
   paymentDate: string | null;
   paymentEvent: string | null;
@@ -15,20 +14,19 @@ interface Row {
   buyerBusinessName: string | null;
   paidAmount: number | null;
   poAmount: number | null;
-  CoupanApplied: number | null;
+  CoupanAmount: number | null;
   orderStatus: string;
   discountBySeller: number;
-  discountByBadho: number;
+  PaymentOptionDiscountByBadho: number;
   appliedWalletAmount: number | null;
-  rejectReason: string | null;
-  paymentMode: string | null;
+  PaymentOption: string | null;
   awbNumber: string | null;
   courierName: string | null;
-  DeliveryPaymentMethod: string | null;
   deliveryStatus: string | null;
   RefundIntiatedTime: string | null;
   RefundCompletedTime: string | null;
-  RefundCompletedInMin: number | null;
+  codAmountToBeCollected: number | null;
+  rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
   buyer_address_line1: string | null;
@@ -76,7 +74,6 @@ export async function GET(req: NextRequest) {
     const sql = `
       SELECT DISTINCT
         po."poNumber"::text AS "poNumber",
-        po."id"::text AS "PurchaseorderId",
         po."markedPendingTime"::date AS "MarkedpendingTime",
         pop."created_at" AS "paymentDate",
         pop."event" AS "paymentEvent",
@@ -86,20 +83,19 @@ export async function GET(req: NextRequest) {
         b."businessName" AS "buyerBusinessName",
         pop."paidAmount" AS "paidAmount",
         po."amount" AS "poAmount",
-        po."appliedOfferDiscount" AS "CoupanApplied",
+        po."appliedOfferDiscount" AS "CoupanAmount",
         po."status" AS "orderStatus",
         COALESCE((pop."breakup"->>'discount_on_payment_preference_for_seller')::float, 0) AS "discountBySeller",
-        COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) AS "discountByBadho",
+        COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) AS "PaymentOptionDiscountByBadho",
         pop."appliedWalletAmount",
-        po."rejectReason",
-        po."paymentInfo"->>'instrument' AS "paymentMode",
+        po."paymentInfo"->>'option' AS "PaymentOption",
         dv."trackingInfo"->>'awbNumber' AS "awbNumber",
         dv."trackingInfo"->>'courierName' AS "courierName",
-        dv."metaDetails"->>'paymentMethod' AS "DeliveryPaymentMethod",
         dv."status" AS "deliveryStatus",
         pf."markedStatusInitiatedTime" AS "RefundIntiatedTime",
         pf."markedStatusCompletedTime" AS "RefundCompletedTime",
-        ROUND(EXTRACT(EPOCH FROM (DATE_TRUNC('minute', pf."markedStatusCompletedTime") - DATE_TRUNC('minute', pf."markedStatusInitiatedTime"))) / 60, 2) AS "RefundCompletedInMin",
+        dv."codAmountToBeCollected" AS "codAmountToBeCollected",
+        po."rejectReason",
         po."rejectedBy" AS "rejectedBy",
         po."reasonAddedByBadhoTeam" AS "reasonAddedByBadhoTeam",
         b."addressLine1" AS buyer_address_line1,
@@ -148,7 +144,6 @@ export async function GET(req: NextRequest) {
 
     const data = rows.map((r) => ({
       poNumber: r.poNumber,
-      PurchaseorderId: r.PurchaseorderId,
       MarkedpendingTime: r.MarkedpendingTime,
       paymentDate: r.paymentDate,
       paymentEvent: r.paymentEvent,
@@ -158,21 +153,20 @@ export async function GET(req: NextRequest) {
       buyerBusinessName: r.buyerBusinessName,
       paidAmount: r.paidAmount,
       poAmount: r.poAmount,
-      CoupanApplied: r.CoupanApplied,
+      CoupanAmount: r.CoupanAmount,
       orderStatus: r.orderStatus,
       status: r.orderStatus,
       discountBySeller: r.discountBySeller,
-      discountByBadho: r.discountByBadho,
+      PaymentOptionDiscountByBadho: r.PaymentOptionDiscountByBadho,
       appliedWalletAmount: r.appliedWalletAmount,
-      rejectReason: r.rejectReason,
-      paymentMode: r.paymentMode,
+      PaymentOption: r.PaymentOption,
       awbNumber: r.awbNumber,
       courierName: r.courierName,
-      DeliveryPaymentMethod: r.DeliveryPaymentMethod,
       deliveryStatus: r.deliveryStatus,
       RefundIntiatedTime: r.RefundIntiatedTime,
       RefundCompletedTime: r.RefundCompletedTime,
-      RefundCompletedInMin: r.RefundCompletedInMin,
+      codAmountToBeCollected: r.codAmountToBeCollected,
+      rejectReason: r.rejectReason,
       rejectedBy: r.rejectedBy,
       reasonAddedByBadhoTeam: r.reasonAddedByBadhoTeam,
       amount: r.poAmount != null ? Number(r.poAmount) : 0,

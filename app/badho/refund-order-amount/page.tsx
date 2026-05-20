@@ -792,15 +792,15 @@ function CellButton({
   bold?: boolean;
 }) {
   const tone =
-    color === 'rose'    ? 'text-rose-300 hover:text-rose-100 hover:bg-rose-500/15'
-    : color === 'amber' ? 'text-amber-300 hover:text-amber-100 hover:bg-amber-500/15'
-    : color === 'emerald' ? 'text-emerald-300 hover:text-emerald-100 hover:bg-emerald-500/15'
-    : 'text-purple-100 hover:text-white hover:bg-fuchsia-500/15';
+    color === 'rose'    ? 'text-rose-300    hover:text-white hover:bg-rose-500    hover:ring-1 hover:ring-rose-300/60    hover:shadow-[0_0_14px_rgba(244,63,94,0.55)]'
+    : color === 'amber' ? 'text-amber-300   hover:text-white hover:bg-amber-500   hover:ring-1 hover:ring-amber-300/60   hover:shadow-[0_0_14px_rgba(245,158,11,0.55)]'
+    : color === 'emerald' ? 'text-emerald-300 hover:text-white hover:bg-emerald-500 hover:ring-1 hover:ring-emerald-300/60 hover:shadow-[0_0_14px_rgba(16,185,129,0.55)]'
+    : 'text-purple-100 hover:text-white hover:bg-fuchsia-500 hover:ring-1 hover:ring-fuchsia-300/60 hover:shadow-[0_0_14px_rgba(217,70,239,0.55)]';
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`inline-block px-1.5 py-0.5 rounded transition-colors ${tone} ${bold ? 'font-semibold' : ''}`}
+      className={`inline-block px-2 py-0.5 rounded-md transition-all duration-150 hover:font-semibold ${tone} ${bold ? 'font-semibold' : ''}`}
     >
       {children}
     </button>

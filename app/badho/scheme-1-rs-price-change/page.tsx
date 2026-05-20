@@ -184,6 +184,26 @@ export default function Scheme1RsPriceChangeDashboard() {
           </div>
         </div>
 
+        {/* Top-level tabs */}
+        <div className="mb-6 flex items-center gap-2 border-b border-white/10">
+          {([
+            { id: 'products', label: 'Products' },
+            { id: 'brands', label: 'Brand-wise' },
+          ] as const).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`px-5 py-3 text-base font-semibold transition-colors -mb-px border-b-2 ${
+                tab === t.id
+                  ? 'text-white border-fuchsia-400'
+                  : 'text-purple-300 hover:text-white border-transparent'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         <div className="mb-6">
           <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
             Scheme 1 Rs Price Change
@@ -209,26 +229,6 @@ export default function Scheme1RsPriceChangeDashboard() {
         </div>
 
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-          {/* Tabs */}
-          <div className="px-4 pt-3 border-b border-white/10 flex items-center gap-1">
-            {([
-              { id: 'products', label: 'Products' },
-              { id: 'brands', label: 'Brand-wise' },
-            ] as const).map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
-                  tab === t.id
-                    ? 'bg-white/10 text-white border-b-2 border-fuchsia-400'
-                    : 'text-purple-300 hover:text-white'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
           {/* Filter bar */}
           <div className="px-4 py-3 border-b border-white/10 flex items-center gap-3 flex-wrap">
             <input

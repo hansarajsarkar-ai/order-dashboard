@@ -263,6 +263,23 @@ export default function RefundOrderAmountDashboard() {
           </div>
         )}
 
+        {/* Tabs */}
+        <div className="mb-6 inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl">
+          {(['overview', 'sellers', 'orders'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors ${
+                tab === t
+                  ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.5)]'
+                  : 'text-purple-200 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              {t === 'overview' ? 'Monthly Overview' : t === 'sellers' ? 'Top Sellers' : 'Order Details'}
+            </button>
+          ))}
+        </div>
+
         {/* KPI cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <KpiCard
@@ -289,23 +306,6 @@ export default function RefundOrderAmountDashboard() {
             hint={s ? `Avg refund time: ${formatHours(s.avgRefundProcessingHours)}` : '% of orders refunded'}
             tint="from-sky-500/30 to-blue-500/10"
           />
-        </div>
-
-        {/* Tabs */}
-        <div className="mb-4 inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl">
-          {(['overview', 'sellers', 'orders'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors ${
-                tab === t
-                  ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.5)]'
-                  : 'text-purple-200 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              {t === 'overview' ? 'Monthly Overview' : t === 'sellers' ? 'Top Sellers' : 'Order Details'}
-            </button>
-          ))}
         </div>
 
         {tab === 'overview' && (

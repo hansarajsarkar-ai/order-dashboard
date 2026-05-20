@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ResponsiveContainer, ComposedChart,
-  Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LabelList,
 } from 'recharts';
 
 function formatAmount(amount: number): string {
@@ -469,9 +469,9 @@ export default function RefundOrderAmountDashboard() {
                     Pink line = average hours from reject/cancel until the refund is paid. Bars = number of refunds completed per {granularity === 'custom' ? 'day' : granularity}. Hover any point for the full breakdown.
                   </p>
                 </div>
-                <div style={{ width: '100%', height: 300 }}>
+                <div style={{ width: '100%', height: 340 }}>
                   <ResponsiveContainer>
-                    <ComposedChart data={trendChart} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <ComposedChart data={trendChart} margin={{ top: 28, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                       <XAxis dataKey="label" stroke="#c4b5fd" tick={{ fontSize: 11, fontWeight: 600 }} interval="preserveStartEnd" minTickGap={20} />
                       <YAxis yAxisId="hours" stroke="#f472b6" tick={{ fontSize: 11, fontWeight: 600 }} tickFormatter={(v) => `${v}h`} label={{ value: 'Hours to refund', angle: -90, position: 'insideLeft', fill: '#f472b6', fontSize: 11, fontWeight: 600 }} />
@@ -479,7 +479,20 @@ export default function RefundOrderAmountDashboard() {
                       <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'rgba(244,114,182,0.5)', strokeWidth: 1 }} />
                       <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingTop: 4 }} iconType="plainline" />
                       <Bar yAxisId="count" dataKey="refundedOrders" name="Refunds completed" fill="#a855f7" opacity={0.18} radius={[4, 4, 0, 0]} maxBarSize={48} />
-                      <Line yAxisId="hours" type="monotone" dataKey="avgTillRefund" name="Avg hours to refund" stroke="#f472b6" strokeWidth={3} dot={{ r: 5, strokeWidth: 2, stroke: '#0f172a', fill: '#f472b6' }} activeDot={{ r: 7, strokeWidth: 2, stroke: '#fff' }} connectNulls />
+                      <Line yAxisId="hours" type="monotone" dataKey="avgTillRefund" name="Avg hours to refund" stroke="#f472b6" strokeWidth={3} dot={{ r: 5, strokeWidth: 2, stroke: '#0f172a', fill: '#f472b6' }} activeDot={{ r: 7, strokeWidth: 2, stroke: '#fff' }} connectNulls>
+                        <LabelList
+                          dataKey="avgTillRefund"
+                          position="top"
+                          offset={12}
+                          formatter={(v: unknown) => (v == null || !Number.isFinite(Number(v))) ? '' : formatHours(Number(v))}
+                          fill="#fbcfe8"
+                          fontSize={11}
+                          fontWeight={700}
+                          stroke="#0f172a"
+                          strokeWidth={3}
+                          paintOrder="stroke"
+                        />
+                      </Line>
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>

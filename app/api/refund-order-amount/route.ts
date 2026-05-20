@@ -11,15 +11,9 @@ interface SummaryRow {
   avg_refund_time_hours: string | null;
   avg_time_till_refund_hours: string | null;
 }
-interface MonthRow {
-  month: string;
-  order_count: string;
-  paid_amount: string;
-  refunded_amount: string;
-  refunded_orders: string;
-}
-interface DayRow {
-  day: string;
+interface BucketRow {
+  bucket_start: string;
+  bucket_end: string;
   rejected_count: string;
   cancelled_count: string;
   order_count: string;
@@ -129,40 +123,38 @@ export async function GET(req: NextRequest) {
     `;
     const summaryRows = await query<SummaryRow>(summarySql, [year]);
 
-    // 2. Monthly breakdown by rejected/cancelled month
-    const monthlySql = `
+    // Bucket aggregation — day / week / month all share the same shape.
+    // bucketStart / bucketEnd inclusive; used as filter range for the modal endpoint.
+    const bucketSql = (trunc: 'day' | 'week' | 'month') => `
       ${sourceCte}
       SELECT
-        EXTRACT(MONTH FROM rejected_or_cancelled_time)::int::text                   AS month,
-        COUNT(*)::text                                                              AS order_count,
-        COALESCE(SUM(order_paid_amount), 0)::text                                   AS paid_amount,
-        COALESCE(SUM(refund_amount), 0)::text                                       AS refunded_amount,
-        COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)::text                     AS refunded_orders
-      FROM source
-      WHERE rejected_or_cancelled_time IS NOT NULL
-      GROUP BY EXTRACT(MONTH FROM rejected_or_cancelled_time)
-      ORDER BY month;
-    `;
-    const monthlyRows = await query<MonthRow>(monthlySql, [year]);
-
-    // 2b. Day-wise breakdown by rejected/cancelled date
-    const dailySql = `
-      ${sourceCte}
-      SELECT
-        TO_CHAR(rejected_or_cancelled_time::date, 'YYYY-MM-DD')                     AS day,
-        COUNT(*) FILTER (WHERE po_status = 'REJECTED')::text                        AS rejected_count,
-        COUNT(*) FILTER (WHERE po_status = 'CANCELLED')::text                       AS cancelled_count,
-        COUNT(*)::text                                                              AS order_count,
-        COALESCE(SUM(order_paid_amount), 0)::text                                   AS paid_amount,
-        COALESCE(SUM(refund_amount), 0)::text                                       AS refunded_amount,
-        COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)::text                     AS refunded_orders,
+        TO_CHAR(date_trunc('${trunc}', rejected_or_cancelled_time)::date, 'YYYY-MM-DD') AS bucket_start,
+        TO_CHAR(
+          ${trunc === 'day'
+            ? `date_trunc('day', rejected_or_cancelled_time)::date`
+            : trunc === 'week'
+            ? `(date_trunc('week', rejected_or_cancelled_time) + interval '6 days')::date`
+            : `(date_trunc('month', rejected_or_cancelled_time) + interval '1 month' - interval '1 day')::date`
+          },
+          'YYYY-MM-DD'
+        )                                                                                AS bucket_end,
+        COUNT(*) FILTER (WHERE po_status = 'REJECTED')::text                             AS rejected_count,
+        COUNT(*) FILTER (WHERE po_status = 'CANCELLED')::text                            AS cancelled_count,
+        COUNT(*)::text                                                                   AS order_count,
+        COALESCE(SUM(order_paid_amount), 0)::text                                        AS paid_amount,
+        COALESCE(SUM(refund_amount), 0)::text                                            AS refunded_amount,
+        COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)::text                          AS refunded_orders,
         AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL)::text AS avg_refund_processing_hours
       FROM source
       WHERE rejected_or_cancelled_time IS NOT NULL
-      GROUP BY rejected_or_cancelled_time::date
-      ORDER BY rejected_or_cancelled_time::date DESC;
+      GROUP BY date_trunc('${trunc}', rejected_or_cancelled_time)
+      ORDER BY date_trunc('${trunc}', rejected_or_cancelled_time) DESC;
     `;
-    const dailyRows = await query<DayRow>(dailySql, [year]);
+    const [dailyRows, weeklyRows, monthlyRows] = await Promise.all([
+      query<BucketRow>(bucketSql('day'),   [year]),
+      query<BucketRow>(bucketSql('week'),  [year]),
+      query<BucketRow>(bucketSql('month'), [year]),
+    ]);
 
     // 3. Top sellers by paid amount (refunds owed)
     const sellerSql = `
@@ -221,24 +213,12 @@ export async function GET(req: NextRequest) {
     const avgRefundProcessingHours = sr?.avg_refund_time_hours ? parseFloat(sr.avg_refund_time_hours) : null;
     const avgHoursTillRefund = sr?.avg_time_till_refund_hours ? parseFloat(sr.avg_time_till_refund_hours) : null;
 
-    const byMonth = monthlyRows.map((r) => {
+    const mapBucket = (r: BucketRow) => {
       const paid = parseFloat(r.paid_amount);
       const refunded = parseFloat(r.refunded_amount);
       return {
-        month: parseInt(r.month),
-        orderCount: parseInt(r.order_count),
-        paidAmount: paid,
-        refundedAmount: refunded,
-        pendingAmount: Math.max(paid - refunded, 0),
-        refundedOrders: parseInt(r.refunded_orders),
-      };
-    });
-
-    const byDay = dailyRows.map((r) => {
-      const paid = parseFloat(r.paid_amount);
-      const refunded = parseFloat(r.refunded_amount);
-      return {
-        day: r.day,
+        bucketStart: r.bucket_start,
+        bucketEnd: r.bucket_end,
         rejectedCount: parseInt(r.rejected_count),
         cancelledCount: parseInt(r.cancelled_count),
         orderCount: parseInt(r.order_count),
@@ -248,7 +228,10 @@ export async function GET(req: NextRequest) {
         refundedOrders: parseInt(r.refunded_orders),
         avgRefundProcessingHours: r.avg_refund_processing_hours ? parseFloat(r.avg_refund_processing_hours) : null,
       };
-    });
+    };
+    const byDay   = dailyRows.map(mapBucket);
+    const byWeek  = weeklyRows.map(mapBucket);
+    const byMonth = monthlyRows.map(mapBucket);
 
     const topSellers = sellerRows.map((r) => {
       const paid = parseFloat(r.paid_amount);
@@ -298,8 +281,9 @@ export async function GET(req: NextRequest) {
         avgRefundProcessingHours,
         avgHoursTillRefund,
       },
-      byMonth,
       byDay,
+      byWeek,
+      byMonth,
       topSellers,
       list,
       year,

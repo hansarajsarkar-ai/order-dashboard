@@ -36,6 +36,20 @@ function formatDay(s: string | null | undefined): string {
   const dayMonth = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
   return `${dayMonth} · ${weekday}`;
 }
+function formatBucketLabel(b: { bucketStart: string; bucketEnd: string }, g: 'day' | 'week' | 'month'): string {
+  const parse = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
+  const start = parse(b.bucketStart);
+  if (g === 'day') return formatDay(b.bucketStart);
+  if (g === 'month') return start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  // week
+  const end = parse(b.bucketEnd);
+  const s = start.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  const e = end.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  return `${s} – ${e}`;
+}
 
 interface Summary {
   totalOrders: number;
@@ -48,16 +62,9 @@ interface Summary {
   avgRefundProcessingHours: number | null;
   avgHoursTillRefund: number | null;
 }
-interface MonthBucket {
-  month: number;
-  orderCount: number;
-  paidAmount: number;
-  refundedAmount: number;
-  pendingAmount: number;
-  refundedOrders: number;
-}
-interface DayBucket {
-  day: string;
+interface Bucket {
+  bucketStart: string;
+  bucketEnd: string;
   rejectedCount: number;
   cancelledCount: number;
   orderCount: number;
@@ -67,6 +74,8 @@ interface DayBucket {
   refundedOrders: number;
   avgRefundProcessingHours: number | null;
 }
+type Granularity = 'day' | 'week' | 'month';
+type CellFilter = 'all' | 'rejected' | 'cancelled' | 'refunded' | 'pending';
 interface SellerRow {
   sellerId: string;
   sellerPhone: string | null;
@@ -99,8 +108,9 @@ interface ListRow {
 }
 interface RefundApiResponse {
   summary: Summary;
-  byMonth: MonthBucket[];
-  byDay: DayBucket[];
+  byDay: Bucket[];
+  byWeek: Bucket[];
+  byMonth: Bucket[];
   topSellers: SellerRow[];
   list: ListRow[];
   year: number;
@@ -135,6 +145,48 @@ export default function RefundOrderAmountDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'overview' | 'sellers' | 'orders'>('overview');
   const [search, setSearch] = useState('');
+  const [granularity, setGranularity] = useState<Granularity>('day');
+
+  // Modal for drilling into a bucket cell
+  interface ModalRequest {
+    startDate: string;
+    endDate: string;
+    filter: CellFilter;
+    title: string;
+  }
+  const [modal, setModal] = useState<ModalRequest | null>(null);
+  const [modalOrders, setModalOrders] = useState<ListRow[] | null>(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!modal) { setModalOrders(null); setModalError(null); return; }
+    const ctrl = new AbortController();
+    setModalLoading(true);
+    setModalError(null);
+    const params = new URLSearchParams({ startDate: modal.startDate, endDate: modal.endDate });
+    if (modal.filter === 'rejected')  params.set('status', 'REJECTED');
+    if (modal.filter === 'cancelled') params.set('status', 'CANCELLED');
+    if (modal.filter === 'refunded')  params.set('refundState', 'refunded');
+    if (modal.filter === 'pending')   params.set('refundState', 'pending');
+    fetch(`/api/refund-order-amount/orders?${params.toString()}`, { signal: ctrl.signal })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok) throw new Error(j?.error || 'Fetch failed');
+        setModalOrders(j.orders as ListRow[]);
+      })
+      .catch((err) => { if (err.name !== 'AbortError') setModalError(err.message); })
+      .finally(() => setModalLoading(false));
+    return () => ctrl.abort();
+  }, [modal]);
+
+  // Close modal on Escape
+  useEffect(() => {
+    if (!modal) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setModal(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [modal]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -172,6 +224,13 @@ export default function RefundOrderAmountDashboard() {
     localStorage.removeItem('employeeEmail');
     router.replace('/login');
   };
+
+  const buckets = useMemo<Bucket[]>(() => {
+    if (!data) return [];
+    if (granularity === 'day')   return data.byDay;
+    if (granularity === 'week')  return data.byWeek;
+    return data.byMonth;
+  }, [data, granularity]);
 
   const filteredList = useMemo(() => {
     if (!data?.list) return [];
@@ -320,38 +379,61 @@ export default function RefundOrderAmountDashboard() {
               <MiniStat label="Unrefunded Orders" value={s ? (s.totalOrders - s.refundedOrders).toLocaleString('en-IN') : '—'} />
             </div>
 
-            {/* Day-wise breakdown */}
+            {/* Granular breakdown — Day / Week / Month */}
             <div>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div>
-                  <h3 className="text-base font-bold text-white">Day-wise Breakdown</h3>
+                  <h3 className="text-base font-bold text-white">
+                    {granularity === 'day' ? 'Day-wise' : granularity === 'week' ? 'Week-wise' : 'Month-wise'} Breakdown
+                  </h3>
                   <p className="text-purple-300/70 text-xs mt-0.5">
-                    Orders grouped by reject/cancel date · {data?.byDay.length ?? 0} days
+                    Orders grouped by reject/cancel {granularity} · {buckets.length} {granularity === 'day' ? 'days' : granularity === 'week' ? 'weeks' : 'months'}. Click any number to see the orders behind it.
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    if (!data?.byDay) return;
-                    downloadCSV(
-                      `refund-daily-${year}.csv`,
-                      ['Date', 'Rejected', 'Cancelled', 'Total Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders', 'Avg Refund Time (hrs)'],
-                      data.byDay.map((d) => [
-                        d.day, d.rejectedCount, d.cancelledCount, d.orderCount,
-                        d.paidAmount, d.refundedAmount, d.pendingAmount, d.refundedOrders,
-                        d.avgRefundProcessingHours != null ? d.avgRefundProcessingHours.toFixed(2) : '',
-                      ]),
-                    );
-                  }}
-                  className="px-3 py-1 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider"
-                >
-                  Export CSV
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Granularity toggle */}
+                  <div className="inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
+                    {(['day', 'week', 'month'] as const).map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setGranularity(g)}
+                        className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                          granularity === g
+                            ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_12px_rgba(217,70,239,0.5)]'
+                            : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!buckets.length) return;
+                      downloadCSV(
+                        `refund-${granularity}-${year}.csv`,
+                        ['Period', 'Period Start', 'Period End', 'Rejected', 'Cancelled', 'Total Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders', 'Avg Refund Time (hrs)'],
+                        buckets.map((b) => [
+                          formatBucketLabel(b, granularity), b.bucketStart, b.bucketEnd,
+                          b.rejectedCount, b.cancelledCount, b.orderCount,
+                          b.paidAmount, b.refundedAmount, b.pendingAmount, b.refundedOrders,
+                          b.avgRefundProcessingHours != null ? b.avgRefundProcessingHours.toFixed(2) : '',
+                        ]),
+                      );
+                    }}
+                    className="px-3 py-1 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider"
+                  >
+                    Export CSV
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto max-h-[480px] rounded-xl border border-white/10">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-900/80 backdrop-blur sticky top-0 z-10">
                     <tr className="text-purple-200 uppercase">
-                      <th className="px-3 py-2 text-left">Date</th>
+                      <th className="px-3 py-2 text-left">
+                        {granularity === 'day' ? 'Date' : granularity === 'week' ? 'Week' : 'Month'}
+                      </th>
                       <th className="px-3 py-2 text-right">Rejected</th>
                       <th className="px-3 py-2 text-right">Cancelled</th>
                       <th className="px-3 py-2 text-right">Total</th>
@@ -362,21 +444,42 @@ export default function RefundOrderAmountDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data?.byDay.map((d) => (
-                      <tr key={d.day} className="border-t border-white/5 hover:bg-white/5">
-                        <td className="px-3 py-2 text-white whitespace-nowrap">{formatDay(d.day)}</td>
-                        <td className="px-3 py-2 text-right text-rose-300 tabular-nums">{d.rejectedCount.toLocaleString('en-IN')}</td>
-                        <td className="px-3 py-2 text-right text-amber-300 tabular-nums">{d.cancelledCount.toLocaleString('en-IN')}</td>
-                        <td className="px-3 py-2 text-right text-purple-100 font-semibold tabular-nums">{d.orderCount.toLocaleString('en-IN')}</td>
-                        <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{formatAmount(d.paidAmount)}</td>
-                        <td className="px-3 py-2 text-right text-emerald-300 tabular-nums">{formatAmount(d.refundedAmount)}</td>
-                        <td className="px-3 py-2 text-right text-rose-300 tabular-nums">{formatAmount(d.pendingAmount)}</td>
-                        <td className="px-3 py-2 text-right text-sky-300 tabular-nums">{formatHours(d.avgRefundProcessingHours)}</td>
-                      </tr>
-                    ))}
-                    {!loading && !data?.byDay?.length && (
+                    {buckets.map((b) => {
+                      const label = formatBucketLabel(b, granularity);
+                      const openModal = (filter: CellFilter, suffix: string) => setModal({
+                        startDate: b.bucketStart,
+                        endDate: b.bucketEnd,
+                        filter,
+                        title: `${label} · ${suffix}`,
+                      });
+                      return (
+                        <tr key={b.bucketStart} className="border-t border-white/5 hover:bg-white/5">
+                          <td className="px-3 py-2 text-white whitespace-nowrap">{label}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            <CellButton color="rose" onClick={() => openModal('rejected', 'Rejected')}>{b.rejectedCount.toLocaleString('en-IN')}</CellButton>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            <CellButton color="amber" onClick={() => openModal('cancelled', 'Cancelled')}>{b.cancelledCount.toLocaleString('en-IN')}</CellButton>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            <CellButton color="purple" bold onClick={() => openModal('all', 'All orders')}>{b.orderCount.toLocaleString('en-IN')}</CellButton>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            <CellButton color="purple" onClick={() => openModal('all', 'Paid')}>{formatAmount(b.paidAmount)}</CellButton>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            <CellButton color="emerald" onClick={() => openModal('refunded', 'Refunded')}>{formatAmount(b.refundedAmount)}</CellButton>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            <CellButton color="rose" onClick={() => openModal('pending', 'Pending refund')}>{formatAmount(b.pendingAmount)}</CellButton>
+                          </td>
+                          <td className="px-3 py-2 text-right text-sky-300 tabular-nums">{formatHours(b.avgRefundProcessingHours)}</td>
+                        </tr>
+                      );
+                    })}
+                    {!loading && !buckets.length && (
                       <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-purple-300/70">No daily data for {year}.</td>
+                        <td colSpan={8} className="px-4 py-8 text-center text-purple-300/70">No data for {year}.</td>
                       </tr>
                     )}
                   </tbody>
@@ -541,6 +644,118 @@ export default function RefundOrderAmountDashboard() {
         )}
       </div>
 
+      {/* Drill-down modal */}
+      {modal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => setModal(null)}
+        >
+          <div
+            className="w-full max-w-6xl max-h-[90vh] bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
+              <div>
+                <h3 className="text-base font-bold text-white">{modal.title}</h3>
+                <p className="text-purple-300/70 text-xs mt-0.5">
+                  {modal.startDate}{modal.startDate !== modal.endDate ? ` → ${modal.endDate}` : ''}
+                  {modalOrders ? ` · ${modalOrders.length} orders` : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {modalOrders && modalOrders.length > 0 && (
+                  <button
+                    onClick={() => {
+                      downloadCSV(
+                        `refund-${modal.filter}-${modal.startDate}-${modal.endDate}.csv`,
+                        ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone'],
+                        modalOrders.map((r) => [
+                          r.poNumber, r.status, r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
+                          r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
+                          r.hoursTillRefund ?? '', r.buyerBusinessName ?? '', r.buyerPhone ?? '',
+                          r.sellerBusinessName ?? '', r.sellerPhone ?? '',
+                        ]),
+                      );
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider"
+                  >
+                    Export CSV
+                  </button>
+                )}
+                <button
+                  onClick={() => setModal(null)}
+                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-purple-200 text-lg font-bold flex items-center justify-center"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto">
+              {modalLoading && (
+                <div className="p-8 text-center text-purple-200 text-sm">Loading orders…</div>
+              )}
+              {modalError && (
+                <div className="p-4 m-4 rounded-xl bg-rose-500/15 border border-rose-400/30 text-rose-200 text-sm">{modalError}</div>
+              )}
+              {modalOrders && !modalLoading && (
+                modalOrders.length === 0 ? (
+                  <div className="p-8 text-center text-purple-300/70 text-sm">No orders match this slice.</div>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-900/95 backdrop-blur sticky top-0 z-10">
+                      <tr className="text-purple-200 uppercase">
+                        <th className="px-3 py-2 text-left">PO Number</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-right">Order Amt</th>
+                        <th className="px-3 py-2 text-right">Paid</th>
+                        <th className="px-3 py-2 text-right">Refund</th>
+                        <th className="px-3 py-2 text-left">Payment</th>
+                        <th className="px-3 py-2 text-left">Reject/Cancel At</th>
+                        <th className="px-3 py-2 text-left">Refunded At</th>
+                        <th className="px-3 py-2 text-right">Hrs→Refund</th>
+                        <th className="px-3 py-2 text-left">Buyer</th>
+                        <th className="px-3 py-2 text-left">Seller</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {modalOrders.map((r) => (
+                        <tr key={r.purchaseOrderId} className="border-t border-white/5 hover:bg-white/5">
+                          <td className="px-3 py-2 text-fuchsia-300 font-mono">{r.poNumber}</td>
+                          <td className="px-3 py-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
+                              : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
+                            }`}>{r.status}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{formatAmount(r.amount)}</td>
+                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{formatAmount(r.orderPaidAmount)}</td>
+                          <td className={`px-3 py-2 text-right tabular-nums ${r.refundAmount != null ? 'text-emerald-300' : 'text-rose-300/70'}`}>
+                            {r.refundAmount != null ? formatAmount(r.refundAmount) : 'Pending'}
+                          </td>
+                          <td className="px-3 py-2 text-purple-200">{r.paymentOption ?? '—'}</td>
+                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.rejectedOrCancelledTime)}</td>
+                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedStatusCompletedTime)}</td>
+                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{r.hoursTillRefund != null ? r.hoursTillRefund.toFixed(1) : '—'}</td>
+                          <td className="px-3 py-2 text-purple-200">
+                            <div className="text-white">{r.buyerBusinessName || '—'}</div>
+                            <div className="text-purple-300/70 text-[10px]">{r.buyerPhone || ''}</div>
+                          </td>
+                          <td className="px-3 py-2 text-purple-200">
+                            <div className="text-white">{r.sellerBusinessName || '—'}</div>
+                            <div className="text-purple-300/70 text-[10px]">{r.sellerPhone || ''}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx>{`
         .animation-delay-2000 { animation-delay: 2s; }
       `}</style>
@@ -565,5 +780,29 @@ function MiniStat({ label, value, hint }: { label: string; value: string; hint?:
       <div className="text-base font-bold text-white tabular-nums">{value}</div>
       {hint && <div className="text-[10px] text-purple-300/60">{hint}</div>}
     </div>
+  );
+}
+
+function CellButton({
+  children, onClick, color, bold,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  color: 'rose' | 'amber' | 'emerald' | 'purple';
+  bold?: boolean;
+}) {
+  const tone =
+    color === 'rose'    ? 'text-rose-300 hover:text-rose-100 hover:bg-rose-500/15'
+    : color === 'amber' ? 'text-amber-300 hover:text-amber-100 hover:bg-amber-500/15'
+    : color === 'emerald' ? 'text-emerald-300 hover:text-emerald-100 hover:bg-emerald-500/15'
+    : 'text-purple-100 hover:text-white hover:bg-fuchsia-500/15';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-block px-1.5 py-0.5 rounded transition-colors ${tone} ${bold ? 'font-semibold' : ''}`}
+    >
+      {children}
+    </button>
   );
 }

@@ -387,7 +387,7 @@ export default function RefundOrderAmountDashboard() {
                       : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_14px_rgba(217,70,239,0.5)]'
                 }`}
               >
-                {t === 'overview' ? 'Monthly Overview' : t === 'sellers' ? 'Seller wise' : t === 'orders' ? 'Order Details' : 'Alerts'}
+                {t === 'overview' ? 'Dashboard' : t === 'sellers' ? 'Seller wise' : t === 'orders' ? 'Order Details' : 'Alerts'}
                 {isAlerts && hasAlerts && (
                   <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-black tabular-nums shadow-[0_0_10px_rgba(244,63,94,0.7)] animate-pulse">
                     {alertCount > 99 ? '99+' : alertCount}
@@ -398,7 +398,7 @@ export default function RefundOrderAmountDashboard() {
           })}
         </div>
 
-        {/* Master granularity toggle — drives chart + breakdown table (Monthly Overview only) */}
+        {/* Master granularity toggle — drives chart + breakdown table (Dashboard tab only) */}
         {tab === 'overview' && (
           <div className="mb-6 flex items-center justify-end gap-2 flex-wrap">
             {granularity === 'custom' && (
@@ -439,7 +439,7 @@ export default function RefundOrderAmountDashboard() {
           </div>
         )}
 
-        {/* KPI cards — only on Monthly Overview */}
+        {/* KPI cards — only on Dashboard tab */}
         {tab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <KpiCard

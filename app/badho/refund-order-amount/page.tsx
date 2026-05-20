@@ -121,6 +121,9 @@ interface AlertItem {
   sellerBusinessName: string | null;
   rejectedOrCancelledTime: string | null;
   minutesPending: number;
+  rejectReason: string | null;
+  rejectedBy: string | null;
+  reasonAddedByBadhoTeam: string | null;
 }
 interface RefundApiResponse {
   summary: Summary;
@@ -1006,12 +1009,13 @@ function AlertsTabContent({
               onClick={() => {
                 downloadCSV(
                   `refund-alerts-${new Date().toISOString().slice(0, 10)}.csv`,
-                  ['PO Number', 'Status', 'Paid Amount', 'Payment Option', 'Pending For', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone'],
+                  ['PO Number', 'Status', 'Paid Amount', 'Payment Option', 'Pending For', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                   alerts.map((a) => [
                     a.poNumber, a.status, a.paidAmount, a.paymentOption ?? '',
                     formatPendingDuration(a.minutesPending), a.rejectedOrCancelledTime ?? '',
                     a.buyerBusinessName ?? '', a.buyerPhone ?? '',
                     a.sellerBusinessName ?? '', a.sellerPhone ?? '',
+                    a.rejectReason ?? '', a.rejectedBy ?? '', a.reasonAddedByBadhoTeam ?? '',
                   ]),
                 );
               }}
@@ -1033,6 +1037,9 @@ function AlertsTabContent({
                   <th className="px-4 py-3 text-left">Reject/Cancel At</th>
                   <th className="px-4 py-3 text-left">Buyer</th>
                   <th className="px-4 py-3 text-left">Seller</th>
+                  <th className="px-4 py-3 text-left">Reject Reason</th>
+                  <th className="px-4 py-3 text-left">Rejected By</th>
+                  <th className="px-4 py-3 text-left">Badho Team Reason</th>
                 </tr>
               </thead>
               <tbody>
@@ -1063,6 +1070,13 @@ function AlertsTabContent({
                       <td className="px-4 py-2.5 text-purple-200">
                         <div className="text-white">{a.sellerBusinessName || '—'}</div>
                         <div className="text-purple-300/70 text-[10px]">{a.sellerPhone || ''}</div>
+                      </td>
+                      <td className="px-4 py-2.5 text-purple-200 max-w-[200px]" title={a.rejectReason || ''}>
+                        {a.rejectReason ? <span className="block truncate">{a.rejectReason}</span> : <span className="text-purple-400/50 italic">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-purple-200">{a.rejectedBy || <span className="text-purple-400/50 italic">—</span>}</td>
+                      <td className="px-4 py-2.5 text-purple-200 max-w-[200px]" title={a.reasonAddedByBadhoTeam || ''}>
+                        {a.reasonAddedByBadhoTeam ? <span className="block truncate">{a.reasonAddedByBadhoTeam}</span> : <span className="text-purple-400/50 italic">—</span>}
                       </td>
                     </tr>
                   );

@@ -75,6 +75,9 @@ interface AlertItem {
   sellerBusinessName: string | null;
   rejectedOrCancelledTime: string | null;
   minutesPending: number;
+  rejectReason: string | null;
+  rejectedBy: string | null;
+  reasonAddedByBadhoTeam: string | null;
 }
 
 interface ResultRow {
@@ -347,7 +350,10 @@ export async function GET(req: NextRequest) {
             'sellerPhone',              seller_phone,
             'sellerBusinessName',       seller_business_name,
             'rejectedOrCancelledTime',  rejected_or_cancelled_time,
-            'minutesPending',           EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 60
+            'minutesPending',           EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 60,
+            'rejectReason',             reject_reason,
+            'rejectedBy',               rejected_by,
+            'reasonAddedByBadhoTeam',   reason_added_by_badho_team
           ))
           FROM alerts_data
         )

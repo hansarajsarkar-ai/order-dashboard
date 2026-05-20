@@ -3,53 +3,72 @@ import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-interface SummaryRow {
-  total_orders: string;
-  total_paid_amount: string;
-  refunded_orders: string;
-  total_refunded_amount: string;
-  avg_refund_time_hours: string | null;
-  avg_time_till_refund_hours: string | null;
+interface Bucket {
+  bucketStart: string;
+  bucketEnd: string;
+  rejectedCount: number;
+  cancelledCount: number;
+  orderCount: number;
+  paidAmount: number;
+  refundedAmount: number;
+  pendingAmount: number;
+  refundedOrders: number;
+  avgRefundProcessingHours: number | null;
 }
-interface BucketRow {
-  bucket_start: string;
-  bucket_end: string;
-  rejected_count: string;
-  cancelled_count: string;
-  order_count: string;
-  paid_amount: string;
-  refunded_amount: string;
-  refunded_orders: string;
-  avg_refund_processing_hours: string | null;
+
+interface Summary {
+  totalOrders: number;
+  totalPaidAmount: number;
+  refundedOrders: number;
+  totalRefundedAmount: number;
+  pendingRefundAmount: number;
+  refundRate: number;
+  avgRefundAmount: number;
+  avgRefundProcessingHours: number | null;
+  avgHoursTillRefund: number | null;
 }
-interface SellerRow {
-  seller_id: string;
-  seller_phone: string | null;
-  seller_business_name: string | null;
-  order_count: string;
-  paid_amount: string;
-  refunded_amount: string;
-  refunded_orders: string;
+
+interface SellerSummary {
+  sellerId: string;
+  sellerPhone: string | null;
+  sellerBusinessName: string | null;
+  orderCount: number;
+  paidAmount: number;
+  refundedAmount: number;
+  pendingAmount: number;
+  refundedOrders: number;
 }
-interface ListRow {
-  purchase_order_id: string;
+
+interface ListItem {
+  purchaseOrderId: string;
   status: string;
-  amount: string;
-  marked_rejected_time: string | null;
-  marked_cancelled_time: string | null;
-  rejected_or_cancelled_time: string | null;
-  po_number: string;
-  payment_option: string | null;
-  buyer_phone: string | null;
-  buyer_business_name: string | null;
-  seller_phone: string | null;
-  seller_business_name: string | null;
-  order_paid_amount: string | null;
-  refund_amount: string | null;
-  marked_status_completed_time: string | null;
-  marked_status_initiated_time: string | null;
-  refund_processing_hours: string | null;
-  hours_till_refund: string | null;
+  amount: number;
+  markedRejectedTime: string | null;
+  markedCancelledTime: string | null;
+  rejectedOrCancelledTime: string | null;
+  poNumber: string;
+  paymentOption: string | null;
+  buyerPhone: string | null;
+  buyerBusinessName: string | null;
+  sellerPhone: string | null;
+  sellerBusinessName: string | null;
+  orderPaidAmount: number;
+  refundAmount: number | null;
+  markedStatusCompletedTime: string | null;
+  markedStatusInitiatedTime: string | null;
+  refundProcessingHours: number | null;
+  hoursTillRefund: number | null;
+}
+
+interface ResultRow {
+  result: {
+    summary: Summary;
+    byDay: Bucket[] | null;
+    byWeek: Bucket[] | null;
+    byMonth: Bucket[] | null;
+    topSellers: SellerSummary[] | null;
+    list: ListItem[] | null;
+  } | null;
 }
 
 // Shared filters from the user-provided base query
@@ -70,9 +89,12 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
 
   try {
-    // Source CTE shared by every aggregation, mirrors the user's base query
-    const sourceCte = `
-      WITH source AS (
+    // One SQL statement, one round-trip. The heavy join is run ONCE
+    // (`WITH source AS MATERIALIZED ...`) and every aggregation reads from
+    // the materialized in-memory set. The date predicate is a sargable
+    // range scan so indexes on "markedPendingTime" can be used.
+    const sql = `
+      WITH source AS MATERIALIZED (
         SELECT
           a."id"                                  AS purchase_order_id,
           a."status"                              AS po_status,
@@ -105,187 +127,207 @@ export async function GET(req: NextRequest) {
           ON pfc."purchaseOrderId" = a."id"
          AND pfc."status" = 'COMPLETED'
         WHERE ${BASE_WHERE}
-          AND EXTRACT(YEAR FROM a."markedPendingTime") = $1
+          AND a."markedPendingTime" >= make_date($1::int, 1, 1)
+          AND a."markedPendingTime" <  make_date($1::int + 1, 1, 1)
+      ),
+      summary_agg AS (
+        SELECT
+          COUNT(*)                                                          AS total_orders,
+          COALESCE(SUM(order_paid_amount), 0)                               AS total_paid_amount,
+          COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)                 AS refunded_orders,
+          COALESCE(SUM(refund_amount), 0)                                   AS total_refunded_amount,
+          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_time_hours,
+          AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_time_till_refund_hours
+        FROM source
+      ),
+      day_agg AS (
+        SELECT
+          date_trunc('day', rejected_or_cancelled_time)::date          AS bucket_start,
+          date_trunc('day', rejected_or_cancelled_time)::date          AS bucket_end,
+          COUNT(*) FILTER (WHERE po_status = 'REJECTED')               AS rejected_count,
+          COUNT(*) FILTER (WHERE po_status = 'CANCELLED')              AS cancelled_count,
+          COUNT(*)                                                     AS order_count,
+          COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
+          COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
+          COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
+          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
+        FROM source
+        WHERE rejected_or_cancelled_time IS NOT NULL
+        GROUP BY date_trunc('day', rejected_or_cancelled_time)
+      ),
+      week_agg AS (
+        SELECT
+          date_trunc('week', rejected_or_cancelled_time)::date                                  AS bucket_start,
+          (date_trunc('week', rejected_or_cancelled_time) + interval '6 days')::date            AS bucket_end,
+          COUNT(*) FILTER (WHERE po_status = 'REJECTED')               AS rejected_count,
+          COUNT(*) FILTER (WHERE po_status = 'CANCELLED')              AS cancelled_count,
+          COUNT(*)                                                     AS order_count,
+          COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
+          COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
+          COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
+          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
+        FROM source
+        WHERE rejected_or_cancelled_time IS NOT NULL
+        GROUP BY date_trunc('week', rejected_or_cancelled_time)
+      ),
+      month_agg AS (
+        SELECT
+          date_trunc('month', rejected_or_cancelled_time)::date                                          AS bucket_start,
+          (date_trunc('month', rejected_or_cancelled_time) + interval '1 month' - interval '1 day')::date AS bucket_end,
+          COUNT(*) FILTER (WHERE po_status = 'REJECTED')               AS rejected_count,
+          COUNT(*) FILTER (WHERE po_status = 'CANCELLED')              AS cancelled_count,
+          COUNT(*)                                                     AS order_count,
+          COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
+          COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
+          COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
+          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
+        FROM source
+        WHERE rejected_or_cancelled_time IS NOT NULL
+        GROUP BY date_trunc('month', rejected_or_cancelled_time)
+      ),
+      seller_agg AS (
+        SELECT
+          seller_id,
+          MAX(seller_phone)                                            AS seller_phone,
+          MAX(seller_business_name)                                    AS seller_business_name,
+          COUNT(*)                                                     AS order_count,
+          COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
+          COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
+          COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders
+        FROM source
+        GROUP BY seller_id
+        ORDER BY SUM(order_paid_amount) DESC NULLS LAST
+        LIMIT 25
+      ),
+      list_data AS (
+        SELECT *
+        FROM source
+        ORDER BY rejected_or_cancelled_time DESC NULLS LAST
+        LIMIT 2000
       )
+      SELECT json_build_object(
+        'summary', (
+          SELECT json_build_object(
+            'totalOrders',                total_orders,
+            'totalPaidAmount',            total_paid_amount,
+            'refundedOrders',             refunded_orders,
+            'totalRefundedAmount',        total_refunded_amount,
+            'pendingRefundAmount',        GREATEST(total_paid_amount - total_refunded_amount, 0),
+            'refundRate',                 CASE WHEN total_orders > 0 THEN ROUND((refunded_orders::numeric / total_orders) * 100, 2) ELSE 0 END,
+            'avgRefundAmount',            CASE WHEN refunded_orders > 0 THEN total_refunded_amount / refunded_orders ELSE 0 END,
+            'avgRefundProcessingHours',   avg_refund_time_hours,
+            'avgHoursTillRefund',         avg_time_till_refund_hours
+          )
+          FROM summary_agg
+        ),
+        'byDay', (
+          SELECT json_agg(json_build_object(
+            'bucketStart',                TO_CHAR(bucket_start, 'YYYY-MM-DD'),
+            'bucketEnd',                  TO_CHAR(bucket_end, 'YYYY-MM-DD'),
+            'rejectedCount',              rejected_count,
+            'cancelledCount',             cancelled_count,
+            'orderCount',                 order_count,
+            'paidAmount',                 paid_amount,
+            'refundedAmount',             refunded_amount,
+            'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
+            'refundedOrders',             refunded_orders,
+            'avgRefundProcessingHours',   avg_refund_processing_hours
+          ) ORDER BY bucket_start DESC)
+          FROM day_agg
+        ),
+        'byWeek', (
+          SELECT json_agg(json_build_object(
+            'bucketStart',                TO_CHAR(bucket_start, 'YYYY-MM-DD'),
+            'bucketEnd',                  TO_CHAR(bucket_end, 'YYYY-MM-DD'),
+            'rejectedCount',              rejected_count,
+            'cancelledCount',             cancelled_count,
+            'orderCount',                 order_count,
+            'paidAmount',                 paid_amount,
+            'refundedAmount',             refunded_amount,
+            'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
+            'refundedOrders',             refunded_orders,
+            'avgRefundProcessingHours',   avg_refund_processing_hours
+          ) ORDER BY bucket_start DESC)
+          FROM week_agg
+        ),
+        'byMonth', (
+          SELECT json_agg(json_build_object(
+            'bucketStart',                TO_CHAR(bucket_start, 'YYYY-MM-DD'),
+            'bucketEnd',                  TO_CHAR(bucket_end, 'YYYY-MM-DD'),
+            'rejectedCount',              rejected_count,
+            'cancelledCount',             cancelled_count,
+            'orderCount',                 order_count,
+            'paidAmount',                 paid_amount,
+            'refundedAmount',             refunded_amount,
+            'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
+            'refundedOrders',             refunded_orders,
+            'avgRefundProcessingHours',   avg_refund_processing_hours
+          ) ORDER BY bucket_start DESC)
+          FROM month_agg
+        ),
+        'topSellers', (
+          SELECT json_agg(json_build_object(
+            'sellerId',                   seller_id::text,
+            'sellerPhone',                seller_phone,
+            'sellerBusinessName',         seller_business_name,
+            'orderCount',                 order_count,
+            'paidAmount',                 paid_amount,
+            'refundedAmount',             refunded_amount,
+            'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
+            'refundedOrders',             refunded_orders
+          ))
+          FROM seller_agg
+        ),
+        'list', (
+          SELECT json_agg(json_build_object(
+            'purchaseOrderId',            purchase_order_id::text,
+            'status',                     po_status,
+            'amount',                     po_amount,
+            'markedRejectedTime',         marked_rejected_time,
+            'markedCancelledTime',        marked_cancelled_time,
+            'rejectedOrCancelledTime',    rejected_or_cancelled_time,
+            'poNumber',                   po_number,
+            'paymentOption',              payment_option,
+            'buyerPhone',                 buyer_phone,
+            'buyerBusinessName',          buyer_business_name,
+            'sellerPhone',                seller_phone,
+            'sellerBusinessName',         seller_business_name,
+            'orderPaidAmount',            order_paid_amount,
+            'refundAmount',               refund_amount,
+            'markedStatusCompletedTime',  marked_status_completed_time,
+            'markedStatusInitiatedTime',  marked_status_initiated_time,
+            'refundProcessingHours',      refund_processing_hours,
+            'hoursTillRefund',            hours_till_refund
+          ))
+          FROM list_data
+        )
+      ) AS result;
     `;
 
-    // 1. Summary KPIs
-    const summarySql = `
-      ${sourceCte}
-      SELECT
-        COUNT(*)::text                                                              AS total_orders,
-        COALESCE(SUM(order_paid_amount), 0)::text                                   AS total_paid_amount,
-        COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)::text                     AS refunded_orders,
-        COALESCE(SUM(refund_amount), 0)::text                                       AS total_refunded_amount,
-        AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL)::text AS avg_refund_time_hours,
-        AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)::text       AS avg_time_till_refund_hours
-      FROM source;
-    `;
-    const summaryRows = await query<SummaryRow>(summarySql, [year]);
+    const rows = await query<ResultRow>(sql, [year]);
+    const r = rows[0]?.result;
 
-    // Bucket aggregation — day / week / month all share the same shape.
-    // bucketStart / bucketEnd inclusive; used as filter range for the modal endpoint.
-    const bucketSql = (trunc: 'day' | 'week' | 'month') => `
-      ${sourceCte}
-      SELECT
-        TO_CHAR(date_trunc('${trunc}', rejected_or_cancelled_time)::date, 'YYYY-MM-DD') AS bucket_start,
-        TO_CHAR(
-          ${trunc === 'day'
-            ? `date_trunc('day', rejected_or_cancelled_time)::date`
-            : trunc === 'week'
-            ? `(date_trunc('week', rejected_or_cancelled_time) + interval '6 days')::date`
-            : `(date_trunc('month', rejected_or_cancelled_time) + interval '1 month' - interval '1 day')::date`
-          },
-          'YYYY-MM-DD'
-        )                                                                                AS bucket_end,
-        COUNT(*) FILTER (WHERE po_status = 'REJECTED')::text                             AS rejected_count,
-        COUNT(*) FILTER (WHERE po_status = 'CANCELLED')::text                            AS cancelled_count,
-        COUNT(*)::text                                                                   AS order_count,
-        COALESCE(SUM(order_paid_amount), 0)::text                                        AS paid_amount,
-        COALESCE(SUM(refund_amount), 0)::text                                            AS refunded_amount,
-        COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)::text                          AS refunded_orders,
-        AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL)::text AS avg_refund_processing_hours
-      FROM source
-      WHERE rejected_or_cancelled_time IS NOT NULL
-      GROUP BY date_trunc('${trunc}', rejected_or_cancelled_time)
-      ORDER BY date_trunc('${trunc}', rejected_or_cancelled_time) DESC;
-    `;
-    const [dailyRows, weeklyRows, monthlyRows] = await Promise.all([
-      query<BucketRow>(bucketSql('day'),   [year]),
-      query<BucketRow>(bucketSql('week'),  [year]),
-      query<BucketRow>(bucketSql('month'), [year]),
-    ]);
-
-    // 3. Top sellers by paid amount (refunds owed)
-    const sellerSql = `
-      ${sourceCte}
-      SELECT
-        seller_id::text                                                              AS seller_id,
-        seller_phone,
-        seller_business_name,
-        COUNT(*)::text                                                              AS order_count,
-        COALESCE(SUM(order_paid_amount), 0)::text                                   AS paid_amount,
-        COALESCE(SUM(refund_amount), 0)::text                                       AS refunded_amount,
-        COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)::text                     AS refunded_orders
-      FROM source
-      GROUP BY seller_id, seller_phone, seller_business_name
-      ORDER BY SUM(order_paid_amount) DESC NULLS LAST
-      LIMIT 25;
-    `;
-    const sellerRows = await query<SellerRow>(sellerSql, [year]);
-
-    // 4. Detailed list — same shape as the user's base query, capped for the UI
-    const listSql = `
-      ${sourceCte}
-      SELECT
-        purchase_order_id::text,
-        po_status                                                                    AS status,
-        po_amount::text                                                              AS amount,
-        marked_rejected_time::text,
-        marked_cancelled_time::text,
-        rejected_or_cancelled_time::text,
-        po_number,
-        payment_option,
-        buyer_phone,
-        buyer_business_name,
-        seller_phone,
-        seller_business_name,
-        order_paid_amount::text,
-        refund_amount::text,
-        marked_status_completed_time::text,
-        marked_status_initiated_time::text,
-        refund_processing_hours::text,
-        hours_till_refund::text
-      FROM source
-      ORDER BY rejected_or_cancelled_time DESC NULLS LAST
-      LIMIT 2000;
-    `;
-    const listRows = await query<ListRow>(listSql, [year]);
-
-    const sr = summaryRows[0];
-    const totalOrders = parseInt(sr?.total_orders || '0');
-    const totalPaidAmount = parseFloat(sr?.total_paid_amount || '0');
-    const refundedOrders = parseInt(sr?.refunded_orders || '0');
-    const totalRefundedAmount = parseFloat(sr?.total_refunded_amount || '0');
-    const pendingRefundAmount = Math.max(totalPaidAmount - totalRefundedAmount, 0);
-    const refundRate = totalOrders > 0 ? parseFloat(((refundedOrders / totalOrders) * 100).toFixed(2)) : 0;
-    const avgRefundAmount = refundedOrders > 0 ? totalRefundedAmount / refundedOrders : 0;
-    const avgRefundProcessingHours = sr?.avg_refund_time_hours ? parseFloat(sr.avg_refund_time_hours) : null;
-    const avgHoursTillRefund = sr?.avg_time_till_refund_hours ? parseFloat(sr.avg_time_till_refund_hours) : null;
-
-    const mapBucket = (r: BucketRow) => {
-      const paid = parseFloat(r.paid_amount);
-      const refunded = parseFloat(r.refunded_amount);
-      return {
-        bucketStart: r.bucket_start,
-        bucketEnd: r.bucket_end,
-        rejectedCount: parseInt(r.rejected_count),
-        cancelledCount: parseInt(r.cancelled_count),
-        orderCount: parseInt(r.order_count),
-        paidAmount: paid,
-        refundedAmount: refunded,
-        pendingAmount: Math.max(paid - refunded, 0),
-        refundedOrders: parseInt(r.refunded_orders),
-        avgRefundProcessingHours: r.avg_refund_processing_hours ? parseFloat(r.avg_refund_processing_hours) : null,
-      };
-    };
-    const byDay   = dailyRows.map(mapBucket);
-    const byWeek  = weeklyRows.map(mapBucket);
-    const byMonth = monthlyRows.map(mapBucket);
-
-    const topSellers = sellerRows.map((r) => {
-      const paid = parseFloat(r.paid_amount);
-      const refunded = parseFloat(r.refunded_amount);
-      return {
-        sellerId: r.seller_id,
-        sellerPhone: r.seller_phone,
-        sellerBusinessName: r.seller_business_name,
-        orderCount: parseInt(r.order_count),
-        paidAmount: paid,
-        refundedAmount: refunded,
-        pendingAmount: Math.max(paid - refunded, 0),
-        refundedOrders: parseInt(r.refunded_orders),
-      };
-    });
-
-    const list = listRows.map((r) => ({
-      purchaseOrderId: r.purchase_order_id,
-      status: r.status,
-      amount: parseFloat(r.amount || '0'),
-      markedRejectedTime: r.marked_rejected_time,
-      markedCancelledTime: r.marked_cancelled_time,
-      rejectedOrCancelledTime: r.rejected_or_cancelled_time,
-      poNumber: r.po_number,
-      paymentOption: r.payment_option,
-      buyerPhone: r.buyer_phone,
-      buyerBusinessName: r.buyer_business_name,
-      sellerPhone: r.seller_phone,
-      sellerBusinessName: r.seller_business_name,
-      orderPaidAmount: r.order_paid_amount ? parseFloat(r.order_paid_amount) : 0,
-      refundAmount: r.refund_amount ? parseFloat(r.refund_amount) : null,
-      markedStatusCompletedTime: r.marked_status_completed_time,
-      markedStatusInitiatedTime: r.marked_status_initiated_time,
-      refundProcessingHours: r.refund_processing_hours ? parseFloat(r.refund_processing_hours) : null,
-      hoursTillRefund: r.hours_till_refund ? parseFloat(r.hours_till_refund) : null,
-    }));
+    if (!r) {
+      // Year with no matching orders — return empty shells so the UI can render.
+      return NextResponse.json({
+        summary: {
+          totalOrders: 0, totalPaidAmount: 0, refundedOrders: 0, totalRefundedAmount: 0,
+          pendingRefundAmount: 0, refundRate: 0, avgRefundAmount: 0,
+          avgRefundProcessingHours: null, avgHoursTillRefund: null,
+        },
+        byDay: [], byWeek: [], byMonth: [], topSellers: [], list: [],
+        year,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return NextResponse.json({
-      summary: {
-        totalOrders,
-        totalPaidAmount,
-        refundedOrders,
-        totalRefundedAmount,
-        pendingRefundAmount,
-        refundRate,
-        avgRefundAmount,
-        avgRefundProcessingHours,
-        avgHoursTillRefund,
-      },
-      byDay,
-      byWeek,
-      byMonth,
-      topSellers,
-      list,
+      summary: r.summary,
+      byDay:      r.byDay      ?? [],
+      byWeek:     r.byWeek     ?? [],
+      byMonth:    r.byMonth    ?? [],
+      topSellers: r.topSellers ?? [],
+      list:       r.list       ?? [],
       year,
       timestamp: new Date().toISOString(),
     });

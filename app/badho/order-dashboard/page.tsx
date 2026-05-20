@@ -4391,11 +4391,11 @@ export default function OrderStatusDashboard() {
         {/* Status × Delivery Status Drilldown Modal */}
         {pivotDrillOpen && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm"
             onClick={closePivotDrill}
           >
             <div
-              className="bg-white text-slate-900 border border-slate-200 rounded-2xl w-[95vw] max-w-[95vw] max-h-[95vh] flex flex-col overflow-hidden shadow-2xl"
+              className="bg-white text-slate-900 border border-slate-200 rounded-xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-purple-50">
@@ -4544,11 +4544,11 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.RefundCompletedInMin != null ? Number(r.RefundCompletedInMin).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 max-w-xs" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-2 text-slate-700 max-w-[260px] truncate" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400 italic">—</span>}</td>
                           {pivotDrillStatus === 'REJECTED' && (
                             <>
-                              <td className="px-4 py-3 text-slate-700 bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-4 py-3 text-slate-700 max-w-xs bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-4 py-2 text-slate-700 bg-rose-50/40 whitespace-nowrap">{r.rejectedBy || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-4 py-2 text-slate-700 max-w-[260px] truncate bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400 italic">—</span>}</td>
                             </>
                           )}
                         </tr>

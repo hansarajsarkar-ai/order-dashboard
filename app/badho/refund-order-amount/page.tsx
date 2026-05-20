@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ResponsiveContainer, ComposedChart, BarChart,
-  Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, Cell,
+  ResponsiveContainer, ComposedChart,
+  Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
 
 function formatAmount(amount: number): string {
@@ -79,13 +79,6 @@ interface Bucket {
   avgRefundProcessingHours: number | null;
   avgHoursTillRefund: number | null;
 }
-interface AgingBucket {
-  bucket: string;
-  bucketOrder: number;
-  orderCount: number;
-  pendingAmount: number;
-  avgAgeHours: number;
-}
 type Granularity = 'day' | 'week' | 'month' | 'custom';
 type CellFilter = 'all' | 'rejected' | 'cancelled' | 'refunded' | 'pending';
 interface SellerRow {
@@ -125,7 +118,6 @@ interface RefundApiResponse {
   byMonth: Bucket[];
   topSellers: SellerRow[];
   list: ListRow[];
-  pendingAging: AgingBucket[];
   year: number;
   timestamp: string;
 }
@@ -279,24 +271,6 @@ export default function RefundOrderAmountDashboard() {
       refundedAmount: b.refundedAmount,
     }));
   }, [buckets, granularity]);
-
-  // Aging chart — color-coded by staleness
-  const agingChart = useMemo(() => {
-    const colors: Record<string, string> = {
-      '0-24h':    '#10b981', // emerald — fresh
-      '1-3 days': '#14b8a6', // teal
-      '3-7 days': '#f59e0b', // amber
-      '7-14 days':'#fb923c', // orange
-      '14+ days': '#f43f5e', // rose — stale
-    };
-    return (data?.pendingAging ?? []).map((b) => ({
-      bucket: b.bucket,
-      orderCount: b.orderCount,
-      pendingAmount: b.pendingAmount,
-      avgAgeHours: b.avgAgeHours,
-      color: colors[b.bucket] ?? '#a855f7',
-    }));
-  }, [data]);
 
   const filteredList = useMemo(() => {
     if (!data?.list) return [];
@@ -486,10 +460,9 @@ export default function RefundOrderAmountDashboard() {
               <MiniStat label="Unrefunded Orders" value={s ? (s.totalOrders - s.refundedOrders).toLocaleString('en-IN') : '—'} />
             </div>
 
-            {/* Refund Operations Insights — trend + aging */}
-            <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Refund time trend */}
-              <div className="lg:col-span-2 rounded-xl border border-white/10 bg-white/5 p-4">
+            {/* Refund Time Trend */}
+            <div className="mb-6">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                 <div className="mb-3">
                   <h3 className="text-base font-bold text-white">Refund Time Trend</h3>
                   <p className="text-purple-300/70 text-xs">
@@ -511,54 +484,6 @@ export default function RefundOrderAmountDashboard() {
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
-              </div>
-
-              {/* Pending refund aging */}
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <div className="mb-3">
-                  <h3 className="text-base font-bold text-white">Pending Refund Aging</h3>
-                  <p className="text-purple-300/70 text-xs">
-                    How long unrefunded orders have been waiting. Click a bar to see them.
-                  </p>
-                </div>
-                <div style={{ width: '100%', height: 280 }}>
-                  <ResponsiveContainer>
-                    <BarChart data={agingChart} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                      <XAxis dataKey="bucket" stroke="#c4b5fd" tick={{ fontSize: 10 }} />
-                      <YAxis stroke="#c4b5fd" tick={{ fontSize: 10 }} />
-                      <Tooltip
-                        contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(244,63,94,0.4)', borderRadius: 8, fontSize: 12 }}
-                        labelStyle={{ color: '#fecaca' }}
-                        formatter={(v, name, item) => {
-                          if (name === 'Orders') {
-                            const payload = (item as { payload?: { pendingAmount?: number } })?.payload;
-                            return [`${v} orders · ${formatAmount(payload?.pendingAmount ?? 0)}`, 'Pending'];
-                          }
-                          return [String(v), String(name)];
-                        }}
-                      />
-                      <Bar dataKey="orderCount" name="Orders" radius={[6, 6, 0, 0]}>
-                        {agingChart.map((d) => (
-                          <Cell key={d.bucket} fill={d.color} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                {data?.pendingAging?.length ? (
-                  <div className="mt-2 grid grid-cols-5 gap-1 text-[10px]">
-                    {data.pendingAging.map((b) => (
-                      <div key={b.bucket} className="text-center">
-                        <div className="text-purple-300/70 truncate">{b.bucket}</div>
-                        <div className="font-bold text-white">{b.orderCount}</div>
-                        <div className="text-purple-300/70 truncate">{formatAmount(b.pendingAmount)}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-2 text-center text-purple-300/60 text-xs">Nothing pending 🎉</div>
-                )}
               </div>
             </div>
 

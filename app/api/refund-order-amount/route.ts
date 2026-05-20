@@ -17,14 +17,6 @@ interface Bucket {
   avgHoursTillRefund: number | null;
 }
 
-interface AgingBucket {
-  bucket: string;
-  bucketOrder: number;
-  orderCount: number;
-  pendingAmount: number;
-  avgAgeHours: number;
-}
-
 interface Summary {
   totalOrders: number;
   totalPaidAmount: number;
@@ -77,7 +69,6 @@ interface ResultRow {
     byMonth: Bucket[] | null;
     topSellers: SellerSummary[] | null;
     list: ListItem[] | null;
-    pendingAging: AgingBucket[] | null;
   } | null;
 }
 
@@ -217,38 +208,6 @@ export async function GET(req: NextRequest) {
         FROM source
         ORDER BY rejected_or_cancelled_time DESC NULLS LAST
         LIMIT 2000
-      ),
-      /* Pending refund aging — for unrefunded orders, how long they've been waiting */
-      aging_agg AS (
-        SELECT
-          bucket_order,
-          bucket_label,
-          COUNT(*)                                                 AS order_count,
-          COALESCE(SUM(order_paid_amount), 0)                      AS pending_amount,
-          AVG(age_hours)                                           AS avg_age_hours
-        FROM (
-          SELECT
-            order_paid_amount,
-            EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 AS age_hours,
-            CASE
-              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <=  24 THEN 1
-              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <=  72 THEN 2
-              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <= 168 THEN 3
-              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <= 336 THEN 4
-              ELSE 5
-            END AS bucket_order,
-            CASE
-              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <=  24 THEN '0-24h'
-              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <=  72 THEN '1-3 days'
-              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <= 168 THEN '3-7 days'
-              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <= 336 THEN '7-14 days'
-              ELSE '14+ days'
-            END AS bucket_label
-          FROM source
-          WHERE refund_amount IS NULL
-            AND rejected_or_cancelled_time IS NOT NULL
-        ) raw
-        GROUP BY bucket_order, bucket_label
       )
       SELECT json_build_object(
         'summary', (
@@ -348,16 +307,6 @@ export async function GET(req: NextRequest) {
             'hoursTillRefund',            hours_till_refund
           ))
           FROM list_data
-        ),
-        'pendingAging', (
-          SELECT json_agg(json_build_object(
-            'bucket',         bucket_label,
-            'bucketOrder',    bucket_order,
-            'orderCount',     order_count,
-            'pendingAmount',  pending_amount,
-            'avgAgeHours',    avg_age_hours
-          ) ORDER BY bucket_order)
-          FROM aging_agg
         )
       ) AS result;
     `;
@@ -373,7 +322,7 @@ export async function GET(req: NextRequest) {
           pendingRefundAmount: 0, refundRate: 0, avgRefundAmount: 0,
           avgRefundProcessingHours: null, avgHoursTillRefund: null,
         },
-        byDay: [], byWeek: [], byMonth: [], topSellers: [], list: [], pendingAging: [],
+        byDay: [], byWeek: [], byMonth: [], topSellers: [], list: [],
         year,
         timestamp: new Date().toISOString(),
       });
@@ -381,12 +330,11 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       summary: r.summary,
-      byDay:        r.byDay        ?? [],
-      byWeek:       r.byWeek       ?? [],
-      byMonth:      r.byMonth      ?? [],
-      topSellers:   r.topSellers   ?? [],
-      list:         r.list         ?? [],
-      pendingAging: r.pendingAging ?? [],
+      byDay:      r.byDay      ?? [],
+      byWeek:     r.byWeek     ?? [],
+      byMonth:    r.byMonth    ?? [],
+      topSellers: r.topSellers ?? [],
+      list:       r.list       ?? [],
       year,
       timestamp: new Date().toISOString(),
     });

@@ -642,34 +642,21 @@ export default function Scheme1RsPriceChangeDashboard() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-white/10">
                   <tr className="text-left text-[11px] uppercase tracking-wider text-purple-300/80">
-                    <th className="px-3 py-2 font-semibold">Seller</th>
-                    <th className="px-3 py-2 font-semibold">Business</th>
-                    <th className="px-3 py-2 font-semibold">Phone</th>
-                    <th className="px-3 py-2 font-semibold">Location</th>
-                    <th className="px-3 py-2 font-semibold">Brand</th>
+                    <th className="px-3 py-2 font-semibold">Status</th>
                     <th className="px-3 py-2 font-semibold">Product</th>
+                    <th className="px-3 py-2 font-semibold">Brand</th>
                     <th className="px-3 py-2 font-semibold text-right">Margin</th>
                     <th className="px-3 py-2 font-semibold text-right">Orig. Margin</th>
                     <th className="px-3 py-2 font-semibold text-right">MRP</th>
-                    <th className="px-3 py-2 font-semibold">Status</th>
+                    <th className="px-3 py-2 font-semibold">Seller Phone</th>
+                    <th className="px-3 py-2 font-semibold">Business Name</th>
+                    <th className="px-3 py-2 font-semibold">Seller</th>
+                    <th className="px-3 py-2 font-semibold">Location</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
                     <tr key={r.slab_id} className="border-b border-white/5 hover:bg-white/[0.03]">
-                      <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.seller_name ?? '—'}</td>
-                      <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap">{r.businessName ?? '—'}</td>
-                      <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap font-mono text-xs">{r.phone ?? '—'}</td>
-                      <td className="px-3 py-2 text-purple-200/80 whitespace-nowrap text-xs">
-                        {[r.seller_city, r.seller_district, r.seller_state].filter(Boolean).join(', ') || '—'}
-                      </td>
-                      <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.brand_name ?? '—'}</td>
-                      <td className="px-3 py-2 text-purple-200/90">{r.product_name ?? '—'}</td>
-                      <td className="px-3 py-2">
-                        <MarginCell slabId={r.slab_id} margin={r.margin} onSave={saveSingleMargin} />
-                      </td>
-                      <td className="px-3 py-2 text-right text-purple-200/80 font-mono text-xs">{fmtMargin(r.originalMargin)}</td>
-                      <td className="px-3 py-2 text-right text-purple-100 font-mono text-xs">{fmtMrp(r.mrp)}</td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
@@ -680,6 +667,19 @@ export default function Scheme1RsPriceChangeDashboard() {
                         >
                           {r.brandLive}
                         </span>
+                      </td>
+                      <td className="px-3 py-2 text-purple-200/90">{r.product_name ?? '—'}</td>
+                      <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.brand_name ?? '—'}</td>
+                      <td className="px-3 py-2">
+                        <MarginCell slabId={r.slab_id} margin={r.margin} onSave={saveSingleMargin} />
+                      </td>
+                      <td className="px-3 py-2 text-right text-purple-200/80 font-mono text-xs">{fmtMargin(r.originalMargin)}</td>
+                      <td className="px-3 py-2 text-right text-purple-100 font-mono text-xs">{fmtMrp(r.mrp)}</td>
+                      <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap font-mono text-xs">{r.phone ?? '—'}</td>
+                      <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap">{r.businessName ?? '—'}</td>
+                      <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.seller_name ?? '—'}</td>
+                      <td className="px-3 py-2 text-purple-200/80 whitespace-nowrap text-xs">
+                        {[r.seller_city, r.seller_district, r.seller_state].filter(Boolean).join(', ') || '—'}
                       </td>
                     </tr>
                   ))}

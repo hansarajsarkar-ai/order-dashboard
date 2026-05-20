@@ -220,6 +220,17 @@ export default function Scheme1RsPriceChangeDashboard() {
   const [liveFilter, setLiveFilter] = useState<LiveFilter>('all');
   const [tab, setTab] = useState<Tab>('brands');
 
+  // Pagination — page is 0-indexed. Shared between both tabs, but the
+  // current page resets whenever filters or tab change (see effect below).
+  const PAGE_SIZE_OPTIONS = [50, 100, 250, 500];
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(100);
+
+  // Reset page when anything that changes the underlying row set changes.
+  useEffect(() => {
+    setPage(0);
+  }, [search, liveFilter, tab, pageSize]);
+
   // Bulk update by brand(s). One Set so "single" and "multi" use the same path.
   const [bulkBrandIds, setBulkBrandIds] = useState<Set<string>>(new Set());
   const [bulkMargin, setBulkMargin] = useState('');
@@ -328,6 +339,21 @@ export default function Scheme1RsPriceChangeDashboard() {
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [filtered]);
+
+  // Paged slices for the two tables.
+  const activeTotal = tab === 'brands' ? brandAgg.length : filtered.length;
+  const totalPages = Math.max(1, Math.ceil(activeTotal / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageStart = safePage * pageSize;
+  const pageEnd = Math.min(pageStart + pageSize, activeTotal);
+  const pagedFiltered = useMemo(
+    () => (tab === 'products' ? filtered.slice(pageStart, pageEnd) : filtered),
+    [filtered, tab, pageStart, pageEnd]
+  );
+  const pagedBrandAgg = useMemo(
+    () => (tab === 'brands' ? brandAgg.slice(pageStart, pageEnd) : brandAgg),
+    [brandAgg, tab, pageStart, pageEnd]
+  );
 
   // Distinct brands for the bulk selector (sorted by name).
   const brandOptions = useMemo(() => {
@@ -597,15 +623,17 @@ export default function Scheme1RsPriceChangeDashboard() {
               ))}
             </div>
             <div className="text-xs text-purple-300/70">
-              {tab === 'brands' ? (
-                <>
-                  Showing <span className="text-white font-semibold">{brandAgg.length.toLocaleString()}</span> brands ·{' '}
-                  <span className="text-white font-semibold">{filtered.length.toLocaleString()}</span> products
-                </>
+              {activeTotal === 0 ? (
+                <>No rows</>
               ) : (
                 <>
-                  Showing <span className="text-white font-semibold">{filtered.length.toLocaleString()}</span> of{' '}
-                  <span className="text-white font-semibold">{rows.length.toLocaleString()}</span>
+                  Showing{' '}
+                  <span className="text-white font-semibold">
+                    {(pageStart + 1).toLocaleString()}–{pageEnd.toLocaleString()}
+                  </span>{' '}
+                  of{' '}
+                  <span className="text-white font-semibold">{activeTotal.toLocaleString()}</span>
+                  {tab === 'brands' ? ' brands' : ''}
                 </>
               )}
             </div>
@@ -631,7 +659,7 @@ export default function Scheme1RsPriceChangeDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {brandAgg.map((b) => {
+                    {pagedBrandAgg.map((b) => {
                       const pct = b.total > 0 ? (b.priceSet / b.total) * 100 : 0;
                       return (
                         <tr key={b.brand} className="border-b border-white/5 hover:bg-white/[0.03]">
@@ -665,7 +693,7 @@ export default function Scheme1RsPriceChangeDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => (
+                  {pagedFiltered.map((r) => (
                     <tr key={r.slab_id} className="border-b border-white/5 hover:bg-white/[0.03]">
                       <td className="px-3 py-2 whitespace-nowrap">
                         <span
@@ -697,6 +725,63 @@ export default function Scheme1RsPriceChangeDashboard() {
               </table>
             )}
           </div>
+
+          {/* Pagination footer */}
+          {!loading && !error && activeTotal > 0 && (
+            <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between gap-3 flex-wrap text-xs">
+              <div className="flex items-center gap-2 text-purple-300/80">
+                <label htmlFor="page-size">Rows per page:</label>
+                <select
+                  id="page-size"
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white focus:outline-none focus:border-fuchsia-400/50"
+                >
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n} className="bg-slate-900">
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(0)}
+                  disabled={safePage === 0}
+                  className="px-2 py-1 rounded bg-white/5 border border-white/10 text-purple-100 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="First page"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={safePage === 0}
+                  className="px-3 py-1 rounded bg-white/5 border border-white/10 text-purple-100 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  ‹ Prev
+                </button>
+                <span className="text-purple-200 px-2 whitespace-nowrap">
+                  Page <span className="text-white font-semibold">{safePage + 1}</span> of{' '}
+                  <span className="text-white font-semibold">{totalPages}</span>
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={safePage >= totalPages - 1}
+                  className="px-3 py-1 rounded bg-white/5 border border-white/10 text-purple-100 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  Next ›
+                </button>
+                <button
+                  onClick={() => setPage(totalPages - 1)}
+                  disabled={safePage >= totalPages - 1}
+                  className="px-2 py-1 rounded bg-white/5 border border-white/10 text-purple-100 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Last page"
+                >
+                  »
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

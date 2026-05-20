@@ -124,6 +124,7 @@ interface AlertItem {
   rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
+  reasonCategory: string;
 }
 interface RefundApiResponse {
   summary: Summary;
@@ -917,6 +918,23 @@ function severityFor(minutes: number): {
   return                          { label: 'SEVERE',        tone: 'text-white',      ring: 'ring-red-300',       bg: 'bg-red-700/50' };
 }
 
+function categoryStyleFor(category: string): { tone: string; bg: string; ring: string } {
+  switch (category) {
+    case 'Delivery Partner SLA Breach':
+      return { tone: 'text-orange-100', bg: 'bg-orange-500/25', ring: 'ring-orange-400/50' };
+    case 'Rejected due to RTO':
+      return { tone: 'text-rose-100',   bg: 'bg-rose-500/25',   ring: 'ring-rose-400/50' };
+    case 'Brand SLA Breach':
+      return { tone: 'text-red-100',    bg: 'bg-red-600/30',    ring: 'ring-red-400/60' };
+    case 'Serviceability Issue':
+      return { tone: 'text-amber-100',  bg: 'bg-amber-500/25',  ring: 'ring-amber-400/50' };
+    case 'Address Issue':
+      return { tone: 'text-yellow-100', bg: 'bg-yellow-500/25', ring: 'ring-yellow-400/50' };
+    default:
+      return { tone: 'text-purple-200', bg: 'bg-white/10',      ring: 'ring-white/20' };
+  }
+}
+
 function AlertsTabContent({
   alerts, loading, onRefresh,
 }: {
@@ -1009,9 +1027,10 @@ function AlertsTabContent({
               onClick={() => {
                 downloadCSV(
                   `refund-alerts-${new Date().toISOString().slice(0, 10)}.csv`,
-                  ['PO Number', 'Status', 'Paid Amount', 'Payment Option', 'Pending For', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                  ['PO Number', 'Status', 'Paid Amount', 'Payment Option', 'Reason Category', 'Pending For', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                   alerts.map((a) => [
                     a.poNumber, a.status, a.paidAmount, a.paymentOption ?? '',
+                    a.reasonCategory,
                     formatPendingDuration(a.minutesPending), a.rejectedOrCancelledTime ?? '',
                     a.buyerBusinessName ?? '', a.buyerPhone ?? '',
                     a.sellerBusinessName ?? '', a.sellerPhone ?? '',
@@ -1034,6 +1053,7 @@ function AlertsTabContent({
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3 text-right">Paid</th>
                   <th className="px-4 py-3 text-left">Payment</th>
+                  <th className="px-4 py-3 text-left">Reason Category</th>
                   <th className="px-4 py-3 text-left">Reject/Cancel At</th>
                   <th className="px-4 py-3 text-left">Buyer</th>
                   <th className="px-4 py-3 text-left">Seller</th>
@@ -1062,6 +1082,16 @@ function AlertsTabContent({
                       </td>
                       <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(a.paidAmount)}</td>
                       <td className="px-4 py-2.5 text-purple-200">{a.paymentOption ?? '—'}</td>
+                      <td className="px-4 py-2.5">
+                        {(() => {
+                          const cat = categoryStyleFor(a.reasonCategory);
+                          return (
+                            <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ring-1 whitespace-nowrap ${cat.bg} ${cat.tone} ${cat.ring}`}>
+                              {a.reasonCategory}
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td className="px-4 py-2.5 text-purple-200 whitespace-nowrap">{formatDateTime(a.rejectedOrCancelledTime)}</td>
                       <td className="px-4 py-2.5 text-purple-200">
                         <div className="text-white">{a.buyerBusinessName || '—'}</div>

@@ -78,6 +78,7 @@ interface AlertItem {
   rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
+  reasonCategory: string;
 }
 
 interface ResultRow {
@@ -142,7 +143,29 @@ export async function GET(req: NextRequest) {
                                                   AS hours_till_refund,
           a."rejectReason"                        AS reject_reason,
           a."rejectedBy"                          AS rejected_by,
-          a."reasonAddedByBadhoTeam"              AS reason_added_by_badho_team
+          a."reasonAddedByBadhoTeam"              AS reason_added_by_badho_team,
+          CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM "deliveries"."intercityDelivery" di
+              WHERE di."purchaseOrderId" = a."id"
+                AND di."status" = 'NOT PICKED'
+                AND di."autoRejectionTime" IS NOT NULL
+            )
+              THEN 'Delivery Partner SLA Breach'
+            WHEN a."deliveryStatus" = 'RTO'
+              THEN 'Rejected due to RTO'
+            WHEN COALESCE(a."rejectReason", '')           ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
+              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
+              THEN 'Brand SLA Breach'
+            WHEN COALESCE(a."rejectReason", '')           ILIKE '%serviceab%'
+              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%serviceab%'
+              THEN 'Serviceability Issue'
+            WHEN COALESCE(a."rejectReason", '')           ILIKE '%address%'
+              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%address%'
+              THEN 'Address Issue'
+            ELSE 'Other Reasons'
+          END                                     AS reason_category
         FROM "purchaseOrder"."purchaseOrder" a
         JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
         JOIN "users"."seller" s   ON s."id" = a."sellerId"
@@ -353,7 +376,8 @@ export async function GET(req: NextRequest) {
             'minutesPending',           EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 60,
             'rejectReason',             reject_reason,
             'rejectedBy',               rejected_by,
-            'reasonAddedByBadhoTeam',   reason_added_by_badho_team
+            'reasonAddedByBadhoTeam',   reason_added_by_badho_team,
+            'reasonCategory',           reason_category
           ))
           FROM alerts_data
         )

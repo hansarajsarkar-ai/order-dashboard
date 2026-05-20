@@ -3,11 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import {
-  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
-} from 'recharts';
-
-const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function formatAmount(amount: number): string {
   if (!amount || !Number.isFinite(amount)) return '₹0';
@@ -178,22 +173,6 @@ export default function RefundOrderAmountDashboard() {
     router.replace('/login');
   };
 
-  const monthlyChart = useMemo(() => {
-    const map = new Map(data?.byMonth.map((b) => [b.month, b]) ?? []);
-    return Array.from({ length: 12 }, (_, i) => {
-      const m = i + 1;
-      const row = map.get(m);
-      return {
-        label: MONTH_NAMES[i],
-        month: m,
-        paid: row?.paidAmount ?? 0,
-        refunded: row?.refundedAmount ?? 0,
-        pending: row?.pendingAmount ?? 0,
-        orders: row?.orderCount ?? 0,
-      };
-    });
-  }, [data]);
-
   const filteredList = useMemo(() => {
     if (!data?.list) return [];
     const q = search.trim().toLowerCase();
@@ -334,45 +313,7 @@ export default function RefundOrderAmountDashboard() {
 
         {tab === 'overview' && (
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">Monthly Refund Trend — {year}</h2>
-              <button
-                onClick={() => {
-                  downloadCSV(
-                    `refund-monthly-${year}.csv`,
-                    ['Month', 'Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders'],
-                    monthlyChart.map((r) => [r.label, r.orders, r.paid, r.refunded, r.pending, data?.byMonth.find((b) => b.month === r.month)?.refundedOrders ?? 0]),
-                  );
-                }}
-                className="px-3 py-1 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider"
-              >
-                Export CSV
-              </button>
-            </div>
-            <div style={{ width: '100%', height: 360 }}>
-              <ResponsiveContainer>
-                <ComposedChart data={monthlyChart} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                  <XAxis dataKey="label" stroke="#c4b5fd" tick={{ fontSize: 12 }} />
-                  <YAxis yAxisId="left" stroke="#c4b5fd" tick={{ fontSize: 11 }} tickFormatter={(v) => formatAmount(Number(v))} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#c4b5fd" tick={{ fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ color: '#f5d0fe' }}
-                    formatter={(v, name) => {
-                      if (name === 'Orders') return [String(v), String(name)];
-                      return [formatAmount(Number(v)), String(name)];
-                    }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar yAxisId="left" dataKey="paid" name="Paid" fill="#a855f7" radius={[6, 6, 0, 0]} />
-                  <Bar yAxisId="left" dataKey="refunded" name="Refunded" fill="#10b981" radius={[6, 6, 0, 0]} />
-                  <Bar yAxisId="left" dataKey="pending" name="Pending" fill="#f43f5e" radius={[6, 6, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="orders" name="Orders" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
               <MiniStat label="Avg Refund / Order" value={s ? formatAmount(s.avgRefundAmount) : '—'} />
               <MiniStat label="Refund Processing" value={formatHours(s?.avgRefundProcessingHours ?? null)} hint="initiated → completed" />
               <MiniStat label="Reject/Cancel → Refund" value={formatHours(s?.avgHoursTillRefund ?? null)} hint="reject/cancel → completed" />
@@ -380,7 +321,7 @@ export default function RefundOrderAmountDashboard() {
             </div>
 
             {/* Day-wise breakdown */}
-            <div className="mt-6 pt-6 border-t border-white/10">
+            <div>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div>
                   <h3 className="text-base font-bold text-white">Day-wise Breakdown</h3>

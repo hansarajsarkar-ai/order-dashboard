@@ -21,6 +21,15 @@ interface Row {
 }
 
 type LiveFilter = 'all' | 'LIVE' | 'INACTIVE';
+type Tab = 'products' | 'brands';
+
+// Price is "not set" when margin is null/empty or equals 100 (the default value).
+function isPriceSet(margin: string | null): boolean {
+  if (margin === null || margin === undefined || margin === '') return false;
+  const n = parseFloat(margin);
+  if (!Number.isFinite(n)) return false;
+  return n !== 100;
+}
 
 export default function Scheme1RsPriceChangeDashboard() {
   const router = useRouter();
@@ -33,6 +42,7 @@ export default function Scheme1RsPriceChangeDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [liveFilter, setLiveFilter] = useState<LiveFilter>('all');
+  const [tab, setTab] = useState<Tab>('products');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -102,6 +112,25 @@ export default function Scheme1RsPriceChangeDashboard() {
     }
     return { total: rows.length, live, inactive };
   }, [rows]);
+
+  // Per-brand aggregation over the *filtered* rows so search + LIVE/INACTIVE
+  // filter apply to this view too.
+  const brandAgg = useMemo(() => {
+    type Agg = { brand: string; total: number; priceSet: number; priceNotSet: number };
+    const map = new Map<string, Agg>();
+    for (const r of filtered) {
+      const brand = r.brand_name ?? '(no brand)';
+      let entry = map.get(brand);
+      if (!entry) {
+        entry = { brand, total: 0, priceSet: 0, priceNotSet: 0 };
+        map.set(brand, entry);
+      }
+      entry.total += 1;
+      if (isPriceSet(r.margin)) entry.priceSet += 1;
+      else entry.priceNotSet += 1;
+    }
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [filtered]);
 
   if (!authChecked) {
     return (
@@ -180,12 +209,37 @@ export default function Scheme1RsPriceChangeDashboard() {
         </div>
 
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+          {/* Tabs */}
+          <div className="px-4 pt-3 border-b border-white/10 flex items-center gap-1">
+            {([
+              { id: 'products', label: 'Products' },
+              { id: 'brands', label: 'Brand-wise' },
+            ] as const).map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
+                  tab === t.id
+                    ? 'bg-white/10 text-white border-b-2 border-fuchsia-400'
+                    : 'text-purple-300 hover:text-white'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Filter bar */}
           <div className="px-4 py-3 border-b border-white/10 flex items-center gap-3 flex-wrap">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search seller / brand / product / phone / location…"
+              placeholder={
+                tab === 'brands'
+                  ? 'Search brand / seller / product…'
+                  : 'Search seller / brand / product / phone / location…'
+              }
               className="flex-1 min-w-[240px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-purple-300/50 focus:outline-none focus:border-fuchsia-400/50"
             />
             <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-0.5">
@@ -204,8 +258,17 @@ export default function Scheme1RsPriceChangeDashboard() {
               ))}
             </div>
             <div className="text-xs text-purple-300/70">
-              Showing <span className="text-white font-semibold">{filtered.length.toLocaleString()}</span> of{' '}
-              <span className="text-white font-semibold">{rows.length.toLocaleString()}</span>
+              {tab === 'brands' ? (
+                <>
+                  Showing <span className="text-white font-semibold">{brandAgg.length.toLocaleString()}</span> brands ·{' '}
+                  <span className="text-white font-semibold">{filtered.length.toLocaleString()}</span> products
+                </>
+              ) : (
+                <>
+                  Showing <span className="text-white font-semibold">{filtered.length.toLocaleString()}</span> of{' '}
+                  <span className="text-white font-semibold">{rows.length.toLocaleString()}</span>
+                </>
+              )}
             </div>
           </div>
 
@@ -214,6 +277,36 @@ export default function Scheme1RsPriceChangeDashboard() {
               <div className="p-12 text-center text-purple-200 text-sm">Loading data…</div>
             ) : error ? (
               <div className="p-12 text-center text-rose-300 text-sm">{error}</div>
+            ) : tab === 'brands' ? (
+              brandAgg.length === 0 ? (
+                <div className="p-12 text-center text-purple-300/70 text-sm">No brands match the current filter.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-white/10">
+                    <tr className="text-left text-[11px] uppercase tracking-wider text-purple-300/80">
+                      <th className="px-3 py-2 font-semibold">Brand</th>
+                      <th className="px-3 py-2 font-semibold text-right">Total Active Products</th>
+                      <th className="px-3 py-2 font-semibold text-right">Price Set</th>
+                      <th className="px-3 py-2 font-semibold text-right">Price Not Set</th>
+                      <th className="px-3 py-2 font-semibold text-right">% Set</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {brandAgg.map((b) => {
+                      const pct = b.total > 0 ? (b.priceSet / b.total) * 100 : 0;
+                      return (
+                        <tr key={b.brand} className="border-b border-white/5 hover:bg-white/[0.03]">
+                          <td className="px-3 py-2 text-purple-100 font-medium">{b.brand}</td>
+                          <td className="px-3 py-2 text-right text-white font-mono">{b.total.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right font-mono text-emerald-200">{b.priceSet.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right font-mono text-rose-200">{b.priceNotSet.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right font-mono text-purple-200/80 text-xs">{pct.toFixed(1)}%</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )
             ) : filtered.length === 0 ? (
               <div className="p-12 text-center text-purple-300/70 text-sm">No rows match the current filter.</div>
             ) : (

@@ -609,12 +609,8 @@ export default function Scheme1RsPriceChangeDashboard() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={
-                tab === 'brands'
-                  ? 'Search brand / seller / product…'
-                  : 'Search seller / brand / product / phone / location…'
-              }
-              className="flex-1 min-w-[240px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-purple-300/50 focus:outline-none focus:border-fuchsia-400/50"
+              placeholder={tab === 'brands' ? 'Search brand…' : 'Search product / brand / seller…'}
+              className="w-72 max-w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-purple-300/50 focus:outline-none focus:border-fuchsia-400/50"
             />
             <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-0.5">
               {(['all', 'LIVE', 'INACTIVE'] as const).map((opt) => (

@@ -319,6 +319,9 @@ export default function OrderStatusDashboard() {
   const [pivotDrillLoading, setPivotDrillLoading] = useState(false);
   const [pivotDrillError, setPivotDrillError] = useState<string | null>(null);
   const [pivotDrillSearch, setPivotDrillSearch] = useState('');
+  const [pivotDrillPushedFilter, setPivotDrillPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
+  const [pivotDrillRejectReasonFilter, setPivotDrillRejectReasonFilter] = useState<string>('all');
+  const [pivotDrillSort, setPivotDrillSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [pivotDrillPage, setPivotDrillPage] = useState(1);
   const [goalData, setGoalData] = useState<RevenueGoal | null>(null);
   const [goalLoading, setGoalLoading] = useState(true);
@@ -943,6 +946,9 @@ export default function OrderStatusDashboard() {
     setPivotDrillRows(null);
     setPivotDrillError(null);
     setPivotDrillSearch('');
+    setPivotDrillPushedFilter('all');
+    setPivotDrillRejectReasonFilter('all');
+    setPivotDrillSort(null);
     setPivotDrillPage(1);
     setPivotDrillLoading(true);
     try {
@@ -1246,7 +1252,7 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => { setDrillPage(1); }, [drillStatus, drillMonth, drillSearch]);
-  useEffect(() => { setPivotDrillPage(1); }, [pivotDrillStatus, pivotDrillDelivery, pivotDrillMonth, pivotDrillSearch]);
+  useEffect(() => { setPivotDrillPage(1); }, [pivotDrillStatus, pivotDrillDelivery, pivotDrillMonth, pivotDrillSearch, pivotDrillPushedFilter, pivotDrillRejectReasonFilter, pivotDrillSort]);
   useEffect(() => { setSellerTablePage(1); }, [sellerSearch]);
   useEffect(() => { setSellerDrillPage(1); }, [sellerDrillId, sellerDrillStartDate, sellerDrillEndDate, sellerDrillStatus, sellerDrillPo]);
 
@@ -1395,16 +1401,91 @@ export default function OrderStatusDashboard() {
     return { totalPages, safePage, startIdx, endIdx, rows: filteredSellerDrillRows.slice(startIdx, endIdx) };
   })();
 
+  const pivotSortValue = (r: OrderListRow, key: string): number | string | null => {
+    const num = (v: unknown) => (v == null || v === '' ? null : Number(v));
+    const dt = (v: unknown) => (v == null || v === '' ? null : new Date(v as string).getTime());
+    switch (key) {
+      case 'pushed': return r.pushedStatus ?? '';
+      case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
+      case 'status': return r.orderStatus ?? r.status ?? '';
+      case 'poAmount': return num(r.poAmount);
+      case 'paidAmount': return num(r.paidAmount);
+      case 'coupon': return num(r.CoupanAmount);
+      case 'sellerDiscount': return num(r.discountBySeller);
+      case 'badhoDiscount': return num(r.PaymentOptionDiscountByBadho);
+      case 'wallet': return num(r.appliedWalletAmount);
+      case 'paymentOption': return r.PaymentOption ?? '';
+      case 'paymentDate': return dt(r.paymentDate);
+      case 'paymentEvent': return r.paymentEvent ?? '';
+      case 'awb': return r.awbNumber ?? '';
+      case 'courier': return r.courierName ?? '';
+      case 'deliveryStatus': return r.deliveryStatus ?? '';
+      case 'cod': return num(r.codAmountToBeCollected);
+      case 'buyerPhone': return r.buyerPhone ?? '';
+      case 'buyerBusiness': return r.buyerBusinessName ?? '';
+      case 'sellerPhone': return r.sellerPhone ?? '';
+      case 'sellerBusiness': return r.sellerBusinessName ?? '';
+      case 'markedPending': return dt(r.MarkedpendingTime ?? r.markedPendingTime);
+      case 'refundInit': return dt(r.RefundIntiatedTime);
+      case 'refundDone': return dt(r.RefundCompletedTime);
+      case 'rejectReason': return r.rejectReason ?? '';
+      case 'rejectedBy': return r.rejectedBy ?? '';
+      case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
+      default: return '';
+    }
+  };
+
+  const togglePivotSort = (key: string) => {
+    setPivotDrillSort((prev) => {
+      if (!prev || prev.key !== key) return { key, direction: 'asc' };
+      if (prev.direction === 'asc') return { key, direction: 'desc' };
+      return null;
+    });
+  };
+
+  const pivotRejectReasonOptions = (() => {
+    if (!pivotDrillRows) return [] as string[];
+    const set = new Set<string>();
+    for (const r of pivotDrillRows) {
+      const v = (r.rejectReason || '').trim();
+      if (v) set.add(v);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  })();
+
   const filteredPivotDrillRows = (() => {
     if (!pivotDrillRows) return null;
+    let rows: OrderListRow[] = pivotDrillRows;
     const q = pivotDrillSearch.trim().toLowerCase();
-    if (!q) return pivotDrillRows;
-    return pivotDrillRows.filter(
-      (r) =>
-        (r.poNumber || '').toLowerCase().includes(q) ||
-        (r.buyerPhone || '').toLowerCase().includes(q) ||
-        (r.sellerPhone || '').toLowerCase().includes(q)
-    );
+    if (q) {
+      rows = rows.filter(
+        (r) =>
+          (r.poNumber || '').toLowerCase().includes(q) ||
+          (r.buyerPhone || '').toLowerCase().includes(q) ||
+          (r.sellerPhone || '').toLowerCase().includes(q)
+      );
+    }
+    if (pivotDrillPushedFilter !== 'all') {
+      rows = rows.filter((r) => (r.pushedStatus || 'Not Pushed') === pivotDrillPushedFilter);
+    }
+    if (pivotDrillRejectReasonFilter !== 'all') {
+      rows = rows.filter((r) => (r.rejectReason || '').trim() === pivotDrillRejectReasonFilter);
+    }
+    if (pivotDrillSort) {
+      const { key, direction } = pivotDrillSort;
+      rows = [...rows].sort((a, b) => {
+        const av = pivotSortValue(a, key);
+        const bv = pivotSortValue(b, key);
+        if (av === null && bv === null) return 0;
+        if (av === null) return 1; // nulls last
+        if (bv === null) return -1;
+        let cmp = 0;
+        if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
+        else cmp = String(av).localeCompare(String(bv));
+        return direction === 'asc' ? cmp : -cmp;
+      });
+    }
+    return rows;
   })();
 
   const pivotDrillPaged = (() => {
@@ -4463,14 +4544,54 @@ export default function OrderStatusDashboard() {
                   </button>
                 </div>
               </div>
-              <div className="px-6 py-3 border-b border-slate-200 bg-white">
-                <input
-                  type="text"
-                  value={pivotDrillSearch}
-                  onChange={(e) => setPivotDrillSearch(e.target.value)}
-                  placeholder="Search by PO number, buyer phone, or seller phone..."
-                  className="w-full px-4 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                />
+              <div className="px-6 py-3 border-b border-slate-200 bg-white grid grid-cols-1 md:grid-cols-12 gap-3">
+                <div className="md:col-span-6">
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Search</label>
+                  <input
+                    type="text"
+                    value={pivotDrillSearch}
+                    onChange={(e) => setPivotDrillSearch(e.target.value)}
+                    placeholder="PO number, buyer phone, or seller phone..."
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Pushed</label>
+                  <select
+                    value={pivotDrillPushedFilter}
+                    onChange={(e) => setPivotDrillPushedFilter(e.target.value as 'all' | 'Pushed' | 'Not Pushed')}
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                  >
+                    <option value="all">All</option>
+                    <option value="Pushed">Pushed</option>
+                    <option value="Not Pushed">Not Pushed</option>
+                  </select>
+                </div>
+                <div className="md:col-span-3">
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                    Reject Reason{pivotRejectReasonOptions.length > 0 ? ` (${pivotRejectReasonOptions.length})` : ''}
+                  </label>
+                  <select
+                    value={pivotDrillRejectReasonFilter}
+                    onChange={(e) => setPivotDrillRejectReasonFilter(e.target.value)}
+                    disabled={pivotRejectReasonOptions.length === 0}
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent disabled:bg-slate-50 disabled:text-slate-400"
+                  >
+                    <option value="all">All reasons</option>
+                    {pivotRejectReasonOptions.map((reason) => (
+                      <option key={reason} value={reason}>{reason.length > 60 ? `${reason.slice(0, 60)}…` : reason}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="md:col-span-1 flex items-end">
+                  <button
+                    onClick={() => { setPivotDrillSearch(''); setPivotDrillPushedFilter('all'); setPivotDrillRejectReasonFilter('all'); setPivotDrillSort(null); }}
+                    className="w-full px-3 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                    title="Clear filters and sorting"
+                  >
+                    Reset
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-auto">
                 {pivotDrillLoading ? (
@@ -4485,36 +4606,62 @@ export default function OrderStatusDashboard() {
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-slate-100 z-10">
                       <tr className="border-b border-slate-200">
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Pushed</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">PO Amount</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Paid Amount</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Coupon Amount</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Seller Discount</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Payment Option Badho Discount</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Wallet Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Payment Option</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Payment Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Payment Event</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">AWB Number</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Courier Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Delivery Status</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">COD Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Phone</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Business</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Refund Initiated</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Refund Completed</th>
-                        {pivotDrillStatus === 'REJECTED' && (
-                          <>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Reject Reason</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Rejected By</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Reason Added By Badho Team</th>
-                          </>
-                        )}
+                        {(() => {
+                          const arrowFor = (k: string) => {
+                            const active = pivotDrillSort?.key === k;
+                            const dir = active ? pivotDrillSort?.direction : null;
+                            return (
+                              <span className={`ml-1 text-[10px] leading-none ${active ? 'text-slate-700' : 'text-slate-300'}`}>
+                                {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : '⇅'}
+                              </span>
+                            );
+                          };
+                          const SortTh = ({ k, label, align = 'left', cls = '' }: { k: string; label: string; align?: 'left' | 'right'; cls?: string }) => (
+                            <th
+                              onClick={() => togglePivotSort(k)}
+                              className={`px-4 py-3 text-${align} text-xs font-semibold cursor-pointer select-none hover:bg-slate-200/60 whitespace-nowrap ${cls || 'text-slate-600'}`}
+                            >
+                              <span className={`inline-flex items-center ${align === 'right' ? 'justify-end w-full' : ''}`}>
+                                {label}
+                                {arrowFor(k)}
+                              </span>
+                            </th>
+                          );
+                          return (
+                            <>
+                              <SortTh k="pushed" label="Pushed" />
+                              <SortTh k="poNumber" label="PO Number" />
+                              <SortTh k="status" label="Status" />
+                              <SortTh k="poAmount" label="PO Amount" align="right" />
+                              <SortTh k="paidAmount" label="Paid Amount" align="right" />
+                              <SortTh k="coupon" label="Coupon Amount" align="right" />
+                              <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
+                              <SortTh k="badhoDiscount" label="Payment Option Badho Discount" align="right" />
+                              <SortTh k="wallet" label="Wallet Amount" align="right" />
+                              <SortTh k="paymentOption" label="Payment Option" />
+                              <SortTh k="paymentDate" label="Payment Date" />
+                              <SortTh k="paymentEvent" label="Payment Event" />
+                              <SortTh k="awb" label="AWB Number" />
+                              <SortTh k="courier" label="Courier Name" />
+                              <SortTh k="deliveryStatus" label="Delivery Status" />
+                              <SortTh k="cod" label="COD Amount" align="right" />
+                              <SortTh k="buyerPhone" label="Buyer Phone" />
+                              <SortTh k="buyerBusiness" label="Buyer Business" />
+                              <SortTh k="sellerPhone" label="Seller Phone" />
+                              <SortTh k="sellerBusiness" label="Seller Business" />
+                              <SortTh k="markedPending" label="Marked Pending" />
+                              <SortTh k="refundInit" label="Refund Initiated" />
+                              <SortTh k="refundDone" label="Refund Completed" />
+                              {pivotDrillStatus === 'REJECTED' && (
+                                <>
+                                  <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50" />
+                                  <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50" />
+                                  <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50" />
+                                </>
+                              )}
+                            </>
+                          );
+                        })()}
                       </tr>
                     </thead>
                     <tbody>

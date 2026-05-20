@@ -263,7 +263,7 @@ export default function RefundOrderAmountDashboard() {
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <Link
             href="/badho"
-            className="text-xs font-semibold text-purple-200 hover:text-white px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+            className="text-xs font-semibold text-purple-200 hover:text-white px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-fuchsia-500 hover:border-fuchsia-300/60 hover:shadow-[0_0_14px_rgba(217,70,239,0.5)] transition-all duration-150"
           >
             ← All dashboards
           </Link>
@@ -279,7 +279,7 @@ export default function RefundOrderAmountDashboard() {
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/30 text-rose-200 text-sm font-medium disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500 hover:text-white border border-rose-400/30 hover:border-rose-300/60 hover:shadow-[0_0_14px_rgba(244,63,94,0.55)] text-rose-200 text-sm font-medium disabled:opacity-50 transition-all duration-150"
             >
               {isLoggingOut ? 'Signing out…' : 'Logout'}
             </button>
@@ -310,7 +310,7 @@ export default function RefundOrderAmountDashboard() {
             <button
               onClick={fetchData}
               disabled={loading}
-              className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-xs font-semibold disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500 hover:text-white border border-fuchsia-400/30 hover:border-fuchsia-300/60 hover:shadow-[0_0_14px_rgba(217,70,239,0.55)] text-fuchsia-100 text-xs font-semibold disabled:opacity-50 transition-all duration-150"
             >
               {loading ? 'Loading…' : 'Refresh'}
             </button>
@@ -329,10 +329,10 @@ export default function RefundOrderAmountDashboard() {
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors ${
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all duration-150 ${
                 tab === t
                   ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.5)]'
-                  : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                  : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_14px_rgba(217,70,239,0.5)]'
               }`}
             >
               {t === 'overview' ? 'Monthly Overview' : t === 'sellers' ? 'Top Sellers' : 'Order Details'}
@@ -397,10 +397,10 @@ export default function RefundOrderAmountDashboard() {
                       <button
                         key={g}
                         onClick={() => setGranularity(g)}
-                        className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                        className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all duration-150 ${
                           granularity === g
                             ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_12px_rgba(217,70,239,0.5)]'
-                            : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                            : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_12px_rgba(217,70,239,0.5)]'
                         }`}
                       >
                         {g}
@@ -421,7 +421,7 @@ export default function RefundOrderAmountDashboard() {
                         ]),
                       );
                     }}
-                    className="px-3 py-1 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider"
+                    className="px-3 py-1 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500 hover:text-white border border-fuchsia-400/30 hover:border-fuchsia-300/60 hover:shadow-[0_0_14px_rgba(217,70,239,0.55)] text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider transition-all duration-150"
                   >
                     Export CSV
                   </button>
@@ -576,7 +576,7 @@ export default function RefundOrderAmountDashboard() {
                       ]),
                     );
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider"
+                  className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500 hover:text-white border border-fuchsia-400/30 hover:border-fuchsia-300/60 hover:shadow-[0_0_14px_rgba(217,70,239,0.55)] text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider transition-all duration-150"
                 >
                   Export CSV
                 </button>
@@ -677,14 +677,14 @@ export default function RefundOrderAmountDashboard() {
                         ]),
                       );
                     }}
-                    className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider"
+                    className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500 hover:text-white border border-fuchsia-400/30 hover:border-fuchsia-300/60 hover:shadow-[0_0_14px_rgba(217,70,239,0.55)] text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider transition-all duration-150"
                   >
                     Export CSV
                   </button>
                 )}
                 <button
                   onClick={() => setModal(null)}
-                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-purple-200 text-lg font-bold flex items-center justify-center"
+                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-rose-500 hover:text-white border border-white/10 hover:border-rose-300/60 hover:shadow-[0_0_14px_rgba(244,63,94,0.55)] text-purple-200 text-lg font-bold flex items-center justify-center transition-all duration-150"
                   aria-label="Close"
                 >
                   ×

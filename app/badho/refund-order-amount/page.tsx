@@ -439,9 +439,9 @@ export default function RefundOrderAmountDashboard() {
         {tab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <KpiCard
-              label="Total Paid Amount"
+              label="Expected Refund Amount"
               value={s ? formatAmount(s.totalPaidAmount) : '—'}
-              hint={s ? `${s.totalOrders.toLocaleString('en-IN')} prepaid orders rejected / cancelled` : 'Sum of paidAmount'}
+              hint={s ? `${s.totalOrders.toLocaleString('en-IN')} prepaid orders rejected / cancelled` : 'Sum of paidAmount owed back to buyers'}
               tint="from-fuchsia-500/30 to-purple-500/10"
             />
             <KpiCard

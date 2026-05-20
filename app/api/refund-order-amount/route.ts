@@ -14,6 +14,15 @@ interface Bucket {
   pendingAmount: number;
   refundedOrders: number;
   avgRefundProcessingHours: number | null;
+  avgHoursTillRefund: number | null;
+}
+
+interface AgingBucket {
+  bucket: string;
+  bucketOrder: number;
+  orderCount: number;
+  pendingAmount: number;
+  avgAgeHours: number;
 }
 
 interface Summary {
@@ -68,6 +77,7 @@ interface ResultRow {
     byMonth: Bucket[] | null;
     topSellers: SellerSummary[] | null;
     list: ListItem[] | null;
+    pendingAging: AgingBucket[] | null;
   } | null;
 }
 
@@ -150,7 +160,8 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
           COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
-          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
+          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours,
+          AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_hours_till_refund
         FROM source
         WHERE rejected_or_cancelled_time IS NOT NULL
         GROUP BY date_trunc('day', rejected_or_cancelled_time)
@@ -165,7 +176,8 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
           COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
-          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
+          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours,
+          AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_hours_till_refund
         FROM source
         WHERE rejected_or_cancelled_time IS NOT NULL
         GROUP BY date_trunc('week', rejected_or_cancelled_time)
@@ -180,7 +192,8 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
           COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
-          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
+          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours,
+          AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_hours_till_refund
         FROM source
         WHERE rejected_or_cancelled_time IS NOT NULL
         GROUP BY date_trunc('month', rejected_or_cancelled_time)
@@ -204,6 +217,38 @@ export async function GET(req: NextRequest) {
         FROM source
         ORDER BY rejected_or_cancelled_time DESC NULLS LAST
         LIMIT 2000
+      ),
+      /* Pending refund aging — for unrefunded orders, how long they've been waiting */
+      aging_agg AS (
+        SELECT
+          bucket_order,
+          bucket_label,
+          COUNT(*)                                                 AS order_count,
+          COALESCE(SUM(order_paid_amount), 0)                      AS pending_amount,
+          AVG(age_hours)                                           AS avg_age_hours
+        FROM (
+          SELECT
+            order_paid_amount,
+            EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 AS age_hours,
+            CASE
+              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <=  24 THEN 1
+              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <=  72 THEN 2
+              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <= 168 THEN 3
+              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <= 336 THEN 4
+              ELSE 5
+            END AS bucket_order,
+            CASE
+              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <=  24 THEN '0-24h'
+              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <=  72 THEN '1-3 days'
+              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <= 168 THEN '3-7 days'
+              WHEN EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 3600 <= 336 THEN '7-14 days'
+              ELSE '14+ days'
+            END AS bucket_label
+          FROM source
+          WHERE refund_amount IS NULL
+            AND rejected_or_cancelled_time IS NOT NULL
+        ) raw
+        GROUP BY bucket_order, bucket_label
       )
       SELECT json_build_object(
         'summary', (
@@ -231,7 +276,8 @@ export async function GET(req: NextRequest) {
             'refundedAmount',             refunded_amount,
             'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
             'refundedOrders',             refunded_orders,
-            'avgRefundProcessingHours',   avg_refund_processing_hours
+            'avgRefundProcessingHours',   avg_refund_processing_hours,
+            'avgHoursTillRefund',         avg_hours_till_refund
           ) ORDER BY bucket_start DESC)
           FROM day_agg
         ),
@@ -246,7 +292,8 @@ export async function GET(req: NextRequest) {
             'refundedAmount',             refunded_amount,
             'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
             'refundedOrders',             refunded_orders,
-            'avgRefundProcessingHours',   avg_refund_processing_hours
+            'avgRefundProcessingHours',   avg_refund_processing_hours,
+            'avgHoursTillRefund',         avg_hours_till_refund
           ) ORDER BY bucket_start DESC)
           FROM week_agg
         ),
@@ -261,7 +308,8 @@ export async function GET(req: NextRequest) {
             'refundedAmount',             refunded_amount,
             'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
             'refundedOrders',             refunded_orders,
-            'avgRefundProcessingHours',   avg_refund_processing_hours
+            'avgRefundProcessingHours',   avg_refund_processing_hours,
+            'avgHoursTillRefund',         avg_hours_till_refund
           ) ORDER BY bucket_start DESC)
           FROM month_agg
         ),
@@ -300,6 +348,16 @@ export async function GET(req: NextRequest) {
             'hoursTillRefund',            hours_till_refund
           ))
           FROM list_data
+        ),
+        'pendingAging', (
+          SELECT json_agg(json_build_object(
+            'bucket',         bucket_label,
+            'bucketOrder',    bucket_order,
+            'orderCount',     order_count,
+            'pendingAmount',  pending_amount,
+            'avgAgeHours',    avg_age_hours
+          ) ORDER BY bucket_order)
+          FROM aging_agg
         )
       ) AS result;
     `;
@@ -315,7 +373,7 @@ export async function GET(req: NextRequest) {
           pendingRefundAmount: 0, refundRate: 0, avgRefundAmount: 0,
           avgRefundProcessingHours: null, avgHoursTillRefund: null,
         },
-        byDay: [], byWeek: [], byMonth: [], topSellers: [], list: [],
+        byDay: [], byWeek: [], byMonth: [], topSellers: [], list: [], pendingAging: [],
         year,
         timestamp: new Date().toISOString(),
       });
@@ -323,11 +381,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       summary: r.summary,
-      byDay:      r.byDay      ?? [],
-      byWeek:     r.byWeek     ?? [],
-      byMonth:    r.byMonth    ?? [],
-      topSellers: r.topSellers ?? [],
-      list:       r.list       ?? [],
+      byDay:        r.byDay        ?? [],
+      byWeek:       r.byWeek       ?? [],
+      byMonth:      r.byMonth      ?? [],
+      topSellers:   r.topSellers   ?? [],
+      list:         r.list         ?? [],
+      pendingAging: r.pendingAging ?? [],
       year,
       timestamp: new Date().toISOString(),
     });

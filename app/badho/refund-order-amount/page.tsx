@@ -150,7 +150,7 @@ export default function RefundOrderAmountDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'overview' | 'sellers' | 'orders'>('overview');
   const [search, setSearch] = useState('');
-  const [granularity, setGranularity] = useState<Granularity>('day');
+  const [granularity, setGranularity] = useState<Granularity>('month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
@@ -466,7 +466,7 @@ export default function RefundOrderAmountDashboard() {
                 <div className="mb-3">
                   <h3 className="text-base font-bold text-white">Refund Time Trend</h3>
                   <p className="text-purple-300/70 text-xs">
-                    Avg processing time and reject→refund latency, per {granularity === 'custom' ? 'day' : granularity}. Bars show refunds completed. Hover any point for details.
+                    Pink line = average hours from reject/cancel until the refund is paid. Bars = number of refunds completed per {granularity === 'custom' ? 'day' : granularity}. Hover any point for the full breakdown.
                   </p>
                 </div>
                 <div style={{ width: '100%', height: 300 }}>
@@ -474,13 +474,12 @@ export default function RefundOrderAmountDashboard() {
                     <ComposedChart data={trendChart} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                       <XAxis dataKey="label" stroke="#c4b5fd" tick={{ fontSize: 11, fontWeight: 600 }} interval="preserveStartEnd" minTickGap={20} />
-                      <YAxis yAxisId="hours" stroke="#22d3ee" tick={{ fontSize: 11, fontWeight: 600 }} tickFormatter={(v) => `${v}h`} label={{ value: 'Hours', angle: -90, position: 'insideLeft', fill: '#22d3ee', fontSize: 11, fontWeight: 600 }} />
-                      <YAxis yAxisId="count" orientation="right" stroke="#a855f7" tick={{ fontSize: 11, fontWeight: 600 }} label={{ value: 'Refunds', angle: 90, position: 'insideRight', fill: '#a855f7', fontSize: 11, fontWeight: 600 }} />
-                      <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'rgba(244,114,182,0.4)', strokeWidth: 1 }} />
+                      <YAxis yAxisId="hours" stroke="#f472b6" tick={{ fontSize: 11, fontWeight: 600 }} tickFormatter={(v) => `${v}h`} label={{ value: 'Hours to refund', angle: -90, position: 'insideLeft', fill: '#f472b6', fontSize: 11, fontWeight: 600 }} />
+                      <YAxis yAxisId="count" orientation="right" stroke="#a855f7" tick={{ fontSize: 11, fontWeight: 600 }} label={{ value: 'Refunds completed', angle: 90, position: 'insideRight', fill: '#a855f7', fontSize: 11, fontWeight: 600 }} />
+                      <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'rgba(244,114,182,0.5)', strokeWidth: 1 }} />
                       <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingTop: 4 }} iconType="plainline" />
-                      <Bar yAxisId="count" dataKey="refundedOrders" name="Refunds completed" fill="#a855f7" opacity={0.4} radius={[4, 4, 0, 0]} />
-                      <Line yAxisId="hours" type="monotone" dataKey="avgProcessing" name="Avg Processing (init→done)" stroke="#22d3ee" strokeWidth={2.5} dot={{ r: 4, strokeWidth: 0, fill: '#22d3ee' }} activeDot={{ r: 6 }} connectNulls />
-                      <Line yAxisId="hours" type="monotone" dataKey="avgTillRefund" name="Reject→Refund (full SLA)" stroke="#f472b6" strokeWidth={2.5} dot={{ r: 4, strokeWidth: 0, fill: '#f472b6' }} activeDot={{ r: 6 }} connectNulls />
+                      <Bar yAxisId="count" dataKey="refundedOrders" name="Refunds completed" fill="#a855f7" opacity={0.18} radius={[4, 4, 0, 0]} maxBarSize={48} />
+                      <Line yAxisId="hours" type="monotone" dataKey="avgTillRefund" name="Avg hours to refund" stroke="#f472b6" strokeWidth={3} dot={{ r: 5, strokeWidth: 2, stroke: '#0f172a', fill: '#f472b6' }} activeDot={{ r: 7, strokeWidth: 2, stroke: '#fff' }} connectNulls />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -895,9 +894,9 @@ function TrendTooltip({ active, payload }: { active?: boolean; payload?: Array<{
   return (
     <div className="rounded-lg border border-fuchsia-400/50 bg-slate-950/95 backdrop-blur-xl px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)] min-w-[240px]">
       <div className="text-sm font-bold text-fuchsia-200 mb-2 border-b border-white/10 pb-1.5">{p.label}</div>
-      <Row swatch="#22d3ee" label="Avg Processing" value={formatHours(p.avgProcessing)} hint="initiated → completed" />
-      <Row swatch="#f472b6" label="Reject→Refund" value={formatHours(p.avgTillRefund)} hint="full SLA" />
-      <Row swatch="#a855f7" label="Refunds Completed" value={p.refundedOrders.toLocaleString('en-IN')} />
+      <Row swatch="#f472b6" label="Avg hours to refund" value={formatHours(p.avgTillRefund)} hint="reject → paid" />
+      <Row swatch="#a855f7" label="Refunds completed" value={p.refundedOrders.toLocaleString('en-IN')} />
+      <Row swatch="#22d3ee" label="Processing time" value={formatHours(p.avgProcessing)} hint="initiated → done" />
       <div className="mt-2 pt-2 border-t border-white/10 grid grid-cols-3 gap-2 text-[11px]">
         <div>
           <div className="text-purple-300/70">Orders</div>

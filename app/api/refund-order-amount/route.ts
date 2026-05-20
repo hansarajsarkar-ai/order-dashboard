@@ -18,6 +18,16 @@ interface MonthRow {
   refunded_amount: string;
   refunded_orders: string;
 }
+interface DayRow {
+  day: string;
+  rejected_count: string;
+  cancelled_count: string;
+  order_count: string;
+  paid_amount: string;
+  refunded_amount: string;
+  refunded_orders: string;
+  avg_refund_processing_hours: string | null;
+}
 interface SellerRow {
   seller_id: string;
   seller_phone: string | null;
@@ -135,6 +145,25 @@ export async function GET(req: NextRequest) {
     `;
     const monthlyRows = await query<MonthRow>(monthlySql, [year]);
 
+    // 2b. Day-wise breakdown by rejected/cancelled date
+    const dailySql = `
+      ${sourceCte}
+      SELECT
+        TO_CHAR(rejected_or_cancelled_time::date, 'YYYY-MM-DD')                     AS day,
+        COUNT(*) FILTER (WHERE po_status = 'REJECTED')::text                        AS rejected_count,
+        COUNT(*) FILTER (WHERE po_status = 'CANCELLED')::text                       AS cancelled_count,
+        COUNT(*)::text                                                              AS order_count,
+        COALESCE(SUM(order_paid_amount), 0)::text                                   AS paid_amount,
+        COALESCE(SUM(refund_amount), 0)::text                                       AS refunded_amount,
+        COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)::text                     AS refunded_orders,
+        AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL)::text AS avg_refund_processing_hours
+      FROM source
+      WHERE rejected_or_cancelled_time IS NOT NULL
+      GROUP BY rejected_or_cancelled_time::date
+      ORDER BY rejected_or_cancelled_time::date DESC;
+    `;
+    const dailyRows = await query<DayRow>(dailySql, [year]);
+
     // 3. Top sellers by paid amount (refunds owed)
     const sellerSql = `
       ${sourceCte}
@@ -205,6 +234,22 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const byDay = dailyRows.map((r) => {
+      const paid = parseFloat(r.paid_amount);
+      const refunded = parseFloat(r.refunded_amount);
+      return {
+        day: r.day,
+        rejectedCount: parseInt(r.rejected_count),
+        cancelledCount: parseInt(r.cancelled_count),
+        orderCount: parseInt(r.order_count),
+        paidAmount: paid,
+        refundedAmount: refunded,
+        pendingAmount: Math.max(paid - refunded, 0),
+        refundedOrders: parseInt(r.refunded_orders),
+        avgRefundProcessingHours: r.avg_refund_processing_hours ? parseFloat(r.avg_refund_processing_hours) : null,
+      };
+    });
+
     const topSellers = sellerRows.map((r) => {
       const paid = parseFloat(r.paid_amount);
       const refunded = parseFloat(r.refunded_amount);
@@ -254,6 +299,7 @@ export async function GET(req: NextRequest) {
         avgHoursTillRefund,
       },
       byMonth,
+      byDay,
       topSellers,
       list,
       year,

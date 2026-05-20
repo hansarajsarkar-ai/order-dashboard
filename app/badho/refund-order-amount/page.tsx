@@ -31,6 +31,16 @@ function formatDateTime(s: string | null | undefined): string {
     return s;
   }
 }
+function formatDay(s: string | null | undefined): string {
+  if (!s) return '—';
+  // Input is YYYY-MM-DD. Construct with explicit parts to avoid TZ shifts.
+  const [y, m, d] = s.split('-').map(Number);
+  if (!y || !m || !d) return s;
+  const date = new Date(y, m - 1, d);
+  const weekday = date.toLocaleDateString('en-IN', { weekday: 'short' });
+  const dayMonth = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  return `${dayMonth} · ${weekday}`;
+}
 
 interface Summary {
   totalOrders: number;
@@ -50,6 +60,17 @@ interface MonthBucket {
   refundedAmount: number;
   pendingAmount: number;
   refundedOrders: number;
+}
+interface DayBucket {
+  day: string;
+  rejectedCount: number;
+  cancelledCount: number;
+  orderCount: number;
+  paidAmount: number;
+  refundedAmount: number;
+  pendingAmount: number;
+  refundedOrders: number;
+  avgRefundProcessingHours: number | null;
 }
 interface SellerRow {
   sellerId: string;
@@ -84,6 +105,7 @@ interface ListRow {
 interface RefundApiResponse {
   summary: Summary;
   byMonth: MonthBucket[];
+  byDay: DayBucket[];
   topSellers: SellerRow[];
   list: ListRow[];
   year: number;
@@ -355,6 +377,70 @@ export default function RefundOrderAmountDashboard() {
               <MiniStat label="Refund Processing" value={formatHours(s?.avgRefundProcessingHours ?? null)} hint="initiated → completed" />
               <MiniStat label="Reject/Cancel → Refund" value={formatHours(s?.avgHoursTillRefund ?? null)} hint="reject/cancel → completed" />
               <MiniStat label="Unrefunded Orders" value={s ? (s.totalOrders - s.refundedOrders).toLocaleString('en-IN') : '—'} />
+            </div>
+
+            {/* Day-wise breakdown */}
+            <div className="mt-6 pt-6 border-t border-white/10">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div>
+                  <h3 className="text-base font-bold text-white">Day-wise Breakdown</h3>
+                  <p className="text-purple-300/70 text-xs mt-0.5">
+                    Orders grouped by reject/cancel date · {data?.byDay.length ?? 0} days
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!data?.byDay) return;
+                    downloadCSV(
+                      `refund-daily-${year}.csv`,
+                      ['Date', 'Rejected', 'Cancelled', 'Total Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders', 'Avg Refund Time (hrs)'],
+                      data.byDay.map((d) => [
+                        d.day, d.rejectedCount, d.cancelledCount, d.orderCount,
+                        d.paidAmount, d.refundedAmount, d.pendingAmount, d.refundedOrders,
+                        d.avgRefundProcessingHours != null ? d.avgRefundProcessingHours.toFixed(2) : '',
+                      ]),
+                    );
+                  }}
+                  className="px-3 py-1 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider"
+                >
+                  Export CSV
+                </button>
+              </div>
+              <div className="overflow-x-auto max-h-[480px] rounded-xl border border-white/10">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+                    <tr className="text-purple-200 uppercase">
+                      <th className="px-3 py-2 text-left">Date</th>
+                      <th className="px-3 py-2 text-right">Rejected</th>
+                      <th className="px-3 py-2 text-right">Cancelled</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                      <th className="px-3 py-2 text-right">Paid</th>
+                      <th className="px-3 py-2 text-right">Refunded</th>
+                      <th className="px-3 py-2 text-right">Pending</th>
+                      <th className="px-3 py-2 text-right">Avg Refund Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data?.byDay.map((d) => (
+                      <tr key={d.day} className="border-t border-white/5 hover:bg-white/5">
+                        <td className="px-3 py-2 text-white whitespace-nowrap">{formatDay(d.day)}</td>
+                        <td className="px-3 py-2 text-right text-rose-300 tabular-nums">{d.rejectedCount.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-2 text-right text-amber-300 tabular-nums">{d.cancelledCount.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-2 text-right text-purple-100 font-semibold tabular-nums">{d.orderCount.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{formatAmount(d.paidAmount)}</td>
+                        <td className="px-3 py-2 text-right text-emerald-300 tabular-nums">{formatAmount(d.refundedAmount)}</td>
+                        <td className="px-3 py-2 text-right text-rose-300 tabular-nums">{formatAmount(d.pendingAmount)}</td>
+                        <td className="px-3 py-2 text-right text-sky-300 tabular-nums">{formatHours(d.avgRefundProcessingHours)}</td>
+                      </tr>
+                    ))}
+                    {!loading && !data?.byDay?.length && (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-purple-300/70">No daily data for {year}.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

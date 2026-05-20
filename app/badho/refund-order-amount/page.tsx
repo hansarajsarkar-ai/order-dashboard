@@ -106,6 +106,19 @@ interface ListRow {
   refundProcessingHours: number | null;
   hoursTillRefund: number | null;
 }
+interface AlertItem {
+  purchaseOrderId: string;
+  status: string;
+  poNumber: string;
+  paidAmount: number;
+  paymentOption: string | null;
+  buyerPhone: string | null;
+  buyerBusinessName: string | null;
+  sellerPhone: string | null;
+  sellerBusinessName: string | null;
+  rejectedOrCancelledTime: string | null;
+  minutesPending: number;
+}
 interface RefundApiResponse {
   summary: Summary;
   byDay: Bucket[];
@@ -113,6 +126,7 @@ interface RefundApiResponse {
   byMonth: Bucket[];
   topSellers: SellerRow[];
   list: ListRow[];
+  alerts: AlertItem[];
   year: number;
   timestamp: string;
 }
@@ -143,7 +157,7 @@ export default function RefundOrderAmountDashboard() {
   const [data, setData] = useState<RefundApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'overview' | 'sellers' | 'orders'>('overview');
+  const [tab, setTab] = useState<'overview' | 'sellers' | 'orders' | 'alerts'>('overview');
   const [search, setSearch] = useState('');
   const [granularity, setGranularity] = useState<Granularity>('month');
   const [customStart, setCustomStart] = useState('');
@@ -345,19 +359,33 @@ export default function RefundOrderAmountDashboard() {
 
         {/* Tabs */}
         <div className="mb-6 inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl">
-          {(['overview', 'sellers', 'orders'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all duration-150 ${
-                tab === t
-                  ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.5)]'
-                  : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_14px_rgba(217,70,239,0.5)]'
-              }`}
-            >
-              {t === 'overview' ? 'Monthly Overview' : t === 'sellers' ? 'Top Sellers' : 'Order Details'}
-            </button>
-          ))}
+          {(['overview', 'sellers', 'orders', 'alerts'] as const).map((t) => {
+            const isAlerts = t === 'alerts';
+            const alertCount = data?.alerts.length ?? 0;
+            const hasAlerts = alertCount > 0;
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`relative px-4 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all duration-150 ${
+                  tab === t
+                    ? isAlerts && hasAlerts
+                      ? 'bg-gradient-to-r from-rose-500 via-rose-600 to-red-600 text-white shadow-[0_0_24px_rgba(244,63,94,0.55)]'
+                      : 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.5)]'
+                    : isAlerts && hasAlerts
+                      ? 'text-rose-200 hover:bg-rose-500 hover:text-white hover:shadow-[0_0_14px_rgba(244,63,94,0.5)]'
+                      : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_14px_rgba(217,70,239,0.5)]'
+                }`}
+              >
+                {t === 'overview' ? 'Monthly Overview' : t === 'sellers' ? 'Top Sellers' : t === 'orders' ? 'Order Details' : 'Alerts'}
+                {isAlerts && hasAlerts && (
+                  <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-black tabular-nums shadow-[0_0_10px_rgba(244,63,94,0.7)] animate-pulse">
+                    {alertCount > 99 ? '99+' : alertCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Master granularity toggle — drives chart + breakdown table (Monthly Overview only) */}
@@ -686,6 +714,14 @@ export default function RefundOrderAmountDashboard() {
           </div>
         )}
 
+        {tab === 'alerts' && (
+          <AlertsTabContent
+            alerts={data?.alerts ?? []}
+            loading={loading}
+            onRefresh={fetchData}
+          />
+        )}
+
         {loading && !data && (
           <div className="mt-6 text-purple-200 text-sm">Loading refund data…</div>
         )}
@@ -826,6 +862,188 @@ function MiniStat({ label, value, hint }: { label: string; value: string; hint?:
       <div className="text-[10px] uppercase tracking-wider text-purple-300/80">{label}</div>
       <div className="text-base font-bold text-white tabular-nums">{value}</div>
       {hint && <div className="text-[10px] text-purple-300/60">{hint}</div>}
+    </div>
+  );
+}
+
+function formatPendingDuration(minutes: number): string {
+  if (!Number.isFinite(minutes)) return '—';
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  if (minutes < 60 * 24) return `${(minutes / 60).toFixed(1)} hr`;
+  return `${(minutes / 60 / 24).toFixed(1)} day${minutes >= 60 * 48 ? 's' : ''}`;
+}
+
+function severityFor(minutes: number): {
+  label: string;
+  tone: string;
+  ring: string;
+  bg: string;
+} {
+  if (minutes < 30)        return { label: 'JUST BREACHED', tone: 'text-amber-200',  ring: 'ring-amber-400/50',  bg: 'bg-amber-500/15' };
+  if (minutes < 60)        return { label: 'WARNING',       tone: 'text-orange-200', ring: 'ring-orange-400/50', bg: 'bg-orange-500/15' };
+  if (minutes < 60 * 3)    return { label: 'ALERT',         tone: 'text-rose-200',   ring: 'ring-rose-400/50',   bg: 'bg-rose-500/20' };
+  if (minutes < 60 * 24)   return { label: 'CRITICAL',      tone: 'text-rose-100',   ring: 'ring-rose-300/70',   bg: 'bg-rose-600/30' };
+  return                          { label: 'SEVERE',        tone: 'text-white',      ring: 'ring-red-300',       bg: 'bg-red-700/50' };
+}
+
+function AlertsTabContent({
+  alerts, loading, onRefresh,
+}: {
+  alerts: AlertItem[];
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  const totalStuck = alerts.reduce((s, a) => s + (a.paidAmount || 0), 0);
+  const oldest = alerts[0]?.minutesPending ?? 0;
+
+  // Severity buckets
+  const sevBuckets = useMemo(() => {
+    const b = {
+      '10–30 min':  { count: 0, amount: 0, color: '#f59e0b' },
+      '30–60 min':  { count: 0, amount: 0, color: '#fb923c' },
+      '1–3 hr':     { count: 0, amount: 0, color: '#f43f5e' },
+      '3–24 hr':    { count: 0, amount: 0, color: '#e11d48' },
+      '24 hr+':     { count: 0, amount: 0, color: '#b91c1c' },
+    };
+    for (const a of alerts) {
+      const m = a.minutesPending;
+      if (m < 30) { b['10–30 min'].count++; b['10–30 min'].amount += a.paidAmount; }
+      else if (m < 60) { b['30–60 min'].count++; b['30–60 min'].amount += a.paidAmount; }
+      else if (m < 180) { b['1–3 hr'].count++; b['1–3 hr'].amount += a.paidAmount; }
+      else if (m < 1440) { b['3–24 hr'].count++; b['3–24 hr'].amount += a.paidAmount; }
+      else { b['24 hr+'].count++; b['24 hr+'].amount += a.paidAmount; }
+    }
+    return Object.entries(b).map(([label, v]) => ({ label, ...v }));
+  }, [alerts]);
+
+  return (
+    <div className="space-y-4">
+      {/* Hero summary */}
+      <div className={`rounded-2xl border p-5 ${
+        alerts.length > 0
+          ? 'border-rose-400/40 bg-gradient-to-br from-rose-500/20 via-rose-600/15 to-red-700/20 shadow-[0_0_40px_rgba(244,63,94,0.25)]'
+          : 'border-emerald-400/40 bg-gradient-to-br from-emerald-500/20 to-teal-600/15'
+      }`}>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
+              alerts.length > 0 ? 'bg-rose-500/30 border border-rose-400/40 animate-pulse' : 'bg-emerald-500/30 border border-emerald-400/40'
+            }`}>
+              {alerts.length > 0 ? '⚠️' : '✅'}
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-white">
+                {alerts.length > 0
+                  ? `${alerts.length.toLocaleString('en-IN')} refund${alerts.length === 1 ? '' : 's'} breaching 10-min SLA`
+                  : 'All caught up'}
+              </h2>
+              <p className={`text-sm ${alerts.length > 0 ? 'text-rose-200' : 'text-emerald-200'}`}>
+                {alerts.length > 0
+                  ? `₹${formatAmount(totalStuck).replace('₹', '')} stuck · Oldest: ${formatPendingDuration(oldest)}`
+                  : 'No refunds older than 10 minutes are pending.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white hover:text-slate-900 border border-white/20 hover:border-white text-white text-xs font-bold uppercase tracking-wider transition-all duration-150 disabled:opacity-50"
+          >
+            {loading ? 'Checking…' : '↻ Refresh'}
+          </button>
+        </div>
+        {/* Severity strip */}
+        {alerts.length > 0 && (
+          <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-2">
+            {sevBuckets.map((b) => (
+              <div key={b.label} className="rounded-lg bg-black/30 border border-white/10 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wider font-bold" style={{ color: b.color }}>{b.label}</div>
+                <div className="text-xl font-black text-white tabular-nums">{b.count}</div>
+                <div className="text-[10px] text-white/60">{b.count > 0 ? formatAmount(b.amount) : '—'}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Alerts table */}
+      {alerts.length > 0 && (
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b border-white/10">
+            <div>
+              <h3 className="text-lg font-bold text-white">Pending Refunds &gt; 10 minutes</h3>
+              <p className="text-purple-300/70 text-xs mt-0.5">Sorted oldest first. Color = age severity.</p>
+            </div>
+            <button
+              onClick={() => {
+                downloadCSV(
+                  `refund-alerts-${new Date().toISOString().slice(0, 10)}.csv`,
+                  ['PO Number', 'Status', 'Paid Amount', 'Payment Option', 'Pending For', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone'],
+                  alerts.map((a) => [
+                    a.poNumber, a.status, a.paidAmount, a.paymentOption ?? '',
+                    formatPendingDuration(a.minutesPending), a.rejectedOrCancelledTime ?? '',
+                    a.buyerBusinessName ?? '', a.buyerPhone ?? '',
+                    a.sellerBusinessName ?? '', a.sellerPhone ?? '',
+                  ]),
+                );
+              }}
+              className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500 hover:text-white border border-fuchsia-400/30 hover:border-fuchsia-300/60 hover:shadow-[0_0_14px_rgba(217,70,239,0.55)] text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider transition-all duration-150"
+            >
+              Export CSV
+            </button>
+          </div>
+          <div className="overflow-x-auto max-h-[70vh]">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+                <tr className="text-purple-200 uppercase text-xs">
+                  <th className="px-4 py-3 text-left">Severity</th>
+                  <th className="px-4 py-3 text-left">Pending For</th>
+                  <th className="px-4 py-3 text-left">PO Number</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-right">Paid</th>
+                  <th className="px-4 py-3 text-left">Payment</th>
+                  <th className="px-4 py-3 text-left">Reject/Cancel At</th>
+                  <th className="px-4 py-3 text-left">Buyer</th>
+                  <th className="px-4 py-3 text-left">Seller</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alerts.map((a) => {
+                  const sev = severityFor(a.minutesPending);
+                  return (
+                    <tr key={a.purchaseOrderId} className="border-t border-white/5 hover:bg-white/5">
+                      <td className="px-4 py-2.5">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ring-1 ${sev.bg} ${sev.tone} ${sev.ring}`}>
+                          {sev.label}
+                        </span>
+                      </td>
+                      <td className={`px-4 py-2.5 font-bold tabular-nums ${sev.tone}`}>{formatPendingDuration(a.minutesPending)}</td>
+                      <td className="px-4 py-2.5 text-fuchsia-300 font-mono">{a.poNumber}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          a.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
+                          : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
+                        }`}>{a.status}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(a.paidAmount)}</td>
+                      <td className="px-4 py-2.5 text-purple-200">{a.paymentOption ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-purple-200 whitespace-nowrap">{formatDateTime(a.rejectedOrCancelledTime)}</td>
+                      <td className="px-4 py-2.5 text-purple-200">
+                        <div className="text-white">{a.buyerBusinessName || '—'}</div>
+                        <div className="text-purple-300/70 text-[10px]">{a.buyerPhone || ''}</div>
+                      </td>
+                      <td className="px-4 py-2.5 text-purple-200">
+                        <div className="text-white">{a.sellerBusinessName || '—'}</div>
+                        <div className="text-purple-300/70 text-[10px]">{a.sellerPhone || ''}</div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

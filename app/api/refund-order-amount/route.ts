@@ -60,6 +60,20 @@ interface ListItem {
   hoursTillRefund: number | null;
 }
 
+interface AlertItem {
+  purchaseOrderId: string;
+  status: string;
+  poNumber: string;
+  paidAmount: number;
+  paymentOption: string | null;
+  buyerPhone: string | null;
+  buyerBusinessName: string | null;
+  sellerPhone: string | null;
+  sellerBusinessName: string | null;
+  rejectedOrCancelledTime: string | null;
+  minutesPending: number;
+}
+
 interface ResultRow {
   result: {
     summary: Summary;
@@ -68,6 +82,7 @@ interface ResultRow {
     byMonth: Bucket[] | null;
     topSellers: SellerSummary[] | null;
     list: ListItem[] | null;
+    alerts: AlertItem[] | null;
   } | null;
 }
 
@@ -204,6 +219,16 @@ export async function GET(req: NextRequest) {
         FROM source
         ORDER BY rejected_or_cancelled_time DESC NULLS LAST
         LIMIT 2000
+      ),
+      /* Alerts — orders pending refund > 10 minutes. Oldest first (most urgent). */
+      alerts_data AS (
+        SELECT *
+        FROM source
+        WHERE refund_amount IS NULL
+          AND rejected_or_cancelled_time IS NOT NULL
+          AND rejected_or_cancelled_time < NOW() - INTERVAL '10 minutes'
+        ORDER BY rejected_or_cancelled_time ASC
+        LIMIT 500
       )
       SELECT json_build_object(
         'summary', (
@@ -300,6 +325,22 @@ export async function GET(req: NextRequest) {
             'hoursTillRefund',            hours_till_refund
           ))
           FROM list_data
+        ),
+        'alerts', (
+          SELECT json_agg(json_build_object(
+            'purchaseOrderId',          purchase_order_id::text,
+            'status',                   po_status,
+            'poNumber',                 po_number,
+            'paidAmount',               order_paid_amount,
+            'paymentOption',            payment_option,
+            'buyerPhone',               buyer_phone,
+            'buyerBusinessName',        buyer_business_name,
+            'sellerPhone',              seller_phone,
+            'sellerBusinessName',       seller_business_name,
+            'rejectedOrCancelledTime',  rejected_or_cancelled_time,
+            'minutesPending',           EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 60
+          ))
+          FROM alerts_data
         )
       ) AS result;
     `;
@@ -315,7 +356,7 @@ export async function GET(req: NextRequest) {
           pendingRefundAmount: 0, refundRate: 0, avgRefundAmount: 0,
           avgRefundProcessingHours: null, avgHoursTillRefund: null,
         },
-        byDay: [], byWeek: [], byMonth: [], topSellers: [], list: [],
+        byDay: [], byWeek: [], byMonth: [], topSellers: [], list: [], alerts: [],
         year,
         timestamp: new Date().toISOString(),
       });
@@ -328,6 +369,7 @@ export async function GET(req: NextRequest) {
       byMonth:    r.byMonth    ?? [],
       topSellers: r.topSellers ?? [],
       list:       r.list       ?? [],
+      alerts:     r.alerts     ?? [],
       year,
       timestamp: new Date().toISOString(),
     });

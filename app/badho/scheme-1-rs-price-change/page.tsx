@@ -596,6 +596,15 @@ export default function Scheme1RsPriceChangeDashboard() {
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
           {/* Filter bar */}
           <div className="px-4 py-3 border-b border-white/10 flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              disabled={search === ''}
+              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Clear search"
+            >
+              Clear
+            </button>
             <input
               type="text"
               value={search}

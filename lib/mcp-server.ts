@@ -247,66 +247,145 @@ async function listOrdersByStatus(
   status: string,
   year: number,
   month?: number,
+  deliveryStatus?: string | null,
+  pushedFilter?: 'Pushed' | 'Not Pushed',
+  rejectReason?: string,
   limit = 500
 ) {
   const params: (string | number)[] = [year, status];
-  let monthFilter = '';
+  let monthClause = '';
   if (typeof month === 'number' && month >= 1 && month <= 12) {
     params.push(month);
-    monthFilter = `AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
+    monthClause = `AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
+  }
+  let deliveryClause = '';
+  if (deliveryStatus === null) {
+    deliveryClause = `AND po."deliveryStatus" IS NULL`;
+  } else if (typeof deliveryStatus === 'string' && deliveryStatus.length > 0) {
+    params.push(deliveryStatus);
+    deliveryClause = `AND po."deliveryStatus" = $${params.length}`;
+  }
+  let pushedClause = '';
+  if (pushedFilter === 'Pushed') {
+    pushedClause = `AND dv."deliveryId" IS NOT NULL`;
+  } else if (pushedFilter === 'Not Pushed') {
+    pushedClause = `AND dv."deliveryId" IS NULL`;
+  }
+  let rejectReasonClause = '';
+  if (typeof rejectReason === 'string' && rejectReason.length > 0) {
+    params.push(rejectReason);
+    rejectReasonClause = `AND po."rejectReason" = $${params.length}`;
   }
   params.push(limit);
+  const limitPlaceholder = `$${params.length}`;
+
+  // Mirrors the dashboard's /api/order-list query: 25 fields with the latest
+  // non-test intercityDelivery via LATERAL, plus a Pushed/Not Pushed flag.
   const sql = `
-    SELECT
-      po."poNumber"::text          AS po_number,
-      po."status"                  AS status,
-      po."amount"::text            AS amount,
-      b."phone"                    AS buyer_phone,
-      b."businessName"             AS buyer_business_name,
-      s."phone"                    AS seller_phone,
-      s."businessName"             AS seller_business_name,
-      b."state"                    AS buyer_state,
-      po."markedPendingTime"       AS marked_pending_time,
-      po."created_at"              AS created_at
+    SELECT DISTINCT
+      po."poNumber"::text                                                                   AS "poNumber",
+      po."markedPendingTime"::date                                                          AS "MarkedpendingTime",
+      pop."created_at"                                                                      AS "paymentDate",
+      pop."event"                                                                           AS "paymentEvent",
+      s."phone"                                                                             AS "sellerPhone",
+      s."businessName"                                                                      AS "sellerBusinessName",
+      b."phone"                                                                             AS "buyerPhone",
+      b."businessName"                                                                      AS "buyerBusinessName",
+      pop."paidAmount"                                                                      AS "paidAmount",
+      po."amount"                                                                           AS "poAmount",
+      po."appliedOfferDiscount"                                                             AS "CoupanAmount",
+      po."status"                                                                           AS "orderStatus",
+      COALESCE((pop."breakup" ->> 'discount_on_payment_preference_for_seller')::float, 0)   AS "discountBySeller",
+      COALESCE((pop."breakup" ->> 'discount_on_payment_preference_from_badho')::float, 0)   AS "PaymentOptionDiscountByBadho",
+      pop."appliedWalletAmount"                                                             AS "appliedWalletAmount",
+      po."paymentInfo" ->> 'option'                                                         AS "PaymentOption",
+      dv."trackingInfo" ->> 'awbNumber'                                                     AS "awbNumber",
+      dv."trackingInfo" ->> 'courierName'                                                   AS "courierName",
+      dv."status"                                                                           AS "deliveryStatus",
+      pf."markedStatusInitiatedTime"                                                        AS "RefundIntiatedTime",
+      pf."markedStatusCompletedTime"                                                        AS "RefundCompletedTime",
+      dv."codAmountToBeCollected"                                                           AS "codAmountToBeCollected",
+      CASE WHEN dv."deliveryId" IS NOT NULL THEN 'Pushed' ELSE 'Not Pushed' END             AS "pushedStatus",
+      po."rejectReason"                                                                     AS "rejectReason",
+      po."rejectedBy"                                                                       AS "rejectedBy",
+      po."reasonAddedByBadhoTeam"                                                           AS "reasonAddedByBadhoTeam"
     FROM "purchaseOrder"."purchaseOrder" po
-    JOIN "users"."buyer" b ON b."id" = po."buyerId"
+    JOIN "users"."buyer"  b ON b."id" = po."buyerId"
     JOIN "users"."seller" s ON s."id" = po."sellerId"
+    LEFT JOIN LATERAL (
+      SELECT di."id" AS "deliveryId",
+             di."trackingInfo",
+             di."status",
+             di."codAmountToBeCollected"
+      FROM "deliveries"."intercityDelivery" di
+      WHERE di."purchaseOrderId" = po."id"
+      ORDER BY di."created_at" DESC
+      LIMIT 1
+    ) dv ON TRUE
+    LEFT JOIN "payments"."paymentRefundRecord" pf
+           ON pf."purchaseOrderId" = po."id"
+          AND pf."status" = 'COMPLETED'
+    LEFT JOIN "purchaseOrder"."purchaseOrderPayment" pop
+           ON pop."purchaseOrderId" = po."id"
+          AND pop."status" = 'COMPLETED'
+          AND pop."event"  IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
     WHERE ${BASE_WHERE}
+      AND po."deliveryNetwork" = 'THIRD_PARTY'
+      AND po."deliveryType"    = 'INTERCITY'
       AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
       AND po."status" = $2
-      ${monthFilter}
-    ORDER BY po."markedPendingTime" DESC
-    LIMIT $${params.length};
+      ${monthClause}
+      ${deliveryClause}
+      ${pushedClause}
+      ${rejectReasonClause}
+    ORDER BY "MarkedpendingTime" DESC NULLS LAST
+    LIMIT ${limitPlaceholder};
   `;
+
   const rows = await query<{
-    po_number: string;
-    status: string;
-    amount: string;
-    buyer_phone: string | null;
-    buyer_business_name: string | null;
-    seller_phone: string | null;
-    seller_business_name: string | null;
-    buyer_state: string | null;
-    marked_pending_time: string | null;
-    created_at: string;
+    poNumber: string;
+    MarkedpendingTime: string | null;
+    paymentDate: string | null;
+    paymentEvent: string | null;
+    sellerPhone: string | null;
+    sellerBusinessName: string | null;
+    buyerPhone: string | null;
+    buyerBusinessName: string | null;
+    paidAmount: number | null;
+    poAmount: number | null;
+    CoupanAmount: number | null;
+    orderStatus: string;
+    discountBySeller: number;
+    PaymentOptionDiscountByBadho: number;
+    appliedWalletAmount: number | null;
+    PaymentOption: string | null;
+    awbNumber: string | null;
+    courierName: string | null;
+    deliveryStatus: string | null;
+    RefundIntiatedTime: string | null;
+    RefundCompletedTime: string | null;
+    codAmountToBeCollected: number | null;
+    pushedStatus: string;
+    rejectReason: string | null;
+    rejectedBy: string | null;
+    reasonAddedByBadhoTeam: string | null;
   }>(sql, params);
+
+  const summary = {
+    pushed: rows.filter((r) => r.pushedStatus === 'Pushed').length,
+    notPushed: rows.filter((r) => r.pushedStatus === 'Not Pushed').length,
+  };
+
   return {
     status,
     year,
     month: month ?? null,
+    deliveryStatus: deliveryStatus ?? null,
+    pushedFilter: pushedFilter ?? null,
+    rejectReason: rejectReason ?? null,
     count: rows.length,
-    data: rows.map((r) => ({
-      poNumber: r.po_number,
-      status: r.status,
-      amount: parseFloat(r.amount),
-      buyerPhone: r.buyer_phone,
-      buyerBusinessName: r.buyer_business_name,
-      sellerPhone: r.seller_phone,
-      sellerBusinessName: r.seller_business_name,
-      buyerState: r.buyer_state,
-      markedPendingTime: r.marked_pending_time,
-      createdAt: r.created_at,
-    })),
+    summary,
+    data: rows,
   };
 }
 
@@ -363,7 +442,7 @@ const TOOLS = [
   {
     name: 'list_orders_by_status',
     description:
-      'Lists orders for a given status, year, and optional month. Returns PO number, amount, buyer/seller phone+name+state, markedPendingTime, createdAt. Use to drill into a status × month cell from get_monthly_status_breakdown.',
+      'Drills into a status × month cell with the same rich payload the dashboard modal shows: 25 fields per order including PO number, status, PO/paid/coupon/wallet amounts, seller and badho payment-option discounts, payment option/date/event, AWB number, courier name, delivery status, COD amount, latest intercityDelivery presence (pushedStatus = "Pushed" | "Not Pushed"), refund initiated/completed timestamps, plus rejectReason / rejectedBy / reasonAddedByBadhoTeam for REJECTED orders. Filtered to D2R brand sellers on THIRD_PARTY × INTERCITY, real (non-test) buyers and sellers, status != DRAFT. Year/month use markedPendingTime. Returns { count, summary: { pushed, notPushed }, data: [...] }.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -373,6 +452,19 @@ const TOOLS = [
         },
         year: { type: 'integer', description: 'Calendar year, e.g. 2026' },
         month: { type: 'integer', description: 'Optional month 1-12' },
+        deliveryStatus: {
+          type: ['string', 'null'],
+          description: 'Optional purchaseOrder.deliveryStatus to filter by. Pass null to match orders where deliveryStatus IS NULL.',
+        },
+        pushedFilter: {
+          type: 'string',
+          enum: ['Pushed', 'Not Pushed'],
+          description: 'Optional. "Pushed" = order has at least one intercityDelivery row; "Not Pushed" = none.',
+        },
+        rejectReason: {
+          type: 'string',
+          description: 'Optional exact match on po.rejectReason (most useful when status=REJECTED).',
+        },
         limit: { type: 'integer', description: 'Max rows (default 500)' },
       },
       required: ['status'],
@@ -421,8 +513,19 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         if (!status) throw new Error('status is required');
         const year = (args.year as number | undefined) ?? currentYear();
         const month = args.month as number | undefined;
+        const deliveryStatus =
+          args.deliveryStatus === null
+            ? null
+            : typeof args.deliveryStatus === 'string'
+            ? args.deliveryStatus
+            : undefined;
+        const pushedFilter = args.pushedFilter as 'Pushed' | 'Not Pushed' | undefined;
+        if (pushedFilter !== undefined && pushedFilter !== 'Pushed' && pushedFilter !== 'Not Pushed') {
+          throw new Error('pushedFilter must be "Pushed" or "Not Pushed"');
+        }
+        const rejectReason = typeof args.rejectReason === 'string' ? args.rejectReason : undefined;
         const limit = (args.limit as number | undefined) ?? 500;
-        result = await listOrdersByStatus(status, year, month, limit);
+        result = await listOrdersByStatus(status, year, month, deliveryStatus, pushedFilter, rejectReason, limit);
         break;
       }
       default:

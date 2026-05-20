@@ -4429,20 +4429,20 @@ export default function OrderStatusDashboard() {
                       if (!filteredPivotDrillRows) return;
                       const isRejected = pivotDrillStatus === 'REJECTED';
                       const headers = [
-                        'PO Number', 'Status', 'PO Amount', 'Paid Amount', 'Coupon Amount',
+                        'Pushed', 'PO Number', 'Status', 'PO Amount', 'Paid Amount', 'Coupon Amount',
                         'Seller Discount', 'Payment Option Badho Discount', 'Wallet Amount',
                         'Payment Option', 'Payment Date', 'Payment Event',
-                        'AWB Number', 'Courier Name', 'Delivery Status', 'Pushed', 'COD Amount',
+                        'AWB Number', 'Courier Name', 'Delivery Status', 'COD Amount',
                         'Buyer Phone', 'Buyer Business', 'Seller Phone', 'Seller Business',
                         'Marked Pending', 'Refund Initiated', 'Refund Completed',
                         ...(isRejected ? ['Reject Reason', 'Rejected By', 'Reason Added By Badho Team'] : []),
                       ];
                       const rows: CsvCell[][] = filteredPivotDrillRows.map((r) => [
-                        r.poNumber, r.orderStatus ?? r.status,
+                        r.pushedStatus ?? 'Not Pushed', r.poNumber, r.orderStatus ?? r.status,
                         r.poAmount ?? '', r.paidAmount ?? '', r.CoupanAmount ?? '',
                         r.discountBySeller ?? '', r.PaymentOptionDiscountByBadho ?? '', r.appliedWalletAmount ?? '',
                         r.PaymentOption ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
-                        r.awbNumber ?? '', r.courierName ?? '', r.deliveryStatus ?? '', r.pushedStatus ?? 'Not Pushed', r.codAmountToBeCollected ?? '',
+                        r.awbNumber ?? '', r.courierName ?? '', r.deliveryStatus ?? '', r.codAmountToBeCollected ?? '',
                         r.buyerPhone ?? '', r.buyerBusinessName ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
                         r.MarkedpendingTime ?? r.markedPendingTime ?? '',
                         r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '',
@@ -4485,6 +4485,7 @@ export default function OrderStatusDashboard() {
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-slate-100 z-10">
                       <tr className="border-b border-slate-200">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Pushed</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">PO Amount</th>
@@ -4499,7 +4500,6 @@ export default function OrderStatusDashboard() {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">AWB Number</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Courier Name</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Delivery Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Pushed</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">COD Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
@@ -4519,7 +4519,15 @@ export default function OrderStatusDashboard() {
                     </thead>
                     <tbody>
                       {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r) => (
-                        <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50 align-top">
+                        <tr
+                          key={r.poNumber}
+                          className={`border-b border-slate-100 align-top ${r.pushedStatus === 'Pushed' ? 'bg-emerald-50/60 hover:bg-emerald-100/70' : 'bg-rose-50/60 hover:bg-rose-100/70'}`}
+                        >
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {r.pushedStatus || 'Not Pushed'}
+                            </span>
+                          </td>
                           <td className="px-4 py-3 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
@@ -4534,11 +4542,6 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                              {r.pushedStatus || 'Not Pushed'}
-                            </span>
-                          </td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface Row {
+  slab_id: string;
   seller_id: string;
   seller_name: string | null;
   businessName: string | null;
@@ -12,6 +13,7 @@ interface Row {
   seller_state: string | null;
   seller_district: string | null;
   seller_city: string | null;
+  brand_id: string | null;
   brand_name: string | null;
   product_name: string | null;
   margin: string | null;
@@ -43,6 +45,17 @@ export default function Scheme1RsPriceChangeDashboard() {
   const [search, setSearch] = useState('');
   const [liveFilter, setLiveFilter] = useState<LiveFilter>('all');
   const [tab, setTab] = useState<Tab>('brands');
+
+  // Inline edit (single slab)
+  const [editingSlabId, setEditingSlabId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [savingSlabId, setSavingSlabId] = useState<string | null>(null);
+
+  // Bulk update by brand
+  const [bulkBrandId, setBulkBrandId] = useState('');
+  const [bulkMargin, setBulkMargin] = useState('');
+  const [bulkApplying, setBulkApplying] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -139,6 +152,81 @@ export default function Scheme1RsPriceChangeDashboard() {
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [filtered]);
 
+  // Distinct brands for the bulk selector (sorted by name).
+  const brandOptions = useMemo(() => {
+    const map = new Map<string, string>(); // brandId -> brandName
+    for (const r of rows) {
+      if (r.brand_id && r.brand_name) map.set(r.brand_id, r.brand_name);
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows]);
+
+  // Apply server response to local row state (id -> { margin, originalMargin }).
+  const applyUpdates = (updates: { id: string; margin: string; originalMargin: string | null }[]) => {
+    if (updates.length === 0) return;
+    const byId = new Map(updates.map((u) => [u.id, u]));
+    setRows((prev) =>
+      prev.map((r) => {
+        const u = byId.get(r.slab_id);
+        return u ? { ...r, margin: u.margin, originalMargin: u.originalMargin } : r;
+      })
+    );
+  };
+
+  const saveSingleMargin = async (slabId: string, newMargin: number) => {
+    setSavingSlabId(slabId);
+    try {
+      const res = await fetch('/api/scheme-1-rs-price-change', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slabIds: [slabId], margin: newMargin }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+      applyUpdates(data.updated || []);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setBulkMessage({ kind: 'err', text: `Save failed: ${msg}` });
+    } finally {
+      setSavingSlabId(null);
+      setEditingSlabId(null);
+      setEditValue('');
+    }
+  };
+
+  const applyBulk = async () => {
+    const n = Number(bulkMargin);
+    if (!bulkBrandId || !Number.isFinite(n)) {
+      setBulkMessage({ kind: 'err', text: 'Pick a brand and enter a valid margin.' });
+      return;
+    }
+    setBulkApplying(true);
+    setBulkMessage(null);
+    try {
+      const res = await fetch('/api/scheme-1-rs-price-change', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: bulkBrandId, margin: n }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+      applyUpdates(data.updated || []);
+      const brandName = brandOptions.find((b) => b.id === bulkBrandId)?.name ?? bulkBrandId;
+      setBulkMessage({
+        kind: 'ok',
+        text: `Updated ${data.count} slab(s) for ${brandName} to ${n}%.`,
+      });
+      setBulkMargin('');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setBulkMessage({ kind: 'err', text: `Bulk update failed: ${msg}` });
+    } finally {
+      setBulkApplying(false);
+    }
+  };
+
   if (!authChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -220,20 +308,70 @@ export default function Scheme1RsPriceChangeDashboard() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wider text-purple-300/70">Total brand</div>
-            <div className="text-2xl font-bold text-white mt-0.5">{counts.totalBrand.toLocaleString()}</div>
+        {tab === 'brands' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3">
+              <div className="text-[11px] uppercase tracking-wider text-purple-300/70">Total brand</div>
+              <div className="text-2xl font-bold text-white mt-0.5">{counts.totalBrand.toLocaleString()}</div>
+            </div>
+            <div className="bg-emerald-500/5 backdrop-blur-xl border border-emerald-400/20 rounded-xl px-4 py-3">
+              <div className="text-[11px] uppercase tracking-wider text-emerald-300/80">Live brand</div>
+              <div className="text-2xl font-bold text-emerald-200 mt-0.5">{counts.liveBrand.toLocaleString()}</div>
+            </div>
+            <div className="bg-rose-500/5 backdrop-blur-xl border border-rose-400/20 rounded-xl px-4 py-3">
+              <div className="text-[11px] uppercase tracking-wider text-rose-300/80">Inactive brand</div>
+              <div className="text-2xl font-bold text-rose-200 mt-0.5">{counts.inactiveBrand.toLocaleString()}</div>
+            </div>
           </div>
-          <div className="bg-emerald-500/5 backdrop-blur-xl border border-emerald-400/20 rounded-xl px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wider text-emerald-300/80">Live brand</div>
-            <div className="text-2xl font-bold text-emerald-200 mt-0.5">{counts.liveBrand.toLocaleString()}</div>
+        ) : (
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-4 mb-4">
+            <div className="text-[11px] uppercase tracking-wider text-purple-300/70 mb-2">Bulk update margin by brand</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={bulkBrandId}
+                onChange={(e) => setBulkBrandId(e.target.value)}
+                className="min-w-[220px] px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-fuchsia-400/50"
+              >
+                <option value="" className="bg-slate-900">— Select a brand —</option>
+                {brandOptions.map((b) => (
+                  <option key={b.id} value={b.id} className="bg-slate-900">
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  step="any"
+                  value={bulkMargin}
+                  onChange={(e) => setBulkMargin(e.target.value)}
+                  placeholder="Margin"
+                  className="w-28 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-purple-300/50 focus:outline-none focus:border-fuchsia-400/50"
+                />
+                <span className="text-purple-300 text-sm">%</span>
+              </div>
+              <button
+                onClick={applyBulk}
+                disabled={bulkApplying || !bulkBrandId || bulkMargin === ''}
+                className="px-4 py-2 rounded-lg bg-fuchsia-500/25 hover:bg-fuchsia-500/40 border border-fuchsia-400/40 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {bulkApplying ? 'Applying…' : 'Apply to all products'}
+              </button>
+              {bulkMessage && (
+                <span
+                  className={`text-xs font-medium ${
+                    bulkMessage.kind === 'ok' ? 'text-emerald-300' : 'text-rose-300'
+                  }`}
+                >
+                  {bulkMessage.text}
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-purple-300/60 mt-2">
+              Sets margin for every active product mapping of the chosen brand. Each row&apos;s previous margin is moved into Orig. Margin.
+            </div>
           </div>
-          <div className="bg-rose-500/5 backdrop-blur-xl border border-rose-400/20 rounded-xl px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wider text-rose-300/80">Inactive brand</div>
-            <div className="text-2xl font-bold text-rose-200 mt-0.5">{counts.inactiveBrand.toLocaleString()}</div>
-          </div>
-        </div>
+        )}
 
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
           {/* Filter bar */}
@@ -333,35 +471,84 @@ export default function Scheme1RsPriceChangeDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r, i) => (
-                    <tr
-                      key={`${r.seller_id}-${r.brand_name ?? ''}-${r.product_name ?? ''}-${i}`}
-                      className="border-b border-white/5 hover:bg-white/[0.03]"
-                    >
-                      <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.seller_name ?? '—'}</td>
-                      <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap">{r.businessName ?? '—'}</td>
-                      <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap font-mono text-xs">{r.phone ?? '—'}</td>
-                      <td className="px-3 py-2 text-purple-200/80 whitespace-nowrap text-xs">
-                        {[r.seller_city, r.seller_district, r.seller_state].filter(Boolean).join(', ') || '—'}
-                      </td>
-                      <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.brand_name ?? '—'}</td>
-                      <td className="px-3 py-2 text-purple-200/90">{r.product_name ?? '—'}</td>
-                      <td className="px-3 py-2 text-right text-purple-100 font-mono text-xs">{fmtMargin(r.margin)}</td>
-                      <td className="px-3 py-2 text-right text-purple-200/80 font-mono text-xs">{fmtMargin(r.originalMargin)}</td>
-                      <td className="px-3 py-2 text-right text-purple-100 font-mono text-xs">{fmtMrp(r.mrp)}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                            r.brandLive === 'LIVE'
-                              ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30'
-                              : 'bg-rose-500/15 text-rose-200 border-rose-400/30'
-                          }`}
-                        >
-                          {r.brandLive}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map((r) => {
+                    const isEditing = editingSlabId === r.slab_id;
+                    const isSaving = savingSlabId === r.slab_id;
+                    const commit = () => {
+                      const n = Number(editValue);
+                      if (!Number.isFinite(n)) {
+                        setEditingSlabId(null);
+                        setEditValue('');
+                        return;
+                      }
+                      const current = r.margin === null ? NaN : parseFloat(r.margin);
+                      if (Number.isFinite(current) && current === n) {
+                        setEditingSlabId(null);
+                        setEditValue('');
+                        return;
+                      }
+                      saveSingleMargin(r.slab_id, n);
+                    };
+                    return (
+                      <tr key={r.slab_id} className="border-b border-white/5 hover:bg-white/[0.03]">
+                        <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.seller_name ?? '—'}</td>
+                        <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap">{r.businessName ?? '—'}</td>
+                        <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap font-mono text-xs">{r.phone ?? '—'}</td>
+                        <td className="px-3 py-2 text-purple-200/80 whitespace-nowrap text-xs">
+                          {[r.seller_city, r.seller_district, r.seller_state].filter(Boolean).join(', ') || '—'}
+                        </td>
+                        <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.brand_name ?? '—'}</td>
+                        <td className="px-3 py-2 text-purple-200/90">{r.product_name ?? '—'}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">
+                          {isEditing ? (
+                            <input
+                              autoFocus
+                              type="number"
+                              step="any"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={commit}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') commit();
+                                else if (e.key === 'Escape') {
+                                  setEditingSlabId(null);
+                                  setEditValue('');
+                                }
+                              }}
+                              disabled={isSaving}
+                              className="w-20 px-1.5 py-0.5 rounded bg-slate-900 border border-fuchsia-400/50 text-right text-white text-xs focus:outline-none"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingSlabId(r.slab_id);
+                                setEditValue(r.margin ?? '');
+                              }}
+                              className="text-purple-100 hover:text-white hover:underline decoration-fuchsia-400/60 decoration-dotted disabled:opacity-50"
+                              disabled={isSaving}
+                              title="Click to edit"
+                            >
+                              {isSaving ? 'Saving…' : fmtMargin(r.margin)}
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right text-purple-200/80 font-mono text-xs">{fmtMargin(r.originalMargin)}</td>
+                        <td className="px-3 py-2 text-right text-purple-100 font-mono text-xs">{fmtMrp(r.mrp)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                              r.brandLive === 'LIVE'
+                                ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30'
+                                : 'bg-rose-500/15 text-rose-200 border-rose-400/30'
+                            }`}
+                          >
+                            {r.brandLive}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

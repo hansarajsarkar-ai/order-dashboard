@@ -473,7 +473,7 @@ export default function RefundOrderAmountDashboard() {
                           <td className="px-4 py-2.5 text-right tabular-nums">
                             <CellButton color="rose" onClick={() => openModal('pending', 'Pending refund')}>{formatAmount(b.pendingAmount)}</CellButton>
                           </td>
-                          <td className="px-4 py-2.5 text-right text-sky-300 tabular-nums">{formatHours(b.avgRefundProcessingHours)}</td>
+                          <td className="px-4 py-2.5 text-right text-sky-300 tabular-nums font-semibold">{formatHours(b.avgRefundProcessingHours)}</td>
                         </tr>
                       );
                     })}
@@ -527,11 +527,11 @@ export default function RefundOrderAmountDashboard() {
                       <tr key={seller.sellerId} className="border-t border-white/5 hover:bg-white/5">
                         <td className="px-4 py-2 text-white">{seller.sellerBusinessName || '—'}</td>
                         <td className="px-4 py-2 text-purple-200">{seller.sellerPhone || '—'}</td>
-                        <td className="px-4 py-2 text-right text-purple-100 tabular-nums">{seller.orderCount}</td>
-                        <td className="px-4 py-2 text-right text-purple-100 tabular-nums">{formatAmount(seller.paidAmount)}</td>
-                        <td className="px-4 py-2 text-right text-emerald-300 tabular-nums">{formatAmount(seller.refundedAmount)}</td>
-                        <td className="px-4 py-2 text-right text-rose-300 tabular-nums">{formatAmount(seller.pendingAmount)}</td>
-                        <td className="px-4 py-2 text-right text-purple-100 tabular-nums">{pct.toFixed(1)}%</td>
+                        <td className="px-4 py-2 text-right text-purple-100 tabular-nums font-semibold">{seller.orderCount}</td>
+                        <td className="px-4 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(seller.paidAmount)}</td>
+                        <td className="px-4 py-2 text-right text-emerald-300 tabular-nums font-semibold">{formatAmount(seller.refundedAmount)}</td>
+                        <td className="px-4 py-2 text-right text-rose-300 tabular-nums font-semibold">{formatAmount(seller.pendingAmount)}</td>
+                        <td className="px-4 py-2 text-right text-purple-100 tabular-nums font-semibold">{pct.toFixed(1)}%</td>
                       </tr>
                     );
                   })}
@@ -609,15 +609,15 @@ export default function RefundOrderAmountDashboard() {
                           : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
                         }`}>{r.status}</span>
                       </td>
-                      <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{formatAmount(r.amount)}</td>
-                      <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{formatAmount(r.orderPaidAmount)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums ${r.refundAmount != null ? 'text-emerald-300' : 'text-rose-300/70'}`}>
+                      <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.amount)}</td>
+                      <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.orderPaidAmount)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${r.refundAmount != null ? 'text-emerald-300' : 'text-rose-300/70'}`}>
                         {r.refundAmount != null ? formatAmount(r.refundAmount) : 'Pending'}
                       </td>
                       <td className="px-3 py-2 text-purple-200">{r.paymentOption ?? '—'}</td>
                       <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.rejectedOrCancelledTime)}</td>
                       <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedStatusCompletedTime)}</td>
-                      <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{r.hoursTillRefund != null ? r.hoursTillRefund.toFixed(1) : '—'}</td>
+                      <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{r.hoursTillRefund != null ? r.hoursTillRefund.toFixed(1) : '—'}</td>
                       <td className="px-3 py-2 text-purple-200">
                         <div className="text-white">{r.buyerBusinessName || '—'}</div>
                         <div className="text-purple-300/70 text-[10px]">{r.buyerPhone || ''}</div>
@@ -728,15 +728,15 @@ export default function RefundOrderAmountDashboard() {
                               : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
                             }`}>{r.status}</span>
                           </td>
-                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{formatAmount(r.amount)}</td>
-                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{formatAmount(r.orderPaidAmount)}</td>
-                          <td className={`px-3 py-2 text-right tabular-nums ${r.refundAmount != null ? 'text-emerald-300' : 'text-rose-300/70'}`}>
+                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.amount)}</td>
+                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.orderPaidAmount)}</td>
+                          <td className={`px-3 py-2 text-right tabular-nums font-semibold ${r.refundAmount != null ? 'text-emerald-300' : 'text-rose-300/70'}`}>
                             {r.refundAmount != null ? formatAmount(r.refundAmount) : 'Pending'}
                           </td>
                           <td className="px-3 py-2 text-purple-200">{r.paymentOption ?? '—'}</td>
                           <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.rejectedOrCancelledTime)}</td>
                           <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedStatusCompletedTime)}</td>
-                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums">{r.hoursTillRefund != null ? r.hoursTillRefund.toFixed(1) : '—'}</td>
+                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{r.hoursTillRefund != null ? r.hoursTillRefund.toFixed(1) : '—'}</td>
                           <td className="px-3 py-2 text-purple-200">
                             <div className="text-white">{r.buyerBusinessName || '—'}</div>
                             <div className="text-purple-300/70 text-[10px]">{r.buyerPhone || ''}</div>
@@ -800,7 +800,7 @@ function CellButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-block px-2 py-0.5 rounded-md transition-all duration-150 hover:font-semibold ${tone} ${bold ? 'font-semibold' : ''}`}
+      className={`inline-block px-2 py-0.5 rounded-md transition-all duration-150 font-semibold ${tone} ${bold ? 'font-bold' : ''}`}
     >
       {children}
     </button>

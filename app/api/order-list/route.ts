@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 
 interface Row {
   poNumber: string;
+  PurchaseorderId: string | null;
   MarkedpendingTime: string | null;
   paymentDate: string | null;
   paymentEvent: string | null;
@@ -75,6 +76,7 @@ export async function GET(req: NextRequest) {
     const sql = `
       SELECT DISTINCT
         po."poNumber"::text AS "poNumber",
+        po."id"::text AS "PurchaseorderId",
         po."markedPendingTime"::date AS "MarkedpendingTime",
         pop."created_at" AS "paymentDate",
         pop."event" AS "paymentEvent",
@@ -113,6 +115,14 @@ export async function GET(req: NextRequest) {
       LEFT JOIN "deliveries"."intercityDelivery" AS dv ON dv."purchaseOrderId" = po."id"
       LEFT JOIN "payments"."paymentRefundRecord" AS pf ON pf."purchaseOrderId" = po."id" AND pf."status" = 'COMPLETED'
       LEFT JOIN "purchaseOrder"."purchaseOrderPayment" AS pop ON pop."purchaseOrderId" = po."id" AND pop."status" = 'COMPLETED' AND pop."event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
+      JOIN LATERAL (
+        SELECT d."id"
+        FROM "deliveries"."intercityDelivery" d
+        WHERE d."purchaseOrderId" = po."id"
+          AND d."isTest" = FALSE
+        ORDER BY d."created_at" DESC
+        LIMIT 1
+      ) di_latest ON TRUE
       WHERE
         s."isD2RBrandSeller" = TRUE
         AND s."isTest" = FALSE
@@ -125,6 +135,7 @@ export async function GET(req: NextRequest) {
         AND po."deliveryNetwork" = 'THIRD_PARTY'
         AND po."deliveryType" = 'INTERCITY'
         AND po."status" != 'DRAFT'
+        AND dv."id" = di_latest."id"
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
         AND po."status" = $2
         ${monthFilter}
@@ -137,6 +148,7 @@ export async function GET(req: NextRequest) {
 
     const data = rows.map((r) => ({
       poNumber: r.poNumber,
+      PurchaseorderId: r.PurchaseorderId,
       MarkedpendingTime: r.MarkedpendingTime,
       paymentDate: r.paymentDate,
       paymentEvent: r.paymentEvent,

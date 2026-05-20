@@ -14,6 +14,7 @@ import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMa
 
 interface OrderListRow {
   poNumber: string;
+  PurchaseorderId?: string | null;
   status: string;
   orderStatus?: string;
   deliveryStatus?: string | null;
@@ -4429,7 +4430,7 @@ export default function OrderStatusDashboard() {
                       if (!filteredPivotDrillRows) return;
                       const isRejected = pivotDrillStatus === 'REJECTED';
                       const headers = [
-                        'PO Number', 'Status', 'PO Amount', 'Paid Amount', 'Coupon Applied',
+                        'PO Number', 'Purchase Order ID', 'Status', 'PO Amount', 'Paid Amount', 'Coupon Applied',
                         'Seller Discount', 'Badho Discount', 'Wallet Amount',
                         'Payment Mode', 'Payment Date', 'Payment Event',
                         'AWB Number', 'Courier Name', 'Delivery Status', 'Delivery Payment',
@@ -4438,7 +4439,7 @@ export default function OrderStatusDashboard() {
                         ...(isRejected ? ['Rejected By', 'Reason Added By Badho Team'] : []),
                       ];
                       const rows: CsvCell[][] = filteredPivotDrillRows.map((r) => [
-                        r.poNumber, r.orderStatus ?? r.status,
+                        r.poNumber, r.PurchaseorderId ?? '', r.orderStatus ?? r.status,
                         r.poAmount ?? '', r.paidAmount ?? '', r.CoupanApplied ?? '',
                         r.discountBySeller ?? '', r.discountByBadho ?? '', r.appliedWalletAmount ?? '',
                         r.paymentMode ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
@@ -4487,6 +4488,7 @@ export default function OrderStatusDashboard() {
                     <thead className="sticky top-0 bg-slate-100 z-10">
                       <tr className="border-b border-slate-200">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Purchase Order ID</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">PO Amount</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Paid Amount</th>
@@ -4522,6 +4524,7 @@ export default function OrderStatusDashboard() {
                       {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r) => (
                         <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50 align-top">
                           <td className="px-4 py-3 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
+                          <td className="px-4 py-3 text-slate-500 font-mono text-xs whitespace-nowrap" title={r.PurchaseorderId || ''}>{r.PurchaseorderId ? `${r.PurchaseorderId.slice(0, 8)}…` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>

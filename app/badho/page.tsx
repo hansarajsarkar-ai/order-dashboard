@@ -67,6 +67,14 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '💰',
     status: 'live',
   },
+  {
+    slug: 'scheme-1-rs-price-change',
+    title: 'Scheme 1 Rs Price Change',
+    description:
+      'Monitor price changes for Scheme 1 products, track pricing trends, analyze impact on sales, and manage price adjustments.',
+    icon: '📈',
+    status: 'live',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

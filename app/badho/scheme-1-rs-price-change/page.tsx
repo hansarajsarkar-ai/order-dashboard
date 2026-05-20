@@ -114,7 +114,7 @@ export default function Scheme1RsPriceChangeDashboard() {
   const fmtMargin = (v: string | null) => {
     if (v === null || v === undefined || v === '') return '—';
     const n = parseFloat(v);
-    return Number.isFinite(n) ? n.toFixed(2) : v;
+    return Number.isFinite(n) ? `${n.toFixed(2)}%` : `${v}%`;
   };
 
   const fmtMrp = (v: string | null) => {

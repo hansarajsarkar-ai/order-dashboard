@@ -597,7 +597,10 @@ export default function RefundOrderAmountDashboard() {
                 </thead>
                 <tbody>
                   {data?.topSellers.map((seller) => {
-                    const pct = seller.orderCount > 0 ? (seller.refundedOrders / seller.orderCount) * 100 : 0;
+                    // % of paid amount that has been refunded (clipped to 100 in case of rounding quirks)
+                    const pct = seller.paidAmount > 0
+                      ? Math.min((seller.refundedAmount / seller.paidAmount) * 100, 100)
+                      : 0;
                     return (
                       <tr key={seller.sellerId} className="border-t border-white/5 hover:bg-white/5">
                         <td className="px-4 py-2 text-white">{seller.sellerBusinessName || '—'}</td>

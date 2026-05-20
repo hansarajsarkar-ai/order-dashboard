@@ -334,7 +334,7 @@ export default function RefundOrderAmountDashboard() {
         <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-              Refund Order Amount
+              Refund Order Dashboard
             </h1>
             <p className="text-purple-200 text-sm mt-1">
               Prepaid (FULL/PARTIAL advance) D2R orders that were rejected or cancelled — tracked against refunds completed in <span className="text-purple-100 font-medium">{year}</span>.

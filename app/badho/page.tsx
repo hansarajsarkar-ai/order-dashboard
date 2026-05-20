@@ -61,7 +61,7 @@ const DASHBOARDS: DashboardEntry[] = [
   },
   {
     slug: 'refund-order-amount',
-    title: 'Refund Order Amount',
+    title: 'Refund Order Dashboard',
     description:
       'Track and analyze refund order amounts, refund trends, and refund metrics by seller, brand, and time period.',
     icon: '💰',

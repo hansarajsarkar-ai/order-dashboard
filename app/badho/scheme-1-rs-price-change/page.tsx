@@ -543,7 +543,7 @@ export default function Scheme1RsPriceChangeDashboard() {
             </div>
           </div>
         ) : (
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-4 mb-4">
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-4 mb-4 relative z-40">
             <div className="text-[11px] uppercase tracking-wider text-purple-300/70 mb-2">Bulk update margin by brand</div>
             <div className="flex items-center gap-2 flex-wrap">
               <MultiBrandSelect

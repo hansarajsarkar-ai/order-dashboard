@@ -1,8 +1,76 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+
+// Per-row editable margin cell. Holds its own draft state so typing in
+// one row does NOT re-render the entire 7k-row table.
+type MarginSaver = (slabId: string, newMargin: number) => Promise<void>;
+
+const MarginCell = memo(function MarginCell({
+  slabId,
+  margin,
+  onSave,
+}: {
+  slabId: string;
+  margin: string | null;
+  onSave: MarginSaver;
+}) {
+  const [draft, setDraft] = useState<string>(margin ?? '');
+  const [saving, setSaving] = useState(false);
+  const [touched, setTouched] = useState(false);
+
+  // When the server confirms a save, the parent passes a new `margin` prop
+  // — sync the draft to it as long as the user isn't mid-edit.
+  useEffect(() => {
+    if (!touched) setDraft(margin ?? '');
+  }, [margin, touched]);
+
+  const commit = async () => {
+    if (!touched) return;
+    const n = Number(draft);
+    const current = margin === null || margin === '' ? NaN : parseFloat(margin);
+    if (!Number.isFinite(n) || (Number.isFinite(current) && current === n)) {
+      setDraft(margin ?? '');
+      setTouched(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(slabId, n);
+      setTouched(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <input
+        type="number"
+        step="any"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setTouched(true);
+        }}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+          else if (e.key === 'Escape') {
+            setDraft(margin ?? '');
+            setTouched(false);
+            (e.currentTarget as HTMLInputElement).blur();
+          }
+        }}
+        disabled={saving}
+        className="w-20 px-1.5 py-0.5 rounded bg-white/5 border border-white/15 hover:border-fuchsia-400/50 focus:border-fuchsia-400/70 focus:bg-slate-900 text-right text-purple-100 font-mono text-xs focus:outline-none disabled:opacity-50 transition-colors"
+      />
+      <span className="text-purple-300/70 text-xs">{saving ? '…' : '%'}</span>
+    </div>
+  );
+});
 
 interface Row {
   slab_id: string;
@@ -45,11 +113,6 @@ export default function Scheme1RsPriceChangeDashboard() {
   const [search, setSearch] = useState('');
   const [liveFilter, setLiveFilter] = useState<LiveFilter>('all');
   const [tab, setTab] = useState<Tab>('brands');
-
-  // Inline edit (single slab)
-  const [editingSlabId, setEditingSlabId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [savingSlabId, setSavingSlabId] = useState<string | null>(null);
 
   // Bulk update by brand
   const [bulkBrandId, setBulkBrandId] = useState('');
@@ -164,37 +227,41 @@ export default function Scheme1RsPriceChangeDashboard() {
   }, [rows]);
 
   // Apply server response to local row state (id -> { margin, originalMargin }).
-  const applyUpdates = (updates: { id: string; margin: string; originalMargin: string | null }[]) => {
-    if (updates.length === 0) return;
-    const byId = new Map(updates.map((u) => [u.id, u]));
-    setRows((prev) =>
-      prev.map((r) => {
-        const u = byId.get(r.slab_id);
-        return u ? { ...r, margin: u.margin, originalMargin: u.originalMargin } : r;
-      })
-    );
-  };
+  // Stable via useCallback so saveSingleMargin can depend on it without
+  // breaking the memo on <MarginCell>.
+  const applyUpdates = useCallback(
+    (updates: { id: string; margin: string; originalMargin: string | null }[]) => {
+      if (updates.length === 0) return;
+      const byId = new Map(updates.map((u) => [u.id, u]));
+      setRows((prev) =>
+        prev.map((r) => {
+          const u = byId.get(r.slab_id);
+          return u ? { ...r, margin: u.margin, originalMargin: u.originalMargin } : r;
+        })
+      );
+    },
+    []
+  );
 
-  const saveSingleMargin = async (slabId: string, newMargin: number) => {
-    setSavingSlabId(slabId);
-    try {
-      const res = await fetch('/api/scheme-1-rs-price-change', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slabIds: [slabId], margin: newMargin }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-      applyUpdates(data.updated || []);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setBulkMessage({ kind: 'err', text: `Save failed: ${msg}` });
-    } finally {
-      setSavingSlabId(null);
-      setEditingSlabId(null);
-      setEditValue('');
-    }
-  };
+  const saveSingleMargin = useCallback<MarginSaver>(
+    async (slabId, newMargin) => {
+      try {
+        const res = await fetch('/api/scheme-1-rs-price-change', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slabIds: [slabId], margin: newMargin }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+        applyUpdates(data.updated || []);
+        setBulkMessage(null);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setBulkMessage({ kind: 'err', text: `Save failed: ${msg}` });
+      }
+    },
+    [applyUpdates]
+  );
 
   const applyBulk = async () => {
     const n = Number(bulkMargin);
@@ -471,84 +538,34 @@ export default function Scheme1RsPriceChangeDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => {
-                    const isEditing = editingSlabId === r.slab_id;
-                    const isSaving = savingSlabId === r.slab_id;
-                    const commit = () => {
-                      const n = Number(editValue);
-                      if (!Number.isFinite(n)) {
-                        setEditingSlabId(null);
-                        setEditValue('');
-                        return;
-                      }
-                      const current = r.margin === null ? NaN : parseFloat(r.margin);
-                      if (Number.isFinite(current) && current === n) {
-                        setEditingSlabId(null);
-                        setEditValue('');
-                        return;
-                      }
-                      saveSingleMargin(r.slab_id, n);
-                    };
-                    return (
-                      <tr key={r.slab_id} className="border-b border-white/5 hover:bg-white/[0.03]">
-                        <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.seller_name ?? '—'}</td>
-                        <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap">{r.businessName ?? '—'}</td>
-                        <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap font-mono text-xs">{r.phone ?? '—'}</td>
-                        <td className="px-3 py-2 text-purple-200/80 whitespace-nowrap text-xs">
-                          {[r.seller_city, r.seller_district, r.seller_state].filter(Boolean).join(', ') || '—'}
-                        </td>
-                        <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.brand_name ?? '—'}</td>
-                        <td className="px-3 py-2 text-purple-200/90">{r.product_name ?? '—'}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">
-                          {isEditing ? (
-                            <input
-                              autoFocus
-                              type="number"
-                              step="any"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={commit}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') commit();
-                                else if (e.key === 'Escape') {
-                                  setEditingSlabId(null);
-                                  setEditValue('');
-                                }
-                              }}
-                              disabled={isSaving}
-                              className="w-20 px-1.5 py-0.5 rounded bg-slate-900 border border-fuchsia-400/50 text-right text-white text-xs focus:outline-none"
-                            />
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingSlabId(r.slab_id);
-                                setEditValue(r.margin ?? '');
-                              }}
-                              className="text-purple-100 hover:text-white hover:underline decoration-fuchsia-400/60 decoration-dotted disabled:opacity-50"
-                              disabled={isSaving}
-                              title="Click to edit"
-                            >
-                              {isSaving ? 'Saving…' : fmtMargin(r.margin)}
-                            </button>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-right text-purple-200/80 font-mono text-xs">{fmtMargin(r.originalMargin)}</td>
-                        <td className="px-3 py-2 text-right text-purple-100 font-mono text-xs">{fmtMrp(r.mrp)}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                              r.brandLive === 'LIVE'
-                                ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30'
-                                : 'bg-rose-500/15 text-rose-200 border-rose-400/30'
-                            }`}
-                          >
-                            {r.brandLive}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {filtered.map((r) => (
+                    <tr key={r.slab_id} className="border-b border-white/5 hover:bg-white/[0.03]">
+                      <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.seller_name ?? '—'}</td>
+                      <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap">{r.businessName ?? '—'}</td>
+                      <td className="px-3 py-2 text-purple-200/90 whitespace-nowrap font-mono text-xs">{r.phone ?? '—'}</td>
+                      <td className="px-3 py-2 text-purple-200/80 whitespace-nowrap text-xs">
+                        {[r.seller_city, r.seller_district, r.seller_state].filter(Boolean).join(', ') || '—'}
+                      </td>
+                      <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.brand_name ?? '—'}</td>
+                      <td className="px-3 py-2 text-purple-200/90">{r.product_name ?? '—'}</td>
+                      <td className="px-3 py-2">
+                        <MarginCell slabId={r.slab_id} margin={r.margin} onSave={saveSingleMargin} />
+                      </td>
+                      <td className="px-3 py-2 text-right text-purple-200/80 font-mono text-xs">{fmtMargin(r.originalMargin)}</td>
+                      <td className="px-3 py-2 text-right text-purple-100 font-mono text-xs">{fmtMrp(r.mrp)}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                            r.brandLive === 'LIVE'
+                              ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30'
+                              : 'bg-rose-500/15 text-rose-200 border-rose-400/30'
+                          }`}
+                        >
+                          {r.brandLive}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             )}

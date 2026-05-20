@@ -76,6 +76,7 @@ interface AlertItem {
   markedPendingTime: string | null;
   rejectedOrCancelledTime: string | null;
   minutesPending: number;
+  deliveryStatus: string | null;
   rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
@@ -145,6 +146,7 @@ export async function GET(req: NextRequest) {
           a."rejectReason"                        AS reject_reason,
           a."rejectedBy"                          AS rejected_by,
           a."reasonAddedByBadhoTeam"              AS reason_added_by_badho_team,
+          a."deliveryStatus"                      AS delivery_status,
           CASE
             WHEN EXISTS (
               SELECT 1
@@ -376,6 +378,7 @@ export async function GET(req: NextRequest) {
             'markedPendingTime',        marked_pending_time,
             'rejectedOrCancelledTime',  rejected_or_cancelled_time,
             'minutesPending',           EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 60,
+            'deliveryStatus',           delivery_status,
             'rejectReason',             reject_reason,
             'rejectedBy',               rejected_by,
             'reasonAddedByBadhoTeam',   reason_added_by_badho_team,

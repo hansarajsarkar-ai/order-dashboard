@@ -122,6 +122,7 @@ interface AlertItem {
   markedPendingTime: string | null;
   rejectedOrCancelledTime: string | null;
   minutesPending: number;
+  deliveryStatus: string | null;
   rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
@@ -1028,9 +1029,9 @@ function AlertsTabContent({
               onClick={() => {
                 downloadCSV(
                   `refund-alerts-${new Date().toISOString().slice(0, 10)}.csv`,
-                  ['PO Number', 'Status', 'Paid Amount', 'Payment Option', 'Reason Category', 'Pending For', 'Order Placed At', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                  ['PO Number', 'Status', 'Delivery Status', 'Paid Amount', 'Payment Option', 'Reason Category', 'Pending For', 'Order Placed At', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                   alerts.map((a) => [
-                    a.poNumber, a.status, a.paidAmount, a.paymentOption ?? '',
+                    a.poNumber, a.status, a.deliveryStatus ?? '', a.paidAmount, a.paymentOption ?? '',
                     a.reasonCategory,
                     formatPendingDuration(a.minutesPending),
                     a.markedPendingTime ?? '', a.rejectedOrCancelledTime ?? '',
@@ -1053,6 +1054,7 @@ function AlertsTabContent({
                   <th className="px-4 py-3 text-left">Pending For</th>
                   <th className="px-4 py-3 text-left">PO Number</th>
                   <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-left">Delivery Status</th>
                   <th className="px-4 py-3 text-right">Paid</th>
                   <th className="px-4 py-3 text-left">Payment</th>
                   <th className="px-4 py-3 text-left">Reason Category</th>
@@ -1082,6 +1084,11 @@ function AlertsTabContent({
                           a.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
                           : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
                         }`}>{a.status}</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {a.deliveryStatus
+                          ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-500/15 text-sky-200 border border-sky-400/30 whitespace-nowrap">{a.deliveryStatus}</span>
+                          : <span className="text-purple-400/50 italic">—</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(a.paidAmount)}</td>
                       <td className="px-4 py-2.5 text-purple-200">{a.paymentOption ?? '—'}</td>

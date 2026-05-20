@@ -161,6 +161,8 @@ export default function RefundOrderAmountDashboard() {
   const [granularity, setGranularity] = useState<Granularity>('day');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  // Chart has its own granularity — independent from the breakdown table.
+  const [chartGranularity, setChartGranularity] = useState<'day' | 'week' | 'month'>('day');
 
   // Seed custom-range inputs the first time the user switches to Custom.
   useEffect(() => {
@@ -264,18 +266,27 @@ export default function RefundOrderAmountDashboard() {
     return data.byDay.filter((b) => b.bucketStart >= lo && b.bucketStart <= hi);
   }, [data, granularity, customStart, customEnd]);
 
-  // Trend chart — buckets sorted oldest → newest, formatted for recharts
+  // Trend chart — independent of the breakdown table's granularity.
+  // Uses its own chartGranularity (day/week/month), sorted oldest → newest.
   const trendChart = useMemo(() => {
-    const arr = [...buckets].sort((a, b) => a.bucketStart.localeCompare(b.bucketStart));
+    if (!data) return [];
+    const src =
+      chartGranularity === 'day'   ? data.byDay
+      : chartGranularity === 'week' ? data.byWeek
+      : data.byMonth;
+    const arr = [...src].sort((a, b) => a.bucketStart.localeCompare(b.bucketStart));
     return arr.map((b) => ({
-      label: formatBucketLabel(b, granularity),
+      label: formatBucketLabel(b, chartGranularity),
       bucketStart: b.bucketStart,
       bucketEnd: b.bucketEnd,
       avgProcessing: b.avgRefundProcessingHours,
       avgTillRefund: b.avgHoursTillRefund,
       refundedOrders: b.refundedOrders,
+      orderCount: b.orderCount,
+      paidAmount: b.paidAmount,
+      refundedAmount: b.refundedAmount,
     }));
-  }, [buckets, granularity]);
+  }, [data, chartGranularity]);
 
   // Aging chart — color-coded by staleness
   const agingChart = useMemo(() => {
@@ -446,32 +457,42 @@ export default function RefundOrderAmountDashboard() {
             <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Refund time trend */}
               <div className="lg:col-span-2 rounded-xl border border-white/10 bg-white/5 p-4">
-                <div className="mb-3">
-                  <h3 className="text-base font-bold text-white">Refund Time Trend</h3>
-                  <p className="text-purple-300/70 text-xs">
-                    Avg processing time and reject→refund latency, per {granularity === 'custom' ? 'day' : granularity}. Bars show refunds completed.
-                  </p>
+                <div className="mb-3 flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Refund Time Trend</h3>
+                    <p className="text-purple-300/70 text-xs">
+                      Avg processing time and reject→refund latency, per {chartGranularity}. Bars show refunds completed. Hover any point for details.
+                    </p>
+                  </div>
+                  {/* Chart-only granularity toggle */}
+                  <div className="inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
+                    {(['day', 'week', 'month'] as const).map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setChartGranularity(g)}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all duration-150 ${
+                          chartGranularity === g
+                            ? 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_12px_rgba(34,211,238,0.5)]'
+                            : 'text-purple-200 hover:bg-cyan-500 hover:text-white hover:shadow-[0_0_12px_rgba(34,211,238,0.5)]'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ width: '100%', height: 280 }}>
+                <div style={{ width: '100%', height: 300 }}>
                   <ResponsiveContainer>
                     <ComposedChart data={trendChart} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                      <XAxis dataKey="label" stroke="#c4b5fd" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={20} />
-                      <YAxis yAxisId="hours" stroke="#c4b5fd" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}h`} />
-                      <YAxis yAxisId="count" orientation="right" stroke="#c4b5fd" tick={{ fontSize: 10 }} />
-                      <Tooltip
-                        contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 8, fontSize: 12 }}
-                        labelStyle={{ color: '#f5d0fe' }}
-                        formatter={(v, name) => {
-                          if (name === 'Refunds') return [String(v), String(name)];
-                          const n = Number(v);
-                          return [Number.isFinite(n) ? formatHours(n) : '—', String(name)];
-                        }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar yAxisId="count" dataKey="refundedOrders" name="Refunds" fill="#a855f7" opacity={0.35} radius={[4, 4, 0, 0]} />
-                      <Line yAxisId="hours" type="monotone" dataKey="avgProcessing" name="Avg Processing" stroke="#22d3ee" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                      <Line yAxisId="hours" type="monotone" dataKey="avgTillRefund" name="Reject→Refund" stroke="#f472b6" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                      <XAxis dataKey="label" stroke="#c4b5fd" tick={{ fontSize: 11, fontWeight: 600 }} interval="preserveStartEnd" minTickGap={20} />
+                      <YAxis yAxisId="hours" stroke="#22d3ee" tick={{ fontSize: 11, fontWeight: 600 }} tickFormatter={(v) => `${v}h`} label={{ value: 'Hours', angle: -90, position: 'insideLeft', fill: '#22d3ee', fontSize: 11, fontWeight: 600 }} />
+                      <YAxis yAxisId="count" orientation="right" stroke="#a855f7" tick={{ fontSize: 11, fontWeight: 600 }} label={{ value: 'Refunds', angle: 90, position: 'insideRight', fill: '#a855f7', fontSize: 11, fontWeight: 600 }} />
+                      <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'rgba(244,114,182,0.4)', strokeWidth: 1 }} />
+                      <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingTop: 4 }} iconType="plainline" />
+                      <Bar yAxisId="count" dataKey="refundedOrders" name="Refunds completed" fill="#a855f7" opacity={0.4} radius={[4, 4, 0, 0]} />
+                      <Line yAxisId="hours" type="monotone" dataKey="avgProcessing" name="Avg Processing (init→done)" stroke="#22d3ee" strokeWidth={2.5} dot={{ r: 4, strokeWidth: 0, fill: '#22d3ee' }} activeDot={{ r: 6 }} connectNulls />
+                      <Line yAxisId="hours" type="monotone" dataKey="avgTillRefund" name="Reject→Refund (full SLA)" stroke="#f472b6" strokeWidth={2.5} dot={{ r: 4, strokeWidth: 0, fill: '#f472b6' }} activeDot={{ r: 6 }} connectNulls />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -948,6 +969,58 @@ function MiniStat({ label, value, hint }: { label: string; value: string; hint?:
       <div className="text-[10px] uppercase tracking-wider text-purple-300/80">{label}</div>
       <div className="text-base font-bold text-white tabular-nums">{value}</div>
       {hint && <div className="text-[10px] text-purple-300/60">{hint}</div>}
+    </div>
+  );
+}
+
+interface TrendPoint {
+  label: string;
+  bucketStart: string;
+  bucketEnd: string;
+  avgProcessing: number | null;
+  avgTillRefund: number | null;
+  refundedOrders: number;
+  orderCount: number;
+  paidAmount: number;
+  refundedAmount: number;
+}
+
+function TrendTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: TrendPoint }> }) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div className="rounded-lg border border-fuchsia-400/50 bg-slate-950/95 backdrop-blur-xl px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)] min-w-[240px]">
+      <div className="text-sm font-bold text-fuchsia-200 mb-2 border-b border-white/10 pb-1.5">{p.label}</div>
+      <Row swatch="#22d3ee" label="Avg Processing" value={formatHours(p.avgProcessing)} hint="initiated → completed" />
+      <Row swatch="#f472b6" label="Reject→Refund" value={formatHours(p.avgTillRefund)} hint="full SLA" />
+      <Row swatch="#a855f7" label="Refunds Completed" value={p.refundedOrders.toLocaleString('en-IN')} />
+      <div className="mt-2 pt-2 border-t border-white/10 grid grid-cols-3 gap-2 text-[11px]">
+        <div>
+          <div className="text-purple-300/70">Orders</div>
+          <div className="font-bold text-white tabular-nums">{p.orderCount.toLocaleString('en-IN')}</div>
+        </div>
+        <div>
+          <div className="text-purple-300/70">Paid</div>
+          <div className="font-bold text-white tabular-nums">{formatAmount(p.paidAmount)}</div>
+        </div>
+        <div>
+          <div className="text-purple-300/70">Refunded</div>
+          <div className="font-bold text-emerald-300 tabular-nums">{formatAmount(p.refundedAmount)}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ swatch, label, value, hint }: { swatch: string; label: string; value: string; hint?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-xs py-0.5">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: swatch }} />
+        <span className="text-purple-100 truncate">{label}</span>
+        {hint && <span className="text-purple-400/70 text-[10px]">· {hint}</span>}
+      </div>
+      <span className="font-bold text-white tabular-nums">{value}</span>
     </div>
   );
 }

@@ -106,32 +106,33 @@ export async function GET(req: NextRequest) {
         s."state" AS seller_state,
         po."created_at" AS created_at
       FROM "purchaseOrder"."purchaseOrder" po
-      JOIN "users"."buyer" AS b ON b."id" = po."buyerId"
-      JOIN "users"."seller" s ON po."sellerId" = s."id"
-      LEFT JOIN "deliveries"."intercityDelivery" AS dv ON dv."purchaseOrderId" = po."id"
-      LEFT JOIN "payments"."paymentRefundRecord" AS pf ON pf."purchaseOrderId" = po."id" AND pf."status" = 'COMPLETED'
-      LEFT JOIN "purchaseOrder"."purchaseOrderPayment" AS pop ON pop."purchaseOrderId" = po."id" AND pop."status" = 'COMPLETED' AND pop."event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
-      JOIN LATERAL (
-        SELECT d."id"
-        FROM "deliveries"."intercityDelivery" d
-        WHERE d."purchaseOrderId" = po."id"
-          AND d."isTest" = FALSE
-        ORDER BY d."created_at" DESC
+      JOIN "users"."buyer"  b ON b."id" = po."buyerId"
+      JOIN "users"."seller" s ON s."id" = po."sellerId"
+      LEFT JOIN LATERAL (
+        SELECT di."trackingInfo",
+               di."status",
+               di."codAmountToBeCollected"
+        FROM "deliveries"."intercityDelivery" di
+        WHERE di."purchaseOrderId" = po."id"
+        ORDER BY di."created_at" DESC
         LIMIT 1
-      ) di_latest ON TRUE
-      WHERE
-        s."isD2RBrandSeller" = TRUE
-        AND s."isTest" = FALSE
+      ) dv ON TRUE
+      LEFT JOIN "payments"."paymentRefundRecord" pf
+             ON pf."purchaseOrderId" = po."id"
+            AND pf."status" = 'COMPLETED'
+      LEFT JOIN "purchaseOrder"."purchaseOrderPayment" pop
+             ON pop."purchaseOrderId" = po."id"
+            AND pop."status" = 'COMPLETED'
+            AND pop."event"  IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
+      WHERE s."isD2RBrandSeller" = TRUE
+        AND s."isTest"           = FALSE
         AND s."businessName" NOT ILIKE '%test%'
-        AND b."isTest" = FALSE
+        AND b."isTest"           = FALSE
         AND b."businessName" NOT ILIKE '%test%'
-        AND po."isTest" = FALSE
-        AND po."isFalseOrder" = FALSE
-        AND po."markedPendingTime" IS NOT NULL
+        AND po."isTest"          = FALSE
         AND po."deliveryNetwork" = 'THIRD_PARTY'
-        AND po."deliveryType" = 'INTERCITY'
-        AND po."status" != 'DRAFT'
-        AND dv."id" = di_latest."id"
+        AND po."deliveryType"    = 'INTERCITY'
+        AND po."isFalseOrder"    = FALSE
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
         AND po."status" = $2
         ${monthFilter}

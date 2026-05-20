@@ -962,6 +962,36 @@ function categoryStyleFor(category: string): { tone: string; bg: string; ring: s
   }
 }
 
+function formatAlertsTablePlain(alerts: AlertItem[], limit: number): string {
+  if (!alerts.length) return '(no pending refunds)';
+  const top = alerts.slice(0, limit);
+  const headers = ['PO',       'Age',         'Reason',                'Paid',     'Seller'];
+  const widths  = [10,         11,            22,                      9,          24];
+  const rows = top.map((a) => [
+    (a.poNumber || '—').slice(0, widths[0]),
+    formatPendingDuration(a.minutesPending).slice(0, widths[1]),
+    (a.reasonCategory || '—').slice(0, widths[2]),
+    formatAmount(a.paidAmount).slice(0, widths[3]),
+    (a.sellerBusinessName || '—').slice(0, widths[4]),
+  ]);
+  const lines: string[] = [];
+  lines.push(headers.map((h, i) => h.padEnd(widths[i])).join('  '));
+  lines.push(widths.map((w) => '-'.repeat(w)).join('  '));
+  rows.forEach((r) => lines.push(r.map((c, i) => c.padEnd(widths[i])).join('  ')));
+  if (alerts.length > limit) {
+    lines.push('');
+    lines.push(`... +${alerts.length - limit} more`);
+  }
+  return lines.join('\n');
+}
+
+function buildAlertSummary(alerts: AlertItem[]): string {
+  if (!alerts.length) return '✅ No refunds breaching 10-min SLA';
+  const stuck = alerts.reduce((s, a) => s + (a.paidAmount || 0), 0);
+  const oldest = alerts[0]?.minutesPending ?? 0;
+  return `🚨 ${alerts.length} refund${alerts.length === 1 ? '' : 's'} breaching 10-min SLA · ${formatAmount(stuck)} stuck · Oldest: ${formatPendingDuration(oldest)}`;
+}
+
 function AlertsTabContent({
   alerts, loading, onRefresh,
 }: {
@@ -971,6 +1001,78 @@ function AlertsTabContent({
 }) {
   const totalStuck = alerts.reduce((s, a) => s + (a.paidAmount || 0), 0);
   const oldest = alerts[0]?.minutesPending ?? 0;
+
+  // ─── Send-alert modal state ──────────────────────────────────────
+  type Channel = 'slack' | 'email' | 'whatsapp';
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [channel, setChannel] = useState<Channel | null>(null);
+  const [recipient, setRecipient] = useState('');
+  const [note, setNote] = useState('');
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // Reset everything when the modal closes
+  useEffect(() => {
+    if (notifyOpen) return;
+    setChannel(null);
+    setRecipient('');
+    setNote('');
+    setResult(null);
+    setSending(false);
+  }, [notifyOpen]);
+
+  // Escape closes
+  useEffect(() => {
+    if (!notifyOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setNotifyOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [notifyOpen]);
+
+  const handleSend = async () => {
+    if (!channel) return;
+    setSending(true);
+    setResult(null);
+
+    const summary = buildAlertSummary(alerts);
+    const noteText = note.trim();
+
+    try {
+      if (channel === 'slack') {
+        // Slack mrkdwn — code block keeps monospace alignment
+        const table = formatAlertsTablePlain(alerts, 25);
+        const text = `*${summary}*${noteText ? `\n${noteText}` : ''}\n\n\`\`\`\n${table}\n\`\`\``;
+        const res = await fetch('/api/refund-order-amount/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+        setResult({ ok: true, msg: 'Sent to Slack ✓' });
+      } else if (channel === 'email') {
+        if (!recipient.trim()) throw new Error('Add at least one email address');
+        const table = formatAlertsTablePlain(alerts, 25);
+        const subject = encodeURIComponent(summary.replace(/^[^\s]+\s/, '')); // strip leading emoji from subject line
+        const body = encodeURIComponent(`${summary}\n${noteText ? '\n' + noteText + '\n' : ''}\n${table}\n`);
+        const to = encodeURIComponent(recipient.trim());
+        window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+        setResult({ ok: true, msg: 'Opening your email app…' });
+      } else if (channel === 'whatsapp') {
+        const phone = recipient.replace(/[^\d]/g, '');
+        if (phone.length < 8) throw new Error('Add a valid phone number (with country code, no +)');
+        // WhatsApp limits URLs; cap at 15 rows so we stay well under the wa.me limit.
+        const table = formatAlertsTablePlain(alerts, 15);
+        const text = encodeURIComponent(`${summary}\n${noteText ? '\n' + noteText + '\n' : ''}\n\`\`\`\n${table}\n\`\`\``);
+        window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+        setResult({ ok: true, msg: 'Opening WhatsApp…' });
+      }
+    } catch (err) {
+      setResult({ ok: false, msg: err instanceof Error ? err.message : 'Failed to send' });
+    } finally {
+      setSending(false);
+    }
+  };
 
   // Severity buckets
   const sevBuckets = useMemo(() => {
@@ -1020,13 +1122,23 @@ function AlertsTabContent({
               </p>
             </div>
           </div>
-          <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white hover:text-slate-900 border border-white/20 hover:border-white text-white text-xs font-bold uppercase tracking-wider transition-all duration-150 disabled:opacity-50"
-          >
-            {loading ? 'Checking…' : '↻ Refresh'}
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {alerts.length > 0 && (
+              <button
+                onClick={() => setNotifyOpen(true)}
+                className="px-3 py-1.5 rounded-lg bg-white hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-white hover:border-rose-300 text-xs font-black uppercase tracking-wider transition-all duration-150 shadow-[0_0_18px_rgba(255,255,255,0.3)] flex items-center gap-1.5"
+              >
+                <span aria-hidden>📢</span> Send Alert
+              </button>
+            )}
+            <button
+              onClick={onRefresh}
+              disabled={loading}
+              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white hover:text-slate-900 border border-white/20 hover:border-white text-white text-xs font-bold uppercase tracking-wider transition-all duration-150 disabled:opacity-50"
+            >
+              {loading ? 'Checking…' : '↻ Refresh'}
+            </button>
+          </div>
         </div>
         {/* Severity strip */}
         {alerts.length > 0 && (
@@ -1149,6 +1261,143 @@ function AlertsTabContent({
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Send-alert modal */}
+      {notifyOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => setNotifyOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-gradient-to-br from-rose-500/20 via-purple-600/10 to-slate-900">
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  {channel === null ? 'Send Alert' : channel === 'slack' ? 'Send to Slack' : channel === 'email' ? 'Send via Email' : 'Send via WhatsApp'}
+                </h3>
+                <p className="text-purple-300/70 text-xs mt-0.5">
+                  {channel === null
+                    ? `${alerts.length} pending refund${alerts.length === 1 ? '' : 's'} will be included as a table.`
+                    : 'Recipients see a summary line + a monospace table of the top alerts.'}
+                </p>
+              </div>
+              <button
+                onClick={() => setNotifyOpen(false)}
+                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-rose-500 hover:text-white border border-white/10 text-purple-200 text-lg font-bold flex items-center justify-center transition-all duration-150"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-4">
+              {/* Step 1: Channel picker */}
+              {channel === null && (
+                <div className="grid grid-cols-3 gap-3">
+                  {([
+                    { id: 'slack' as const,    label: 'Slack',    emoji: '💬', tint: 'from-purple-500/30 to-indigo-500/10', ring: 'hover:ring-purple-400/60' },
+                    { id: 'email' as const,    label: 'Email',    emoji: '📧', tint: 'from-sky-500/30    to-blue-500/10',   ring: 'hover:ring-sky-400/60' },
+                    { id: 'whatsapp' as const, label: 'WhatsApp', emoji: '📱', tint: 'from-emerald-500/30 to-teal-500/10',  ring: 'hover:ring-emerald-400/60' },
+                  ]).map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setChannel(c.id)}
+                      className={`p-4 rounded-xl border border-white/10 bg-gradient-to-br ${c.tint} hover:bg-white/10 hover:ring-2 ${c.ring} transition-all duration-150 flex flex-col items-center gap-2`}
+                    >
+                      <span className="text-3xl" aria-hidden>{c.emoji}</span>
+                      <span className="text-white text-sm font-bold uppercase tracking-wider">{c.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Step 2: Channel form */}
+              {channel !== null && (
+                <div className="space-y-3">
+                  {channel === 'slack' && (
+                    <div className="px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-400/30 text-xs text-purple-200">
+                      Goes to the channel bound to your team&apos;s Slack webhook (<code className="text-purple-100">SLACK_WEBHOOK_URL</code> env var).
+                    </div>
+                  )}
+                  {channel === 'email' && (
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold mb-1">To (comma-separated)</label>
+                      <input
+                        type="text"
+                        placeholder="ops@badho.in, alerts@badho.in"
+                        value={recipient}
+                        onChange={(e) => setRecipient(e.target.value)}
+                        className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                      />
+                    </div>
+                  )}
+                  {channel === 'whatsapp' && (
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold mb-1">Phone (with country code, no +)</label>
+                      <input
+                        type="tel"
+                        placeholder="919876543210"
+                        value={recipient}
+                        onChange={(e) => setRecipient(e.target.value)}
+                        className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      />
+                      <p className="text-[10px] text-purple-300/60 mt-1">Opens WhatsApp Web / app with the table pre-filled.</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold mb-1">Optional note</label>
+                    <textarea
+                      placeholder="Anything you want above the table…"
+                      rows={2}
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 resize-none"
+                    />
+                  </div>
+
+                  {/* Preview */}
+                  <details className="rounded-lg bg-black/30 border border-white/10">
+                    <summary className="cursor-pointer px-3 py-2 text-[11px] uppercase tracking-wider text-purple-200 font-semibold">
+                      Preview ({channel === 'whatsapp' ? 'top 15' : 'top 25'} of {alerts.length})
+                    </summary>
+                    <pre className="px-3 py-2 text-[10px] text-purple-100 font-mono overflow-x-auto max-h-48 leading-tight border-t border-white/10">{buildAlertSummary(alerts)}{note.trim() ? `\n${note.trim()}` : ''}{'\n\n'}{formatAlertsTablePlain(alerts, channel === 'whatsapp' ? 15 : 25)}</pre>
+                  </details>
+
+                  {result && (
+                    <div className={`px-3 py-2 rounded-lg text-xs ${
+                      result.ok
+                        ? 'bg-emerald-500/15 border border-emerald-400/30 text-emerald-200'
+                        : 'bg-rose-500/15 border border-rose-400/30 text-rose-200'
+                    }`}>
+                      {result.msg}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2 pt-2">
+                    <button
+                      onClick={() => { setChannel(null); setResult(null); }}
+                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-purple-200 text-xs font-semibold transition-colors"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      onClick={handleSend}
+                      disabled={sending || alerts.length === 0}
+                      className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-fuchsia-500 hover:from-rose-600 hover:to-fuchsia-600 text-white text-xs font-black uppercase tracking-wider shadow-[0_0_14px_rgba(244,63,94,0.5)] transition-all duration-150 disabled:opacity-50"
+                    >
+                      {sending ? 'Sending…' : channel === 'slack' ? 'Send to Slack' : channel === 'email' ? 'Open Mail App' : 'Open WhatsApp'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

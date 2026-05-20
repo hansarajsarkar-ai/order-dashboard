@@ -714,12 +714,12 @@ export default function RefundOrderAmountDashboard() {
                         <div className="text-white">{r.sellerBusinessName || '—'}</div>
                         <div className="text-purple-300/70 text-[10px]">{r.sellerPhone || ''}</div>
                       </td>
-                      <td className="px-3 py-2 text-purple-200 max-w-[200px]" title={r.rejectReason || ''}>
-                        {r.rejectReason ? <span className="block truncate">{r.rejectReason}</span> : <span className="text-purple-400/50 italic">—</span>}
+                      <td className="px-3 py-2 text-purple-100 min-w-[180px] max-w-[300px]">
+                        {r.rejectReason ? <span className="block whitespace-normal break-words leading-snug">{r.rejectReason}</span> : <span className="text-purple-400/50 italic">—</span>}
                       </td>
                       <td className="px-3 py-2 text-purple-200">{r.rejectedBy || <span className="text-purple-400/50 italic">—</span>}</td>
-                      <td className="px-3 py-2 text-purple-200 max-w-[200px]" title={r.reasonAddedByBadhoTeam || ''}>
-                        {r.reasonAddedByBadhoTeam ? <span className="block truncate">{r.reasonAddedByBadhoTeam}</span> : <span className="text-purple-400/50 italic">—</span>}
+                      <td className="px-3 py-2 text-purple-100 min-w-[180px] max-w-[300px]">
+                        {r.reasonAddedByBadhoTeam ? <span className="block whitespace-normal break-words leading-snug">{r.reasonAddedByBadhoTeam}</span> : <span className="text-purple-400/50 italic">—</span>}
                       </td>
                     </tr>
                   ))}
@@ -1071,12 +1071,12 @@ function AlertsTabContent({
                         <div className="text-white">{a.sellerBusinessName || '—'}</div>
                         <div className="text-purple-300/70 text-[10px]">{a.sellerPhone || ''}</div>
                       </td>
-                      <td className="px-4 py-2.5 text-purple-200 max-w-[200px]" title={a.rejectReason || ''}>
-                        {a.rejectReason ? <span className="block truncate">{a.rejectReason}</span> : <span className="text-purple-400/50 italic">—</span>}
+                      <td className="px-4 py-2.5 text-purple-100 min-w-[180px] max-w-[300px]">
+                        {a.rejectReason ? <span className="block whitespace-normal break-words leading-snug">{a.rejectReason}</span> : <span className="text-purple-400/50 italic">—</span>}
                       </td>
                       <td className="px-4 py-2.5 text-purple-200">{a.rejectedBy || <span className="text-purple-400/50 italic">—</span>}</td>
-                      <td className="px-4 py-2.5 text-purple-200 max-w-[200px]" title={a.reasonAddedByBadhoTeam || ''}>
-                        {a.reasonAddedByBadhoTeam ? <span className="block truncate">{a.reasonAddedByBadhoTeam}</span> : <span className="text-purple-400/50 italic">—</span>}
+                      <td className="px-4 py-2.5 text-purple-100 min-w-[180px] max-w-[300px]">
+                        {a.reasonAddedByBadhoTeam ? <span className="block whitespace-normal break-words leading-snug">{a.reasonAddedByBadhoTeam}</span> : <span className="text-purple-400/50 italic">—</span>}
                       </td>
                     </tr>
                   );

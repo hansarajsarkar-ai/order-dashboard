@@ -387,7 +387,7 @@ export default function RefundOrderAmountDashboard() {
                       : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_14px_rgba(217,70,239,0.5)]'
                 }`}
               >
-                {t === 'overview' ? 'Monthly Overview' : t === 'sellers' ? 'Top Sellers' : t === 'orders' ? 'Order Details' : 'Alerts'}
+                {t === 'overview' ? 'Monthly Overview' : t === 'sellers' ? 'Seller wise' : t === 'orders' ? 'Order Details' : 'Alerts'}
                 {isAlerts && hasAlerts && (
                   <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-black tabular-nums shadow-[0_0_10px_rgba(244,63,94,0.7)] animate-pulse">
                     {alertCount > 99 ? '99+' : alertCount}
@@ -577,7 +577,7 @@ export default function RefundOrderAmountDashboard() {
         {tab === 'sellers' && (
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <h2 className="text-lg font-bold text-white">Top Sellers by Refund Exposure</h2>
+              <h2 className="text-lg font-bold text-white">Seller-wise Refund Exposure</h2>
               <button
                 onClick={() => {
                   if (!data?.topSellers) return;

@@ -89,8 +89,8 @@ interface UpdateRow {
 }
 
 // PATCH body shapes:
-//   single / multi-row :  { slabIds: string[], margin: number }
-//   bulk by brand      :  { brandId: string,   margin: number }
+//   single / multi-row     :  { slabIds: string[], margin: number }
+//   bulk by 1+ brands      :  { brandIds: string[], margin: number }
 //
 // For both, "originalMargin" is set to whatever the row's current "margin"
 // is before applying the new value, so the previous value is preserved.
@@ -114,8 +114,9 @@ export async function PATCH(req: NextRequest) {
         RETURNING pos."id" AS id, pos."margin" AS margin, pos."originalMargin" AS "originalMargin";
       `;
       updated = await query<UpdateRow>(updateSql, [margin, slabIds]);
-    } else if (typeof body?.brandId === 'string' && body.brandId) {
-      // Update every slab that belongs to any active seller_brandSKU mapping of this brand.
+    } else if (Array.isArray(body?.brandIds) && body.brandIds.length > 0) {
+      const brandIds = body.brandIds.map((s: unknown) => String(s));
+      // Update every slab that belongs to any active seller_brandSKU mapping of these brands.
       const updateSql = `
         UPDATE "purchaseOrderTerms"."purchaseOrderTermSlab" pos
         SET "originalMargin" = pos."margin",
@@ -123,15 +124,15 @@ export async function PATCH(req: NextRequest) {
         WHERE pos."purchaseOrderTermId" IN (
           SELECT DISTINCT sb."purchaseOrderTermId"
           FROM "users"."seller_brandSKU" sb
-          WHERE sb."brandId"  = $2::uuid
+          WHERE sb."brandId"  = ANY($2::uuid[])
             AND sb."isActive" = TRUE
         )
         RETURNING pos."id" AS id, pos."margin" AS margin, pos."originalMargin" AS "originalMargin";
       `;
-      updated = await query<UpdateRow>(updateSql, [margin, body.brandId]);
+      updated = await query<UpdateRow>(updateSql, [margin, brandIds]);
     } else {
       return NextResponse.json(
-        { error: 'Provide either { slabIds: string[] } or { brandId: string }' },
+        { error: 'Provide either { slabIds: string[] } or { brandIds: string[] }' },
         { status: 400 }
       );
     }

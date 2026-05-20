@@ -1,8 +1,114 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, memo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+
+// Multi-select dropdown for brands. Click outside to close. Search box at top.
+function MultiBrandSelect({
+  brands,
+  selected,
+  onChange,
+}: {
+  brands: { id: string; name: string }[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return brands;
+    return brands.filter((b) => b.name.toLowerCase().includes(q));
+  }, [brands, query]);
+
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onChange(next);
+  };
+
+  const selectAllFiltered = () => {
+    const next = new Set(selected);
+    for (const b of filtered) next.add(b.id);
+    onChange(next);
+  };
+
+  const label =
+    selected.size === 0
+      ? '— Select brand(s) —'
+      : selected.size === 1
+      ? brands.find((b) => selected.has(b.id))?.name ?? '1 brand'
+      : `${selected.size} brands selected`;
+
+  return (
+    <div ref={ref} className="relative min-w-[260px]">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full text-left px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:border-fuchsia-400/40 text-sm text-white flex items-center justify-between gap-2"
+      >
+        <span className={`truncate ${selected.size === 0 ? 'text-purple-300/60' : ''}`}>{label}</span>
+        <span className="text-purple-300 text-xs">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div className="absolute z-30 left-0 right-0 mt-1 max-h-80 rounded-lg bg-slate-900 border border-white/15 shadow-xl flex flex-col">
+          <div className="p-2 border-b border-white/10 flex items-center gap-2">
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search brands…"
+              className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-sm text-white placeholder:text-purple-300/50 focus:outline-none focus:border-fuchsia-400/50"
+            />
+            <button
+              type="button"
+              onClick={selectAllFiltered}
+              disabled={filtered.length === 0}
+              className="px-2 py-1 rounded text-[11px] font-semibold bg-white/5 border border-white/10 text-purple-100 hover:bg-white/10 disabled:opacity-40"
+              title="Select all matching"
+            >
+              All
+            </button>
+          </div>
+          <div className="overflow-y-auto max-h-60">
+            {filtered.length === 0 ? (
+              <div className="p-3 text-xs text-purple-300/70 text-center">No brands found.</div>
+            ) : (
+              filtered.map((b) => (
+                <label
+                  key={b.id}
+                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(b.id)}
+                    onChange={() => toggle(b.id)}
+                    className="accent-fuchsia-400"
+                  />
+                  <span className="text-sm text-purple-100 truncate">{b.name}</span>
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Per-row editable margin cell. Holds its own draft state so typing in
 // one row does NOT re-render the entire 7k-row table.
@@ -114,8 +220,8 @@ export default function Scheme1RsPriceChangeDashboard() {
   const [liveFilter, setLiveFilter] = useState<LiveFilter>('all');
   const [tab, setTab] = useState<Tab>('brands');
 
-  // Bulk update by brand
-  const [bulkBrandId, setBulkBrandId] = useState('');
+  // Bulk update by brand(s). One Set so "single" and "multi" use the same path.
+  const [bulkBrandIds, setBulkBrandIds] = useState<Set<string>>(new Set());
   const [bulkMargin, setBulkMargin] = useState('');
   const [bulkApplying, setBulkApplying] = useState(false);
   const [bulkMessage, setBulkMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
@@ -265,25 +371,29 @@ export default function Scheme1RsPriceChangeDashboard() {
 
   const applyBulk = async () => {
     const n = Number(bulkMargin);
-    if (!bulkBrandId || !Number.isFinite(n)) {
-      setBulkMessage({ kind: 'err', text: 'Pick a brand and enter a valid margin.' });
+    if (bulkBrandIds.size === 0 || !Number.isFinite(n)) {
+      setBulkMessage({ kind: 'err', text: 'Pick at least one brand and enter a valid margin.' });
       return;
     }
+    const brandIds = Array.from(bulkBrandIds);
     setBulkApplying(true);
     setBulkMessage(null);
     try {
       const res = await fetch('/api/scheme-1-rs-price-change', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brandId: bulkBrandId, margin: n }),
+        body: JSON.stringify({ brandIds, margin: n }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
       applyUpdates(data.updated || []);
-      const brandName = brandOptions.find((b) => b.id === bulkBrandId)?.name ?? bulkBrandId;
+      const summary =
+        brandIds.length === 1
+          ? brandOptions.find((b) => b.id === brandIds[0])?.name ?? '1 brand'
+          : `${brandIds.length} brands`;
       setBulkMessage({
         kind: 'ok',
-        text: `Updated ${data.count} slab(s) for ${brandName} to ${n}%.`,
+        text: `Updated ${data.count} slab(s) for ${summary} to ${n}%.`,
       });
       setBulkMargin('');
     } catch (e) {
@@ -292,6 +402,12 @@ export default function Scheme1RsPriceChangeDashboard() {
     } finally {
       setBulkApplying(false);
     }
+  };
+
+  const clearBulkSelection = () => {
+    setBulkBrandIds(new Set());
+    setBulkMargin('');
+    setBulkMessage(null);
   };
 
   if (!authChecked) {
@@ -394,18 +510,11 @@ export default function Scheme1RsPriceChangeDashboard() {
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-4 mb-4">
             <div className="text-[11px] uppercase tracking-wider text-purple-300/70 mb-2">Bulk update margin by brand</div>
             <div className="flex items-center gap-2 flex-wrap">
-              <select
-                value={bulkBrandId}
-                onChange={(e) => setBulkBrandId(e.target.value)}
-                className="min-w-[220px] px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-fuchsia-400/50"
-              >
-                <option value="" className="bg-slate-900">— Select a brand —</option>
-                {brandOptions.map((b) => (
-                  <option key={b.id} value={b.id} className="bg-slate-900">
-                    {b.name}
-                  </option>
-                ))}
-              </select>
+              <MultiBrandSelect
+                brands={brandOptions}
+                selected={bulkBrandIds}
+                onChange={setBulkBrandIds}
+              />
               <div className="flex items-center gap-1">
                 <input
                   type="number"
@@ -419,10 +528,18 @@ export default function Scheme1RsPriceChangeDashboard() {
               </div>
               <button
                 onClick={applyBulk}
-                disabled={bulkApplying || !bulkBrandId || bulkMargin === ''}
+                disabled={bulkApplying || bulkBrandIds.size === 0 || bulkMargin === ''}
                 className="px-4 py-2 rounded-lg bg-fuchsia-500/25 hover:bg-fuchsia-500/40 border border-fuchsia-400/40 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {bulkApplying ? 'Applying…' : 'Apply to all products'}
+              </button>
+              <button
+                onClick={clearBulkSelection}
+                disabled={bulkApplying || (bulkBrandIds.size === 0 && bulkMargin === '' && !bulkMessage)}
+                className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/15 text-purple-100 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Clear selected brands, margin, and any message"
+              >
+                Clear
               </button>
               {bulkMessage && (
                 <span
@@ -435,7 +552,7 @@ export default function Scheme1RsPriceChangeDashboard() {
               )}
             </div>
             <div className="text-[11px] text-purple-300/60 mt-2">
-              Sets margin for every active product mapping of the chosen brand. Each row&apos;s previous margin is moved into Orig. Margin.
+              Pick one brand or many. Sets margin for every active product mapping of the chosen brands; each row&apos;s previous margin is moved into Orig. Margin.
             </div>
           </div>
         )}

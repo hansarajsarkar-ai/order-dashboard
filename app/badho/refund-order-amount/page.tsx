@@ -36,13 +36,13 @@ function formatDay(s: string | null | undefined): string {
   const dayMonth = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
   return `${dayMonth} · ${weekday}`;
 }
-function formatBucketLabel(b: { bucketStart: string; bucketEnd: string }, g: 'day' | 'week' | 'month'): string {
+function formatBucketLabel(b: { bucketStart: string; bucketEnd: string }, g: 'day' | 'week' | 'month' | 'custom'): string {
   const parse = (s: string) => {
     const [y, m, d] = s.split('-').map(Number);
     return new Date(y, m - 1, d);
   };
   const start = parse(b.bucketStart);
-  if (g === 'day') return formatDay(b.bucketStart);
+  if (g === 'day' || g === 'custom') return formatDay(b.bucketStart);
   if (g === 'month') return start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   // week
   const end = parse(b.bucketEnd);
@@ -74,7 +74,7 @@ interface Bucket {
   refundedOrders: number;
   avgRefundProcessingHours: number | null;
 }
-type Granularity = 'day' | 'week' | 'month';
+type Granularity = 'day' | 'week' | 'month' | 'custom';
 type CellFilter = 'all' | 'rejected' | 'cancelled' | 'refunded' | 'pending';
 interface SellerRow {
   sellerId: string;
@@ -146,6 +146,20 @@ export default function RefundOrderAmountDashboard() {
   const [tab, setTab] = useState<'overview' | 'sellers' | 'orders'>('overview');
   const [search, setSearch] = useState('');
   const [granularity, setGranularity] = useState<Granularity>('day');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
+  // Seed custom-range inputs the first time the user switches to Custom.
+  useEffect(() => {
+    if (granularity !== 'custom') return;
+    if (customStart && customEnd) return;
+    const today = new Date();
+    const end = today.toISOString().slice(0, 10);
+    const startD = new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000);
+    const start = startD.toISOString().slice(0, 10);
+    setCustomStart(start);
+    setCustomEnd(end);
+  }, [granularity, customStart, customEnd]);
 
   // Modal for drilling into a bucket cell
   interface ModalRequest {
@@ -229,8 +243,13 @@ export default function RefundOrderAmountDashboard() {
     if (!data) return [];
     if (granularity === 'day')   return data.byDay;
     if (granularity === 'week')  return data.byWeek;
-    return data.byMonth;
-  }, [data, granularity]);
+    if (granularity === 'month') return data.byMonth;
+    // custom — day-level buckets clamped to [customStart, customEnd]
+    if (!customStart || !customEnd) return [];
+    const lo = customStart <= customEnd ? customStart : customEnd;
+    const hi = customStart <= customEnd ? customEnd : customStart;
+    return data.byDay.filter((b) => b.bucketStart >= lo && b.bucketStart <= hi);
+  }, [data, granularity, customStart, customEnd]);
 
   const filteredList = useMemo(() => {
     if (!data?.list) return [];
@@ -379,21 +398,23 @@ export default function RefundOrderAmountDashboard() {
               <MiniStat label="Unrefunded Orders" value={s ? (s.totalOrders - s.refundedOrders).toLocaleString('en-IN') : '—'} />
             </div>
 
-            {/* Granular breakdown — Day / Week / Month */}
+            {/* Granular breakdown — Day / Week / Month / Custom */}
             <div>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div>
                   <h3 className="text-xl font-bold text-white">
-                    {granularity === 'day' ? 'Day-wise' : granularity === 'week' ? 'Week-wise' : 'Month-wise'} Breakdown
+                    {granularity === 'day' ? 'Day-wise' : granularity === 'week' ? 'Week-wise' : granularity === 'month' ? 'Month-wise' : 'Custom Range'} Breakdown
                   </h3>
                   <p className="text-purple-300/80 text-sm mt-1">
-                    Orders grouped by reject/cancel {granularity} · {buckets.length} {granularity === 'day' ? 'days' : granularity === 'week' ? 'weeks' : 'months'}. Click any number to see the orders behind it.
+                    {granularity === 'custom'
+                      ? `Day buckets · ${customStart || '—'} → ${customEnd || '—'} · ${buckets.length} days. Click any number to see the orders behind it.`
+                      : `Orders grouped by reject/cancel ${granularity} · ${buckets.length} ${granularity === 'day' ? 'days' : granularity === 'week' ? 'weeks' : 'months'}. Click any number to see the orders behind it.`}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {/* Granularity toggle */}
                   <div className="inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
-                    {(['day', 'week', 'month'] as const).map((g) => (
+                    {(['day', 'week', 'month', 'custom'] as const).map((g) => (
                       <button
                         key={g}
                         onClick={() => setGranularity(g)}
@@ -407,6 +428,26 @@ export default function RefundOrderAmountDashboard() {
                       </button>
                     ))}
                   </div>
+                  {/* Custom date pickers */}
+                  {granularity === 'custom' && (
+                    <div className="inline-flex items-center gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
+                      <input
+                        type="date"
+                        value={customStart}
+                        max={customEnd || undefined}
+                        onChange={(e) => setCustomStart(e.target.value)}
+                        className="px-2 py-1 text-[11px] bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                      />
+                      <span className="text-purple-300 text-[11px]">→</span>
+                      <input
+                        type="date"
+                        value={customEnd}
+                        min={customStart || undefined}
+                        onChange={(e) => setCustomEnd(e.target.value)}
+                        className="px-2 py-1 text-[11px] bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                      />
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       if (!buckets.length) return;
@@ -431,16 +472,16 @@ export default function RefundOrderAmountDashboard() {
                 <table className="w-full text-sm">
                   <thead className="bg-slate-900/80 backdrop-blur sticky top-0 z-10">
                     <tr className="text-purple-200 uppercase text-xs">
-                      <th className="px-4 py-3 text-left">
-                        {granularity === 'day' ? 'Date' : granularity === 'week' ? 'Week' : 'Month'}
+                      <th className="px-4 py-3 text-center">
+                        {granularity === 'day' || granularity === 'custom' ? 'Date' : granularity === 'week' ? 'Week' : 'Month'}
                       </th>
-                      <th className="px-4 py-3 text-right">Rejected</th>
-                      <th className="px-4 py-3 text-right">Cancelled</th>
-                      <th className="px-4 py-3 text-right">Total</th>
-                      <th className="px-4 py-3 text-right">Paid</th>
-                      <th className="px-4 py-3 text-right">Refunded</th>
-                      <th className="px-4 py-3 text-right">Pending</th>
-                      <th className="px-4 py-3 text-right">Avg Refund Time</th>
+                      <th className="px-4 py-3 text-center">Rejected</th>
+                      <th className="px-4 py-3 text-center">Cancelled</th>
+                      <th className="px-4 py-3 text-center">Total</th>
+                      <th className="px-4 py-3 text-center">Paid</th>
+                      <th className="px-4 py-3 text-center">Refunded</th>
+                      <th className="px-4 py-3 text-center">Pending</th>
+                      <th className="px-4 py-3 text-center">Avg Refund Time</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -454,26 +495,26 @@ export default function RefundOrderAmountDashboard() {
                       });
                       return (
                         <tr key={b.bucketStart} className="border-t border-white/5 hover:bg-white/5">
-                          <td className="px-4 py-2.5 text-white whitespace-nowrap font-medium">{label}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-white whitespace-nowrap font-medium text-center">{label}</td>
+                          <td className="px-4 py-2.5 text-center tabular-nums">
                             <CellButton color="rose" onClick={() => openModal('rejected', 'Rejected')}>{b.rejectedCount.toLocaleString('en-IN')}</CellButton>
                           </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-center tabular-nums">
                             <CellButton color="amber" onClick={() => openModal('cancelled', 'Cancelled')}>{b.cancelledCount.toLocaleString('en-IN')}</CellButton>
                           </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-center tabular-nums">
                             <CellButton color="purple" bold onClick={() => openModal('all', 'All orders')}>{b.orderCount.toLocaleString('en-IN')}</CellButton>
                           </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-center tabular-nums">
                             <CellButton color="purple" onClick={() => openModal('all', 'Paid')}>{formatAmount(b.paidAmount)}</CellButton>
                           </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-center tabular-nums">
                             <CellButton color="emerald" onClick={() => openModal('refunded', 'Refunded')}>{formatAmount(b.refundedAmount)}</CellButton>
                           </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums">
+                          <td className="px-4 py-2.5 text-center tabular-nums">
                             <CellButton color="rose" onClick={() => openModal('pending', 'Pending refund')}>{formatAmount(b.pendingAmount)}</CellButton>
                           </td>
-                          <td className="px-4 py-2.5 text-right text-sky-300 tabular-nums font-semibold">{formatHours(b.avgRefundProcessingHours)}</td>
+                          <td className="px-4 py-2.5 text-center text-sky-300 tabular-nums font-semibold">{formatHours(b.avgRefundProcessingHours)}</td>
                         </tr>
                       );
                     })}

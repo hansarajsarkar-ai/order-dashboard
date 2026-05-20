@@ -133,6 +133,7 @@ export async function GET(req: NextRequest) {
         AND po."deliveryNetwork" = 'THIRD_PARTY'
         AND po."deliveryType"    = 'INTERCITY'
         AND po."isFalseOrder"    = FALSE
+        AND po."status" != 'DRAFT'
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
         AND po."status" = $2
         ${monthFilter}

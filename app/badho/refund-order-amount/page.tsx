@@ -408,42 +408,42 @@ export default function RefundOrderAmountDashboard() {
 
         {/* Master granularity toggle — drives chart + breakdown table (Monthly Overview only) */}
         {tab === 'overview' && (
-          <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
-            <div className="inline-flex gap-1 p-1.5 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]">
+          <div className="mb-6 flex items-center justify-end gap-2 flex-wrap">
+            {granularity === 'custom' && (
+              <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
+                <label className="text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold">From</label>
+                <input
+                  type="date"
+                  value={customStart}
+                  max={customEnd || undefined}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="px-1.5 py-0.5 text-[11px] bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                />
+                <label className="text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold">To</label>
+                <input
+                  type="date"
+                  value={customEnd}
+                  min={customStart || undefined}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="px-1.5 py-0.5 text-[11px] bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                />
+              </div>
+            )}
+            <div className="inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
               {(['day', 'week', 'month', 'custom'] as const).map((g) => (
                 <button
                   key={g}
                   onClick={() => setGranularity(g)}
-                  className={`px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-150 ${
+                  className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all duration-150 ${
                     granularity === g
-                      ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_22px_rgba(217,70,239,0.55)]'
-                      : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_14px_rgba(217,70,239,0.5)]'
+                      ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_14px_rgba(217,70,239,0.55)]'
+                      : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_12px_rgba(217,70,239,0.5)]'
                   }`}
                 >
                   {g}
                 </button>
               ))}
             </div>
-            {granularity === 'custom' && (
-              <div className="inline-flex items-center gap-2 px-3 py-2 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl">
-                <label className="text-[11px] uppercase tracking-wider text-purple-300/80 font-semibold">From</label>
-                <input
-                  type="date"
-                  value={customStart}
-                  max={customEnd || undefined}
-                  onChange={(e) => setCustomStart(e.target.value)}
-                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-                />
-                <label className="text-[11px] uppercase tracking-wider text-purple-300/80 font-semibold">To</label>
-                <input
-                  type="date"
-                  value={customEnd}
-                  min={customStart || undefined}
-                  onChange={(e) => setCustomEnd(e.target.value)}
-                  className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-                />
-              </div>
-            )}
           </div>
         )}
 

@@ -88,15 +88,35 @@ interface UpdateRow {
   originalMargin: string | null;
 }
 
+// Emails authorised to write margins. Anyone else hitting PATCH gets a 403.
+// NOTE: this is a deterrent, not a security boundary — there's no signed
+// token in this app, so the employeeEmail value in the body is spoofable
+// by anyone who knows the URL. Fine for an internal trusted team; if this
+// dashboard ever opens up beyond Badho staff, replace with real auth.
+const ALLOWED_EDITOR_EMAILS = new Set([
+  'chandan@badho.in',
+  'rishi@badho.in',
+  'sahil@badho.in',
+]);
+
 // PATCH body shapes:
-//   single / multi-row     :  { slabIds: string[], margin: number }
-//   bulk by 1+ brands      :  { brandIds: string[], margin: number }
+//   single / multi-row     :  { slabIds: string[],  margin: number, employeeEmail: string }
+//   bulk by 1+ brands      :  { brandIds: string[], margin: number, employeeEmail: string }
 //
 // For both, "originalMargin" is set to whatever the row's current "margin"
 // is before applying the new value, so the previous value is preserved.
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
+
+    const employeeEmail = String(body?.employeeEmail ?? '').trim().toLowerCase();
+    if (!ALLOWED_EDITOR_EMAILS.has(employeeEmail)) {
+      return NextResponse.json(
+        { error: 'You are not authorised to edit margins. Contact chandan/rishi/sahil if you need access.' },
+        { status: 403 }
+      );
+    }
+
     const margin = Number(body?.margin);
     if (!Number.isFinite(margin)) {
       return NextResponse.json({ error: 'margin must be a finite number' }, { status: 400 });

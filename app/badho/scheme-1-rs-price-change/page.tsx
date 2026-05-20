@@ -118,10 +118,12 @@ const MarginCell = memo(function MarginCell({
   slabId,
   margin,
   onSave,
+  canEdit,
 }: {
   slabId: string;
   margin: string | null;
   onSave: MarginSaver;
+  canEdit: boolean;
 }) {
   const [draft, setDraft] = useState<string>(margin ?? '');
   const [saving, setSaving] = useState(false);
@@ -132,6 +134,16 @@ const MarginCell = memo(function MarginCell({
   useEffect(() => {
     if (!touched) setDraft(margin ?? '');
   }, [margin, touched]);
+
+  if (!canEdit) {
+    const display =
+      margin === null || margin === undefined || margin === ''
+        ? '—'
+        : `${parseFloat(margin).toFixed(2)}%`;
+    return (
+      <div className="text-right text-purple-100 font-mono text-xs">{display}</div>
+    );
+  }
 
   const commit = async () => {
     if (!touched) return;
@@ -199,6 +211,14 @@ interface Row {
 type LiveFilter = 'all' | 'LIVE' | 'INACTIVE';
 type Tab = 'products' | 'brands';
 
+// Whitelist of emails allowed to edit margins. Server enforces this too —
+// the UI hide is just so unauthorised employees see a clean read-only view.
+const ALLOWED_EDITOR_EMAILS = new Set([
+  'chandan@badho.in',
+  'rishi@badho.in',
+  'sahil@badho.in',
+]);
+
 // Price is "not set" when margin is null/empty or equals 100 (the default value).
 function isPriceSet(margin: string | null): boolean {
   if (margin === null || margin === undefined || margin === '') return false;
@@ -212,6 +232,9 @@ export default function Scheme1RsPriceChangeDashboard() {
   const [authChecked, setAuthChecked] = useState(false);
   const [employeeName, setEmployeeName] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const [employeeEmail, setEmployeeEmail] = useState('');
+  const canEdit = ALLOWED_EDITOR_EMAILS.has(employeeEmail);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -245,6 +268,7 @@ export default function Scheme1RsPriceChangeDashboard() {
       return;
     }
     setEmployeeName(localStorage.getItem('employeeName') || '');
+    setEmployeeEmail((localStorage.getItem('employeeEmail') || '').trim().toLowerCase());
     setAuthChecked(true);
   }, [router]);
 
@@ -389,7 +413,7 @@ export default function Scheme1RsPriceChangeDashboard() {
         const res = await fetch('/api/scheme-1-rs-price-change', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slabIds: [slabId], margin: newMargin }),
+          body: JSON.stringify({ slabIds: [slabId], margin: newMargin, employeeEmail }),
         });
         const data = await res.json();
         if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
@@ -400,7 +424,7 @@ export default function Scheme1RsPriceChangeDashboard() {
         setBulkMessage({ kind: 'err', text: `Save failed: ${msg}` });
       }
     },
-    [applyUpdates]
+    [applyUpdates, employeeEmail]
   );
 
   const applyBulk = async () => {
@@ -416,7 +440,7 @@ export default function Scheme1RsPriceChangeDashboard() {
       const res = await fetch('/api/scheme-1-rs-price-change', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brandIds, margin: n }),
+        body: JSON.stringify({ brandIds, margin: n, employeeEmail }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
@@ -532,6 +556,7 @@ export default function Scheme1RsPriceChangeDashboard() {
             </div>
           </div>
         ) : (
+          canEdit ? (
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-4 mb-4 relative z-40">
             <div className="text-[11px] uppercase tracking-wider text-purple-300/70 mb-2">Bulk update margin by brand</div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -580,6 +605,11 @@ export default function Scheme1RsPriceChangeDashboard() {
               Pick one brand or many. Sets margin for every active product mapping of the chosen brands; each row&apos;s previous margin is moved into Orig. Margin.
             </div>
           </div>
+          ) : (
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3 mb-4 text-xs text-purple-200/80">
+              View only — margin edits are restricted to <span className="text-purple-100 font-mono">chandan@badho.in</span>, <span className="text-purple-100 font-mono">rishi@badho.in</span>, and <span className="text-purple-100 font-mono">sahil@badho.in</span>.
+            </div>
+          )
         )}
 
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
@@ -703,7 +733,7 @@ export default function Scheme1RsPriceChangeDashboard() {
                       <td className="px-3 py-2 text-purple-200/90">{r.product_name ?? '—'}</td>
                       <td className="px-3 py-2 text-purple-100 whitespace-nowrap">{r.brand_name ?? '—'}</td>
                       <td className="px-3 py-2">
-                        <MarginCell slabId={r.slab_id} margin={r.margin} onSave={saveSingleMargin} />
+                        <MarginCell slabId={r.slab_id} margin={r.margin} onSave={saveSingleMargin} canEdit={canEdit} />
                       </td>
                       <td className="px-3 py-2 text-right text-purple-200/80 font-mono text-xs">{fmtMargin(r.originalMargin)}</td>
                       <td className="px-3 py-2 text-right text-purple-100 font-mono text-xs">{fmtMrp(r.mrp)}</td>

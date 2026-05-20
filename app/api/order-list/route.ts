@@ -4,24 +4,38 @@ import { query } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 interface Row {
-  po_number: string;
-  status: string;
-  delivery_status: string | null;
-  amount: string;
-  buyer_phone: string | null;
-  buyer_business_name: string | null;
-  seller_phone: string | null;
-  seller_business_name: string | null;
+  poNumber: string;
+  MarkedpendingTime: string | null;
+  paymentDate: string | null;
+  paymentEvent: string | null;
+  sellerPhone: string | null;
+  sellerBusinessName: string | null;
+  buyerPhone: string | null;
+  buyerBusinessName: string | null;
+  paidAmount: number | null;
+  poAmount: number | null;
+  CoupanApplied: number | null;
+  orderStatus: string;
+  discountBySeller: number;
+  discountByBadho: number;
+  appliedWalletAmount: number | null;
+  rejectReason: string | null;
+  paymentMode: string | null;
+  awbNumber: string | null;
+  courierName: string | null;
+  DeliveryPaymentMethod: string | null;
+  deliveryStatus: string | null;
+  RefundIntiatedTime: string | null;
+  RefundCompletedTime: string | null;
+  RefundCompletedInMin: number | null;
+  rejectedBy: string | null;
+  reasonAddedByBadhoTeam: string | null;
   buyer_address_line1: string | null;
   buyer_city: string | null;
   buyer_state: string | null;
   seller_address_line1: string | null;
   seller_city: string | null;
   seller_state: string | null;
-  reject_reason: string | null;
-  rejected_by: string | null;
-  reason_added_by_badho_team: string | null;
-  marked_pending_time: string | null;
   created_at: string;
 }
 
@@ -59,66 +73,101 @@ export async function GET(req: NextRequest) {
     }
 
     const sql = `
-      SELECT
-        po."poNumber"::text          AS po_number,
-        po."status"                  AS status,
-        po."deliveryStatus"          AS delivery_status,
-        po."amount"::text            AS amount,
-        b."phone"                    AS buyer_phone,
-        b."businessName"             AS buyer_business_name,
-        s."phone"                    AS seller_phone,
-        s."businessName"             AS seller_business_name,
-        b."addressLine1"             AS buyer_address_line1,
-        b."city"                     AS buyer_city,
-        b."state"                    AS buyer_state,
-        s."addressLine1"             AS seller_address_line1,
-        s."city"                     AS seller_city,
-        s."state"                    AS seller_state,
-        po."rejectReason"            AS reject_reason,
-        po."rejectedBy"              AS rejected_by,
-        po."reasonAddedByBadhoTeam"  AS reason_added_by_badho_team,
-        po."markedPendingTime"       AS marked_pending_time,
-        po."created_at"              AS created_at
+      SELECT DISTINCT
+        po."poNumber"::text AS "poNumber",
+        po."markedPendingTime"::date AS "MarkedpendingTime",
+        pop."created_at" AS "paymentDate",
+        pop."event" AS "paymentEvent",
+        s."phone" AS "sellerPhone",
+        s."businessName" AS "sellerBusinessName",
+        b."phone" AS "buyerPhone",
+        b."businessName" AS "buyerBusinessName",
+        pop."paidAmount" AS "paidAmount",
+        po."amount" AS "poAmount",
+        po."appliedOfferDiscount" AS "CoupanApplied",
+        po."status" AS "orderStatus",
+        COALESCE((pop."breakup"->>'discount_on_payment_preference_for_seller')::float, 0) AS "discountBySeller",
+        COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) AS "discountByBadho",
+        pop."appliedWalletAmount",
+        po."rejectReason",
+        po."paymentInfo"->>'instrument' AS "paymentMode",
+        dv."trackingInfo"->>'awbNumber' AS "awbNumber",
+        dv."trackingInfo"->>'courierName' AS "courierName",
+        dv."metaDetails"->>'paymentMethod' AS "DeliveryPaymentMethod",
+        dv."status" AS "deliveryStatus",
+        pf."markedStatusInitiatedTime" AS "RefundIntiatedTime",
+        pf."markedStatusCompletedTime" AS "RefundCompletedTime",
+        ROUND(EXTRACT(EPOCH FROM (DATE_TRUNC('minute', pf."markedStatusCompletedTime") - DATE_TRUNC('minute', pf."markedStatusInitiatedTime"))) / 60, 2) AS "RefundCompletedInMin",
+        po."rejectedBy" AS "rejectedBy",
+        po."reasonAddedByBadhoTeam" AS "reasonAddedByBadhoTeam",
+        b."addressLine1" AS buyer_address_line1,
+        b."city" AS buyer_city,
+        b."state" AS buyer_state,
+        s."addressLine1" AS seller_address_line1,
+        s."city" AS seller_city,
+        s."state" AS seller_state,
+        po."created_at" AS created_at
       FROM "purchaseOrder"."purchaseOrder" po
-      JOIN "users"."buyer" b ON b."id" = po."buyerId"
-      JOIN "users"."seller" s ON s."id" = po."sellerId"
-      WHERE po."isTest" = FALSE
-        AND po."isFalseOrder" = FALSE
-        AND b."isTest" = FALSE
-        AND b."businessName" NOT ILIKE '%test%'
+      JOIN "users"."buyer" AS b ON b."id" = po."buyerId"
+      JOIN "users"."seller" s ON po."sellerId" = s."id"
+      LEFT JOIN "deliveries"."intercityDelivery" AS dv ON dv."purchaseOrderId" = po."id"
+      LEFT JOIN "payments"."paymentRefundRecord" AS pf ON pf."purchaseOrderId" = po."id" AND pf."status" = 'COMPLETED'
+      LEFT JOIN "purchaseOrder"."purchaseOrderPayment" AS pop ON pop."purchaseOrderId" = po."id" AND pop."status" = 'COMPLETED' AND pop."event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
+      WHERE
+        s."isD2RBrandSeller" = TRUE
         AND s."isTest" = FALSE
         AND s."businessName" NOT ILIKE '%test%'
-        AND s."isD2RBrandSeller" = TRUE
-        AND po."deliveryNetwork" = 'THIRD_PARTY'
-        AND po."deliveryType"    = 'INTERCITY'
-        AND po."status" != 'DRAFT'
+        AND b."isTest" = FALSE
+        AND b."businessName" NOT ILIKE '%test%'
+        AND po."isTest" = FALSE
+        AND po."isFalseOrder" = FALSE
         AND po."markedPendingTime" IS NOT NULL
+        AND po."deliveryNetwork" = 'THIRD_PARTY'
+        AND po."deliveryType" = 'INTERCITY'
+        AND po."status" != 'DRAFT'
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
         AND po."status" = $2
         ${monthFilter}
         ${deliveryFilter}
-      ORDER BY po."markedPendingTime" DESC
-      LIMIT 2000;
+      ORDER BY "MarkedpendingTime" DESC NULLS LAST
+      LIMIT 5000;
     `;
 
     const rows = await query<Row>(sql, params);
 
     const data = rows.map((r) => ({
-      poNumber: r.po_number,
-      status: r.status,
-      deliveryStatus: r.delivery_status,
-      amount: parseFloat(r.amount),
-      buyerPhone: r.buyer_phone,
-      buyerBusinessName: r.buyer_business_name,
-      sellerPhone: r.seller_phone,
-      sellerBusinessName: r.seller_business_name,
+      poNumber: r.poNumber,
+      MarkedpendingTime: r.MarkedpendingTime,
+      paymentDate: r.paymentDate,
+      paymentEvent: r.paymentEvent,
+      sellerPhone: r.sellerPhone,
+      sellerBusinessName: r.sellerBusinessName,
+      buyerPhone: r.buyerPhone,
+      buyerBusinessName: r.buyerBusinessName,
+      paidAmount: r.paidAmount,
+      poAmount: r.poAmount,
+      CoupanApplied: r.CoupanApplied,
+      orderStatus: r.orderStatus,
+      status: r.orderStatus,
+      discountBySeller: r.discountBySeller,
+      discountByBadho: r.discountByBadho,
+      appliedWalletAmount: r.appliedWalletAmount,
+      rejectReason: r.rejectReason,
+      paymentMode: r.paymentMode,
+      awbNumber: r.awbNumber,
+      courierName: r.courierName,
+      DeliveryPaymentMethod: r.DeliveryPaymentMethod,
+      deliveryStatus: r.deliveryStatus,
+      RefundIntiatedTime: r.RefundIntiatedTime,
+      RefundCompletedTime: r.RefundCompletedTime,
+      RefundCompletedInMin: r.RefundCompletedInMin,
+      rejectedBy: r.rejectedBy,
+      reasonAddedByBadhoTeam: r.reasonAddedByBadhoTeam,
+      amount: r.poAmount != null ? Number(r.poAmount) : 0,
       buyerAddress: [r.buyer_address_line1, r.buyer_city, r.buyer_state].filter(Boolean).join(', '),
       buyerState: r.buyer_state,
       sellerAddress: [r.seller_address_line1, r.seller_city, r.seller_state].filter(Boolean).join(', '),
-      rejectReason: r.reject_reason,
-      rejectedBy: r.rejected_by,
-      reasonAddedByBadhoTeam: r.reason_added_by_badho_team,
-      markedPendingTime: r.marked_pending_time,
+      markedPendingTime: r.MarkedpendingTime,
       createdAt: r.created_at,
     }));
 

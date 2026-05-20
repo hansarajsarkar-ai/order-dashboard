@@ -15,8 +15,25 @@ import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMa
 interface OrderListRow {
   poNumber: string;
   status: string;
+  orderStatus?: string;
   deliveryStatus?: string | null;
   amount: number;
+  poAmount?: number | null;
+  paidAmount?: number | null;
+  CoupanApplied?: number | null;
+  discountBySeller?: number;
+  discountByBadho?: number;
+  appliedWalletAmount?: number | null;
+  paymentMode?: string | null;
+  paymentDate?: string | null;
+  paymentEvent?: string | null;
+  awbNumber?: string | null;
+  courierName?: string | null;
+  DeliveryPaymentMethod?: string | null;
+  RefundIntiatedTime?: string | null;
+  RefundCompletedTime?: string | null;
+  RefundCompletedInMin?: number | null;
+  MarkedpendingTime?: string | null;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
   sellerPhone: string | null;
@@ -4412,14 +4429,25 @@ export default function OrderStatusDashboard() {
                       if (!filteredPivotDrillRows) return;
                       const isRejected = pivotDrillStatus === 'REJECTED';
                       const headers = [
-                        'PO Number', 'Amount', 'Marked Pending', 'Seller Phone', 'Seller Business',
-                        'Buyer Phone', 'Buyer Business', 'Seller Address', 'Buyer Address',
-                        ...(isRejected ? ['Reject Reason', 'Rejected By', 'Reason Added By Badho Team'] : []),
+                        'PO Number', 'Status', 'PO Amount', 'Paid Amount', 'Coupon Applied',
+                        'Seller Discount', 'Badho Discount', 'Wallet Amount',
+                        'Payment Mode', 'Payment Date', 'Payment Event',
+                        'AWB Number', 'Courier Name', 'Delivery Status', 'Delivery Payment',
+                        'Buyer Phone', 'Buyer Business', 'Seller Phone', 'Seller Business',
+                        'Marked Pending', 'Refund Initiated', 'Refund Completed', 'Refund Time (min)', 'Reject Reason',
+                        ...(isRejected ? ['Rejected By', 'Reason Added By Badho Team'] : []),
                       ];
                       const rows: CsvCell[][] = filteredPivotDrillRows.map((r) => [
-                        r.poNumber, r.amount, r.markedPendingTime, r.sellerPhone, r.sellerBusinessName,
-                        r.buyerPhone, r.buyerBusinessName, r.sellerAddress ?? '', r.buyerAddress,
-                        ...(isRejected ? [r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? ''] : []),
+                        r.poNumber, r.orderStatus ?? r.status,
+                        r.poAmount ?? '', r.paidAmount ?? '', r.CoupanApplied ?? '',
+                        r.discountBySeller ?? '', r.discountByBadho ?? '', r.appliedWalletAmount ?? '',
+                        r.paymentMode ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
+                        r.awbNumber ?? '', r.courierName ?? '', r.deliveryStatus ?? '', r.DeliveryPaymentMethod ?? '',
+                        r.buyerPhone ?? '', r.buyerBusinessName ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
+                        r.MarkedpendingTime ?? r.markedPendingTime ?? '',
+                        r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '', r.RefundCompletedInMin ?? '',
+                        r.rejectReason ?? '',
+                        ...(isRejected ? [r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? ''] : []),
                       ]);
                       const monthTag = pivotDrillMonth ? MONTH_NAMES[pivotDrillMonth - 1] : 'all';
                       const deliveryTag = pivotDrillDelivery === undefined ? 'all' : (pivotDrillDelivery ?? 'null');
@@ -4459,17 +4487,31 @@ export default function OrderStatusDashboard() {
                     <thead className="sticky top-0 bg-slate-100 z-10">
                       <tr className="border-b border-slate-200">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Phone</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Business</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">PO Amount</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Paid Amount</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Coupon Applied</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Seller Discount</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Badho Discount</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Wallet Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Payment Mode</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Payment Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Payment Event</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">AWB Number</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Courier Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Delivery Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Delivery Payment</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Address</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Business</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Refund Initiated</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Refund Completed</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Refund Time (min)</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Reject Reason</th>
                         {pivotDrillStatus === 'REJECTED' && (
                           <>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Reject Reason</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Rejected By</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-rose-700 bg-rose-50">Reason Added By Badho Team</th>
                           </>
@@ -4480,17 +4522,31 @@ export default function OrderStatusDashboard() {
                       {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r) => (
                         <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50 align-top">
                           <td className="px-4 py-3 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
-                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
-                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || '—'}</td>
-                          <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
+                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.CoupanApplied ? `₹${Number(r.CoupanApplied).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.discountByBadho ? `₹${Number(r.discountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentMode || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.DeliveryPaymentMethod || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-600 max-w-xs" title={r.sellerAddress || ''}>{r.sellerAddress || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-600 max-w-xs" title={r.buyerAddress || ''}>{r.buyerAddress || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.RefundCompletedInMin != null ? Number(r.RefundCompletedInMin).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 max-w-xs" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400 italic">—</span>}</td>
                           {pivotDrillStatus === 'REJECTED' && (
                             <>
-                              <td className="px-4 py-3 text-slate-700 max-w-xs bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400 italic">—</span>}</td>
                               <td className="px-4 py-3 text-slate-700 bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400 italic">—</span>}</td>
                               <td className="px-4 py-3 text-slate-700 max-w-xs bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400 italic">—</span>}</td>
                             </>

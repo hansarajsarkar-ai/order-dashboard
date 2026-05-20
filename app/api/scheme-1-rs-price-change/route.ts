@@ -106,11 +106,12 @@ export async function PATCH(req: NextRequest) {
 
     if (Array.isArray(body?.slabIds) && body.slabIds.length > 0) {
       const slabIds = body.slabIds.map((s: unknown) => String(s));
+      // Cast both sides to text so this works whether pos."id" is uuid or text.
       const updateSql = `
         UPDATE "purchaseOrderTerms"."purchaseOrderTermSlab" pos
         SET "originalMargin" = pos."margin",
             "margin"         = $1
-        WHERE pos."id" = ANY($2::uuid[])
+        WHERE pos."id"::text = ANY($2::text[])
         RETURNING pos."id" AS id, pos."margin" AS margin, pos."originalMargin" AS "originalMargin";
       `;
       updated = await query<UpdateRow>(updateSql, [margin, slabIds]);
@@ -124,7 +125,7 @@ export async function PATCH(req: NextRequest) {
         WHERE pos."purchaseOrderTermId" IN (
           SELECT DISTINCT sb."purchaseOrderTermId"
           FROM "users"."seller_brandSKU" sb
-          WHERE sb."brandId"  = ANY($2::uuid[])
+          WHERE sb."brandId"::text = ANY($2::text[])
             AND sb."isActive" = TRUE
         )
         RETURNING pos."id" AS id, pos."margin" AS margin, pos."originalMargin" AS "originalMargin";

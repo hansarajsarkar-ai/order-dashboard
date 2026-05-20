@@ -73,6 +73,7 @@ interface AlertItem {
   buyerBusinessName: string | null;
   sellerPhone: string | null;
   sellerBusinessName: string | null;
+  markedPendingTime: string | null;
   rejectedOrCancelledTime: string | null;
   minutesPending: number;
   rejectReason: string | null;
@@ -372,6 +373,7 @@ export async function GET(req: NextRequest) {
             'buyerBusinessName',        buyer_business_name,
             'sellerPhone',              seller_phone,
             'sellerBusinessName',       seller_business_name,
+            'markedPendingTime',        marked_pending_time,
             'rejectedOrCancelledTime',  rejected_or_cancelled_time,
             'minutesPending',           EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 60,
             'rejectReason',             reject_reason,

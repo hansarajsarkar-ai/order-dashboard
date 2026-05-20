@@ -119,6 +119,7 @@ interface AlertItem {
   buyerBusinessName: string | null;
   sellerPhone: string | null;
   sellerBusinessName: string | null;
+  markedPendingTime: string | null;
   rejectedOrCancelledTime: string | null;
   minutesPending: number;
   rejectReason: string | null;
@@ -1027,11 +1028,12 @@ function AlertsTabContent({
               onClick={() => {
                 downloadCSV(
                   `refund-alerts-${new Date().toISOString().slice(0, 10)}.csv`,
-                  ['PO Number', 'Status', 'Paid Amount', 'Payment Option', 'Reason Category', 'Pending For', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                  ['PO Number', 'Status', 'Paid Amount', 'Payment Option', 'Reason Category', 'Pending For', 'Order Placed At', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                   alerts.map((a) => [
                     a.poNumber, a.status, a.paidAmount, a.paymentOption ?? '',
                     a.reasonCategory,
-                    formatPendingDuration(a.minutesPending), a.rejectedOrCancelledTime ?? '',
+                    formatPendingDuration(a.minutesPending),
+                    a.markedPendingTime ?? '', a.rejectedOrCancelledTime ?? '',
                     a.buyerBusinessName ?? '', a.buyerPhone ?? '',
                     a.sellerBusinessName ?? '', a.sellerPhone ?? '',
                     a.rejectReason ?? '', a.rejectedBy ?? '', a.reasonAddedByBadhoTeam ?? '',
@@ -1054,6 +1056,7 @@ function AlertsTabContent({
                   <th className="px-4 py-3 text-right">Paid</th>
                   <th className="px-4 py-3 text-left">Payment</th>
                   <th className="px-4 py-3 text-left">Reason Category</th>
+                  <th className="px-4 py-3 text-left">Order Placed At</th>
                   <th className="px-4 py-3 text-left">Reject/Cancel At</th>
                   <th className="px-4 py-3 text-left">Buyer</th>
                   <th className="px-4 py-3 text-left">Seller</th>
@@ -1092,6 +1095,7 @@ function AlertsTabContent({
                           );
                         })()}
                       </td>
+                      <td className="px-4 py-2.5 text-purple-200 whitespace-nowrap">{formatDateTime(a.markedPendingTime)}</td>
                       <td className="px-4 py-2.5 text-purple-200 whitespace-nowrap">{formatDateTime(a.rejectedOrCancelledTime)}</td>
                       <td className="px-4 py-2.5 text-purple-200">
                         <div className="text-white">{a.buyerBusinessName || '—'}</div>

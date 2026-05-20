@@ -59,6 +59,14 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '🏷️',
     status: 'live',
   },
+  {
+    slug: 'refund-order-amount',
+    title: 'Refund Order Amount',
+    description:
+      'Track and analyze refund order amounts, refund trends, and refund metrics by seller, brand, and time period.',
+    icon: '💰',
+    status: 'live',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

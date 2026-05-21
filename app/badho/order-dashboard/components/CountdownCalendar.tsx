@@ -29,9 +29,11 @@ export default function CountdownCalendar({ compact = false }: CountdownCalendar
 
   useEffect(() => {
     if (days.length === 0) return;
+    // Cycle through all days within 2 seconds total
+    const intervalMs = Math.max(150, Math.floor(2000 / days.length));
     const interval = setInterval(() => {
       setCurrentIdx((prev) => (prev + 1) % days.length);
-    }, 1000);
+    }, intervalMs);
     return () => clearInterval(interval);
   }, [days.length]);
 
@@ -52,7 +54,7 @@ export default function CountdownCalendar({ compact = false }: CountdownCalendar
             {days.map((day, idx) => (
               <div
                 key={day}
-                className={`absolute text-lg font-bold transition-all duration-300 ${
+                className={`absolute text-lg font-bold transition-all duration-150 ${
                   idx === currentIdx
                     ? 'opacity-100 scale-100'
                     : 'opacity-0 scale-75 pointer-events-none'

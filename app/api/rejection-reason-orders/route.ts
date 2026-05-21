@@ -61,7 +61,10 @@ const REASON_CASE = `
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const reasonCategory = searchParams.get('reason') || '';
-  const month = searchParams.get('month');
+  const month = searchParams.get('month'); // YYYY-MM for granularity=month
+  const week = searchParams.get('week');   // week number for granularity=week
+  const day = searchParams.get('day');     // day number for granularity=day
+  const dayMonth = searchParams.get('dayMonth'); // month context for day mode
   const year = parseInt(searchParams.get('year') || String(new Date().getFullYear()));
   const orderStatus = searchParams.get('orderStatus');
   const deliveryStatusParam = searchParams.get('deliveryStatus');
@@ -78,6 +81,20 @@ export async function GET(req: NextRequest) {
     if (month) {
       conditions.push(`TO_CHAR(po."markedPendingTime", 'YYYY-MM') = $${paramIdx++}`);
       params.push(month);
+    }
+
+    if (week) {
+      conditions.push(`EXTRACT(WEEK FROM po."markedPendingTime") = $${paramIdx++}`);
+      params.push(parseInt(week));
+    }
+
+    if (day) {
+      conditions.push(`EXTRACT(DAY FROM po."markedPendingTime") = $${paramIdx++}`);
+      params.push(parseInt(day));
+      if (dayMonth) {
+        conditions.push(`EXTRACT(MONTH FROM po."markedPendingTime") = $${paramIdx++}`);
+        params.push(parseInt(dayMonth));
+      }
     }
 
     if (orderStatus && orderStatus !== 'N/A') {

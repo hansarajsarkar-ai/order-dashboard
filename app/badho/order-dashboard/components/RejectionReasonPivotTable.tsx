@@ -7,25 +7,28 @@ interface DrilldownCell {
   amount: number;
 }
 
-interface MonthData {
+interface PeriodMap {
   [comboKey: string]: DrilldownCell;
 }
 
 interface ReasonRow {
   reason: string;
-  months: Record<string, { count: number; amount: number }>;
-  drilldown: Record<string, MonthData>;
+  cells: Record<string, { count: number; amount: number }>;
+  drilldown: Record<string, PeriodMap>;
   total: { count: number; amount: number };
 }
 
 interface ApiResponse {
   data: ReasonRow[];
   totals: {
-    byMonth: Record<string, { count: number; amount: number }>;
+    byPeriod: Record<string, { count: number; amount: number }>;
     byReason: Record<string, { count: number; amount: number }>;
     grand: { count: number; amount: number };
   };
+  periods: string[];
+  granularity: 'month' | 'week' | 'day';
   year: number;
+  month?: number;
   timestamp: string;
 }
 
@@ -61,23 +64,15 @@ interface OrderDetail {
 
 interface ModalFilters {
   reason: string;
-  month: string | null;
-  monthLabel: string;
+  periodKey: string | null;
+  periodLabel: string;
   orderStatus?: string;
   deliveryStatus?: string;
+  granularity: 'month' | 'week' | 'day';
+  dayMonth?: number;
 }
 
-const REASON_COLORS: Record<string, { bg: string; text: string; border: string; accent: string }> = {
-  'Delivery Partner SLA Breach': { bg: 'bg-rose-500/10', text: 'text-rose-300', border: 'border-rose-500/30', accent: 'bg-rose-500' },
-  'Rejected due to RTO': { bg: 'bg-orange-500/10', text: 'text-orange-300', border: 'border-orange-500/30', accent: 'bg-orange-500' },
-  'Brand SLA Breach': { bg: 'bg-amber-500/10', text: 'text-amber-300', border: 'border-amber-500/30', accent: 'bg-amber-500' },
-  'Serviceability Issue': { bg: 'bg-cyan-500/10', text: 'text-cyan-300', border: 'border-cyan-500/30', accent: 'bg-cyan-500' },
-  'Address Issue': { bg: 'bg-violet-500/10', text: 'text-violet-300', border: 'border-violet-500/30', accent: 'bg-violet-500' },
-  'Other Reasons': { bg: 'bg-slate-500/10', text: 'text-slate-300', border: 'border-slate-500/30', accent: 'bg-slate-500' },
-};
-
-const getReasonColor = (reason: string) =>
-  REASON_COLORS[reason] || { bg: 'bg-slate-500/10', text: 'text-slate-300', border: 'border-slate-500/30', accent: 'bg-slate-500' };
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const formatAmount = (n: number) => {
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
@@ -102,9 +97,6 @@ const formatDate = (d: string | null | undefined) => {
   }
 };
 
-const CLICKABLE_CELL =
-  'cursor-pointer transition-all duration-150 hover:bg-fuchsia-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_0_2px_rgba(232,121,249,0.9)] hover:scale-[1.04]';
-
 type CsvCell = string | number | null | undefined;
 const downloadCSV = (filename: string, headers: string[], rows: CsvCell[][]) => {
   const escape = (v: CsvCell) => {
@@ -124,11 +116,23 @@ const downloadCSV = (filename: string, headers: string[], rows: CsvCell[][]) => 
   URL.revokeObjectURL(url);
 };
 
+const periodLabel = (key: string, granularity: 'month' | 'week' | 'day', dayMonth?: number) => {
+  if (granularity === 'month') {
+    const [, mo] = key.split('-');
+    return MONTH_NAMES[parseInt(mo) - 1] || key;
+  }
+  if (granularity === 'week') return `W${key}`;
+  if (granularity === 'day') return `${MONTH_NAMES[(dayMonth || 1) - 1]} ${key}`;
+  return key;
+};
+
 export default function RejectionReasonPivotTable() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [year, setYear] = useState(new Date().getFullYear());
+  const [granularity, setGranularity] = useState<'month' | 'week' | 'day'>('month');
+  const [dayMonth, setDayMonth] = useState(new Date().getMonth() + 1);
   const [expandedReasons, setExpandedReasons] = useState<Set<string>>(new Set());
 
   // Modal state
@@ -143,7 +147,9 @@ export default function RejectionReasonPivotTable() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`/api/rejection-reason-breakdown?year=${year}`);
+        const params = new URLSearchParams({ year: String(year), granularity });
+        if (granularity === 'day') params.set('month', String(dayMonth));
+        const res = await fetch(`/api/rejection-reason-breakdown?${params.toString()}`);
         if (!res.ok) throw new Error('Failed to fetch data');
         const json = await res.json();
         if (json.error) throw new Error(json.error);
@@ -154,9 +160,8 @@ export default function RejectionReasonPivotTable() {
         setLoading(false);
       }
     };
-
     fetchData();
-  }, [year]);
+  }, [year, granularity, dayMonth]);
 
   useEffect(() => {
     if (!modalFilters) return;
@@ -164,11 +169,15 @@ export default function RejectionReasonPivotTable() {
       try {
         setModalLoading(true);
         setModalError(null);
-        const params = new URLSearchParams({
-          reason: modalFilters.reason,
-          year: String(year),
-        });
-        if (modalFilters.month) params.set('month', modalFilters.month);
+        const params = new URLSearchParams({ reason: modalFilters.reason, year: String(year) });
+        if (modalFilters.periodKey) {
+          if (modalFilters.granularity === 'month') params.set('month', modalFilters.periodKey);
+          else if (modalFilters.granularity === 'week') params.set('week', modalFilters.periodKey);
+          else if (modalFilters.granularity === 'day') {
+            params.set('day', modalFilters.periodKey);
+            if (modalFilters.dayMonth) params.set('dayMonth', String(modalFilters.dayMonth));
+          }
+        }
         if (modalFilters.orderStatus) params.set('orderStatus', modalFilters.orderStatus);
         if (modalFilters.deliveryStatus !== undefined) params.set('deliveryStatus', modalFilters.deliveryStatus);
 
@@ -188,11 +197,7 @@ export default function RejectionReasonPivotTable() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setModalFilters(null);
-        setModalData(null);
-        setModalSearch('');
-      }
+      if (e.key === 'Escape') closeModal();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -205,52 +210,28 @@ export default function RejectionReasonPivotTable() {
   };
 
   const toggleExpand = (reason: string) => {
-    const newExpanded = new Set(expandedReasons);
-    if (newExpanded.has(reason)) newExpanded.delete(reason);
-    else newExpanded.add(reason);
-    setExpandedReasons(newExpanded);
+    const next = new Set(expandedReasons);
+    if (next.has(reason)) next.delete(reason);
+    else next.add(reason);
+    setExpandedReasons(next);
   };
-
-  if (loading) {
-    return (
-      <div className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-slate-900/90 to-purple-950/40 backdrop-blur-md p-8 text-center">
-        <div className="text-purple-300 animate-pulse">Loading rejection reason breakdown…</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-rose-300">
-        <div className="font-semibold mb-1">Error loading data</div>
-        <div className="text-sm">{error}</div>
-      </div>
-    );
-  }
-
-  if (!data || data.data.length === 0) {
-    return (
-      <div className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-slate-900/90 to-purple-950/40 backdrop-blur-md p-8 text-center text-purple-300">
-        No data available for {year}
-      </div>
-    );
-  }
-
-  const months = Array.from(new Set(data.data.flatMap((r) => Object.keys(r.months)))).sort();
-  const monthHeaders = months.map((m) => {
-    const [yr, mo] = m.split('-');
-    const label = new Date(`${yr}-${mo}-01`).toLocaleString('default', { month: 'short' });
-    return { key: m, label };
-  });
 
   const openModal = (
     reason: string,
-    monthKey: string | null,
-    monthLabel: string,
+    periodKey: string | null,
+    pLabel: string,
     orderStatus?: string,
     deliveryStatus?: string
   ) => {
-    setModalFilters({ reason, month: monthKey, monthLabel, orderStatus, deliveryStatus });
+    setModalFilters({
+      reason,
+      periodKey,
+      periodLabel: pLabel,
+      orderStatus,
+      deliveryStatus,
+      granularity,
+      dayMonth: granularity === 'day' ? dayMonth : undefined,
+    });
     setModalSearch('');
   };
 
@@ -276,28 +257,56 @@ export default function RejectionReasonPivotTable() {
 
   return (
     <>
-      <div className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-slate-900/95 via-purple-950/30 to-slate-900/95 backdrop-blur-md shadow-2xl overflow-hidden">
+      <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-purple-500/20 bg-gradient-to-r from-purple-900/30 to-fuchsia-900/20 flex flex-wrap items-center justify-between gap-3">
+        <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-fuchsia-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
-              Rejection Reason Breakdown
-            </h2>
-            <p className="text-purple-300/70 text-sm mt-1">
-              Rejected D2R orders (THIRD_PARTY × INTERCITY) grouped by reason · click any row to drill down · click any number for full order details
+            <h2 className="text-2xl font-bold text-white">Rejection Reason Breakdown</h2>
+            <p className="text-purple-300 text-sm mt-1">
+              {granularity === 'month'
+                ? `Click any reason to drill down · click any number for order details — ${year}`
+                : granularity === 'week'
+                ? `Week-by-week — ${year} (ISO week)`
+                : `Day-by-day — ${MONTH_NAMES[dayMonth - 1]} ${year}`}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <div className="text-xs text-purple-300/60 uppercase tracking-wider">Grand Total</div>
-              <div className="text-lg font-bold text-white">
-                {data.totals.grand.count.toLocaleString()} orders · {formatAmount(data.totals.grand.amount)}
-              </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Month/Week/Day toggle */}
+            <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+              {(['month', 'week', 'day'] as const).map((g) => {
+                const active = granularity === g;
+                return (
+                  <button
+                    key={g}
+                    onClick={() => setGranularity(g)}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      active
+                        ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.5)]'
+                        : 'text-purple-200 hover:bg-white/10'
+                    }`}
+                  >
+                    {g === 'month' ? 'Month' : g === 'week' ? 'Week' : 'Day'}
+                  </button>
+                );
+              })}
             </div>
+            {granularity === 'day' && (
+              <select
+                value={dayMonth}
+                onChange={(e) => setDayMonth(parseInt(e.target.value))}
+                className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+              >
+                {MONTH_NAMES.map((name, i) => (
+                  <option key={i} value={i + 1} className="bg-slate-900">
+                    {name} {year}
+                  </option>
+                ))}
+              </select>
+            )}
             <select
               value={year}
               onChange={(e) => setYear(parseInt(e.target.value))}
-              className="bg-purple-900/40 border border-purple-500/40 text-white px-3 py-2 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+              className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
             >
               {[2023, 2024, 2025, 2026].map((y) => (
                 <option key={y} value={y} className="bg-slate-900">
@@ -305,210 +314,244 @@ export default function RejectionReasonPivotTable() {
                 </option>
               ))}
             </select>
+            {data && (
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-right">
+                  <div className="text-purple-300">Total Orders</div>
+                  <div className="text-white font-bold text-lg">{data.totals.grand.count.toLocaleString()}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-purple-300">Total Order Value</div>
+                  <div className="text-white font-bold text-lg">{formatAmount(data.totals.grand.amount)}</div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Table */}
+        {/* Body */}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-purple-950/60 border-b border-purple-500/30">
-                <th
-                  rowSpan={2}
-                  className="px-4 py-3 text-left text-purple-200 font-semibold sticky left-0 z-20 bg-purple-950/90 border-r border-purple-500/30 min-w-[260px]"
-                >
-                  Reason Category
-                </th>
-                <th colSpan={2} className="px-4 py-2 text-center text-fuchsia-300 font-bold border-r border-purple-500/30 bg-fuchsia-950/40">
-                  Total
-                </th>
-                {monthHeaders.map((mh) => (
+          {loading ? (
+            <div className="px-8 py-12 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+                <p className="text-purple-300">Loading rejection reason breakdown…</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="px-8 py-12 text-center text-rose-300">Error: {error}</div>
+          ) : !data || data.data.length === 0 ? (
+            <div className="px-8 py-12 text-center text-purple-300">No data available for {year}</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-white/5 border-b border-white/10">
                   <th
-                    key={mh.key}
-                    colSpan={2}
-                    className="px-3 py-2 text-center text-purple-200 font-semibold border-r border-purple-500/20"
+                    rowSpan={2}
+                    className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[260px]"
                   >
-                    {mh.label}
+                    Reason Category
                   </th>
-                ))}
-              </tr>
-              <tr className="bg-purple-950/40 border-b border-purple-500/30 text-xs">
-                <th className="px-3 py-2 text-right text-fuchsia-300 font-semibold border-r border-purple-500/20 bg-fuchsia-950/30">
-                  Count
-                </th>
-                <th className="px-3 py-2 text-right text-fuchsia-300 font-semibold border-r border-purple-500/30 bg-fuchsia-950/30">
-                  Amount
-                </th>
-                {monthHeaders.map((mh) => (
-                  <Fragment key={mh.key}>
-                    <th className="px-2 py-2 text-right text-purple-300/80 font-semibold">Count</th>
-                    <th className="px-2 py-2 text-right text-purple-300/80 font-semibold border-r border-purple-500/20">
-                      Amount
+                  {data.periods.map((p) => (
+                    <th
+                      key={p}
+                      colSpan={2}
+                      className="px-2 py-2 text-center text-xs font-semibold text-purple-200 border-r border-white/10"
+                    >
+                      {periodLabel(p, data.granularity, data.month)}
                     </th>
-                  </Fragment>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.data.map((row) => {
-                const color = getReasonColor(row.reason);
-                const isExpanded = expandedReasons.has(row.reason);
+                  ))}
+                  <th colSpan={2} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">
+                    Total
+                  </th>
+                </tr>
+                <tr className="bg-white/5 border-b border-white/10">
+                  {data.periods.map((p) => (
+                    <Fragment key={p}>
+                      <th className="px-2 py-2 text-right text-[10px] font-medium text-purple-300">Count</th>
+                      <th className="px-2 py-2 text-right text-[10px] font-medium text-purple-300 border-r border-white/10">
+                        Amount
+                      </th>
+                    </Fragment>
+                  ))}
+                  <th className="px-2 py-2 text-right text-[10px] font-medium text-purple-100 bg-purple-500/20">Count</th>
+                  <th className="px-2 py-2 text-right text-[10px] font-medium text-purple-100 bg-purple-500/20 border-r border-white/10">
+                    Amount
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.data.map((row) => {
+                  const isExpanded = expandedReasons.has(row.reason);
 
-                const subRowKeys = new Set<string>();
-                for (const monthKey of Object.keys(row.drilldown)) {
-                  for (const combo of Object.keys(row.drilldown[monthKey])) {
-                    subRowKeys.add(combo);
+                  const subRowKeys = new Set<string>();
+                  for (const p of Object.keys(row.drilldown)) {
+                    for (const combo of Object.keys(row.drilldown[p])) {
+                      subRowKeys.add(combo);
+                    }
                   }
-                }
-                const subRows = Array.from(subRowKeys).sort();
+                  const subRows = Array.from(subRowKeys).sort();
 
-                return (
-                  <Fragment key={row.reason}>
-                    <tr className={`border-b border-purple-500/10 transition-colors ${color.bg} hover:bg-purple-800/20`}>
-                      <td
-                        onClick={() => toggleExpand(row.reason)}
-                        className={`px-4 py-3 sticky left-0 z-10 ${color.bg} border-r border-purple-500/20 cursor-pointer`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-block w-2 h-2 rounded-full ${color.accent}`}></span>
-                          <span className={`text-xs ${color.text} transition-transform inline-block ${isExpanded ? 'rotate-90' : ''}`}>
-                            ▶
-                          </span>
-                          <span className={`font-semibold ${color.text}`}>{row.reason}</span>
-                        </div>
-                      </td>
-                      <td
-                        onClick={() => openModal(row.reason, null, 'All months')}
-                        className={`px-3 py-3 text-right font-bold text-white border-r border-purple-500/10 tabular-nums underline decoration-fuchsia-400/40 decoration-dotted underline-offset-4 ${CLICKABLE_CELL}`}
-                        title="Click to view all orders for this reason"
-                      >
-                        {row.total.count.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-3 text-right font-bold text-fuchsia-300 border-r border-purple-500/30 tabular-nums">
-                        {formatAmount(row.total.amount)}
-                      </td>
-                      {monthHeaders.map((mh) => {
-                        const cell = row.months[mh.key];
-                        return (
-                          <Fragment key={mh.key}>
-                            <td
-                              onClick={() => cell?.count && openModal(row.reason, mh.key, mh.label)}
-                              className={`px-2 py-3 text-right text-purple-100 tabular-nums ${cell?.count ? `font-semibold underline decoration-fuchsia-400/30 decoration-dotted underline-offset-4 ${CLICKABLE_CELL}` : ''}`}
-                              title={cell?.count ? `Click to view ${cell.count} orders for ${row.reason} in ${mh.label}` : ''}
-                            >
-                              {cell?.count?.toLocaleString() || <span className="text-purple-500/40">—</span>}
-                            </td>
-                            <td className="px-2 py-3 text-right text-purple-200/90 tabular-nums border-r border-purple-500/10">
-                              {cell?.amount ? formatAmount(cell.amount) : <span className="text-purple-500/40">—</span>}
-                            </td>
-                          </Fragment>
-                        );
-                      })}
-                    </tr>
-
-                    {isExpanded &&
-                      subRows.map((sr) => {
-                        const [orderStatus, deliveryStatus] = sr.split('|||');
-                        return (
-                          <tr key={`${row.reason}-${sr}`} className="bg-slate-950/40 border-b border-purple-500/5 text-xs">
-                            <td className="px-4 py-2 sticky left-0 bg-slate-950/80 z-10 border-r border-purple-500/10">
-                              <div className="pl-8 flex items-center gap-2">
-                                <span className="text-purple-500">└</span>
-                                <span className="text-purple-300/90 flex items-center gap-2 flex-wrap">
-                                  <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-200 font-semibold text-[10px]">
-                                    {orderStatus}
-                                  </span>
-                                  <span className="text-purple-500/50">+</span>
-                                  <span className="px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-200 font-semibold text-[10px]">
-                                    {deliveryStatus}
-                                  </span>
-                                </span>
-                              </div>
-                            </td>
-                            {(() => {
-                              let totalCount = 0;
-                              let totalAmount = 0;
-                              for (const monthKey of Object.keys(row.drilldown)) {
-                                const cell = row.drilldown[monthKey]?.[sr];
-                                if (cell) {
-                                  totalCount += cell.count;
-                                  totalAmount += cell.amount;
-                                }
-                              }
-                              return (
-                                <>
-                                  <td
-                                    onClick={() => totalCount && openModal(row.reason, null, 'All months', orderStatus, deliveryStatus)}
-                                    className={`px-3 py-2 text-right text-purple-200 tabular-nums border-r border-purple-500/10 ${totalCount ? `font-semibold underline decoration-fuchsia-400/30 decoration-dotted underline-offset-4 ${CLICKABLE_CELL}` : ''}`}
-                                    title={totalCount ? `Click to view ${totalCount} orders` : ''}
-                                  >
-                                    {totalCount.toLocaleString()}
-                                  </td>
-                                  <td className="px-3 py-2 text-right text-fuchsia-300/90 tabular-nums border-r border-purple-500/30">
-                                    {formatAmount(totalAmount)}
-                                  </td>
-                                </>
-                              );
-                            })()}
-                            {monthHeaders.map((mh) => {
-                              const cell = row.drilldown[mh.key]?.[sr];
-                              return (
-                                <Fragment key={mh.key}>
-                                  <td
-                                    onClick={() => cell?.count && openModal(row.reason, mh.key, mh.label, orderStatus, deliveryStatus)}
-                                    className={`px-2 py-2 text-right text-purple-200/80 tabular-nums ${cell?.count ? `font-semibold underline decoration-fuchsia-400/30 decoration-dotted underline-offset-4 ${CLICKABLE_CELL}` : ''}`}
-                                    title={cell?.count ? `Click to view ${cell.count} orders` : ''}
-                                  >
-                                    {cell?.count ? cell.count.toLocaleString() : <span className="text-purple-500/30">—</span>}
-                                  </td>
-                                  <td className="px-2 py-2 text-right text-purple-300/70 tabular-nums border-r border-purple-500/10">
-                                    {cell?.amount ? formatAmount(cell.amount) : <span className="text-purple-500/30">—</span>}
-                                  </td>
-                                </Fragment>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                  </Fragment>
-                );
-              })}
-
-              <tr className="bg-gradient-to-r from-fuchsia-900/40 via-purple-900/40 to-fuchsia-900/40 border-t-2 border-fuchsia-500/50 font-bold">
-                <td className="px-4 py-3 sticky left-0 z-10 bg-purple-950/90 border-r border-fuchsia-500/30 text-white font-bold">
-                  Grand Total
-                </td>
-                <td className="px-3 py-3 text-right text-white border-r border-purple-500/20 tabular-nums">
-                  {data.totals.grand.count.toLocaleString()}
-                </td>
-                <td className="px-3 py-3 text-right text-fuchsia-300 border-r border-fuchsia-500/30 tabular-nums">
-                  {formatAmount(data.totals.grand.amount)}
-                </td>
-                {monthHeaders.map((mh) => {
-                  const t = data.totals.byMonth[mh.key];
                   return (
-                    <Fragment key={mh.key}>
-                      <td className="px-2 py-3 text-right text-white tabular-nums">
-                        {t?.count?.toLocaleString() || '—'}
-                      </td>
-                      <td className="px-2 py-3 text-right text-fuchsia-200 tabular-nums border-r border-purple-500/20">
-                        {t?.amount ? formatAmount(t.amount) : '—'}
-                      </td>
+                    <Fragment key={row.reason}>
+                      {/* Parent reason row */}
+                      <tr
+                        onClick={() => toggleExpand(row.reason)}
+                        className="border-b border-white/5 hover:bg-fuchsia-500/15 cursor-pointer transition-colors group"
+                      >
+                        <td className="px-4 py-3 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 text-white text-sm font-semibold">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-block w-4 text-purple-300 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+                              ▸
+                            </span>
+                            <span>{row.reason}</span>
+                            <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-purple-200 tabular-nums">
+                              {subRows.length} sub
+                            </span>
+                          </div>
+                        </td>
+                        {data.periods.map((p) => {
+                          const cell = row.cells[p];
+                          const has = !!cell?.count;
+                          return (
+                            <Fragment key={p}>
+                              <td
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (has) openModal(row.reason, p, periodLabel(p, data.granularity, data.month));
+                                }}
+                                className={`px-2 py-3 text-right text-purple-100 tabular-nums ${has ? 'cursor-pointer hover:bg-fuchsia-500/30 hover:text-white font-semibold' : ''}`}
+                              >
+                                {cell?.count?.toLocaleString() || <span className="text-purple-500/40">—</span>}
+                              </td>
+                              <td className="px-2 py-3 text-right text-purple-200/90 tabular-nums border-r border-white/10">
+                                {cell?.amount ? formatAmount(cell.amount) : <span className="text-purple-500/40">—</span>}
+                              </td>
+                            </Fragment>
+                          );
+                        })}
+                        {/* Total at END */}
+                        <td
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openModal(row.reason, null, 'All periods');
+                          }}
+                          className="px-2 py-3 text-right font-bold text-white tabular-nums bg-purple-500/15 cursor-pointer hover:bg-fuchsia-500/30 hover:text-white"
+                        >
+                          {row.total.count.toLocaleString()}
+                        </td>
+                        <td className="px-2 py-3 text-right font-bold text-fuchsia-300 tabular-nums bg-purple-500/15 border-r border-white/10">
+                          {formatAmount(row.total.amount)}
+                        </td>
+                      </tr>
+
+                      {/* Drill-down sub-rows */}
+                      {isExpanded &&
+                        subRows.map((sr) => {
+                          const [orderStatus, deliveryStatus] = sr.split('|||');
+                          let subTotalCount = 0;
+                          let subTotalAmount = 0;
+                          for (const p of Object.keys(row.drilldown)) {
+                            const cell = row.drilldown[p]?.[sr];
+                            if (cell) {
+                              subTotalCount += cell.count;
+                              subTotalAmount += cell.amount;
+                            }
+                          }
+                          return (
+                            <tr
+                              key={`${row.reason}-${sr}`}
+                              className="bg-slate-950/40 border-b border-white/5 text-xs hover:bg-fuchsia-500/10 transition-colors"
+                            >
+                              <td className="px-4 py-2 sticky left-0 bg-slate-950/80 z-10 border-r border-white/10">
+                                <div className="pl-8 flex items-center gap-2">
+                                  <span className="text-purple-500">└</span>
+                                  <span className="flex items-center gap-2 flex-wrap">
+                                    <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-200 font-semibold text-[10px]">
+                                      {orderStatus}
+                                    </span>
+                                    <span className="text-purple-500/50">+</span>
+                                    <span className="px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-200 font-semibold text-[10px]">
+                                      {deliveryStatus}
+                                    </span>
+                                  </span>
+                                </div>
+                              </td>
+                              {data.periods.map((p) => {
+                                const cell = row.drilldown[p]?.[sr];
+                                const has = !!cell?.count;
+                                return (
+                                  <Fragment key={p}>
+                                    <td
+                                      onClick={() => has && openModal(row.reason, p, periodLabel(p, data.granularity, data.month), orderStatus, deliveryStatus)}
+                                      className={`px-2 py-2 text-right text-purple-200/80 tabular-nums ${has ? 'cursor-pointer hover:bg-fuchsia-500/30 hover:text-white font-semibold' : ''}`}
+                                    >
+                                      {cell?.count ? cell.count.toLocaleString() : <span className="text-purple-500/30">—</span>}
+                                    </td>
+                                    <td className="px-2 py-2 text-right text-purple-300/70 tabular-nums border-r border-white/10">
+                                      {cell?.amount ? formatAmount(cell.amount) : <span className="text-purple-500/30">—</span>}
+                                    </td>
+                                  </Fragment>
+                                );
+                              })}
+                              {/* Sub-row Total at END */}
+                              <td
+                                onClick={() => subTotalCount && openModal(row.reason, null, 'All periods', orderStatus, deliveryStatus)}
+                                className={`px-2 py-2 text-right text-purple-100 tabular-nums bg-purple-500/15 ${subTotalCount ? 'cursor-pointer hover:bg-fuchsia-500/30 hover:text-white font-semibold' : ''}`}
+                              >
+                                {subTotalCount.toLocaleString()}
+                              </td>
+                              <td className="px-2 py-2 text-right text-fuchsia-300/90 tabular-nums bg-purple-500/15 border-r border-white/10">
+                                {formatAmount(subTotalAmount)}
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </Fragment>
                   );
                 })}
-              </tr>
-            </tbody>
-          </table>
+
+                {/* Grand Total row */}
+                <tr className="bg-gradient-to-r from-fuchsia-500/20 via-purple-500/20 to-indigo-500/20 border-t-2 border-fuchsia-500/50 font-bold">
+                  <td className="px-4 py-3 sticky left-0 bg-slate-900/95 z-10 border-r border-white/10 text-white">
+                    Grand Total
+                  </td>
+                  {data.periods.map((p) => {
+                    const t = data.totals.byPeriod[p];
+                    return (
+                      <Fragment key={p}>
+                        <td className="px-2 py-3 text-right text-white tabular-nums">
+                          {t?.count?.toLocaleString() || '—'}
+                        </td>
+                        <td className="px-2 py-3 text-right text-fuchsia-200 tabular-nums border-r border-white/10">
+                          {t?.amount ? formatAmount(t.amount) : '—'}
+                        </td>
+                      </Fragment>
+                    );
+                  })}
+                  <td className="px-2 py-3 text-right text-white tabular-nums bg-purple-500/25">
+                    {data.totals.grand.count.toLocaleString()}
+                  </td>
+                  <td className="px-2 py-3 text-right text-fuchsia-200 tabular-nums bg-purple-500/25 border-r border-white/10">
+                    {formatAmount(data.totals.grand.amount)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          )}
         </div>
 
-        <div className="px-6 py-3 border-t border-purple-500/20 bg-purple-950/30 text-xs text-purple-300/60 flex items-center justify-between">
-          <span>
-            {data.data.length} reason categories · {monthHeaders.length} months ·{' '}
-            {data.totals.grand.count.toLocaleString()} total orders
-          </span>
-          <span>Last updated: {new Date(data.timestamp).toLocaleString()}</span>
-        </div>
+        {/* Footer */}
+        {data && (
+          <div className="px-8 py-3 border-t border-white/10 bg-white/5 text-xs text-purple-300/70 flex items-center justify-between">
+            <span>
+              {data.data.length} reason categories · {data.periods.length}{' '}
+              {data.granularity === 'month' ? 'months' : data.granularity === 'week' ? 'weeks' : 'days'} ·{' '}
+              {data.totals.grand.count.toLocaleString()} total orders
+            </span>
+            <span>Last updated: {new Date(data.timestamp).toLocaleString()}</span>
+          </div>
+        )}
       </div>
 
       {/* Order Detail Modal */}
@@ -521,12 +564,11 @@ export default function RejectionReasonPivotTable() {
             className="bg-gradient-to-br from-slate-900 to-purple-950/60 border border-purple-500/30 rounded-2xl max-w-[95vw] w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal header */}
             <div className="px-6 py-4 border-b border-purple-500/30 bg-gradient-to-r from-purple-900/50 to-fuchsia-900/30 flex items-center justify-between flex-wrap gap-3">
               <div>
                 <h3 className="text-xl font-bold text-white">
                   {modalFilters.reason}
-                  <span className="text-purple-300 text-base font-normal"> · {modalFilters.monthLabel} {year}</span>
+                  <span className="text-purple-300 text-base font-normal"> · {modalFilters.periodLabel} {year}</span>
                 </h3>
                 <p className="text-purple-300/70 text-sm mt-1 flex items-center gap-2 flex-wrap">
                   {modalFilters.orderStatus && (
@@ -551,7 +593,6 @@ export default function RejectionReasonPivotTable() {
               </button>
             </div>
 
-            {/* Search + CSV */}
             <div className="px-6 py-3 border-b border-purple-500/20 bg-slate-900/50 flex items-center gap-3 flex-wrap">
               <input
                 type="text"
@@ -586,7 +627,7 @@ export default function RejectionReasonPivotTable() {
                       r.codAmountToBeCollected, r.rejectReason, r.rejectedBy,
                       r.reasonAddedByBadhoTeam, r.deliveryStatusPo, r.reason_category,
                     ]);
-                    const fname = `rejection-${modalFilters.reason.replace(/\s+/g, '-')}-${modalFilters.month || 'all'}-${year}.csv`;
+                    const fname = `rejection-${modalFilters.reason.replace(/\s+/g, '-')}-${modalFilters.periodKey || 'all'}-${year}.csv`;
                     downloadCSV(fname, headers, rows);
                   }}
                 >
@@ -595,7 +636,6 @@ export default function RejectionReasonPivotTable() {
               )}
             </div>
 
-            {/* Modal body */}
             <div className="flex-1 overflow-auto">
               {modalLoading ? (
                 <div className="px-8 py-16 text-center text-purple-300 animate-pulse">Loading order details…</div>
@@ -610,33 +650,15 @@ export default function RejectionReasonPivotTable() {
                   <thead className="sticky top-0 z-10 bg-purple-950/95 border-b border-purple-500/40">
                     <tr>
                       {[
-                        'poNumber',
-                        'MarkedpendingTime',
-                        'paymentDate',
-                        'paymentEvent',
-                        'sellerPhone',
-                        'sellerBusinessName',
-                        'buyerPhone',
-                        'buyerBusinessName',
-                        'paidAmount',
-                        'poAmount',
-                        'CoupanAmount',
-                        'orderStatus',
-                        'discountBySeller',
-                        'PaymentOptionDiscountByBadho',
-                        'appliedWalletAmount',
-                        'PaymentOption',
-                        'awbNumber',
-                        'courierName',
-                        'deliveryStatus (dv)',
-                        'RefundIntiatedTime',
-                        'RefundCompletedTime',
-                        'codAmountToBeCollected',
-                        'rejectReason',
-                        'rejectedBy',
-                        'reasonAddedByBadhoTeam',
-                        'deliveryStatus (po)',
-                        'reason_category',
+                        'poNumber', 'MarkedpendingTime', 'paymentDate', 'paymentEvent',
+                        'sellerPhone', 'sellerBusinessName', 'buyerPhone', 'buyerBusinessName',
+                        'paidAmount', 'poAmount', 'CoupanAmount', 'orderStatus',
+                        'discountBySeller', 'PaymentOptionDiscountByBadho',
+                        'appliedWalletAmount', 'PaymentOption',
+                        'awbNumber', 'courierName', 'deliveryStatus (dv)',
+                        'RefundIntiatedTime', 'RefundCompletedTime',
+                        'codAmountToBeCollected', 'rejectReason', 'rejectedBy',
+                        'reasonAddedByBadhoTeam', 'deliveryStatus (po)', 'reason_category',
                       ].map((h) => (
                         <th
                           key={h}
@@ -649,129 +671,45 @@ export default function RejectionReasonPivotTable() {
                   </thead>
                   <tbody>
                     {filteredModalData.slice(0, 2000).map((r, idx) => (
-                      <tr
-                        key={`${r.poNumber}-${idx}`}
-                        className="border-b border-purple-500/10 hover:bg-purple-500/10 align-top"
-                      >
-                        {/* poNumber */}
-                        <td className="px-2 py-1.5 text-white tabular-nums font-semibold whitespace-nowrap border-r border-purple-500/10">
-                          {r.poNumber || '—'}
-                        </td>
-                        {/* MarkedpendingTime */}
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
-                          {r.MarkedpendingTime ? new Date(r.MarkedpendingTime).toLocaleDateString('en-IN') : '—'}
-                        </td>
-                        {/* paymentDate */}
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
-                          {formatDate(r.paymentDate)}
-                        </td>
-                        {/* paymentEvent */}
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
-                          {r.paymentEvent || '—'}
-                        </td>
-                        {/* sellerPhone */}
-                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {r.sellerPhone || '—'}
-                        </td>
-                        {/* sellerBusinessName */}
-                        <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">
-                          {r.sellerBusinessName || '—'}
-                        </td>
-                        {/* buyerPhone */}
-                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {r.buyerPhone || '—'}
-                        </td>
-                        {/* buyerBusinessName */}
-                        <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">
-                          {r.buyerBusinessName || '—'}
-                        </td>
-                        {/* paidAmount */}
-                        <td className="px-2 py-1.5 text-right text-emerald-300 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {formatNumber(r.paidAmount)}
-                        </td>
-                        {/* poAmount */}
-                        <td className="px-2 py-1.5 text-right text-white tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {formatNumber(r.poAmount)}
-                        </td>
-                        {/* CoupanAmount */}
-                        <td className="px-2 py-1.5 text-right text-fuchsia-300 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {formatNumber(r.CoupanAmount)}
-                        </td>
-                        {/* orderStatus */}
+                      <tr key={`${r.poNumber}-${idx}`} className="border-b border-purple-500/10 hover:bg-fuchsia-500/15 align-top">
+                        <td className="px-2 py-1.5 text-white tabular-nums font-semibold whitespace-nowrap border-r border-purple-500/10">{r.poNumber || '—'}</td>
+                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.MarkedpendingTime ? new Date(r.MarkedpendingTime).toLocaleDateString('en-IN') : '—'}</td>
+                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{formatDate(r.paymentDate)}</td>
+                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.paymentEvent || '—'}</td>
+                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.sellerPhone || '—'}</td>
+                        <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">{r.sellerBusinessName || '—'}</td>
+                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.buyerPhone || '—'}</td>
+                        <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">{r.buyerBusinessName || '—'}</td>
+                        <td className="px-2 py-1.5 text-right text-emerald-300 tabular-nums whitespace-nowrap border-r border-purple-500/10">{formatNumber(r.paidAmount)}</td>
+                        <td className="px-2 py-1.5 text-right text-white tabular-nums whitespace-nowrap border-r border-purple-500/10">{formatNumber(r.poAmount)}</td>
+                        <td className="px-2 py-1.5 text-right text-fuchsia-300 tabular-nums whitespace-nowrap border-r border-purple-500/10">{formatNumber(r.CoupanAmount)}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap border-r border-purple-500/10">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-200">
-                            {r.orderStatus || '—'}
-                          </span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-200">{r.orderStatus || '—'}</span>
                         </td>
-                        {/* discountBySeller */}
-                        <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {r.discountBySeller != null && Number(r.discountBySeller) !== 0
-                            ? `₹${Number(r.discountBySeller).toLocaleString('en-IN')}`
-                            : '0'}
-                        </td>
-                        {/* PaymentOptionDiscountByBadho */}
-                        <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {r.PaymentOptionDiscountByBadho != null && Number(r.PaymentOptionDiscountByBadho) !== 0
-                            ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN')}`
-                            : '0'}
-                        </td>
-                        {/* appliedWalletAmount */}
-                        <td className="px-2 py-1.5 text-right text-cyan-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {formatNumber(r.appliedWalletAmount)}
-                        </td>
-                        {/* PaymentOption */}
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
-                          {r.PaymentOption || '—'}
-                        </td>
-                        {/* awbNumber */}
-                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {r.awbNumber || '—'}
-                        </td>
-                        {/* courierName */}
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
-                          {r.courierName || '—'}
-                        </td>
-                        {/* deliveryStatus (dv) */}
+                        <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.discountBySeller != null && Number(r.discountBySeller) !== 0 ? `₹${Number(r.discountBySeller).toLocaleString('en-IN')}` : '0'}</td>
+                        <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.PaymentOptionDiscountByBadho != null && Number(r.PaymentOptionDiscountByBadho) !== 0 ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN')}` : '0'}</td>
+                        <td className="px-2 py-1.5 text-right text-cyan-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{formatNumber(r.appliedWalletAmount)}</td>
+                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.PaymentOption || '—'}</td>
+                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.awbNumber || '—'}</td>
+                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.courierName || '—'}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap border-r border-purple-500/10">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/15 text-cyan-200">
-                            {r.deliveryStatusDv || '—'}
-                          </span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/15 text-cyan-200">{r.deliveryStatusDv || '—'}</span>
                         </td>
-                        {/* RefundIntiatedTime */}
-                        <td className="px-2 py-1.5 text-orange-200 whitespace-nowrap border-r border-purple-500/10">
-                          {formatDate(r.RefundIntiatedTime)}
-                        </td>
-                        {/* RefundCompletedTime */}
-                        <td className="px-2 py-1.5 text-emerald-200 whitespace-nowrap border-r border-purple-500/10">
-                          {formatDate(r.RefundCompletedTime)}
-                        </td>
-                        {/* codAmountToBeCollected */}
-                        <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {formatNumber(r.codAmountToBeCollected)}
-                        </td>
-                        {/* rejectReason */}
+                        <td className="px-2 py-1.5 text-orange-200 whitespace-nowrap border-r border-purple-500/10">{formatDate(r.RefundIntiatedTime)}</td>
+                        <td className="px-2 py-1.5 text-emerald-200 whitespace-nowrap border-r border-purple-500/10">{formatDate(r.RefundCompletedTime)}</td>
+                        <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{formatNumber(r.codAmountToBeCollected)}</td>
                         <td className="px-2 py-1.5 text-rose-200 max-w-[240px] border-r border-purple-500/10" title={r.rejectReason || ''}>
                           <div className="line-clamp-2">{r.rejectReason || '—'}</div>
                         </td>
-                        {/* rejectedBy */}
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
-                          {r.rejectedBy || '—'}
-                        </td>
-                        {/* reasonAddedByBadhoTeam */}
+                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.rejectedBy || '—'}</td>
                         <td className="px-2 py-1.5 text-amber-200 max-w-[240px] border-r border-purple-500/10" title={r.reasonAddedByBadhoTeam || ''}>
                           <div className="line-clamp-2">{r.reasonAddedByBadhoTeam || '—'}</div>
                         </td>
-                        {/* deliveryStatus (po) */}
                         <td className="px-2 py-1.5 whitespace-nowrap border-r border-purple-500/10">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-500/15 text-violet-200">
-                            {r.deliveryStatusPo || '—'}
-                          </span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-500/15 text-violet-200">{r.deliveryStatusPo || '—'}</span>
                         </td>
-                        {/* reason_category */}
                         <td className="px-2 py-1.5 whitespace-nowrap">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-fuchsia-500/15 text-fuchsia-200">
-                            {r.reason_category || '—'}
-                          </span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-fuchsia-500/15 text-fuchsia-200">{r.reason_category || '—'}</span>
                         </td>
                       </tr>
                     ))}
@@ -782,7 +720,7 @@ export default function RejectionReasonPivotTable() {
 
             {modalData && filteredModalData && filteredModalData.length > 2000 && (
               <div className="px-6 py-2 border-t border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs">
-                Showing first 2,000 of {filteredModalData.length.toLocaleString()} rows in the table — CSV includes everything.
+                Showing first 2,000 of {filteredModalData.length.toLocaleString()} rows — CSV includes everything.
               </div>
             )}
           </div>

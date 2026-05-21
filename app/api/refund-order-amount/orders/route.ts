@@ -62,10 +62,10 @@ const PFC_AGG_JOIN = `
   LEFT JOIN (
     SELECT
       "purchaseOrderId",
-      SUM("refundAmount"::numeric)                       AS total_refund,
-      MAX("markedStatusCompletedTime")                   AS latest_completed_time,
-      MAX("markedStatusInitiatedTime")                   AS latest_initiated_time,
-      (ARRAY_AGG("refundARN" ORDER BY "markedStatusCompletedTime" DESC NULLS LAST))[1] AS latest_refund_arn
+      SUM("refundAmount"::numeric)                                                                       AS total_refund,
+      (ARRAY_AGG("markedStatusCompletedTime" ORDER BY "markedStatusCompletedTime" DESC NULLS LAST))[1]   AS latest_completed_time,
+      (ARRAY_AGG("markedStatusInitiatedTime" ORDER BY "markedStatusCompletedTime" DESC NULLS LAST))[1]   AS latest_initiated_time,
+      (ARRAY_AGG("refundARN"                 ORDER BY "markedStatusCompletedTime" DESC NULLS LAST))[1]   AS latest_refund_arn
     FROM "payments"."paymentRefundRecord"
     WHERE "status" = 'COMPLETED'
     GROUP BY "purchaseOrderId"

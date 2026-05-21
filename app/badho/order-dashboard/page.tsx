@@ -287,7 +287,10 @@ const STATUS_ICONS: Record<string, string> = {
 };
 
 export default function OrderStatusDashboard() {
-  const currentYear = new Date().getFullYear();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.toLocaleDateString('en-US', { month: 'long' });
+  const currentMonthYear = `${currentMonth} ${currentYear}`;
   const yearStart = `${currentYear}-01-01`;
   const yearEnd = `${currentYear}-12-31`;
 
@@ -1572,7 +1575,7 @@ export default function OrderStatusDashboard() {
         {/* Revenue Goal — radial gauge */}
         <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10">
-            <h2 className="text-2xl font-bold text-white">GMV Goal — {currentYear}</h2>
+            <h2 className="text-2xl font-bold text-white">GMV Goal — {currentMonthYear}</h2>
             <p className="text-white/60 text-sm mt-1">Sum of order amount where status is DELIVERED or COMPLETED, against a ₹1 Cr goal</p>
           </div>
           <div className="p-8">
@@ -1620,7 +1623,7 @@ export default function OrderStatusDashboard() {
                       <p className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</p>
                     </button>
                     <div className="bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02]">
-                      <p className="text-white/60 text-xs uppercase tracking-wider mb-2">Goal</p>
+                      <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{currentMonth} Goal</p>
                       <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(goalData.goal)}</p>
                       <p className="text-white/50 text-xs mt-1">DELIVERED + COMPLETED</p>
                     </div>

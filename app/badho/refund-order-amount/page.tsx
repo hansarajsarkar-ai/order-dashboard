@@ -74,7 +74,7 @@ interface Bucket {
   refundedOrders: number;
   avgRefundProcessingHours: number | null;
 }
-type Preset = 'today' | 'last7' | 'day' | 'week' | 'month' | 'custom';
+type Preset = 'all' | 'today' | 'last7' | 'day' | 'week' | 'month' | 'custom';
 type Granularity = 'day' | 'week' | 'month';
 type CellFilter = 'all' | 'rejected' | 'cancelled' | 'refunded' | 'pending';
 interface SellerRow {
@@ -182,7 +182,7 @@ export default function RefundOrderAmountDashboard() {
   const [tab, setTab] = useState<'overview' | 'sellers' | 'orders' | 'alerts'>('overview');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [preset, setPreset] = useState<Preset>('month');
+  const [preset, setPreset] = useState<Preset>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
@@ -210,6 +210,10 @@ export default function RefundOrderAmountDashboard() {
     const yearStart = ymd(new Date(today.getFullYear(), 0, 1));
     const yearEnd = ymd(new Date(today.getFullYear(), 11, 31));
     switch (preset) {
+      case 'all':
+        // Wide-open range — anything before the Badho purchaseOrder table was
+        // created (~2020) is impossible, so 2000-01-01 is a safe floor.
+        return { startDate: '2000-01-01', endDate: todayStr, granularity: 'month' };
       case 'today':
         return { startDate: todayStr, endDate: todayStr, granularity: 'day' };
       case 'last7': {
@@ -389,8 +393,10 @@ export default function RefundOrderAmountDashboard() {
             </h1>
             <p className="text-purple-200 text-sm mt-1">
               Prepaid (FULL/PARTIAL advance) orders that were rejected or cancelled. KPI cards show all-time totals; everything else filters on <span className="text-purple-100 font-medium">reject/cancel date</span>{' '}
-              <span className="text-purple-100 font-medium">{startDate}</span>{' → '}
-              <span className="text-purple-100 font-medium">{endDate}</span>.
+              {preset === 'all'
+                ? <span className="text-purple-100 font-medium">all time</span>
+                : <><span className="text-purple-100 font-medium">{startDate}</span>{' → '}<span className="text-purple-100 font-medium">{endDate}</span></>}
+              .
             </p>
           </div>
           <button
@@ -405,8 +411,8 @@ export default function RefundOrderAmountDashboard() {
         {/* Global date-range preset bar — drives every tab's data */}
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <div className="inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]">
-            {(['today', 'last7', 'day', 'week', 'month', 'custom'] as const).map((p) => {
-              const label = p === 'today' ? 'Today' : p === 'last7' ? 'Last 7 days' : p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom';
+            {(['all', 'today', 'last7', 'day', 'week', 'month', 'custom'] as const).map((p) => {
+              const label = p === 'all' ? 'All Time' : p === 'today' ? 'Today' : p === 'last7' ? 'Last 7 days' : p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom';
               const isActive = preset === p;
               return (
                 <button

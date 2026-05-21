@@ -33,13 +33,38 @@ interface OrderDetailRow {
   reason_category: string;
 }
 
+const REASON_CASE = `
+  CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM "deliveries"."intercityDelivery" di
+      WHERE di."purchaseOrderId" = po."id"
+        AND di."status" = 'NOT PICKED'
+        AND di."autoRejectionTime" IS NOT NULL
+    )
+      THEN 'Delivery Partner SLA Breach'
+    WHEN po."deliveryStatus" = 'RTO'
+      THEN 'Rejected due to RTO'
+    WHEN COALESCE(po."rejectReason", '')           ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
+      OR COALESCE(po."reasonAddedByBadhoTeam", '') ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
+      THEN 'Brand SLA Breach'
+    WHEN COALESCE(po."rejectReason", '')           ILIKE '%serviceab%'
+      OR COALESCE(po."reasonAddedByBadhoTeam", '') ILIKE '%serviceab%'
+      THEN 'Serviceability Issue'
+    WHEN COALESCE(po."rejectReason", '')           ILIKE '%address%'
+      OR COALESCE(po."reasonAddedByBadhoTeam", '') ILIKE '%address%'
+      THEN 'Address Issue'
+    ELSE 'Other Reasons'
+  END
+`;
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const reasonCategory = searchParams.get('reason') || '';
-  const month = searchParams.get('month'); // YYYY-MM
+  const month = searchParams.get('month');
   const year = parseInt(searchParams.get('year') || String(new Date().getFullYear()));
-  const orderStatus = searchParams.get('orderStatus'); // optional drill-down
-  const deliveryStatus = searchParams.get('deliveryStatus'); // optional drill-down
+  const orderStatus = searchParams.get('orderStatus');
+  const deliveryStatusParam = searchParams.get('deliveryStatus');
 
   if (!reasonCategory) {
     return NextResponse.json({ error: 'reason parameter is required' }, { status: 400 });
@@ -47,11 +72,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const conditions: string[] = [];
-    const params: (string | number | null)[] = [year];
-    let paramIdx = 2;
-
-    conditions.push(`reason_sub.reason_category = $${paramIdx++}`);
-    params.push(reasonCategory);
+    const params: (string | number | null)[] = [year, reasonCategory];
+    let paramIdx = 3;
 
     if (month) {
       conditions.push(`TO_CHAR(po."markedPendingTime", 'YYYY-MM') = $${paramIdx++}`);
@@ -63,77 +85,49 @@ export async function GET(req: NextRequest) {
       params.push(orderStatus);
     }
 
-    if (deliveryStatus !== null) {
-      if (deliveryStatus === 'N/A' || deliveryStatus === '') {
+    if (deliveryStatusParam !== null) {
+      if (deliveryStatusParam === 'N/A' || deliveryStatusParam === '') {
         conditions.push(`po."deliveryStatus" IS NULL`);
-      } else if (deliveryStatus) {
+      } else {
         conditions.push(`po."deliveryStatus" = $${paramIdx++}`);
-        params.push(deliveryStatus);
+        params.push(deliveryStatusParam);
       }
     }
 
     const extraConditions = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
 
     const sql = `
-      WITH reason_sub AS (
-        SELECT
-          po."id" AS po_id,
-          CASE
-            WHEN EXISTS (
-              SELECT 1
-              FROM "deliveries"."intercityDelivery" di
-              WHERE di."purchaseOrderId" = po."id"
-                AND di."status" = 'NOT PICKED'
-                AND di."autoRejectionTime" IS NOT NULL
-            )
-              THEN 'Delivery Partner SLA Breach'
-            WHEN po."deliveryStatus" = 'RTO'
-              THEN 'Rejected due to RTO'
-            WHEN COALESCE(po."rejectReason", '')              ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
-              OR COALESCE(po."reasonAddedByBadhoTeam", '')    ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
-              THEN 'Brand SLA Breach'
-            WHEN COALESCE(po."rejectReason", '')              ILIKE '%serviceab%'
-              OR COALESCE(po."reasonAddedByBadhoTeam", '')    ILIKE '%serviceab%'
-              THEN 'Serviceability Issue'
-            WHEN COALESCE(po."rejectReason", '')              ILIKE '%address%'
-              OR COALESCE(po."reasonAddedByBadhoTeam", '')    ILIKE '%address%'
-              THEN 'Address Issue'
-            ELSE 'Other Reasons'
-          END AS reason_category
-        FROM "purchaseOrder"."purchaseOrder" po
-      )
       SELECT DISTINCT
         po."poNumber",
-        po."markedPendingTime"::date AS "MarkedpendingTime",
-        pop."created_at" AS "paymentDate",
-        pop."event" AS "paymentEvent",
-        s."phone" AS "sellerPhone",
-        s."businessName" AS "sellerBusinessName",
-        b."phone" AS "buyerPhone",
-        b."businessName" AS "buyerBusinessName",
-        pop."paidAmount" AS "paidAmount",
-        po."amount" AS "poAmount",
-        po."appliedOfferDiscount" AS "CoupanAmount",
-        po."status" AS "orderStatus",
-        COALESCE((pop."breakup" ->> 'discount_on_payment_preference_for_seller')::float, 0) AS "discountBySeller",
-        COALESCE((pop."breakup" ->> 'discount_on_payment_preference_from_badho')::float, 0) AS "PaymentOptionDiscountByBadho",
+        po."markedPendingTime"                                                                AS "MarkedpendingTime",
+        pop."created_at"                                                                      AS "paymentDate",
+        pop."event"                                                                           AS "paymentEvent",
+        s."phone"                                                                             AS "sellerPhone",
+        s."businessName"                                                                      AS "sellerBusinessName",
+        b."phone"                                                                             AS "buyerPhone",
+        b."businessName"                                                                      AS "buyerBusinessName",
+        pop."paidAmount"                                                                      AS "paidAmount",
+        po."amount"                                                                           AS "poAmount",
+        po."appliedOfferDiscount"                                                             AS "CoupanAmount",
+        po."status"                                                                           AS "orderStatus",
+        COALESCE((pop."breakup" ->> 'discount_on_payment_preference_for_seller')::float, 0)   AS "discountBySeller",
+        COALESCE((pop."breakup" ->> 'discount_on_payment_preference_from_badho')::float, 0)   AS "PaymentOptionDiscountByBadho",
         pop."appliedWalletAmount",
-        po."paymentInfo" ->> 'option' AS "PaymentOption",
-        dv."trackingInfo" ->> 'awbNumber' AS "awbNumber",
-        dv."trackingInfo" ->> 'courierName' AS "courierName",
-        dv."status" AS "deliveryStatusDv",
-        pf."markedStatusInitiatedTime" AS "RefundIntiatedTime",
-        pf."markedStatusCompletedTime" AS "RefundCompletedTime",
+        po."paymentInfo" ->> 'option'                                                         AS "PaymentOption",
+        dv."trackingInfo" ->> 'awbNumber'                                                     AS "awbNumber",
+        dv."trackingInfo" ->> 'courierName'                                                   AS "courierName",
+        dv."status"                                                                           AS "deliveryStatusDv",
+        pf."markedStatusInitiatedTime"                                                        AS "RefundIntiatedTime",
+        pf."markedStatusCompletedTime"                                                        AS "RefundCompletedTime",
         dv."codAmountToBeCollected",
         po."rejectReason",
         po."rejectedBy",
         po."reasonAddedByBadhoTeam",
-        po."deliveryStatus" AS "deliveryStatusPo",
-        reason_sub.reason_category
+        po."deliveryStatus"                                                                   AS "deliveryStatusPo",
+        ${REASON_CASE}                                                                        AS reason_category
       FROM "purchaseOrder"."purchaseOrder" po
-      JOIN "users"."buyer" b ON b."id" = po."buyerId"
+      JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
-      JOIN reason_sub ON reason_sub.po_id = po."id"
       LEFT JOIN LATERAL (
         SELECT di."trackingInfo", di."status", di."codAmountToBeCollected"
         FROM "deliveries"."intercityDelivery" di
@@ -160,8 +154,9 @@ export async function GET(req: NextRequest) {
         AND po."status" = 'REJECTED'
         AND po."markedPendingTime" IS NOT NULL
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
+        AND (${REASON_CASE}) = $2
         ${extraConditions}
-      ORDER BY po."markedPendingTime" DESC
+      ORDER BY "MarkedpendingTime" DESC
       LIMIT 5000;
     `;
 
@@ -170,7 +165,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       data: rows,
       count: rows.length,
-      filters: { reason: reasonCategory, month, year, orderStatus, deliveryStatus },
+      filters: { reason: reasonCategory, month, year, orderStatus, deliveryStatus: deliveryStatusParam },
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

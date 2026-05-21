@@ -565,15 +565,15 @@ export default function RejectionReasonPivotTable() {
                   className="px-3 py-2 rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white text-xs font-semibold hover:shadow-[0_0_18px_rgba(217,70,239,0.4)]"
                   onClick={() => {
                     const headers = [
-                      'PO Number', 'MarkedPending Time', 'Payment Date', 'Payment Event',
-                      'Seller Phone', 'Seller Business', 'Buyer Phone', 'Buyer Business',
-                      'Paid Amount', 'PO Amount', 'Coupon Amount', 'Order Status',
-                      'Discount by Seller', 'Payment Option Discount by Badho',
-                      'Applied Wallet Amount', 'Payment Option',
-                      'AWB Number', 'Courier Name', 'Delivery Status (DV)',
-                      'Refund Initiated Time', 'Refund Completed Time',
-                      'COD Amount To Be Collected', 'Reject Reason', 'Rejected By',
-                      'Reason Added by Badho Team', 'Delivery Status (PO)', 'Reason Category',
+                      'poNumber', 'MarkedpendingTime', 'paymentDate', 'paymentEvent',
+                      'sellerPhone', 'sellerBusinessName', 'buyerPhone', 'buyerBusinessName',
+                      'paidAmount', 'poAmount', 'CoupanAmount', 'orderStatus',
+                      'discountBySeller', 'PaymentOptionDiscountByBadho',
+                      'appliedWalletAmount', 'PaymentOption',
+                      'awbNumber', 'courierName', 'deliveryStatus (dv)',
+                      'RefundIntiatedTime', 'RefundCompletedTime',
+                      'codAmountToBeCollected', 'rejectReason', 'rejectedBy',
+                      'reasonAddedByBadhoTeam', 'deliveryStatus (po)', 'reason_category',
                     ];
                     const rows: CsvCell[][] = filteredModalData.map((r) => [
                       r.poNumber, r.MarkedpendingTime, r.paymentDate, r.paymentEvent,
@@ -610,13 +610,33 @@ export default function RejectionReasonPivotTable() {
                   <thead className="sticky top-0 z-10 bg-purple-950/95 border-b border-purple-500/40">
                     <tr>
                       {[
-                        'PO Number', 'Pending Date', 'Payment Date', 'Pay Event',
-                        'Seller', 'Seller Phone', 'Buyer', 'Buyer Phone',
-                        'Paid', 'PO Amt', 'Coupon', 'Order',
-                        'Disc Seller', 'Disc Badho', 'Wallet', 'Pay Option',
-                        'AWB', 'Courier', 'Delivery (DV)',
-                        'Refund Init', 'Refund Done', 'COD',
-                        'Reject Reason', 'Rejected By', 'Badho Reason', 'Delivery (PO)',
+                        'poNumber',
+                        'MarkedpendingTime',
+                        'paymentDate',
+                        'paymentEvent',
+                        'sellerPhone',
+                        'sellerBusinessName',
+                        'buyerPhone',
+                        'buyerBusinessName',
+                        'paidAmount',
+                        'poAmount',
+                        'CoupanAmount',
+                        'orderStatus',
+                        'discountBySeller',
+                        'PaymentOptionDiscountByBadho',
+                        'appliedWalletAmount',
+                        'PaymentOption',
+                        'awbNumber',
+                        'courierName',
+                        'deliveryStatus (dv)',
+                        'RefundIntiatedTime',
+                        'RefundCompletedTime',
+                        'codAmountToBeCollected',
+                        'rejectReason',
+                        'rejectedBy',
+                        'reasonAddedByBadhoTeam',
+                        'deliveryStatus (po)',
+                        'reason_category',
                       ].map((h) => (
                         <th
                           key={h}
@@ -633,88 +653,124 @@ export default function RejectionReasonPivotTable() {
                         key={`${r.poNumber}-${idx}`}
                         className="border-b border-purple-500/10 hover:bg-purple-500/10 align-top"
                       >
+                        {/* poNumber */}
                         <td className="px-2 py-1.5 text-white tabular-nums font-semibold whitespace-nowrap border-r border-purple-500/10">
                           {r.poNumber || '—'}
                         </td>
+                        {/* MarkedpendingTime */}
                         <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
                           {r.MarkedpendingTime ? new Date(r.MarkedpendingTime).toLocaleDateString('en-IN') : '—'}
                         </td>
+                        {/* paymentDate */}
                         <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
                           {formatDate(r.paymentDate)}
                         </td>
+                        {/* paymentEvent */}
                         <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
                           {r.paymentEvent || '—'}
                         </td>
-                        <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">
-                          {r.sellerBusinessName || '—'}
-                        </td>
+                        {/* sellerPhone */}
                         <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
                           {r.sellerPhone || '—'}
                         </td>
+                        {/* sellerBusinessName */}
                         <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">
-                          {r.buyerBusinessName || '—'}
+                          {r.sellerBusinessName || '—'}
                         </td>
+                        {/* buyerPhone */}
                         <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
                           {r.buyerPhone || '—'}
                         </td>
+                        {/* buyerBusinessName */}
+                        <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">
+                          {r.buyerBusinessName || '—'}
+                        </td>
+                        {/* paidAmount */}
                         <td className="px-2 py-1.5 text-right text-emerald-300 tabular-nums whitespace-nowrap border-r border-purple-500/10">
                           {formatNumber(r.paidAmount)}
                         </td>
+                        {/* poAmount */}
                         <td className="px-2 py-1.5 text-right text-white tabular-nums whitespace-nowrap border-r border-purple-500/10">
                           {formatNumber(r.poAmount)}
                         </td>
+                        {/* CoupanAmount */}
                         <td className="px-2 py-1.5 text-right text-fuchsia-300 tabular-nums whitespace-nowrap border-r border-purple-500/10">
                           {formatNumber(r.CoupanAmount)}
                         </td>
+                        {/* orderStatus */}
                         <td className="px-2 py-1.5 whitespace-nowrap border-r border-purple-500/10">
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-200">
                             {r.orderStatus || '—'}
                           </span>
                         </td>
+                        {/* discountBySeller */}
                         <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN')}` : '—'}
+                          {r.discountBySeller != null && Number(r.discountBySeller) !== 0
+                            ? `₹${Number(r.discountBySeller).toLocaleString('en-IN')}`
+                            : '0'}
                         </td>
+                        {/* PaymentOptionDiscountByBadho */}
                         <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
-                          {r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN')}` : '—'}
+                          {r.PaymentOptionDiscountByBadho != null && Number(r.PaymentOptionDiscountByBadho) !== 0
+                            ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN')}`
+                            : '0'}
                         </td>
+                        {/* appliedWalletAmount */}
                         <td className="px-2 py-1.5 text-right text-cyan-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
                           {formatNumber(r.appliedWalletAmount)}
                         </td>
+                        {/* PaymentOption */}
                         <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
                           {r.PaymentOption || '—'}
                         </td>
+                        {/* awbNumber */}
                         <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
                           {r.awbNumber || '—'}
                         </td>
+                        {/* courierName */}
                         <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
                           {r.courierName || '—'}
                         </td>
+                        {/* deliveryStatus (dv) */}
                         <td className="px-2 py-1.5 whitespace-nowrap border-r border-purple-500/10">
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/15 text-cyan-200">
                             {r.deliveryStatusDv || '—'}
                           </span>
                         </td>
+                        {/* RefundIntiatedTime */}
                         <td className="px-2 py-1.5 text-orange-200 whitespace-nowrap border-r border-purple-500/10">
                           {formatDate(r.RefundIntiatedTime)}
                         </td>
+                        {/* RefundCompletedTime */}
                         <td className="px-2 py-1.5 text-emerald-200 whitespace-nowrap border-r border-purple-500/10">
                           {formatDate(r.RefundCompletedTime)}
                         </td>
+                        {/* codAmountToBeCollected */}
                         <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">
                           {formatNumber(r.codAmountToBeCollected)}
                         </td>
-                        <td className="px-2 py-1.5 text-rose-200 max-w-[240px]" title={r.rejectReason || ''}>
+                        {/* rejectReason */}
+                        <td className="px-2 py-1.5 text-rose-200 max-w-[240px] border-r border-purple-500/10" title={r.rejectReason || ''}>
                           <div className="line-clamp-2">{r.rejectReason || '—'}</div>
                         </td>
+                        {/* rejectedBy */}
                         <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">
                           {r.rejectedBy || '—'}
                         </td>
-                        <td className="px-2 py-1.5 text-amber-200 max-w-[240px]" title={r.reasonAddedByBadhoTeam || ''}>
+                        {/* reasonAddedByBadhoTeam */}
+                        <td className="px-2 py-1.5 text-amber-200 max-w-[240px] border-r border-purple-500/10" title={r.reasonAddedByBadhoTeam || ''}>
                           <div className="line-clamp-2">{r.reasonAddedByBadhoTeam || '—'}</div>
                         </td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">
+                        {/* deliveryStatus (po) */}
+                        <td className="px-2 py-1.5 whitespace-nowrap border-r border-purple-500/10">
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-500/15 text-violet-200">
                             {r.deliveryStatusPo || '—'}
+                          </span>
+                        </td>
+                        {/* reason_category */}
+                        <td className="px-2 py-1.5 whitespace-nowrap">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-fuchsia-500/15 text-fuchsia-200">
+                            {r.reason_category || '—'}
                           </span>
                         </td>
                       </tr>

@@ -512,6 +512,7 @@ export default function OrderStatusDashboard() {
   const [rtoListData, setRtoListData] = useState<RtoOrderRow[] | null>(null);
   const [rtoListLoading, setRtoListLoading] = useState(false);
   const [rtoListSearch, setRtoListSearch] = useState('');
+  const [rtoListAttemptFilter, setRtoListAttemptFilter] = useState<string | null>(null);
   const [rtoListPage, setRtoListPage] = useState(1);
   const [rtoListRange, setRtoListRange] = useState<'year' | 'today' | '7d' | 'custom'>('year');
   const [rtoListCustomFrom, setRtoListCustomFrom] = useState('');
@@ -915,14 +916,14 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, rtoSubTab, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
 
-  useEffect(() => { setRtoListPage(1); }, [rtoListSearch, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
+  useEffect(() => { setRtoListPage(1); }, [rtoListSearch, rtoListAttemptFilter, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
 
   // Filtered + paged views of the RTO list
   // Always sorted by markedRejectedTime DESC (newest rejection first).
   const filteredRtoListRows = (() => {
     if (!rtoListData) return null;
     const q = rtoListSearch.trim().toLowerCase();
-    const filtered = q
+    let filtered = q
       ? rtoListData.filter((r) =>
           String(r.poNumber || '').toLowerCase().includes(q) ||
           (r.buyerPhone || '').toLowerCase().includes(q) ||
@@ -935,6 +936,18 @@ export default function OrderStatusDashboard() {
           (r.finalFailureReason || '').toLowerCase().includes(q)
         )
       : [...rtoListData];
+
+    if (rtoListAttemptFilter) {
+      filtered = filtered.filter((r) => {
+        const attempts = r.deliveryAttempt || 0;
+        if (rtoListAttemptFilter === '0') return attempts === 0;
+        if (rtoListAttemptFilter === '1') return attempts === 1;
+        if (rtoListAttemptFilter === '2-3') return attempts >= 2 && attempts <= 3;
+        if (rtoListAttemptFilter === '4+') return attempts >= 4;
+        return true;
+      });
+    }
+
     // Stable sort by markedRejectedTime DESC. Falls back to 0 epoch for any nulls.
     return filtered.sort((a, b) => {
       const ta = a.markedRejectedAt ? new Date(a.markedRejectedAt).getTime() : 0;
@@ -3565,6 +3578,25 @@ export default function OrderStatusDashboard() {
                     />
                   </div>
                 )}
+                <div className="h-5 w-px bg-white/15 mx-2"></div>
+                <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Attempts</span>
+                {(['all', '0', '1', '2-3', '4+'] as const).map((opt) => {
+                  const active = (opt === 'all' ? rtoListAttemptFilter === null : rtoListAttemptFilter === opt);
+                  const label = opt === 'all' ? 'All' : opt === '2-3' ? '2–3' : opt;
+                  return (
+                    <button
+                      key={opt}
+                      onClick={() => setRtoListAttemptFilter(opt === 'all' ? null : opt)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        active
+                          ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
+                          : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
               <div className="px-8 py-3 border-b border-white/10 bg-white/5">
                 <input

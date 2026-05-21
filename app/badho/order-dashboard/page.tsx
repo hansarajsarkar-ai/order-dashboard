@@ -7,10 +7,11 @@ import {
   ResponsiveContainer,
   RadialBarChart, RadialBar, PolarAngleAxis,
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, LabelList,
-  ComposedChart, Bar,
+  ComposedChart, Bar, BarChart,
 } from 'recharts';
 import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
 import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
+import RejectionReasonPivotTable from './components/RejectionReasonPivotTable';
 
 interface OrderListRow {
   poNumber: string;
@@ -523,6 +524,11 @@ export default function OrderStatusDashboard() {
   const [trendCustomFrom, setTrendCustomFrom] = useState('');
   const [trendCustomTo, setTrendCustomTo] = useState('');
   const [trendMetric, setTrendMetric] = useState<'count' | 'amount'>('count');
+  // Order Anomalies — stacked bar chart by status
+  interface AnomaliesPoint { date: string; [status: string]: string | number; }
+  const [anomaliesData, setAnomaliesData] = useState<AnomaliesPoint[] | null>(null);
+  const [anomaliesLoading, setAnomaliesLoading] = useState(false);
+  const [anomaliesStatuses, setAnomaliesStatuses] = useState<string[]>([]);
   const [drillStatus, setDrillStatus] = useState<string | null>(null);
   const [drillMonth, setDrillMonth] = useState<number | null>(null);
   const [drillRows, setDrillRows] = useState<OrderListRow[] | null>(null);
@@ -716,8 +722,26 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     if (activeTab !== 'trend') return;
     fetchTrend();
+    fetchAnomalies();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, trendRange, trendCustomFrom, trendCustomTo]);
+
+  const fetchAnomalies = async () => {
+    try {
+      setAnomaliesLoading(true);
+      const res = await fetch(`/api/order-anomalies`);
+      if (!res.ok) throw new Error('Failed to fetch anomalies');
+      const json = await res.json();
+      setAnomaliesData(json.data);
+      setAnomaliesStatuses(json.statuses);
+    } catch (err) {
+      console.error('Anomalies fetch error:', err);
+      setAnomaliesData([]);
+      setAnomaliesStatuses([]);
+    } finally {
+      setAnomaliesLoading(false);
+    }
+  };
 
   const fetchRto = async () => {
     try {
@@ -2600,6 +2624,67 @@ export default function OrderStatusDashboard() {
                     />
                   </Area>
                 </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Order Anomalies — stacked bar chart by status */}
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Order Anomalies</h2>
+              <p className="text-purple-300 text-sm mt-1">
+                Order count by status — last 30 days
+              </p>
+            </div>
+          </div>
+
+          {/* Chart */}
+          <div className="p-6">
+            {anomaliesLoading || !anomaliesData ? (
+              <div className="h-[360px] flex items-center justify-center text-purple-300">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+                  Loading anomalies…
+                </div>
+              </div>
+            ) : anomaliesData.length === 0 ? (
+              <div className="h-[360px] flex items-center justify-center text-purple-300">No data in this range</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={360}>
+                <BarChart data={anomaliesData} margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                    tickFormatter={(d: string) => {
+                      const [, m, dd] = d.split('-');
+                      return `${dd}/${m}`;
+                    }}
+                    minTickGap={15}
+                  />
+                  <YAxis
+                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                    width={70}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'rgba(15,23,42,0.95)',
+                      border: '1px solid rgba(217,70,239,0.4)',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 12,
+                    }}
+                    labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
+                    labelFormatter={(d) => `Date: ${d}`}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12, color: '#e9d5ff' }} />
+                  <Bar dataKey="PENDING" stackId="status" fill="#ef4444" name="Pending" />
+                  <Bar dataKey="INPROGRESS" stackId="status" fill="#f97316" name="In Progress" />
+                  <Bar dataKey="DISPATCHED" stackId="status" fill="#3b82f6" name="Dispatched" />
+                  <Bar dataKey="COMPLETED" stackId="status" fill="#10b981" name="Completed" />
+                </BarChart>
               </ResponsiveContainer>
             )}
           </div>
@@ -5399,6 +5484,11 @@ export default function OrderStatusDashboard() {
             </div>
           </div>
         )}
+
+        {/* Rejection Reason Breakdown Pivot Table */}
+        <div className="mt-8 mb-8">
+          <RejectionReasonPivotTable />
+        </div>
 
         {/* Footer */}
         <div className="mt-12 text-center text-purple-300/70 text-sm">

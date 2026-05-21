@@ -31,7 +31,7 @@ export default function CountdownCalendar({ compact = false }: CountdownCalendar
     if (days.length === 0) return;
     const interval = setInterval(() => {
       setCurrentIdx((prev) => (prev + 1) % days.length);
-    }, 3000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [days.length]);
 
@@ -52,7 +52,7 @@ export default function CountdownCalendar({ compact = false }: CountdownCalendar
             {days.map((day, idx) => (
               <div
                 key={day}
-                className={`absolute text-lg font-bold transition-all duration-500 ${
+                className={`absolute text-lg font-bold transition-all duration-300 ${
                   idx === currentIdx
                     ? 'opacity-100 scale-100'
                     : 'opacity-0 scale-75 pointer-events-none'

@@ -886,14 +886,11 @@ export default function RefundOrderAmountDashboard() {
         )}
 
         {tab === 'alerts' && (
-          <>
-            {presetBar}
-            <AlertsTabContent
-              alerts={data?.alerts ?? []}
-              loading={loading}
-              onRefresh={fetchData}
-            />
-          </>
+          <AlertsTabContent
+            alerts={data?.alerts ?? []}
+            loading={loading}
+            onRefresh={fetchData}
+          />
         )}
 
         {loading && !data && (

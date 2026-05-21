@@ -89,8 +89,10 @@ interface SellerRow {
 interface ListRow {
   purchaseOrderId: string;
   status: string;
+  deliveryStatus: string | null;
   amount: number;
   createdAt: string | null;
+  markedPendingTime: string | null;
   markedRejectedTime: string | null;
   markedCancelledTime: string | null;
   rejectedOrCancelledTime: string | null;
@@ -731,15 +733,24 @@ export default function RefundOrderAmountDashboard() {
                     <th className="px-3 py-2 text-left">PO Number</th>
                     <th className="px-3 py-2 text-left">PO ID</th>
                     <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-left">Delivery Status</th>
                     <th className="px-3 py-2 text-left">Reason Category</th>
                     <th className="px-3 py-2 text-right">Order Amt</th>
                     <th className="px-3 py-2 text-right">Paid</th>
+                    <th className="px-3 py-2 text-right">Wallet</th>
+                    <th className="px-3 py-2 text-left">Payment Event</th>
+                    <th className="px-3 py-2 text-left">Payment Option</th>
+                    <th className="px-3 py-2 text-left">Payment Attempt ID</th>
                     <th className="px-3 py-2 text-right">Refund</th>
                     <th className="px-3 py-2 text-left">Refund ARN</th>
-                    <th className="px-3 py-2 text-left">Payment</th>
+                    <th className="px-3 py-2 text-right">Refund Proc Hrs</th>
+                    <th className="px-3 py-2 text-right">Hrs→Refund</th>
+                    <th className="px-3 py-2 text-left">Created At</th>
+                    <th className="px-3 py-2 text-left">Order Placed At</th>
+                    <th className="px-3 py-2 text-left">Rejected At</th>
+                    <th className="px-3 py-2 text-left">Cancelled At</th>
                     <th className="px-3 py-2 text-left">Reject/Cancel At</th>
                     <th className="px-3 py-2 text-left">Refunded At</th>
-                    <th className="px-3 py-2 text-right">Hrs→Refund</th>
                     <th className="px-3 py-2 text-left">Buyer</th>
                     <th className="px-3 py-2 text-left">Seller</th>
                     <th className="px-3 py-2 text-left">Reject Reason</th>
@@ -759,6 +770,11 @@ export default function RefundOrderAmountDashboard() {
                         }`}>{r.status}</span>
                       </td>
                       <td className="px-3 py-2">
+                        {r.deliveryStatus
+                          ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-500/15 text-sky-200 border border-sky-400/30 whitespace-nowrap">{r.deliveryStatus}</span>
+                          : <span className="text-purple-400/50 italic">—</span>}
+                      </td>
+                      <td className="px-3 py-2">
                         {(() => {
                           const cat = categoryStyleFor(r.reasonCategory);
                           return (
@@ -770,16 +786,34 @@ export default function RefundOrderAmountDashboard() {
                       </td>
                       <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.amount)}</td>
                       <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.orderPaidAmount)}</td>
+                      <td className="px-3 py-2 text-right text-purple-100 tabular-nums">
+                        {r.appliedWalletAmount != null && r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : <span className="text-purple-400/50">—</span>}
+                      </td>
+                      <td className="px-3 py-2">
+                        {r.paymentEvent
+                          ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 whitespace-nowrap">{r.paymentEvent}</span>
+                          : <span className="text-purple-400/50 italic">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-purple-200">{r.paymentOption ?? '—'}</td>
+                      <td className="px-3 py-2 text-purple-300/70 font-mono text-[10px] select-all" title={r.paymentAttemptId || ''}>
+                        {r.paymentAttemptId || <span className="text-purple-400/50 italic">—</span>}
+                      </td>
                       <td className={`px-3 py-2 text-right tabular-nums font-semibold ${r.refundAmount != null ? 'text-emerald-300' : 'text-rose-300/70'}`}>
                         {r.refundAmount != null ? formatAmount(r.refundAmount) : 'Pending'}
                       </td>
                       <td className="px-3 py-2 text-emerald-200/90 font-mono text-[10px] select-all" title={r.refundARN || ''}>
                         {r.refundARN || <span className="text-purple-400/50 italic">—</span>}
                       </td>
-                      <td className="px-3 py-2 text-purple-200">{r.paymentOption ?? '—'}</td>
+                      <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">
+                        {r.refundProcessingHours != null ? r.refundProcessingHours.toFixed(1) : <span className="text-purple-400/50">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{r.hoursTillRefund != null ? r.hoursTillRefund.toFixed(1) : '—'}</td>
+                      <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
+                      <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
+                      <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedRejectedTime)}</td>
+                      <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedCancelledTime)}</td>
                       <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.rejectedOrCancelledTime)}</td>
                       <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedStatusCompletedTime)}</td>
-                      <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{r.hoursTillRefund != null ? r.hoursTillRefund.toFixed(1) : '—'}</td>
                       <td className="px-3 py-2 text-purple-200">
                         <div className="text-white">{r.buyerBusinessName || '—'}</div>
                         <div className="text-purple-300/70 text-[10px]">{r.buyerPhone || ''}</div>
@@ -799,7 +833,7 @@ export default function RefundOrderAmountDashboard() {
                   ))}
                   {!loading && filteredList.length === 0 && (
                     <tr>
-                      <td colSpan={17} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
+                      <td colSpan={26} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
                     </tr>
                   )}
                 </tbody>
@@ -889,15 +923,24 @@ export default function RefundOrderAmountDashboard() {
                         <th className="px-3 py-2 text-left">PO Number</th>
                         <th className="px-3 py-2 text-left">PO ID</th>
                         <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-left">Delivery Status</th>
                         <th className="px-3 py-2 text-left">Reason Category</th>
                         <th className="px-3 py-2 text-right">Order Amt</th>
                         <th className="px-3 py-2 text-right">Paid</th>
+                        <th className="px-3 py-2 text-right">Wallet</th>
+                        <th className="px-3 py-2 text-left">Payment Event</th>
+                        <th className="px-3 py-2 text-left">Payment Option</th>
+                        <th className="px-3 py-2 text-left">Payment Attempt ID</th>
                         <th className="px-3 py-2 text-right">Refund</th>
                         <th className="px-3 py-2 text-left">Refund ARN</th>
-                        <th className="px-3 py-2 text-left">Payment</th>
+                        <th className="px-3 py-2 text-right">Refund Proc Hrs</th>
+                        <th className="px-3 py-2 text-right">Hrs→Refund</th>
+                        <th className="px-3 py-2 text-left">Created At</th>
+                        <th className="px-3 py-2 text-left">Order Placed At</th>
+                        <th className="px-3 py-2 text-left">Rejected At</th>
+                        <th className="px-3 py-2 text-left">Cancelled At</th>
                         <th className="px-3 py-2 text-left">Reject/Cancel At</th>
                         <th className="px-3 py-2 text-left">Refunded At</th>
-                        <th className="px-3 py-2 text-right">Hrs→Refund</th>
                         <th className="px-3 py-2 text-left">Buyer</th>
                         <th className="px-3 py-2 text-left">Seller</th>
                         <th className="px-3 py-2 text-left">Reject Reason</th>
@@ -917,6 +960,11 @@ export default function RefundOrderAmountDashboard() {
                             }`}>{r.status}</span>
                           </td>
                           <td className="px-3 py-2">
+                            {r.deliveryStatus
+                              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-500/15 text-sky-200 border border-sky-400/30 whitespace-nowrap">{r.deliveryStatus}</span>
+                              : <span className="text-purple-400/50 italic">—</span>}
+                          </td>
+                          <td className="px-3 py-2">
                             {(() => {
                               const cat = categoryStyleFor(r.reasonCategory);
                               return (
@@ -928,16 +976,34 @@ export default function RefundOrderAmountDashboard() {
                           </td>
                           <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.amount)}</td>
                           <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.orderPaidAmount)}</td>
+                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums">
+                            {r.appliedWalletAmount != null && r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : <span className="text-purple-400/50">—</span>}
+                          </td>
+                          <td className="px-3 py-2">
+                            {r.paymentEvent
+                              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 whitespace-nowrap">{r.paymentEvent}</span>
+                              : <span className="text-purple-400/50 italic">—</span>}
+                          </td>
+                          <td className="px-3 py-2 text-purple-200">{r.paymentOption ?? '—'}</td>
+                          <td className="px-3 py-2 text-purple-300/70 font-mono text-[10px] select-all" title={r.paymentAttemptId || ''}>
+                            {r.paymentAttemptId || <span className="text-purple-400/50 italic">—</span>}
+                          </td>
                           <td className={`px-3 py-2 text-right tabular-nums font-semibold ${r.refundAmount != null ? 'text-emerald-300' : 'text-rose-300/70'}`}>
                             {r.refundAmount != null ? formatAmount(r.refundAmount) : 'Pending'}
                           </td>
                           <td className="px-3 py-2 text-emerald-200/90 font-mono text-[10px] select-all" title={r.refundARN || ''}>
                             {r.refundARN || <span className="text-purple-400/50 italic">—</span>}
                           </td>
-                          <td className="px-3 py-2 text-purple-200">{r.paymentOption ?? '—'}</td>
+                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">
+                            {r.refundProcessingHours != null ? r.refundProcessingHours.toFixed(1) : <span className="text-purple-400/50">—</span>}
+                          </td>
+                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{r.hoursTillRefund != null ? r.hoursTillRefund.toFixed(1) : '—'}</td>
+                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
+                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
+                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedRejectedTime)}</td>
+                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedCancelledTime)}</td>
                           <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.rejectedOrCancelledTime)}</td>
                           <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedStatusCompletedTime)}</td>
-                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{r.hoursTillRefund != null ? r.hoursTillRefund.toFixed(1) : '—'}</td>
                           <td className="px-3 py-2 text-purple-200">
                             <div className="text-white">{r.buyerBusinessName || '—'}</div>
                             <div className="text-purple-300/70 text-[10px]">{r.buyerPhone || ''}</div>
@@ -946,12 +1012,12 @@ export default function RefundOrderAmountDashboard() {
                             <div className="text-white">{r.sellerBusinessName || '—'}</div>
                             <div className="text-purple-300/70 text-[10px]">{r.sellerPhone || ''}</div>
                           </td>
-                          <td className="px-3 py-2 text-purple-200 max-w-[200px]" title={r.rejectReason || ''}>
-                            {r.rejectReason ? <span className="block truncate">{r.rejectReason}</span> : <span className="text-purple-400/50 italic">—</span>}
+                          <td className="px-3 py-2 text-purple-100 min-w-[180px] max-w-[300px]">
+                            {r.rejectReason ? <span className="block whitespace-normal break-words leading-snug">{r.rejectReason}</span> : <span className="text-purple-400/50 italic">—</span>}
                           </td>
                           <td className="px-3 py-2 text-purple-200">{r.rejectedBy || <span className="text-purple-400/50 italic">—</span>}</td>
-                          <td className="px-3 py-2 text-purple-200 max-w-[200px]" title={r.reasonAddedByBadhoTeam || ''}>
-                            {r.reasonAddedByBadhoTeam ? <span className="block truncate">{r.reasonAddedByBadhoTeam}</span> : <span className="text-purple-400/50 italic">—</span>}
+                          <td className="px-3 py-2 text-purple-100 min-w-[180px] max-w-[300px]">
+                            {r.reasonAddedByBadhoTeam ? <span className="block whitespace-normal break-words leading-snug">{r.reasonAddedByBadhoTeam}</span> : <span className="text-purple-400/50 italic">—</span>}
                           </td>
                         </tr>
                       ))}

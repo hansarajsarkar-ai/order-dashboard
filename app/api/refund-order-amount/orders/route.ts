@@ -26,6 +26,8 @@ interface Row {
   rejected_by: string | null;
   reason_added_by_badho_team: string | null;
   reason_category: string;
+  delivery_status: string | null;
+  marked_pending_time: string | null;
   created_at: string | null;
   payment_event: string | null;
   payment_attempt_id: string | null;
@@ -95,6 +97,8 @@ export async function GET(req: NextRequest) {
         a."rejectedBy"                                                        AS rejected_by,
         a."reasonAddedByBadhoTeam"                                            AS reason_added_by_badho_team,
         a."created_at"::text                                                  AS created_at,
+        a."markedPendingTime"::text                                           AS marked_pending_time,
+        a."deliveryStatus"                                                    AS delivery_status,
         pop."event"                                                           AS payment_event,
         poa."id"::text                                                        AS payment_attempt_id,
         pop."appliedWalletAmount"::text                                       AS applied_wallet_amount,
@@ -169,6 +173,8 @@ export async function GET(req: NextRequest) {
       reasonAddedByBadhoTeam: r.reason_added_by_badho_team,
       reasonCategory: r.reason_category,
       createdAt: r.created_at,
+      markedPendingTime: r.marked_pending_time,
+      deliveryStatus: r.delivery_status,
       paymentEvent: r.payment_event,
       paymentAttemptId: r.payment_attempt_id,
       appliedWalletAmount: r.applied_wallet_amount ? parseFloat(r.applied_wallet_amount) : null,

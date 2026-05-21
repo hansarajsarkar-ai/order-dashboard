@@ -42,8 +42,10 @@ interface SellerSummary {
 interface ListItem {
   purchaseOrderId: string;
   status: string;
+  deliveryStatus: string | null;
   amount: number;
   createdAt: string | null;
+  markedPendingTime: string | null;
   markedRejectedTime: string | null;
   markedCancelledTime: string | null;
   rejectedOrCancelledTime: string | null;
@@ -402,8 +404,10 @@ export async function GET(req: NextRequest) {
           SELECT json_agg(json_build_object(
             'purchaseOrderId',            purchase_order_id::text,
             'status',                     po_status,
+            'deliveryStatus',             delivery_status,
             'amount',                     po_amount,
             'createdAt',                  created_at,
+            'markedPendingTime',          marked_pending_time,
             'markedRejectedTime',         marked_rejected_time,
             'markedCancelledTime',        marked_cancelled_time,
             'rejectedOrCancelledTime',    rejected_or_cancelled_time,

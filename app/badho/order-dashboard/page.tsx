@@ -2397,6 +2397,11 @@ export default function OrderStatusDashboard() {
           )}
         </div>
 
+        {/* Rejection Reason Breakdown Pivot Table */}
+        <div className="mt-8 mb-8">
+          <RejectionReasonPivotTable />
+        </div>
+
         </>
         )}
 
@@ -5559,11 +5564,6 @@ export default function OrderStatusDashboard() {
             </div>
           </div>
         )}
-
-        {/* Rejection Reason Breakdown Pivot Table */}
-        <div className="mt-8 mb-8">
-          <RejectionReasonPivotTable />
-        </div>
 
         {/* Footer */}
         <div className="mt-12 text-center text-purple-300/70 text-sm">

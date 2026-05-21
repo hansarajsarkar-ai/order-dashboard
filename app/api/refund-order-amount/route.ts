@@ -313,14 +313,71 @@ export async function GET(req: NextRequest) {
         ORDER BY rejected_or_cancelled_time DESC NULLS LAST
         LIMIT 2000
       ),
-      /* Alerts — orders pending refund > 10 minutes. Oldest first (most urgent). */
+      /* Alerts — orders pending refund > 10 minutes. Always ALL-TIME so the
+         Alerts tab is independent of whatever preset is active on the other
+         tabs (it's a current-state ops view, not a historical slice). */
       alerts_data AS (
-        SELECT *
-        FROM source
-        WHERE refund_amount IS NULL
-          AND rejected_or_cancelled_time IS NOT NULL
-          AND rejected_or_cancelled_time < NOW() - INTERVAL '10 minutes'
-        ORDER BY rejected_or_cancelled_time ASC
+        SELECT
+          a."id"                                  AS purchase_order_id,
+          a."status"                              AS po_status,
+          a."poNumber"                            AS po_number,
+          a."paymentInfo"->>'option'              AS payment_option,
+          a."deliveryStatus"                      AS delivery_status,
+          a."markedPendingTime"                   AS marked_pending_time,
+          COALESCE(a."markedRejectedTime", a."markedCancelledTime") AS rejected_or_cancelled_time,
+          a."rejectReason"                        AS reject_reason,
+          a."rejectedBy"                          AS rejected_by,
+          a."reasonAddedByBadhoTeam"              AS reason_added_by_badho_team,
+          a."created_at"                          AS created_at,
+          b."phone"                               AS buyer_phone,
+          b."businessName"                        AS buyer_business_name,
+          s."phone"                               AS seller_phone,
+          s."businessName"                        AS seller_business_name,
+          pop."paidAmount"::numeric               AS order_paid_amount,
+          pop."event"                             AS payment_event,
+          pop."appliedWalletAmount"::numeric      AS applied_wallet_amount,
+          poa."id"                                AS payment_attempt_id,
+          CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM "deliveries"."intercityDelivery" di
+              WHERE di."purchaseOrderId" = a."id"
+                AND di."status" = 'NOT PICKED'
+                AND di."autoRejectionTime" IS NOT NULL
+            )
+              THEN 'Delivery Partner SLA Breach'
+            WHEN a."deliveryStatus" = 'RTO'
+              THEN 'Rejected due to RTO'
+            WHEN COALESCE(a."rejectReason", '')           ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
+              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
+              THEN 'Brand SLA Breach'
+            WHEN COALESCE(a."rejectReason", '')           ILIKE '%serviceab%'
+              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%serviceab%'
+              THEN 'Serviceability Issue'
+            WHEN COALESCE(a."rejectReason", '')           ILIKE '%address%'
+              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%address%'
+              THEN 'Address Issue'
+            ELSE 'Other Reasons'
+          END                                     AS reason_category
+        FROM "purchaseOrder"."purchaseOrder" a
+        JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
+        JOIN "users"."seller" s   ON s."id" = a."sellerId"
+        JOIN "purchaseOrder"."purchaseOrderPayment" pop ON pop."purchaseOrderId" = a."id"
+        LEFT JOIN LATERAL (
+          SELECT poa_inner."id"
+          FROM "purchaseOrder"."purchaseOrderPaymentAttempt" poa_inner
+          WHERE poa_inner."purchaseOrderPaymentId" = pop."id"
+            AND poa_inner."status" = 'COMPLETED'
+          LIMIT 1
+        ) AS poa ON TRUE
+        LEFT JOIN "payments"."paymentRefundRecord" pfc
+          ON pfc."purchaseOrderId" = a."id"
+         AND pfc."status" = 'COMPLETED'
+        WHERE ${BASE_WHERE}
+          AND pfc."refundAmount" IS NULL
+          AND COALESCE(a."markedRejectedTime", a."markedCancelledTime") IS NOT NULL
+          AND COALESCE(a."markedRejectedTime", a."markedCancelledTime") < NOW() - INTERVAL '10 minutes'
+        ORDER BY COALESCE(a."markedRejectedTime", a."markedCancelledTime") ASC
         LIMIT 500
       )
       SELECT json_build_object(

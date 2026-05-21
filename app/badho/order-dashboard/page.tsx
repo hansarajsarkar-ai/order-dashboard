@@ -2631,12 +2631,32 @@ export default function OrderStatusDashboard() {
 
         {/* Order Anomalies — stacked bar chart by status */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5">
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
             <div>
               <h2 className="text-2xl font-bold text-white">Order Anomalies</h2>
               <p className="text-purple-300 text-sm mt-1">
                 Share of order statuses per day (100% stacked) — last 30 days
               </p>
+            </div>
+            {/* Legend chips in header */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { label: 'COMPLETED', color: '#84cc16' },
+                { label: 'DISPATCHED', color: '#818cf8' },
+                { label: 'INPROGRESS', color: '#fbcfe8' },
+                { label: 'PENDING',    color: '#ef4444' },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/70 border border-white/10"
+                >
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm"
+                    style={{ background: s.color }}
+                  />
+                  <span className="text-xs font-bold text-white tracking-wide">{s.label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -2695,7 +2715,6 @@ export default function OrderStatusDashboard() {
                       return [`${n} (${pct}%)`, String(name)];
                     }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 12, color: '#e9d5ff' }} />
                   <Bar dataKey="PENDING" stackId="status" fill="#ef4444" name="PENDING">
                     <LabelList
                       dataKey="PENDING"

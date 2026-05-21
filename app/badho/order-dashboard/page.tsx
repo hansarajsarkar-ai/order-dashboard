@@ -12,6 +12,7 @@ import {
 import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
 import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
 import RejectionReasonPivotTable from './components/RejectionReasonPivotTable';
+import CountdownCalendar from './components/CountdownCalendar';
 
 interface OrderListRow {
   poNumber: string;
@@ -1670,18 +1671,19 @@ export default function OrderStatusDashboard() {
                       </p>
                       <p className="text-white/50 text-xs mt-1">{overshoot ? 'beyond ₹1 Cr' : 'to hit ₹1 Cr'}</p>
                     </div>
-                    <div className="sm:col-span-3 bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_40px_rgba(217,70,239,0.3)]">
-                      <div className="flex items-center justify-between mb-3">
+                    <div className="sm:col-span-2 bg-white/5 border border-white/10 rounded-xl p-4 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_40px_rgba(217,70,239,0.3)]">
+                      <div className="flex items-center justify-between mb-2">
                         <p className="text-white/70 text-sm font-semibold">Progress to ₹1 Cr</p>
                         <p className="text-white/70 text-sm tabular-nums">{goalData.achievePct.toFixed(2)}%</p>
                       </div>
-                      <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
+                      <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all duration-700 ${overshoot ? 'bg-emerald-500' : 'bg-purple-500'}`}
                           style={{ width: `${Math.min(goalData.achievePct, 100)}%` }}
                         />
                       </div>
                     </div>
+                    <CountdownCalendar compact={true} />
                   </div>
                 </div>
               );

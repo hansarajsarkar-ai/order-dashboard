@@ -296,6 +296,7 @@ export async function GET(req: NextRequest) {
           COUNT(*)                                                     AS order_count,
           COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
           COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
+          COALESCE(SUM(order_paid_amount) FILTER (WHERE refund_amount IS NULL), 0) AS pending_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
           AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
         FROM source
@@ -311,6 +312,7 @@ export async function GET(req: NextRequest) {
           COUNT(*)                                                     AS order_count,
           COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
           COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
+          COALESCE(SUM(order_paid_amount) FILTER (WHERE refund_amount IS NULL), 0) AS pending_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
           AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
         FROM source
@@ -326,6 +328,7 @@ export async function GET(req: NextRequest) {
           COUNT(*)                                                     AS order_count,
           COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
           COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
+          COALESCE(SUM(order_paid_amount) FILTER (WHERE refund_amount IS NULL), 0) AS pending_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
           AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
         FROM source
@@ -340,6 +343,7 @@ export async function GET(req: NextRequest) {
           COUNT(*)                                                     AS order_count,
           COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
           COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
+          COALESCE(SUM(order_paid_amount) FILTER (WHERE refund_amount IS NULL), 0) AS pending_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders
         FROM source
         GROUP BY seller_id
@@ -457,7 +461,7 @@ export async function GET(req: NextRequest) {
             'orderCount',                 order_count,
             'paidAmount',                 paid_amount,
             'refundedAmount',             refunded_amount,
-            'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
+            'pendingAmount',              pending_amount,
             'refundedOrders',             refunded_orders,
             'avgRefundProcessingHours',   avg_refund_processing_hours
           ) ORDER BY bucket_start DESC)
@@ -472,7 +476,7 @@ export async function GET(req: NextRequest) {
             'orderCount',                 order_count,
             'paidAmount',                 paid_amount,
             'refundedAmount',             refunded_amount,
-            'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
+            'pendingAmount',              pending_amount,
             'refundedOrders',             refunded_orders,
             'avgRefundProcessingHours',   avg_refund_processing_hours
           ) ORDER BY bucket_start DESC)
@@ -487,7 +491,7 @@ export async function GET(req: NextRequest) {
             'orderCount',                 order_count,
             'paidAmount',                 paid_amount,
             'refundedAmount',             refunded_amount,
-            'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
+            'pendingAmount',              pending_amount,
             'refundedOrders',             refunded_orders,
             'avgRefundProcessingHours',   avg_refund_processing_hours
           ) ORDER BY bucket_start DESC)
@@ -501,7 +505,7 @@ export async function GET(req: NextRequest) {
             'orderCount',                 order_count,
             'paidAmount',                 paid_amount,
             'refundedAmount',             refunded_amount,
-            'pendingAmount',              GREATEST(paid_amount - refunded_amount, 0),
+            'pendingAmount',              pending_amount,
             'refundedOrders',             refunded_orders
           ))
           FROM seller_agg

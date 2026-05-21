@@ -409,19 +409,19 @@ export default function RefundOrderAmountDashboard() {
         </div>
 
         {/* Global date-range preset bar — drives every tab's data */}
-        <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
-          <div className="inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]">
+        <div className="mb-6 flex items-center gap-3 flex-wrap">
+          <div className="inline-flex gap-0.5 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]">
             {(['all', 'today', 'last7', 'day', 'week', 'month', 'custom'] as const).map((p) => {
-              const label = p === 'all' ? 'All Time' : p === 'today' ? 'Today' : p === 'last7' ? 'Last 7 days' : p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom';
+              const label = p === 'all' ? 'All' : p === 'today' ? 'Today' : p === 'last7' ? '7d' : p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom';
               const isActive = preset === p;
               return (
                 <button
                   key={p}
                   onClick={() => setPreset(p)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 ${
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all duration-150 ${
                     isActive
-                      ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_22px_rgba(217,70,239,0.55)] scale-[1.03]'
-                      : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_16px_rgba(217,70,239,0.55)] hover:scale-[1.02]'
+                      ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.55)]'
+                      : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_12px_rgba(217,70,239,0.5)]'
                   }`}
                 >
                   {label}
@@ -449,6 +449,12 @@ export default function RefundOrderAmountDashboard() {
               />
             </div>
           )}
+          {/* Tiny live indicator of the resolved range — confirms the filter is wired */}
+          <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold ml-auto whitespace-nowrap">
+            {preset === 'all'
+              ? <span>Range: <span className="text-purple-100">All time</span></span>
+              : <span>Range: <span className="text-purple-100 font-mono">{startDate}</span> → <span className="text-purple-100 font-mono">{endDate}</span></span>}
+          </div>
         </div>
 
         {error && (

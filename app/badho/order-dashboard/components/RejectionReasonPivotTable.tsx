@@ -102,6 +102,9 @@ const formatDate = (d: string | null | undefined) => {
   }
 };
 
+const CLICKABLE_CELL =
+  'cursor-pointer transition-all duration-150 hover:bg-fuchsia-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_0_2px_rgba(232,121,249,0.9)] hover:scale-[1.04]';
+
 type CsvCell = string | number | null | undefined;
 const downloadCSV = (filename: string, headers: string[], rows: CsvCell[][]) => {
   const escape = (v: CsvCell) => {
@@ -376,7 +379,8 @@ export default function RejectionReasonPivotTable() {
                       </td>
                       <td
                         onClick={() => openModal(row.reason, null, 'All months')}
-                        className="px-3 py-3 text-right font-bold text-white border-r border-purple-500/10 tabular-nums cursor-pointer hover:bg-fuchsia-500/20 hover:text-fuchsia-200"
+                        className={`px-3 py-3 text-right font-bold text-white border-r border-purple-500/10 tabular-nums underline decoration-fuchsia-400/40 decoration-dotted underline-offset-4 ${CLICKABLE_CELL}`}
+                        title="Click to view all orders for this reason"
                       >
                         {row.total.count.toLocaleString()}
                       </td>
@@ -389,7 +393,8 @@ export default function RejectionReasonPivotTable() {
                           <Fragment key={mh.key}>
                             <td
                               onClick={() => cell?.count && openModal(row.reason, mh.key, mh.label)}
-                              className={`px-2 py-3 text-right text-purple-100 tabular-nums ${cell?.count ? 'cursor-pointer hover:bg-fuchsia-500/20 hover:text-fuchsia-200 font-semibold' : ''}`}
+                              className={`px-2 py-3 text-right text-purple-100 tabular-nums ${cell?.count ? `font-semibold underline decoration-fuchsia-400/30 decoration-dotted underline-offset-4 ${CLICKABLE_CELL}` : ''}`}
+                              title={cell?.count ? `Click to view ${cell.count} orders for ${row.reason} in ${mh.label}` : ''}
                             >
                               {cell?.count?.toLocaleString() || <span className="text-purple-500/40">—</span>}
                             </td>
@@ -434,7 +439,8 @@ export default function RejectionReasonPivotTable() {
                                 <>
                                   <td
                                     onClick={() => totalCount && openModal(row.reason, null, 'All months', orderStatus, deliveryStatus)}
-                                    className={`px-3 py-2 text-right text-purple-200 tabular-nums border-r border-purple-500/10 ${totalCount ? 'cursor-pointer hover:bg-fuchsia-500/20 hover:text-fuchsia-200 font-semibold' : ''}`}
+                                    className={`px-3 py-2 text-right text-purple-200 tabular-nums border-r border-purple-500/10 ${totalCount ? `font-semibold underline decoration-fuchsia-400/30 decoration-dotted underline-offset-4 ${CLICKABLE_CELL}` : ''}`}
+                                    title={totalCount ? `Click to view ${totalCount} orders` : ''}
                                   >
                                     {totalCount.toLocaleString()}
                                   </td>
@@ -450,7 +456,8 @@ export default function RejectionReasonPivotTable() {
                                 <Fragment key={mh.key}>
                                   <td
                                     onClick={() => cell?.count && openModal(row.reason, mh.key, mh.label, orderStatus, deliveryStatus)}
-                                    className={`px-2 py-2 text-right text-purple-200/80 tabular-nums ${cell?.count ? 'cursor-pointer hover:bg-fuchsia-500/20 hover:text-fuchsia-200 font-semibold' : ''}`}
+                                    className={`px-2 py-2 text-right text-purple-200/80 tabular-nums ${cell?.count ? `font-semibold underline decoration-fuchsia-400/30 decoration-dotted underline-offset-4 ${CLICKABLE_CELL}` : ''}`}
+                                    title={cell?.count ? `Click to view ${cell.count} orders` : ''}
                                   >
                                     {cell?.count ? cell.count.toLocaleString() : <span className="text-purple-500/30">—</span>}
                                   </td>

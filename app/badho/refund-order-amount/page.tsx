@@ -36,13 +36,13 @@ function formatDay(s: string | null | undefined): string {
   const dayMonth = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
   return `${dayMonth} · ${weekday}`;
 }
-function formatBucketLabel(b: { bucketStart: string; bucketEnd: string }, g: 'day' | 'week' | 'month' | 'custom'): string {
+function formatBucketLabel(b: { bucketStart: string; bucketEnd: string }, g: 'day' | 'week' | 'month'): string {
   const parse = (s: string) => {
     const [y, m, d] = s.split('-').map(Number);
     return new Date(y, m - 1, d);
   };
   const start = parse(b.bucketStart);
-  if (g === 'day' || g === 'custom') return formatDay(b.bucketStart);
+  if (g === 'day') return formatDay(b.bucketStart);
   if (g === 'month') return start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   // week
   const end = parse(b.bucketEnd);
@@ -74,7 +74,8 @@ interface Bucket {
   refundedOrders: number;
   avgRefundProcessingHours: number | null;
 }
-type Granularity = 'day' | 'week' | 'month' | 'custom';
+type Preset = 'today' | 'last7' | 'day' | 'week' | 'month' | 'custom';
+type Granularity = 'day' | 'week' | 'month';
 type CellFilter = 'all' | 'rejected' | 'cancelled' | 'refunded' | 'pending';
 interface SellerRow {
   sellerId: string;
@@ -149,7 +150,8 @@ interface RefundApiResponse {
   topSellers: SellerRow[];
   list: ListRow[];
   alerts: AlertItem[];
-  year: number;
+  startDate: string;
+  endDate: string;
   timestamp: string;
 }
 
@@ -174,21 +176,19 @@ export default function RefundOrderAmountDashboard() {
   const [employeeName, setEmployeeName] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
   const [data, setData] = useState<RefundApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'overview' | 'sellers' | 'orders' | 'alerts'>('overview');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [granularity, setGranularity] = useState<Granularity>('month');
+  const [preset, setPreset] = useState<Preset>('month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
   // Seed custom-range inputs the first time the user switches to Custom.
   useEffect(() => {
-    if (granularity !== 'custom') return;
+    if (preset !== 'custom') return;
     if (customStart && customEnd) return;
     const today = new Date();
     const end = today.toISOString().slice(0, 10);
@@ -196,7 +196,38 @@ export default function RefundOrderAmountDashboard() {
     const start = startD.toISOString().slice(0, 10);
     setCustomStart(start);
     setCustomEnd(end);
-  }, [granularity, customStart, customEnd]);
+  }, [preset, customStart, customEnd]);
+
+  // Derive the actual date range and bucket granularity from the preset.
+  const { startDate, endDate, granularity } = useMemo<{
+    startDate: string;
+    endDate: string;
+    granularity: Granularity;
+  }>(() => {
+    const today = new Date();
+    const ymd = (d: Date) => d.toISOString().slice(0, 10);
+    const todayStr = ymd(today);
+    const yearStart = ymd(new Date(today.getFullYear(), 0, 1));
+    const yearEnd = ymd(new Date(today.getFullYear(), 11, 31));
+    switch (preset) {
+      case 'today':
+        return { startDate: todayStr, endDate: todayStr, granularity: 'day' };
+      case 'last7': {
+        const start = new Date(today);
+        start.setDate(start.getDate() - 6);
+        return { startDate: ymd(start), endDate: todayStr, granularity: 'day' };
+      }
+      case 'day':   return { startDate: yearStart, endDate: yearEnd, granularity: 'day' };
+      case 'week':  return { startDate: yearStart, endDate: yearEnd, granularity: 'week' };
+      case 'month': return { startDate: yearStart, endDate: yearEnd, granularity: 'month' };
+      case 'custom':
+        return {
+          startDate: customStart || todayStr,
+          endDate: customEnd || todayStr,
+          granularity: 'day',
+        };
+    }
+  }, [preset, customStart, customEnd]);
 
   // Modal for drilling into a bucket cell
   interface ModalRequest {
@@ -251,7 +282,8 @@ export default function RefundOrderAmountDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/refund-order-amount?year=${year}`);
+      const qs = new URLSearchParams({ startDate, endDate }).toString();
+      const res = await fetch(`/api/refund-order-amount?${qs}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
       setData(json as RefundApiResponse);
@@ -260,7 +292,7 @@ export default function RefundOrderAmountDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [year]);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     if (authChecked) fetchData();
@@ -278,15 +310,10 @@ export default function RefundOrderAmountDashboard() {
 
   const buckets = useMemo<Bucket[]>(() => {
     if (!data) return [];
-    if (granularity === 'day')   return data.byDay;
     if (granularity === 'week')  return data.byWeek;
     if (granularity === 'month') return data.byMonth;
-    // custom — day-level buckets clamped to [customStart, customEnd]
-    if (!customStart || !customEnd) return [];
-    const lo = customStart <= customEnd ? customStart : customEnd;
-    const hi = customStart <= customEnd ? customEnd : customStart;
-    return data.byDay.filter((b) => b.bucketStart >= lo && b.bucketStart <= hi);
-  }, [data, granularity, customStart, customEnd]);
+    return data.byDay;
+  }, [data, granularity]);
 
 
   // Category options derived from the data so the dropdown only shows what's
@@ -361,28 +388,61 @@ export default function RefundOrderAmountDashboard() {
               Refund Order Dashboard
             </h1>
             <p className="text-purple-200 text-sm mt-1">
-              Prepaid (FULL/PARTIAL advance) D2R orders that were rejected or cancelled. KPI cards show all-time totals; the breakdown below filters to <span className="text-purple-100 font-medium">{year}</span>.
+              Prepaid (FULL/PARTIAL advance) orders that were rejected or cancelled. KPI cards show all-time totals; everything else filters on <span className="text-purple-100 font-medium">reject/cancel date</span>{' '}
+              <span className="text-purple-100 font-medium">{startDate}</span>{' → '}
+              <span className="text-purple-100 font-medium">{endDate}</span>.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-purple-300">Year</label>
-            <select
-              value={year}
-              onChange={(e) => setYear(parseInt(e.target.value))}
-              className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-            >
-              {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
-                <option key={y} value={y} className="bg-slate-900">{y}</option>
-              ))}
-            </select>
-            <button
-              onClick={fetchData}
-              disabled={loading}
-              className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500 hover:text-white border border-fuchsia-400/30 hover:border-fuchsia-300/60 hover:shadow-[0_0_14px_rgba(217,70,239,0.55)] text-fuchsia-100 text-xs font-semibold disabled:opacity-50 transition-all duration-150"
-            >
-              {loading ? 'Loading…' : 'Refresh'}
-            </button>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500 hover:text-white border border-fuchsia-400/30 hover:border-fuchsia-300/60 hover:shadow-[0_0_14px_rgba(217,70,239,0.55)] text-fuchsia-100 text-xs font-semibold disabled:opacity-50 transition-all duration-150"
+          >
+            {loading ? 'Loading…' : '↻ Refresh'}
+          </button>
+        </div>
+
+        {/* Global date-range preset bar — drives every tab's data */}
+        <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
+          <div className="inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]">
+            {(['today', 'last7', 'day', 'week', 'month', 'custom'] as const).map((p) => {
+              const label = p === 'today' ? 'Today' : p === 'last7' ? 'Last 7 days' : p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom';
+              const isActive = preset === p;
+              return (
+                <button
+                  key={p}
+                  onClick={() => setPreset(p)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 ${
+                    isActive
+                      ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_22px_rgba(217,70,239,0.55)] scale-[1.03]'
+                      : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_16px_rgba(217,70,239,0.55)] hover:scale-[1.02]'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
+          {preset === 'custom' && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl">
+              <label className="text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold">From</label>
+              <input
+                type="date"
+                value={customStart}
+                max={customEnd || undefined}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/20 transition-colors"
+              />
+              <label className="text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold">To</label>
+              <input
+                type="date"
+                value={customEnd}
+                min={customStart || undefined}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/20 transition-colors"
+              />
+            </div>
+          )}
         </div>
 
         {error && (
@@ -421,47 +481,6 @@ export default function RefundOrderAmountDashboard() {
             );
           })}
         </div>
-
-        {/* Master granularity toggle — drives chart + breakdown table (Dashboard tab only) */}
-        {tab === 'overview' && (
-          <div className="mb-6 flex items-center justify-end gap-2 flex-wrap">
-            {granularity === 'custom' && (
-              <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
-                <label className="text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold">From</label>
-                <input
-                  type="date"
-                  value={customStart}
-                  max={customEnd || undefined}
-                  onChange={(e) => setCustomStart(e.target.value)}
-                  className="px-1.5 py-0.5 text-[11px] bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-                />
-                <label className="text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold">To</label>
-                <input
-                  type="date"
-                  value={customEnd}
-                  min={customStart || undefined}
-                  onChange={(e) => setCustomEnd(e.target.value)}
-                  className="px-1.5 py-0.5 text-[11px] bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-                />
-              </div>
-            )}
-            <div className="inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-lg">
-              {(['day', 'week', 'month', 'custom'] as const).map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setGranularity(g)}
-                  className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all duration-150 ${
-                    granularity === g
-                      ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_14px_rgba(217,70,239,0.55)]'
-                      : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_12px_rgba(217,70,239,0.5)]'
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* KPI cards — only on Dashboard tab */}
         {tab === 'overview' && (
@@ -514,12 +533,10 @@ export default function RefundOrderAmountDashboard() {
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div>
                   <h3 className="text-xl font-bold text-white">
-                    {granularity === 'day' ? 'Day-wise' : granularity === 'week' ? 'Week-wise' : granularity === 'month' ? 'Month-wise' : 'Custom Range'} Breakdown
+                    {granularity === 'day' ? 'Day-wise' : granularity === 'week' ? 'Week-wise' : 'Month-wise'} Breakdown
                   </h3>
                   <p className="text-purple-300/80 text-sm mt-1">
-                    {granularity === 'custom'
-                      ? `Day buckets · ${customStart || '—'} → ${customEnd || '—'} · ${buckets.length} days. Click any number to see the orders behind it.`
-                      : `Orders grouped by reject/cancel ${granularity} · ${buckets.length} ${granularity === 'day' ? 'days' : granularity === 'week' ? 'weeks' : 'months'}. Click any number to see the orders behind it.`}
+                    Orders grouped by reject/cancel {granularity} · {buckets.length} {granularity === 'day' ? 'days' : granularity === 'week' ? 'weeks' : 'months'} in {startDate} → {endDate}. Click any number to see the orders behind it.
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -527,7 +544,7 @@ export default function RefundOrderAmountDashboard() {
                     onClick={() => {
                       if (!buckets.length) return;
                       downloadCSV(
-                        `refund-${granularity}-${year}.csv`,
+                        `refund-${granularity}-${startDate}-${endDate}.csv`,
                         ['Period', 'Period Start', 'Period End', 'Rejected', 'Cancelled', 'Total Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders', 'Avg Refund Time (hrs)'],
                         buckets.map((b) => [
                           formatBucketLabel(b, granularity), b.bucketStart, b.bucketEnd,
@@ -548,7 +565,7 @@ export default function RefundOrderAmountDashboard() {
                   <thead className="bg-slate-900/80 backdrop-blur sticky top-0 z-10">
                     <tr className="text-purple-200 uppercase text-xs">
                       <th className="px-4 py-3 text-center">
-                        {granularity === 'day' || granularity === 'custom' ? 'Date' : granularity === 'week' ? 'Week' : 'Month'}
+                        {granularity === 'day' ? 'Date' : granularity === 'week' ? 'Week' : 'Month'}
                       </th>
                       <th className="px-4 py-3 text-center">Rejected</th>
                       <th className="px-4 py-3 text-center">Cancelled</th>
@@ -595,7 +612,7 @@ export default function RefundOrderAmountDashboard() {
                     })}
                     {!loading && !buckets.length && (
                       <tr>
-                        <td colSpan={8} className="px-4 py-10 text-center text-purple-300/70">No data for {year}.</td>
+                        <td colSpan={8} className="px-4 py-10 text-center text-purple-300/70">No data for this range.</td>
                       </tr>
                     )}
                   </tbody>
@@ -613,7 +630,7 @@ export default function RefundOrderAmountDashboard() {
                 onClick={() => {
                   if (!data?.topSellers) return;
                   downloadCSV(
-                    `refund-top-sellers-${year}.csv`,
+                    `refund-top-sellers-${startDate}-${endDate}.csv`,
                     ['Seller', 'Phone', 'Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders'],
                     data.topSellers.map((s) => [s.sellerBusinessName ?? '', s.sellerPhone ?? '', s.orderCount, s.paidAmount, s.refundedAmount, s.pendingAmount, s.refundedOrders]),
                   );
@@ -656,7 +673,7 @@ export default function RefundOrderAmountDashboard() {
                   })}
                   {!loading && !data?.topSellers?.length && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-purple-300/70">No data for {year}.</td>
+                      <td colSpan={7} className="px-4 py-8 text-center text-purple-300/70">No data for this range.</td>
                     </tr>
                   )}
                 </tbody>
@@ -706,7 +723,7 @@ export default function RefundOrderAmountDashboard() {
                 <button
                   onClick={() => {
                     downloadCSV(
-                      `refund-orders-${year}.csv`,
+                      `refund-orders-${startDate}-${endDate}.csv`,
                       ['PO Number', 'PO ID', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Applied Wallet', 'Payment Event', 'Payment Option', 'Payment Attempt ID', 'Refund Amount', 'Refund ARN', 'Created At', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                       filteredList.map((r) => [
                         r.poNumber, r.purchaseOrderId, r.status, r.reasonCategory,

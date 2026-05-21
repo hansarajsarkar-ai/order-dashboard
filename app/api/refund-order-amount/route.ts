@@ -120,8 +120,18 @@ const BASE_WHERE = `
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const currentYear = new Date().getFullYear();
-  const year = parseInt(searchParams.get('year') || String(currentYear));
+  // Date range filter, applied to rejected_or_cancelled_time (the user-provided
+  // base query filters here too). Defaults to current year if missing.
+  const today = new Date();
+  const yyyymmdd = (d: Date) => d.toISOString().slice(0, 10);
+  const yearStart = new Date(today.getFullYear(), 0, 1);
+  const startDate = searchParams.get('startDate') || yyyymmdd(yearStart);
+  const endDate   = searchParams.get('endDate')   || yyyymmdd(today);
+
+  // Basic validation — must be YYYY-MM-DD-ish (Postgres will reject anything weirder).
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    return NextResponse.json({ error: 'startDate and endDate must be YYYY-MM-DD' }, { status: 400 });
+  }
 
   try {
     // One SQL statement, one round-trip. The heavy join is run ONCE
@@ -200,8 +210,8 @@ export async function GET(req: NextRequest) {
           ON pfc."purchaseOrderId" = a."id"
          AND pfc."status" = 'COMPLETED'
         WHERE ${BASE_WHERE}
-          AND a."markedPendingTime" >= make_date($1::int, 1, 1)
-          AND a."markedPendingTime" <  make_date($1::int + 1, 1, 1)
+          AND COALESCE(a."markedRejectedTime", a."markedCancelledTime")::date >= $1::date
+          AND COALESCE(a."markedRejectedTime", a."markedCancelledTime")::date <= $2::date
       ),
       summary_agg AS (
         SELECT
@@ -463,11 +473,11 @@ export async function GET(req: NextRequest) {
       ) AS result;
     `;
 
-    const rows = await query<ResultRow>(sql, [year]);
+    const rows = await query<ResultRow>(sql, [startDate, endDate]);
     const r = rows[0]?.result;
 
     if (!r) {
-      // Year with no matching orders — return empty shells so the UI can render.
+      // No matching orders in range — return empty shells so the UI can render.
       const emptySummary = {
         totalOrders: 0, totalPaidAmount: 0, refundedOrders: 0, totalRefundedAmount: 0,
         pendingRefundAmount: 0, refundRate: 0, avgRefundAmount: 0,
@@ -477,7 +487,7 @@ export async function GET(req: NextRequest) {
         summary: emptySummary,
         summaryAllTime: emptySummary,
         byDay: [], byWeek: [], byMonth: [], topSellers: [], list: [], alerts: [],
-        year,
+        startDate, endDate,
         timestamp: new Date().toISOString(),
       });
     }
@@ -491,7 +501,7 @@ export async function GET(req: NextRequest) {
       topSellers: r.topSellers ?? [],
       list:       r.list       ?? [],
       alerts:     r.alerts     ?? [],
-      year,
+      startDate, endDate,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

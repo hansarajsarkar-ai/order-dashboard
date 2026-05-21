@@ -26,18 +26,21 @@ interface Row {
   rejected_by: string | null;
   reason_added_by_badho_team: string | null;
   reason_category: string;
+  created_at: string | null;
+  payment_event: string | null;
+  payment_attempt_id: string | null;
+  applied_wallet_amount: string | null;
+  refund_arn: string | null;
 }
 
 // Mirrors the source CTE in the main route.
 const BASE_WHERE = `
   a."status" IN ('REJECTED', 'CANCELLED')
-  AND s."isD2RBrandSeller" = TRUE
-  AND s."isTest" = FALSE
-  AND b."isTest" = FALSE
-  AND b."businessName" NOT ILIKE '%test%'
-  AND s."businessName" NOT ILIKE '%test%'
   AND pop."status" = 'COMPLETED'
   AND pop."event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
+  AND a."isTest" = FALSE
+  AND b."isTest" = FALSE
+  AND pop."paidAmount" > 0
 `;
 
 export async function GET(req: NextRequest) {
@@ -91,6 +94,11 @@ export async function GET(req: NextRequest) {
         a."rejectReason"                                                      AS reject_reason,
         a."rejectedBy"                                                        AS rejected_by,
         a."reasonAddedByBadhoTeam"                                            AS reason_added_by_badho_team,
+        a."created_at"::text                                                  AS created_at,
+        pop."event"                                                           AS payment_event,
+        poa."id"::text                                                        AS payment_attempt_id,
+        pop."appliedWalletAmount"::text                                       AS applied_wallet_amount,
+        pfc."refundARN"                                                       AS refund_arn,
         CASE
           WHEN EXISTS (
             SELECT 1
@@ -117,6 +125,13 @@ export async function GET(req: NextRequest) {
       JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
       JOIN "users"."seller" s   ON s."id" = a."sellerId"
       JOIN "purchaseOrder"."purchaseOrderPayment" pop ON pop."purchaseOrderId" = a."id"
+      LEFT JOIN LATERAL (
+        SELECT poa_inner."id"
+        FROM "purchaseOrder"."purchaseOrderPaymentAttempt" poa_inner
+        WHERE poa_inner."purchaseOrderPaymentId" = pop."id"
+          AND poa_inner."status" = 'COMPLETED'
+        LIMIT 1
+      ) AS poa ON TRUE
       LEFT JOIN "payments"."paymentRefundRecord" pfc
         ON pfc."purchaseOrderId" = a."id"
        AND pfc."status" = 'COMPLETED'
@@ -153,6 +168,11 @@ export async function GET(req: NextRequest) {
       rejectedBy: r.rejected_by,
       reasonAddedByBadhoTeam: r.reason_added_by_badho_team,
       reasonCategory: r.reason_category,
+      createdAt: r.created_at,
+      paymentEvent: r.payment_event,
+      paymentAttemptId: r.payment_attempt_id,
+      appliedWalletAmount: r.applied_wallet_amount ? parseFloat(r.applied_wallet_amount) : null,
+      refundARN: r.refund_arn,
     }));
 
     return NextResponse.json({

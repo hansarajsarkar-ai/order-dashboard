@@ -90,17 +90,22 @@ interface ListRow {
   purchaseOrderId: string;
   status: string;
   amount: number;
+  createdAt: string | null;
   markedRejectedTime: string | null;
   markedCancelledTime: string | null;
   rejectedOrCancelledTime: string | null;
   poNumber: string;
   paymentOption: string | null;
+  paymentEvent: string | null;
+  paymentAttemptId: string | null;
+  appliedWalletAmount: number | null;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
   sellerPhone: string | null;
   sellerBusinessName: string | null;
   orderPaidAmount: number;
   refundAmount: number | null;
+  refundARN: string | null;
   markedStatusCompletedTime: string | null;
   markedStatusInitiatedTime: string | null;
   refundProcessingHours: number | null;
@@ -116,10 +121,14 @@ interface AlertItem {
   poNumber: string;
   paidAmount: number;
   paymentOption: string | null;
+  paymentEvent: string | null;
+  paymentAttemptId: string | null;
+  appliedWalletAmount: number | null;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
   sellerPhone: string | null;
   sellerBusinessName: string | null;
+  createdAt: string | null;
   markedPendingTime: string | null;
   rejectedOrCancelledTime: string | null;
   minutesPending: number;
@@ -689,11 +698,13 @@ export default function RefundOrderAmountDashboard() {
                   onClick={() => {
                     downloadCSV(
                       `refund-orders-${year}.csv`,
-                      ['PO Number', 'PO ID', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                      ['PO Number', 'PO ID', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Applied Wallet', 'Payment Event', 'Payment Option', 'Payment Attempt ID', 'Refund Amount', 'Refund ARN', 'Created At', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                       filteredList.map((r) => [
                         r.poNumber, r.purchaseOrderId, r.status, r.reasonCategory,
-                        r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
-                        r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
+                        r.amount, r.orderPaidAmount, r.appliedWalletAmount ?? '',
+                        r.paymentEvent ?? '', r.paymentOption ?? '', r.paymentAttemptId ?? '',
+                        r.refundAmount ?? '', r.refundARN ?? '',
+                        r.createdAt ?? '', r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
                         r.hoursTillRefund ?? '', r.buyerBusinessName ?? '', r.buyerPhone ?? '',
                         r.sellerBusinessName ?? '', r.sellerPhone ?? '',
                         r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? '',
@@ -717,6 +728,7 @@ export default function RefundOrderAmountDashboard() {
                     <th className="px-3 py-2 text-right">Order Amt</th>
                     <th className="px-3 py-2 text-right">Paid</th>
                     <th className="px-3 py-2 text-right">Refund</th>
+                    <th className="px-3 py-2 text-left">Refund ARN</th>
                     <th className="px-3 py-2 text-left">Payment</th>
                     <th className="px-3 py-2 text-left">Reject/Cancel At</th>
                     <th className="px-3 py-2 text-left">Refunded At</th>
@@ -754,6 +766,9 @@ export default function RefundOrderAmountDashboard() {
                       <td className={`px-3 py-2 text-right tabular-nums font-semibold ${r.refundAmount != null ? 'text-emerald-300' : 'text-rose-300/70'}`}>
                         {r.refundAmount != null ? formatAmount(r.refundAmount) : 'Pending'}
                       </td>
+                      <td className="px-3 py-2 text-emerald-200/90 font-mono text-[10px] select-all" title={r.refundARN || ''}>
+                        {r.refundARN || <span className="text-purple-400/50 italic">—</span>}
+                      </td>
                       <td className="px-3 py-2 text-purple-200">{r.paymentOption ?? '—'}</td>
                       <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.rejectedOrCancelledTime)}</td>
                       <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedStatusCompletedTime)}</td>
@@ -777,7 +792,7 @@ export default function RefundOrderAmountDashboard() {
                   ))}
                   {!loading && filteredList.length === 0 && (
                     <tr>
-                      <td colSpan={16} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
+                      <td colSpan={17} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
                     </tr>
                   )}
                 </tbody>
@@ -823,11 +838,13 @@ export default function RefundOrderAmountDashboard() {
                     onClick={() => {
                       downloadCSV(
                         `refund-${modal.filter}-${modal.startDate}-${modal.endDate}.csv`,
-                        ['PO Number', 'PO ID', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                        ['PO Number', 'PO ID', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Applied Wallet', 'Payment Event', 'Payment Option', 'Payment Attempt ID', 'Refund Amount', 'Refund ARN', 'Created At', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                         modalOrders.map((r) => [
                           r.poNumber, r.purchaseOrderId, r.status, r.reasonCategory,
-                          r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
-                          r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
+                          r.amount, r.orderPaidAmount, r.appliedWalletAmount ?? '',
+                          r.paymentEvent ?? '', r.paymentOption ?? '', r.paymentAttemptId ?? '',
+                          r.refundAmount ?? '', r.refundARN ?? '',
+                          r.createdAt ?? '', r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
                           r.hoursTillRefund ?? '', r.buyerBusinessName ?? '', r.buyerPhone ?? '',
                           r.sellerBusinessName ?? '', r.sellerPhone ?? '',
                           r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? '',
@@ -869,6 +886,7 @@ export default function RefundOrderAmountDashboard() {
                         <th className="px-3 py-2 text-right">Order Amt</th>
                         <th className="px-3 py-2 text-right">Paid</th>
                         <th className="px-3 py-2 text-right">Refund</th>
+                        <th className="px-3 py-2 text-left">Refund ARN</th>
                         <th className="px-3 py-2 text-left">Payment</th>
                         <th className="px-3 py-2 text-left">Reject/Cancel At</th>
                         <th className="px-3 py-2 text-left">Refunded At</th>
@@ -905,6 +923,9 @@ export default function RefundOrderAmountDashboard() {
                           <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.orderPaidAmount)}</td>
                           <td className={`px-3 py-2 text-right tabular-nums font-semibold ${r.refundAmount != null ? 'text-emerald-300' : 'text-rose-300/70'}`}>
                             {r.refundAmount != null ? formatAmount(r.refundAmount) : 'Pending'}
+                          </td>
+                          <td className="px-3 py-2 text-emerald-200/90 font-mono text-[10px] select-all" title={r.refundARN || ''}>
+                            {r.refundARN || <span className="text-purple-400/50 italic">—</span>}
                           </td>
                           <td className="px-3 py-2 text-purple-200">{r.paymentOption ?? '—'}</td>
                           <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.rejectedOrCancelledTime)}</td>
@@ -1204,12 +1225,13 @@ function AlertsTabContent({
               onClick={() => {
                 downloadCSV(
                   `refund-alerts-${new Date().toISOString().slice(0, 10)}.csv`,
-                  ['PO Number', 'PO ID', 'Status', 'Delivery Status', 'Paid Amount', 'Payment Option', 'Reason Category', 'Pending For', 'Order Placed At', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                  ['PO Number', 'PO ID', 'Status', 'Delivery Status', 'Paid Amount', 'Applied Wallet', 'Payment Event', 'Payment Option', 'Payment Attempt ID', 'Reason Category', 'Pending For', 'Created At', 'Order Placed At', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                   alerts.map((a) => [
-                    a.poNumber, a.purchaseOrderId, a.status, a.deliveryStatus ?? '', a.paidAmount, a.paymentOption ?? '',
+                    a.poNumber, a.purchaseOrderId, a.status, a.deliveryStatus ?? '', a.paidAmount,
+                    a.appliedWalletAmount ?? '', a.paymentEvent ?? '', a.paymentOption ?? '', a.paymentAttemptId ?? '',
                     a.reasonCategory,
                     formatPendingDuration(a.minutesPending),
-                    a.markedPendingTime ?? '', a.rejectedOrCancelledTime ?? '',
+                    a.createdAt ?? '', a.markedPendingTime ?? '', a.rejectedOrCancelledTime ?? '',
                     a.buyerBusinessName ?? '', a.buyerPhone ?? '',
                     a.sellerBusinessName ?? '', a.sellerPhone ?? '',
                     a.rejectReason ?? '', a.rejectedBy ?? '', a.reasonAddedByBadhoTeam ?? '',

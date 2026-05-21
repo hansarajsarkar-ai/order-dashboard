@@ -43,17 +43,22 @@ interface ListItem {
   purchaseOrderId: string;
   status: string;
   amount: number;
+  createdAt: string | null;
   markedRejectedTime: string | null;
   markedCancelledTime: string | null;
   rejectedOrCancelledTime: string | null;
   poNumber: string;
   paymentOption: string | null;
+  paymentEvent: string | null;
+  paymentAttemptId: string | null;
+  appliedWalletAmount: number | null;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
   sellerPhone: string | null;
   sellerBusinessName: string | null;
   orderPaidAmount: number;
   refundAmount: number | null;
+  refundARN: string | null;
   markedStatusCompletedTime: string | null;
   markedStatusInitiatedTime: string | null;
   refundProcessingHours: number | null;
@@ -70,10 +75,14 @@ interface AlertItem {
   poNumber: string;
   paidAmount: number;
   paymentOption: string | null;
+  paymentEvent: string | null;
+  paymentAttemptId: string | null;
+  appliedWalletAmount: number | null;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
   sellerPhone: string | null;
   sellerBusinessName: string | null;
+  createdAt: string | null;
   markedPendingTime: string | null;
   rejectedOrCancelledTime: string | null;
   minutesPending: number;
@@ -100,13 +109,11 @@ interface ResultRow {
 // Shared filters from the user-provided base query
 const BASE_WHERE = `
   a."status" IN ('REJECTED', 'CANCELLED')
-  AND s."isD2RBrandSeller" = TRUE
-  AND s."isTest" = FALSE
-  AND b."isTest" = FALSE
-  AND b."businessName" NOT ILIKE '%test%'
-  AND s."businessName" NOT ILIKE '%test%'
   AND pop."status" = 'COMPLETED'
   AND pop."event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
+  AND a."isTest" = FALSE
+  AND b."isTest" = FALSE
+  AND pop."paidAmount" > 0
 `;
 
 export async function GET(req: NextRequest) {
@@ -125,6 +132,7 @@ export async function GET(req: NextRequest) {
           a."id"                                  AS purchase_order_id,
           a."status"                              AS po_status,
           a."amount"::numeric                     AS po_amount,
+          a."created_at"                          AS created_at,
           a."markedPendingTime"                   AS marked_pending_time,
           a."markedRejectedTime"                  AS marked_rejected_time,
           a."markedCancelledTime"                 AS marked_cancelled_time,
@@ -137,7 +145,11 @@ export async function GET(req: NextRequest) {
           s."phone"                               AS seller_phone,
           s."businessName"                        AS seller_business_name,
           pop."paidAmount"::numeric               AS order_paid_amount,
+          pop."event"                             AS payment_event,
+          pop."appliedWalletAmount"::numeric      AS applied_wallet_amount,
+          poa."id"                                AS payment_attempt_id,
           pfc."refundAmount"::numeric             AS refund_amount,
+          pfc."refundARN"                         AS refund_arn,
           pfc."markedStatusCompletedTime"         AS marked_status_completed_time,
           pfc."markedStatusInitiatedTime"         AS marked_status_initiated_time,
           EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime" - pfc."markedStatusInitiatedTime")) / 3600
@@ -175,6 +187,13 @@ export async function GET(req: NextRequest) {
         JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
         JOIN "users"."seller" s   ON s."id" = a."sellerId"
         JOIN "purchaseOrder"."purchaseOrderPayment" pop ON pop."purchaseOrderId" = a."id"
+        LEFT JOIN LATERAL (
+          SELECT poa_inner."id"
+          FROM "purchaseOrder"."purchaseOrderPaymentAttempt" poa_inner
+          WHERE poa_inner."purchaseOrderPaymentId" = pop."id"
+            AND poa_inner."status" = 'COMPLETED'
+          LIMIT 1
+        ) AS poa ON TRUE
         LEFT JOIN "payments"."paymentRefundRecord" pfc
           ON pfc."purchaseOrderId" = a."id"
          AND pfc."status" = 'COMPLETED'
@@ -384,17 +403,22 @@ export async function GET(req: NextRequest) {
             'purchaseOrderId',            purchase_order_id::text,
             'status',                     po_status,
             'amount',                     po_amount,
+            'createdAt',                  created_at,
             'markedRejectedTime',         marked_rejected_time,
             'markedCancelledTime',        marked_cancelled_time,
             'rejectedOrCancelledTime',    rejected_or_cancelled_time,
             'poNumber',                   po_number,
             'paymentOption',              payment_option,
+            'paymentEvent',               payment_event,
+            'paymentAttemptId',           payment_attempt_id::text,
+            'appliedWalletAmount',        applied_wallet_amount,
             'buyerPhone',                 buyer_phone,
             'buyerBusinessName',          buyer_business_name,
             'sellerPhone',                seller_phone,
             'sellerBusinessName',         seller_business_name,
             'orderPaidAmount',            order_paid_amount,
             'refundAmount',               refund_amount,
+            'refundARN',                  refund_arn,
             'markedStatusCompletedTime',  marked_status_completed_time,
             'markedStatusInitiatedTime',  marked_status_initiated_time,
             'refundProcessingHours',      refund_processing_hours,
@@ -413,10 +437,14 @@ export async function GET(req: NextRequest) {
             'poNumber',                 po_number,
             'paidAmount',               order_paid_amount,
             'paymentOption',            payment_option,
+            'paymentEvent',             payment_event,
+            'paymentAttemptId',         payment_attempt_id::text,
+            'appliedWalletAmount',      applied_wallet_amount,
             'buyerPhone',               buyer_phone,
             'buyerBusinessName',        buyer_business_name,
             'sellerPhone',              seller_phone,
             'sellerBusinessName',       seller_business_name,
+            'createdAt',                created_at,
             'markedPendingTime',        marked_pending_time,
             'rejectedOrCancelledTime',  rejected_or_cancelled_time,
             'minutesPending',           EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 60,

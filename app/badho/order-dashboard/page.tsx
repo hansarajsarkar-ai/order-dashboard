@@ -2188,6 +2188,11 @@ export default function OrderStatusDashboard() {
 
 
 
+        {/* Rejection Reason Breakdown Pivot Table */}
+        <div className="mt-8 mb-8">
+          <RejectionReasonPivotTable />
+        </div>
+
         {/* MonthWiseOrder funnel — rows = months desc, cols = totals + 5 stages */}
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)] funnel-monthwise-marker">
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
@@ -2395,11 +2400,6 @@ export default function OrderStatusDashboard() {
               {funnelData.data.length} {funnelData.data.length === 1 ? 'row' : 'rows'}
             </div>
           )}
-        </div>
-
-        {/* Rejection Reason Breakdown Pivot Table */}
-        <div className="mt-8 mb-8">
-          <RejectionReasonPivotTable />
         </div>
 
         </>

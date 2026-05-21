@@ -8,9 +8,7 @@ interface DrilldownCell {
 }
 
 interface MonthData {
-  [deliveryStatus: string]: {
-    [paymentStatus: string]: DrilldownCell;
-  };
+  [comboKey: string]: DrilldownCell;
 }
 
 interface ReasonRow {
@@ -197,15 +195,12 @@ export default function RejectionReasonPivotTable() {
             {data.data.map((row) => {
               const color = getReasonColor(row.reason);
               const isExpanded = expandedReasons.has(row.reason);
-              const totalCols = 3 + monthHeaders.length * 2;
 
-              // Build drill-down rows: deliveryStatus + paymentStatus combinations
+              // Build drill-down rows: orderStatus + deliveryStatus combinations
               const subRowKeys = new Set<string>();
               for (const monthKey of Object.keys(row.drilldown)) {
-                for (const ds of Object.keys(row.drilldown[monthKey])) {
-                  for (const ps of Object.keys(row.drilldown[monthKey][ds])) {
-                    subRowKeys.add(`${ds}|||${ps}`);
-                  }
+                for (const combo of Object.keys(row.drilldown[monthKey])) {
+                  subRowKeys.add(combo);
                 }
               }
               const subRows = Array.from(subRowKeys).sort();
@@ -252,7 +247,7 @@ export default function RejectionReasonPivotTable() {
                   {/* Drill-down sub-rows */}
                   {isExpanded &&
                     subRows.map((sr) => {
-                      const [ds, ps] = sr.split('|||');
+                      const [orderStatus, deliveryStatus] = sr.split('|||');
                       return (
                         <tr
                           key={`${row.reason}-${sr}`}
@@ -261,12 +256,14 @@ export default function RejectionReasonPivotTable() {
                           <td className="px-4 py-2 sticky left-0 bg-slate-950/80 z-10 border-r border-purple-500/10">
                             <div className="pl-8 flex items-center gap-2">
                               <span className="text-purple-500">└</span>
-                              <span className="text-purple-300/90">
-                                <span className="text-purple-400/60 mr-1">Delivery:</span>
-                                <span className="font-medium">{ds}</span>
-                                <span className="mx-2 text-purple-500/40">·</span>
-                                <span className="text-purple-400/60 mr-1">Pay:</span>
-                                <span className="font-medium">{ps}</span>
+                              <span className="text-purple-300/90 flex items-center gap-2 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-200 font-semibold text-[10px]">
+                                  {orderStatus}
+                                </span>
+                                <span className="text-purple-500/50">+</span>
+                                <span className="px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-200 font-semibold text-[10px]">
+                                  {deliveryStatus}
+                                </span>
                               </span>
                             </div>
                           </td>
@@ -274,7 +271,7 @@ export default function RejectionReasonPivotTable() {
                             let totalCount = 0;
                             let totalAmount = 0;
                             for (const monthKey of Object.keys(row.drilldown)) {
-                              const cell = row.drilldown[monthKey]?.[ds]?.[ps];
+                              const cell = row.drilldown[monthKey]?.[sr];
                               if (cell) {
                                 totalCount += cell.count;
                                 totalAmount += cell.amount;
@@ -292,7 +289,7 @@ export default function RejectionReasonPivotTable() {
                             );
                           })()}
                           {monthHeaders.map((mh) => {
-                            const cell = row.drilldown[mh.key]?.[ds]?.[ps];
+                            const cell = row.drilldown[mh.key]?.[sr];
                             return (
                               <Fragment key={mh.key}>
                                 <td className="px-2 py-2 text-right text-purple-200/80 tabular-nums">

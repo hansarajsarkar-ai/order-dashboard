@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic';
 
 interface RejectReasonRow {
   reason_category: string;
+  order_status: string | null;
   delivery_status: string | null;
-  status: string | null;
   month: string;
   count: string;
   amount: string;
@@ -42,18 +42,14 @@ export async function GET(req: NextRequest) {
             THEN 'Address Issue'
           ELSE 'Other Reasons'
         END AS reason_category,
-        po."deliveryStatus",
-        pop."status",
+        po."status" AS order_status,
+        po."deliveryStatus" AS delivery_status,
         TO_CHAR(po."markedPendingTime", 'YYYY-MM') AS month,
         COUNT(*) AS count,
         COALESCE(SUM(po."amount"::numeric), 0)::text AS amount
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer" b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
-      LEFT JOIN "purchaseOrder"."purchaseOrderPayment" pop
-        ON pop."purchaseOrderId" = po."id"
-        AND pop."status" = 'COMPLETED'
-        AND pop."event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
       WHERE s."isD2RBrandSeller" = TRUE
         AND s."isTest" = FALSE
         AND s."businessName" NOT ILIKE '%test%'
@@ -66,13 +62,14 @@ export async function GET(req: NextRequest) {
         AND po."status" = 'REJECTED'
         AND po."markedPendingTime" IS NOT NULL
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
-      GROUP BY reason_category, po."deliveryStatus", pop."status", month
-      ORDER BY reason_category, month, po."deliveryStatus", pop."status";
+      GROUP BY reason_category, po."status", po."deliveryStatus", month
+      ORDER BY reason_category, month, po."status", po."deliveryStatus";
     `;
 
     const rows = await query<RejectReasonRow>(sql, [year]);
 
-    const reasonMap: Record<string, Record<string, Record<string, Record<string, { count: number; amount: number }>>>> = {};
+    // reasonMap[reason][month][orderStatus|||deliveryStatus] = { count, amount }
+    const reasonMap: Record<string, Record<string, Record<string, { count: number; amount: number }>>> = {};
     const totals = {
       byMonth: {} as Record<string, { count: number; amount: number }>,
       byReason: {} as Record<string, { count: number; amount: number }>,
@@ -81,17 +78,17 @@ export async function GET(req: NextRequest) {
 
     for (const r of rows) {
       const reason = r.reason_category;
+      const orderStatus = r.order_status || 'N/A';
       const deliveryStatus = r.delivery_status || 'N/A';
-      const paymentStatus = r.status || 'N/A';
       const month = r.month;
       const count = parseInt(r.count);
       const amount = parseFloat(r.amount);
+      const comboKey = `${orderStatus}|||${deliveryStatus}`;
 
       if (!reasonMap[reason]) reasonMap[reason] = {};
       if (!reasonMap[reason][month]) reasonMap[reason][month] = {};
-      if (!reasonMap[reason][month][deliveryStatus]) reasonMap[reason][month][deliveryStatus] = {};
 
-      reasonMap[reason][month][deliveryStatus][paymentStatus] = { count, amount };
+      reasonMap[reason][month][comboKey] = { count, amount };
 
       if (!totals.byMonth[month]) totals.byMonth[month] = { count: 0, amount: 0 };
       totals.byMonth[month].count += count;
@@ -117,12 +114,10 @@ export async function GET(req: NextRequest) {
         let monthCount = 0;
         let monthAmount = 0;
 
-        for (const deliveryStatus in monthData[month]) {
-          for (const paymentStatus in monthData[month][deliveryStatus]) {
-            const cell = monthData[month][deliveryStatus][paymentStatus];
-            monthCount += cell.count;
-            monthAmount += cell.amount;
-          }
+        for (const combo in monthData[month]) {
+          const cell = monthData[month][combo];
+          monthCount += cell.count;
+          monthAmount += cell.amount;
         }
 
         months[month] = { count: monthCount, amount: monthAmount };

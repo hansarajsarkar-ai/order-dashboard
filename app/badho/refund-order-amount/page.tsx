@@ -493,11 +493,18 @@ export default function RefundOrderAmountDashboard() {
 
         {tab === 'overview' && (
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
-              <MiniStat label="Avg Refund / Order" value={s ? formatAmount(s.avgRefundAmount) : '—'} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <MiniStat label="Avg Refund / Order" value={s ? formatAmount(s.avgRefundAmount) : '—'} hint="per completed refund" />
               <MiniStat label="Refund Processing" value={formatHours(s?.avgRefundProcessingHours ?? null)} hint="initiated → completed" />
               <MiniStat label="Reject/Cancel → Refund" value={formatHours(s?.avgHoursTillRefund ?? null)} hint="reject/cancel → completed" />
-              <MiniStat label="Unrefunded Orders" value={s ? (s.totalOrders - s.refundedOrders).toLocaleString('en-IN') : '—'} />
+              <MiniStat
+                label="Unrefunded Orders"
+                value={s ? (s.totalOrders - s.refundedOrders).toLocaleString('en-IN') : '—'}
+                hint={s && s.totalOrders - s.refundedOrders > 0 ? `${formatAmount(s.pendingRefundAmount)} stuck` : 'All caught up'}
+                tone={s && s.totalOrders - s.refundedOrders > 0 ? 'alert' : 'default'}
+                onClick={s && s.totalOrders - s.refundedOrders > 0 ? () => setTab('alerts') : undefined}
+                action={s && s.totalOrders - s.refundedOrders > 0 ? 'Investigate why' : undefined}
+              />
             </div>
 
             {/* Granular breakdown — Day / Week / Month / Custom */}
@@ -974,13 +981,43 @@ function KpiCard({ label, value, hint, tint }: { label: string; value: string; h
   );
 }
 
-function MiniStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function MiniStat({
+  label, value, hint, onClick, action, tone,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  onClick?: () => void;
+  action?: string;
+  tone?: 'default' | 'alert';
+}) {
+  const isAlert = tone === 'alert';
+  const isClickable = !!onClick;
+  const Wrapper: 'button' | 'div' = isClickable ? 'button' : 'div';
   return (
-    <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-purple-300/80">{label}</div>
-      <div className="text-base font-bold text-white tabular-nums">{value}</div>
-      {hint && <div className="text-[10px] text-purple-300/60">{hint}</div>}
-    </div>
+    <Wrapper
+      onClick={onClick}
+      className={`relative rounded-xl px-5 py-4 border backdrop-blur-xl text-left transition-all duration-150 ${
+        isAlert
+          ? 'bg-gradient-to-br from-rose-500/20 to-orange-500/10 border-rose-400/30'
+          : 'bg-white/5 border-white/10'
+      } ${
+        isClickable
+          ? (isAlert
+              ? 'hover:from-rose-500/35 hover:to-orange-500/20 hover:border-rose-300/60 hover:shadow-[0_0_20px_rgba(244,63,94,0.35)] cursor-pointer'
+              : 'hover:bg-white/10 hover:border-fuchsia-400/40 hover:shadow-[0_0_18px_rgba(217,70,239,0.3)] cursor-pointer')
+          : ''
+      }`}
+    >
+      <div className={`text-xs uppercase tracking-wider font-semibold ${isAlert ? 'text-rose-200' : 'text-purple-200/80'}`}>{label}</div>
+      <div className={`text-3xl md:text-4xl font-black tabular-nums tracking-tight mt-1 ${isAlert ? 'text-white drop-shadow-[0_0_12px_rgba(244,63,94,0.5)]' : 'text-white'}`}>{value}</div>
+      {hint && <div className={`text-xs mt-1 ${isAlert ? 'text-rose-200/80' : 'text-purple-200/70'}`}>{hint}</div>}
+      {isClickable && action && (
+        <div className={`mt-2 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 ${isAlert ? 'text-rose-200' : 'text-fuchsia-300'}`}>
+          {action} <span aria-hidden>→</span>
+        </div>
+      )}
+    </Wrapper>
   );
 }
 

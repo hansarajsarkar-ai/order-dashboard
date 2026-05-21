@@ -131,6 +131,7 @@ interface AlertItem {
 }
 interface RefundApiResponse {
   summary: Summary;
+  summaryAllTime: Summary;
   byDay: Bucket[];
   byWeek: Bucket[];
   byMonth: Bucket[];
@@ -305,7 +306,9 @@ export default function RefundOrderAmountDashboard() {
     );
   }
 
-  const s = data?.summary;
+  // KPI cards + mini-stats show all-time totals (across every year),
+  // independent of the breakdown table's year/granularity filter.
+  const s = data?.summaryAllTime;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8 relative overflow-hidden">
@@ -347,7 +350,7 @@ export default function RefundOrderAmountDashboard() {
               Refund Order Dashboard
             </h1>
             <p className="text-purple-200 text-sm mt-1">
-              Prepaid (FULL/PARTIAL advance) D2R orders that were rejected or cancelled — tracked against refunds completed in <span className="text-purple-100 font-medium">{year}</span>.
+              Prepaid (FULL/PARTIAL advance) D2R orders that were rejected or cancelled. KPI cards show all-time totals; the breakdown below filters to <span className="text-purple-100 font-medium">{year}</span>.
             </p>
           </div>
           <div className="flex items-center gap-2">

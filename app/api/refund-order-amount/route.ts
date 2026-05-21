@@ -87,6 +87,7 @@ interface AlertItem {
 interface ResultRow {
   result: {
     summary: Summary;
+    summaryAllTime: Summary;
     byDay: Bucket[] | null;
     byWeek: Bucket[] | null;
     byMonth: Bucket[] | null;
@@ -191,6 +192,31 @@ export async function GET(req: NextRequest) {
           AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_time_till_refund_hours
         FROM source
       ),
+      /* All-time summary — same join as source but WITHOUT the year predicate.
+         Only computes aggregates, doesn't materialize row data, so it stays cheap. */
+      all_time_summary_agg AS (
+        SELECT
+          COUNT(*)                                                          AS total_orders,
+          COALESCE(SUM(pop."paidAmount"::numeric), 0)                       AS total_paid_amount,
+          COUNT(*) FILTER (WHERE pfc."refundAmount" IS NOT NULL)            AS refunded_orders,
+          COALESCE(SUM(pfc."refundAmount"::numeric), 0)                     AS total_refunded_amount,
+          AVG(EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime" - pfc."markedStatusInitiatedTime")) / 3600)
+            FILTER (WHERE pfc."markedStatusInitiatedTime" IS NOT NULL
+                      AND pfc."markedStatusCompletedTime" IS NOT NULL)      AS avg_refund_time_hours,
+          AVG(EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime"
+            - COALESCE(a."markedRejectedTime", a."markedCancelledTime"))) / 3600)
+            FILTER (WHERE pfc."markedStatusCompletedTime" IS NOT NULL
+                      AND COALESCE(a."markedRejectedTime", a."markedCancelledTime") IS NOT NULL)
+                                                                            AS avg_time_till_refund_hours
+        FROM "purchaseOrder"."purchaseOrder" a
+        JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
+        JOIN "users"."seller" s   ON s."id" = a."sellerId"
+        JOIN "purchaseOrder"."purchaseOrderPayment" pop ON pop."purchaseOrderId" = a."id"
+        LEFT JOIN "payments"."paymentRefundRecord" pfc
+          ON pfc."purchaseOrderId" = a."id"
+         AND pfc."status" = 'COMPLETED'
+        WHERE ${BASE_WHERE}
+      ),
       day_agg AS (
         SELECT
           date_trunc('day', rejected_or_cancelled_time)::date          AS bucket_start,
@@ -280,6 +306,20 @@ export async function GET(req: NextRequest) {
             'avgHoursTillRefund',         avg_time_till_refund_hours
           )
           FROM summary_agg
+        ),
+        'summaryAllTime', (
+          SELECT json_build_object(
+            'totalOrders',                total_orders,
+            'totalPaidAmount',            total_paid_amount,
+            'refundedOrders',             refunded_orders,
+            'totalRefundedAmount',        total_refunded_amount,
+            'pendingRefundAmount',        GREATEST(total_paid_amount - total_refunded_amount, 0),
+            'refundRate',                 CASE WHEN total_orders > 0 THEN ROUND((refunded_orders::numeric / total_orders) * 100, 2) ELSE 0 END,
+            'avgRefundAmount',            CASE WHEN refunded_orders > 0 THEN total_refunded_amount / refunded_orders ELSE 0 END,
+            'avgRefundProcessingHours',   avg_refund_time_hours,
+            'avgHoursTillRefund',         avg_time_till_refund_hours
+          )
+          FROM all_time_summary_agg
         ),
         'byDay', (
           SELECT json_agg(json_build_object(
@@ -396,12 +436,14 @@ export async function GET(req: NextRequest) {
 
     if (!r) {
       // Year with no matching orders — return empty shells so the UI can render.
+      const emptySummary = {
+        totalOrders: 0, totalPaidAmount: 0, refundedOrders: 0, totalRefundedAmount: 0,
+        pendingRefundAmount: 0, refundRate: 0, avgRefundAmount: 0,
+        avgRefundProcessingHours: null, avgHoursTillRefund: null,
+      };
       return NextResponse.json({
-        summary: {
-          totalOrders: 0, totalPaidAmount: 0, refundedOrders: 0, totalRefundedAmount: 0,
-          pendingRefundAmount: 0, refundRate: 0, avgRefundAmount: 0,
-          avgRefundProcessingHours: null, avgHoursTillRefund: null,
-        },
+        summary: emptySummary,
+        summaryAllTime: emptySummary,
         byDay: [], byWeek: [], byMonth: [], topSellers: [], list: [], alerts: [],
         year,
         timestamp: new Date().toISOString(),
@@ -410,6 +452,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       summary: r.summary,
+      summaryAllTime: r.summaryAllTime,
       byDay:      r.byDay      ?? [],
       byWeek:     r.byWeek     ?? [],
       byMonth:    r.byMonth    ?? [],

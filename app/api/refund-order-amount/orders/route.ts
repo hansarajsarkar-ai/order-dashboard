@@ -35,14 +35,41 @@ interface Row {
   refund_arn: string | null;
 }
 
-// Mirrors the source CTE in the main route.
+// Mirrors the source CTE in the main route. Payment / refund filters live
+// inside the pre-aggregation subqueries below so each PO contributes one row.
 const BASE_WHERE = `
   a."status" IN ('REJECTED', 'CANCELLED')
-  AND pop."status" = 'COMPLETED'
-  AND pop."event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
   AND a."isTest" = FALSE
   AND b."isTest" = FALSE
-  AND pop."paidAmount" > 0
+`;
+
+const POP_AGG_JOIN = `
+  JOIN (
+    SELECT
+      "purchaseOrderId",
+      SUM("paidAmount"::numeric)               AS total_paid,
+      SUM(COALESCE("appliedWalletAmount", 0)::numeric) AS total_wallet,
+      STRING_AGG(DISTINCT "event", ', ' ORDER BY "event") AS payment_event
+    FROM "purchaseOrder"."purchaseOrderPayment"
+    WHERE "status" = 'COMPLETED'
+      AND "event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
+    GROUP BY "purchaseOrderId"
+    HAVING SUM("paidAmount"::numeric) > 0
+  ) AS pop_agg ON pop_agg."purchaseOrderId" = a."id"
+`;
+
+const PFC_AGG_JOIN = `
+  LEFT JOIN (
+    SELECT
+      "purchaseOrderId",
+      SUM("refundAmount"::numeric)                       AS total_refund,
+      MAX("markedStatusCompletedTime")                   AS latest_completed_time,
+      MAX("markedStatusInitiatedTime")                   AS latest_initiated_time,
+      (ARRAY_AGG("refundARN" ORDER BY "markedStatusCompletedTime" DESC NULLS LAST))[1] AS latest_refund_arn
+    FROM "payments"."paymentRefundRecord"
+    WHERE "status" = 'COMPLETED'
+    GROUP BY "purchaseOrderId"
+  ) AS pfc_agg ON pfc_agg."purchaseOrderId" = a."id"
 `;
 
 export async function GET(req: NextRequest) {
@@ -65,9 +92,9 @@ export async function GET(req: NextRequest) {
       extraClauses.push(`AND a."status" = $${params.length}`);
     }
     if (refundState === 'refunded') {
-      extraClauses.push(`AND pfc."refundAmount" IS NOT NULL`);
+      extraClauses.push(`AND pfc_agg.total_refund IS NOT NULL`);
     } else if (refundState === 'pending') {
-      extraClauses.push(`AND pfc."refundAmount" IS NULL`);
+      extraClauses.push(`AND pfc_agg.total_refund IS NULL`);
     }
 
     const sql = `
@@ -84,13 +111,13 @@ export async function GET(req: NextRequest) {
         b."businessName"                                                      AS buyer_business_name,
         s."phone"                                                             AS seller_phone,
         s."businessName"                                                      AS seller_business_name,
-        pop."paidAmount"::text                                                AS order_paid_amount,
-        pfc."refundAmount"::text                                              AS refund_amount,
-        pfc."markedStatusCompletedTime"::text                                 AS marked_status_completed_time,
-        pfc."markedStatusInitiatedTime"::text                                 AS marked_status_initiated_time,
-        (EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime" - pfc."markedStatusInitiatedTime")) / 3600)::text
+        pop_agg.total_paid::text                                              AS order_paid_amount,
+        pfc_agg.total_refund::text                                            AS refund_amount,
+        pfc_agg.latest_completed_time::text                                   AS marked_status_completed_time,
+        pfc_agg.latest_initiated_time::text                                   AS marked_status_initiated_time,
+        (EXTRACT(EPOCH FROM (pfc_agg.latest_completed_time - pfc_agg.latest_initiated_time)) / 3600)::text
                                                                               AS refund_processing_hours,
-        (EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime"
+        (EXTRACT(EPOCH FROM (pfc_agg.latest_completed_time
           - COALESCE(a."markedRejectedTime", a."markedCancelledTime"))) / 3600)::text
                                                                               AS hours_till_refund,
         a."rejectReason"                                                      AS reject_reason,
@@ -99,10 +126,10 @@ export async function GET(req: NextRequest) {
         a."created_at"::text                                                  AS created_at,
         a."markedPendingTime"::text                                           AS marked_pending_time,
         a."deliveryStatus"                                                    AS delivery_status,
-        pop."event"                                                           AS payment_event,
+        pop_agg.payment_event                                                 AS payment_event,
         poa."id"::text                                                        AS payment_attempt_id,
-        pop."appliedWalletAmount"::text                                       AS applied_wallet_amount,
-        pfc."refundARN"                                                       AS refund_arn,
+        pop_agg.total_wallet::text                                            AS applied_wallet_amount,
+        pfc_agg.latest_refund_arn                                             AS refund_arn,
         CASE
           WHEN EXISTS (
             SELECT 1
@@ -128,17 +155,17 @@ export async function GET(req: NextRequest) {
       FROM "purchaseOrder"."purchaseOrder" a
       JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
       JOIN "users"."seller" s   ON s."id" = a."sellerId"
-      JOIN "purchaseOrder"."purchaseOrderPayment" pop ON pop."purchaseOrderId" = a."id"
+      ${POP_AGG_JOIN}
       LEFT JOIN LATERAL (
         SELECT poa_inner."id"
         FROM "purchaseOrder"."purchaseOrderPaymentAttempt" poa_inner
-        WHERE poa_inner."purchaseOrderPaymentId" = pop."id"
+        JOIN "purchaseOrder"."purchaseOrderPayment" pop_x
+          ON pop_x."id" = poa_inner."purchaseOrderPaymentId"
+        WHERE pop_x."purchaseOrderId" = a."id"
           AND poa_inner."status" = 'COMPLETED'
         LIMIT 1
       ) AS poa ON TRUE
-      LEFT JOIN "payments"."paymentRefundRecord" pfc
-        ON pfc."purchaseOrderId" = a."id"
-       AND pfc."status" = 'COMPLETED'
+      ${PFC_AGG_JOIN}
       WHERE ${BASE_WHERE}
         AND COALESCE(a."markedRejectedTime", a."markedCancelledTime")::date >= $1::date
         AND COALESCE(a."markedRejectedTime", a."markedCancelledTime")::date <= $2::date

@@ -108,14 +108,49 @@ interface ResultRow {
   } | null;
 }
 
-// Shared filters from the user-provided base query
+// Shared filters. The payment/refund predicates live INSIDE the pre-aggregation
+// subqueries (pop_agg / pfc_agg) — putting them at the top-level join would
+// re-introduce Cartesian-product duplication for POs with multiple payment
+// or refund rows. paid > 0 is enforced by the INNER JOIN on pop_agg.
 const BASE_WHERE = `
   a."status" IN ('REJECTED', 'CANCELLED')
-  AND pop."status" = 'COMPLETED'
-  AND pop."event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
   AND a."isTest" = FALSE
   AND b."isTest" = FALSE
-  AND pop."paidAmount" > 0
+`;
+
+// One row per PO: total paid across all COMPLETED FULL/PARTIAL_ADVANCE payments,
+// plus a STRING_AGG of the distinct payment events. Used everywhere refund-
+// dashboard math needs to be per-PO.
+const POP_AGG_JOIN = `
+  JOIN (
+    SELECT
+      "purchaseOrderId",
+      SUM("paidAmount"::numeric)               AS total_paid,
+      SUM(COALESCE("appliedWalletAmount", 0)::numeric) AS total_wallet,
+      STRING_AGG(DISTINCT "event", ', ' ORDER BY "event") AS payment_event
+    FROM "purchaseOrder"."purchaseOrderPayment"
+    WHERE "status" = 'COMPLETED'
+      AND "event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
+    GROUP BY "purchaseOrderId"
+    HAVING SUM("paidAmount"::numeric) > 0
+  ) AS pop_agg ON pop_agg."purchaseOrderId" = a."id"
+`;
+
+// One row per PO: total refunded across all COMPLETED refund records, plus the
+// latest completion / initiation timestamps and the latest ARN. LEFT JOIN so
+// POs with no completed refund still appear (and surface as fully pending).
+const PFC_AGG_JOIN = `
+  LEFT JOIN (
+    SELECT
+      "purchaseOrderId",
+      SUM("refundAmount"::numeric)                       AS total_refund,
+      MAX("markedStatusCompletedTime")                   AS latest_completed_time,
+      MAX("markedStatusInitiatedTime")                   AS latest_initiated_time,
+      (ARRAY_AGG("refundARN" ORDER BY "markedStatusCompletedTime" DESC NULLS LAST))[1] AS latest_refund_arn
+    FROM "payments"."paymentRefundRecord"
+    WHERE "status" = 'COMPLETED'
+    GROUP BY "purchaseOrderId"
+  ) AS pfc_agg ON pfc_agg."purchaseOrderId" = a."id"
 `;
 
 export async function GET(req: NextRequest) {
@@ -156,17 +191,17 @@ export async function GET(req: NextRequest) {
           s."id"                                  AS seller_id,
           s."phone"                               AS seller_phone,
           s."businessName"                        AS seller_business_name,
-          pop."paidAmount"::numeric               AS order_paid_amount,
-          pop."event"                             AS payment_event,
-          pop."appliedWalletAmount"::numeric      AS applied_wallet_amount,
+          pop_agg.total_paid                      AS order_paid_amount,
+          pop_agg.payment_event                   AS payment_event,
+          pop_agg.total_wallet                    AS applied_wallet_amount,
           poa."id"                                AS payment_attempt_id,
-          pfc."refundAmount"::numeric             AS refund_amount,
-          pfc."refundARN"                         AS refund_arn,
-          pfc."markedStatusCompletedTime"         AS marked_status_completed_time,
-          pfc."markedStatusInitiatedTime"         AS marked_status_initiated_time,
-          EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime" - pfc."markedStatusInitiatedTime")) / 3600
+          pfc_agg.total_refund                    AS refund_amount,
+          pfc_agg.latest_refund_arn               AS refund_arn,
+          pfc_agg.latest_completed_time           AS marked_status_completed_time,
+          pfc_agg.latest_initiated_time           AS marked_status_initiated_time,
+          EXTRACT(EPOCH FROM (pfc_agg.latest_completed_time - pfc_agg.latest_initiated_time)) / 3600
                                                   AS refund_processing_hours,
-          EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime"
+          EXTRACT(EPOCH FROM (pfc_agg.latest_completed_time
             - COALESCE(a."markedRejectedTime", a."markedCancelledTime"))) / 3600
                                                   AS hours_till_refund,
           a."rejectReason"                        AS reject_reason,
@@ -198,17 +233,17 @@ export async function GET(req: NextRequest) {
         FROM "purchaseOrder"."purchaseOrder" a
         JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
         JOIN "users"."seller" s   ON s."id" = a."sellerId"
-        JOIN "purchaseOrder"."purchaseOrderPayment" pop ON pop."purchaseOrderId" = a."id"
+        ${POP_AGG_JOIN}
         LEFT JOIN LATERAL (
           SELECT poa_inner."id"
           FROM "purchaseOrder"."purchaseOrderPaymentAttempt" poa_inner
-          WHERE poa_inner."purchaseOrderPaymentId" = pop."id"
+          JOIN "purchaseOrder"."purchaseOrderPayment" pop_x
+            ON pop_x."id" = poa_inner."purchaseOrderPaymentId"
+          WHERE pop_x."purchaseOrderId" = a."id"
             AND poa_inner."status" = 'COMPLETED'
           LIMIT 1
         ) AS poa ON TRUE
-        LEFT JOIN "payments"."paymentRefundRecord" pfc
-          ON pfc."purchaseOrderId" = a."id"
-         AND pfc."status" = 'COMPLETED'
+        ${PFC_AGG_JOIN}
         WHERE ${BASE_WHERE}
           AND COALESCE(a."markedRejectedTime", a."markedCancelledTime")::date >= $1::date
           AND COALESCE(a."markedRejectedTime", a."markedCancelledTime")::date <= $2::date
@@ -227,30 +262,29 @@ export async function GET(req: NextRequest) {
       /* All-time summary — same join as source but WITHOUT the year predicate.
          Only computes aggregates, doesn't materialize row data, so it stays cheap. */
       all_time_summary_agg AS (
+        -- Uses the same pre-aggregated joins as source so each PO contributes
+        -- exactly ONE row, regardless of how many payment/refund records it has.
         SELECT
           COUNT(*)                                                          AS total_orders,
-          COALESCE(SUM(pop."paidAmount"::numeric), 0)                       AS total_paid_amount,
-          COUNT(*) FILTER (WHERE pfc."refundAmount" IS NOT NULL)            AS refunded_orders,
-          COALESCE(SUM(pfc."refundAmount"::numeric), 0)                     AS total_refunded_amount,
-          -- Pending = paid amount of orders with NO completed refund record.
-          -- Matches the "X orders awaiting refund" count on the same card.
-          COALESCE(SUM(pop."paidAmount"::numeric) FILTER (WHERE pfc."refundAmount" IS NULL), 0)
+          COALESCE(SUM(pop_agg.total_paid), 0)                              AS total_paid_amount,
+          COUNT(*) FILTER (WHERE pfc_agg.total_refund IS NOT NULL)          AS refunded_orders,
+          COALESCE(SUM(pfc_agg.total_refund), 0)                            AS total_refunded_amount,
+          -- Pending = paid amount of POs with NO completed refund record at all.
+          COALESCE(SUM(pop_agg.total_paid) FILTER (WHERE pfc_agg.total_refund IS NULL), 0)
                                                                             AS pending_refund_amount,
-          AVG(EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime" - pfc."markedStatusInitiatedTime")) / 3600)
-            FILTER (WHERE pfc."markedStatusInitiatedTime" IS NOT NULL
-                      AND pfc."markedStatusCompletedTime" IS NOT NULL)      AS avg_refund_time_hours,
-          AVG(EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime"
+          AVG(EXTRACT(EPOCH FROM (pfc_agg.latest_completed_time - pfc_agg.latest_initiated_time)) / 3600)
+            FILTER (WHERE pfc_agg.latest_initiated_time IS NOT NULL
+                      AND pfc_agg.latest_completed_time IS NOT NULL)        AS avg_refund_time_hours,
+          AVG(EXTRACT(EPOCH FROM (pfc_agg.latest_completed_time
             - COALESCE(a."markedRejectedTime", a."markedCancelledTime"))) / 3600)
-            FILTER (WHERE pfc."markedStatusCompletedTime" IS NOT NULL
+            FILTER (WHERE pfc_agg.latest_completed_time IS NOT NULL
                       AND COALESCE(a."markedRejectedTime", a."markedCancelledTime") IS NOT NULL)
                                                                             AS avg_time_till_refund_hours
         FROM "purchaseOrder"."purchaseOrder" a
         JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
         JOIN "users"."seller" s   ON s."id" = a."sellerId"
-        JOIN "purchaseOrder"."purchaseOrderPayment" pop ON pop."purchaseOrderId" = a."id"
-        LEFT JOIN "payments"."paymentRefundRecord" pfc
-          ON pfc."purchaseOrderId" = a."id"
-         AND pfc."status" = 'COMPLETED'
+        ${POP_AGG_JOIN}
+        ${PFC_AGG_JOIN}
         WHERE ${BASE_WHERE}
       ),
       day_agg AS (
@@ -338,9 +372,9 @@ export async function GET(req: NextRequest) {
           b."businessName"                        AS buyer_business_name,
           s."phone"                               AS seller_phone,
           s."businessName"                        AS seller_business_name,
-          pop."paidAmount"::numeric               AS order_paid_amount,
-          pop."event"                             AS payment_event,
-          pop."appliedWalletAmount"::numeric      AS applied_wallet_amount,
+          pop_agg.total_paid                      AS order_paid_amount,
+          pop_agg.payment_event                   AS payment_event,
+          pop_agg.total_wallet                    AS applied_wallet_amount,
           poa."id"                                AS payment_attempt_id,
           CASE
             WHEN EXISTS (
@@ -367,19 +401,19 @@ export async function GET(req: NextRequest) {
         FROM "purchaseOrder"."purchaseOrder" a
         JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
         JOIN "users"."seller" s   ON s."id" = a."sellerId"
-        JOIN "purchaseOrder"."purchaseOrderPayment" pop ON pop."purchaseOrderId" = a."id"
+        ${POP_AGG_JOIN}
         LEFT JOIN LATERAL (
           SELECT poa_inner."id"
           FROM "purchaseOrder"."purchaseOrderPaymentAttempt" poa_inner
-          WHERE poa_inner."purchaseOrderPaymentId" = pop."id"
+          JOIN "purchaseOrder"."purchaseOrderPayment" pop_x
+            ON pop_x."id" = poa_inner."purchaseOrderPaymentId"
+          WHERE pop_x."purchaseOrderId" = a."id"
             AND poa_inner."status" = 'COMPLETED'
           LIMIT 1
         ) AS poa ON TRUE
-        LEFT JOIN "payments"."paymentRefundRecord" pfc
-          ON pfc."purchaseOrderId" = a."id"
-         AND pfc."status" = 'COMPLETED'
+        ${PFC_AGG_JOIN}
         WHERE ${BASE_WHERE}
-          AND pfc."refundAmount" IS NULL
+          AND pfc_agg.total_refund IS NULL   -- no completed refund records at all
           AND COALESCE(a."markedRejectedTime", a."markedCancelledTime") IS NOT NULL
           AND COALESCE(a."markedRejectedTime", a."markedCancelledTime") < NOW() - INTERVAL '10 minutes'
         ORDER BY COALESCE(a."markedRejectedTime", a."markedCancelledTime") ASC

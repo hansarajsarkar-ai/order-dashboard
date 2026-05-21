@@ -348,6 +348,58 @@ export default function RefundOrderAmountDashboard() {
     );
   }
 
+  // Reusable preset bar — same instance of state, rendered above each tab's
+  // main content area. State lives in the parent component so switching tabs
+  // preserves the selected range.
+  const presetBar = (
+    <div className="mb-5 flex items-center gap-3 flex-wrap">
+      <div className="inline-flex gap-0.5 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]">
+        {(['all', 'today', 'last7', 'day', 'week', 'month', 'custom'] as const).map((p) => {
+          const label = p === 'all' ? 'All' : p === 'today' ? 'Today' : p === 'last7' ? '7d' : p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom';
+          const isActive = preset === p;
+          return (
+            <button
+              key={p}
+              onClick={() => setPreset(p)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all duration-150 ${
+                isActive
+                  ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.55)]'
+                  : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_12px_rgba(217,70,239,0.5)]'
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      {preset === 'custom' && (
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl">
+          <label className="text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold">From</label>
+          <input
+            type="date"
+            value={customStart}
+            max={customEnd || undefined}
+            onChange={(e) => setCustomStart(e.target.value)}
+            className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/20 transition-colors"
+          />
+          <label className="text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold">To</label>
+          <input
+            type="date"
+            value={customEnd}
+            min={customStart || undefined}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/20 transition-colors"
+          />
+        </div>
+      )}
+      <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold ml-auto whitespace-nowrap">
+        {preset === 'all'
+          ? <span>Range: <span className="text-purple-100">All time</span></span>
+          : <span>Range: <span className="text-purple-100 font-mono">{startDate}</span> → <span className="text-purple-100 font-mono">{endDate}</span></span>}
+      </div>
+    </div>
+  );
+
   // KPI cards + mini-stats show all-time totals (across every year),
   // independent of the breakdown table's year/granularity filter.
   const s = data?.summaryAllTime;
@@ -408,54 +460,7 @@ export default function RefundOrderAmountDashboard() {
           </button>
         </div>
 
-        {/* Global date-range preset bar — drives every tab's data */}
-        <div className="mb-6 flex items-center gap-3 flex-wrap">
-          <div className="inline-flex gap-0.5 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]">
-            {(['all', 'today', 'last7', 'day', 'week', 'month', 'custom'] as const).map((p) => {
-              const label = p === 'all' ? 'All' : p === 'today' ? 'Today' : p === 'last7' ? '7d' : p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom';
-              const isActive = preset === p;
-              return (
-                <button
-                  key={p}
-                  onClick={() => setPreset(p)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all duration-150 ${
-                    isActive
-                      ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.55)]'
-                      : 'text-purple-200 hover:bg-fuchsia-500 hover:text-white hover:shadow-[0_0_12px_rgba(217,70,239,0.5)]'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          {preset === 'custom' && (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl">
-              <label className="text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold">From</label>
-              <input
-                type="date"
-                value={customStart}
-                max={customEnd || undefined}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/20 transition-colors"
-              />
-              <label className="text-[10px] uppercase tracking-wider text-purple-300/80 font-semibold">To</label>
-              <input
-                type="date"
-                value={customEnd}
-                min={customStart || undefined}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/20 transition-colors"
-              />
-            </div>
-          )}
-          {/* Tiny live indicator of the resolved range — confirms the filter is wired */}
-          <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold ml-auto whitespace-nowrap">
-            {preset === 'all'
-              ? <span>Range: <span className="text-purple-100">All time</span></span>
-              : <span>Range: <span className="text-purple-100 font-mono">{startDate}</span> → <span className="text-purple-100 font-mono">{endDate}</span></span>}
-          </div>
-        </div>
+{/* Preset bar is rendered inside each tab body, not here. See `presetBar` below. */}
 
         {error && (
           <div className="mb-6 px-4 py-3 rounded-xl bg-rose-500/15 border border-rose-400/30 text-rose-200 text-sm">
@@ -539,6 +544,9 @@ export default function RefundOrderAmountDashboard() {
                 action={s && s.totalOrders - s.refundedOrders > 0 ? 'Investigate why' : undefined}
               />
             </div>
+
+            {/* Date-range preset bar drives the breakdown granularity + range */}
+            {presetBar}
 
             {/* Granular breakdown — Day / Week / Month / Custom */}
             <div>
@@ -635,7 +643,9 @@ export default function RefundOrderAmountDashboard() {
         )}
 
         {tab === 'sellers' && (
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+          <>
+            {presetBar}
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h2 className="text-lg font-bold text-white">Seller-wise Refund Exposure</h2>
               <button
@@ -692,10 +702,13 @@ export default function RefundOrderAmountDashboard() {
               </table>
             </div>
           </div>
+          </>
         )}
 
         {tab === 'orders' && (
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+          <>
+            {presetBar}
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between gap-3 p-4 border-b border-white/10 flex-wrap">
               <div>
                 <h2 className="text-lg font-bold text-white">Order Details</h2>
@@ -869,14 +882,18 @@ export default function RefundOrderAmountDashboard() {
               </table>
             </div>
           </div>
+          </>
         )}
 
         {tab === 'alerts' && (
-          <AlertsTabContent
-            alerts={data?.alerts ?? []}
-            loading={loading}
-            onRefresh={fetchData}
-          />
+          <>
+            {presetBar}
+            <AlertsTabContent
+              alerts={data?.alerts ?? []}
+              loading={loading}
+              onRefresh={fetchData}
+            />
+          </>
         )}
 
         {loading && !data && (

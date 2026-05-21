@@ -686,9 +686,9 @@ export default function RefundOrderAmountDashboard() {
                   onClick={() => {
                     downloadCSV(
                       `refund-orders-${year}.csv`,
-                      ['PO Number', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                      ['PO Number', 'PO ID', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                       filteredList.map((r) => [
-                        r.poNumber, r.status, r.reasonCategory,
+                        r.poNumber, r.purchaseOrderId, r.status, r.reasonCategory,
                         r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
                         r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
                         r.hoursTillRefund ?? '', r.buyerBusinessName ?? '', r.buyerPhone ?? '',
@@ -708,6 +708,7 @@ export default function RefundOrderAmountDashboard() {
                 <thead className="bg-slate-900/80 backdrop-blur sticky top-0 z-10">
                   <tr className="text-purple-200 uppercase">
                     <th className="px-3 py-2 text-left">PO Number</th>
+                    <th className="px-3 py-2 text-left">PO ID</th>
                     <th className="px-3 py-2 text-left">Status</th>
                     <th className="px-3 py-2 text-left">Reason Category</th>
                     <th className="px-3 py-2 text-right">Order Amt</th>
@@ -728,6 +729,7 @@ export default function RefundOrderAmountDashboard() {
                   {filteredList.map((r) => (
                     <tr key={r.purchaseOrderId} className="border-t border-white/5 hover:bg-white/5">
                       <td className="px-3 py-2 text-fuchsia-300 font-mono">{r.poNumber}</td>
+                      <td className="px-3 py-2 text-purple-300/70 font-mono text-[10px] select-all" title={r.purchaseOrderId}>{r.purchaseOrderId}</td>
                       <td className="px-3 py-2">
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
                           r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
@@ -772,7 +774,7 @@ export default function RefundOrderAmountDashboard() {
                   ))}
                   {!loading && filteredList.length === 0 && (
                     <tr>
-                      <td colSpan={15} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
+                      <td colSpan={16} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
                     </tr>
                   )}
                 </tbody>
@@ -818,9 +820,9 @@ export default function RefundOrderAmountDashboard() {
                     onClick={() => {
                       downloadCSV(
                         `refund-${modal.filter}-${modal.startDate}-${modal.endDate}.csv`,
-                        ['PO Number', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                        ['PO Number', 'PO ID', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Refund Amount', 'Payment Option', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                         modalOrders.map((r) => [
-                          r.poNumber, r.status, r.reasonCategory,
+                          r.poNumber, r.purchaseOrderId, r.status, r.reasonCategory,
                           r.amount, r.orderPaidAmount, r.refundAmount ?? '', r.paymentOption ?? '',
                           r.rejectedOrCancelledTime ?? '', r.markedStatusCompletedTime ?? '',
                           r.hoursTillRefund ?? '', r.buyerBusinessName ?? '', r.buyerPhone ?? '',
@@ -858,6 +860,7 @@ export default function RefundOrderAmountDashboard() {
                     <thead className="bg-slate-900/95 backdrop-blur sticky top-0 z-10">
                       <tr className="text-purple-200 uppercase">
                         <th className="px-3 py-2 text-left">PO Number</th>
+                        <th className="px-3 py-2 text-left">PO ID</th>
                         <th className="px-3 py-2 text-left">Status</th>
                         <th className="px-3 py-2 text-left">Reason Category</th>
                         <th className="px-3 py-2 text-right">Order Amt</th>
@@ -878,6 +881,7 @@ export default function RefundOrderAmountDashboard() {
                       {modalOrders.map((r) => (
                         <tr key={r.purchaseOrderId} className="border-t border-white/5 hover:bg-white/5">
                           <td className="px-3 py-2 text-fuchsia-300 font-mono">{r.poNumber}</td>
+                          <td className="px-3 py-2 text-purple-300/70 font-mono text-[10px] select-all" title={r.purchaseOrderId}>{r.purchaseOrderId}</td>
                           <td className="px-3 py-2">
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
                               r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
@@ -1197,9 +1201,9 @@ function AlertsTabContent({
               onClick={() => {
                 downloadCSV(
                   `refund-alerts-${new Date().toISOString().slice(0, 10)}.csv`,
-                  ['PO Number', 'Status', 'Delivery Status', 'Paid Amount', 'Payment Option', 'Reason Category', 'Pending For', 'Order Placed At', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
+                  ['PO Number', 'PO ID', 'Status', 'Delivery Status', 'Paid Amount', 'Payment Option', 'Reason Category', 'Pending For', 'Order Placed At', 'Reject/Cancel At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
                   alerts.map((a) => [
-                    a.poNumber, a.status, a.deliveryStatus ?? '', a.paidAmount, a.paymentOption ?? '',
+                    a.poNumber, a.purchaseOrderId, a.status, a.deliveryStatus ?? '', a.paidAmount, a.paymentOption ?? '',
                     a.reasonCategory,
                     formatPendingDuration(a.minutesPending),
                     a.markedPendingTime ?? '', a.rejectedOrCancelledTime ?? '',
@@ -1221,6 +1225,7 @@ function AlertsTabContent({
                   <th className="px-4 py-3 text-left">Severity</th>
                   <th className="px-4 py-3 text-left">Pending For</th>
                   <th className="px-4 py-3 text-left">PO Number</th>
+                  <th className="px-4 py-3 text-left">PO ID</th>
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3 text-left">Delivery Status</th>
                   <th className="px-4 py-3 text-right">Paid</th>
@@ -1247,6 +1252,7 @@ function AlertsTabContent({
                       </td>
                       <td className={`px-4 py-2.5 font-bold tabular-nums ${sev.tone}`}>{formatPendingDuration(a.minutesPending)}</td>
                       <td className="px-4 py-2.5 text-fuchsia-300 font-mono">{a.poNumber}</td>
+                      <td className="px-4 py-2.5 text-purple-300/70 font-mono text-[10px] select-all" title={a.purchaseOrderId}>{a.purchaseOrderId}</td>
                       <td className="px-4 py-2.5">
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
                           a.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'

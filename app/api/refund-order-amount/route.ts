@@ -219,6 +219,7 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(order_paid_amount), 0)                               AS total_paid_amount,
           COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)                 AS refunded_orders,
           COALESCE(SUM(refund_amount), 0)                                   AS total_refunded_amount,
+          COALESCE(SUM(order_paid_amount) FILTER (WHERE refund_amount IS NULL), 0) AS pending_refund_amount,
           AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_time_hours,
           AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_time_till_refund_hours
         FROM source
@@ -231,6 +232,10 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(pop."paidAmount"::numeric), 0)                       AS total_paid_amount,
           COUNT(*) FILTER (WHERE pfc."refundAmount" IS NOT NULL)            AS refunded_orders,
           COALESCE(SUM(pfc."refundAmount"::numeric), 0)                     AS total_refunded_amount,
+          -- Pending = paid amount of orders with NO completed refund record.
+          -- Matches the "X orders awaiting refund" count on the same card.
+          COALESCE(SUM(pop."paidAmount"::numeric) FILTER (WHERE pfc."refundAmount" IS NULL), 0)
+                                                                            AS pending_refund_amount,
           AVG(EXTRACT(EPOCH FROM (pfc."markedStatusCompletedTime" - pfc."markedStatusInitiatedTime")) / 3600)
             FILTER (WHERE pfc."markedStatusInitiatedTime" IS NOT NULL
                       AND pfc."markedStatusCompletedTime" IS NOT NULL)      AS avg_refund_time_hours,
@@ -387,7 +392,7 @@ export async function GET(req: NextRequest) {
             'totalPaidAmount',            total_paid_amount,
             'refundedOrders',             refunded_orders,
             'totalRefundedAmount',        total_refunded_amount,
-            'pendingRefundAmount',        GREATEST(total_paid_amount - total_refunded_amount, 0),
+            'pendingRefundAmount',        pending_refund_amount,
             'refundRate',                 CASE WHEN total_orders > 0 THEN ROUND((refunded_orders::numeric / total_orders) * 100, 2) ELSE 0 END,
             'avgRefundAmount',            CASE WHEN refunded_orders > 0 THEN total_refunded_amount / refunded_orders ELSE 0 END,
             'avgRefundProcessingHours',   avg_refund_time_hours,
@@ -401,7 +406,7 @@ export async function GET(req: NextRequest) {
             'totalPaidAmount',            total_paid_amount,
             'refundedOrders',             refunded_orders,
             'totalRefundedAmount',        total_refunded_amount,
-            'pendingRefundAmount',        GREATEST(total_paid_amount - total_refunded_amount, 0),
+            'pendingRefundAmount',        pending_refund_amount,
             'refundRate',                 CASE WHEN total_orders > 0 THEN ROUND((refunded_orders::numeric / total_orders) * 100, 2) ELSE 0 END,
             'avgRefundAmount',            CASE WHEN refunded_orders > 0 THEN total_refunded_amount / refunded_orders ELSE 0 END,
             'avgRefundProcessingHours',   avg_refund_time_hours,

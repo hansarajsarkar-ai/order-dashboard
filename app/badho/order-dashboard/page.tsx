@@ -512,7 +512,7 @@ export default function OrderStatusDashboard() {
   const [rtoListData, setRtoListData] = useState<RtoOrderRow[] | null>(null);
   const [rtoListLoading, setRtoListLoading] = useState(false);
   const [rtoListSearch, setRtoListSearch] = useState('');
-  const [rtoListAttemptFilter, setRtoListAttemptFilter] = useState<string | null>(null);
+  const [rtoListAttemptFilter, setRtoListAttemptFilter] = useState<Set<string>>(new Set());
   const [rtoListPage, setRtoListPage] = useState(1);
   const [rtoListRange, setRtoListRange] = useState<'year' | 'today' | '7d' | 'custom'>('year');
   const [rtoListCustomFrom, setRtoListCustomFrom] = useState('');
@@ -937,14 +937,13 @@ export default function OrderStatusDashboard() {
         )
       : [...rtoListData];
 
-    if (rtoListAttemptFilter) {
+    if (rtoListAttemptFilter.size > 0) {
       filtered = filtered.filter((r) => {
         const attempts = r.deliveryAttempt || 0;
-        if (rtoListAttemptFilter === '0') return attempts === 0;
-        if (rtoListAttemptFilter === '1') return attempts === 1;
-        if (rtoListAttemptFilter === '2-3') return attempts >= 2 && attempts <= 3;
-        if (rtoListAttemptFilter === '4+') return attempts >= 4;
-        return true;
+        for (const opt of rtoListAttemptFilter) {
+          if (opt === '5+' ? attempts > 5 : attempts === Number(opt)) return true;
+        }
+        return false;
       });
     }
 
@@ -3580,23 +3579,37 @@ export default function OrderStatusDashboard() {
                 )}
                 <div className="h-5 w-px bg-white/15 mx-2"></div>
                 <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Attempts</span>
-                {(['all', '0', '1', '2-3', '4+'] as const).map((opt) => {
-                  const active = (opt === 'all' ? rtoListAttemptFilter === null : rtoListAttemptFilter === opt);
-                  const label = opt === 'all' ? 'All' : opt === '2-3' ? '2–3' : opt;
+                {(['1', '2', '3', '4', '5', '5+'] as const).map((opt) => {
+                  const active = rtoListAttemptFilter.has(opt);
                   return (
                     <button
                       key={opt}
-                      onClick={() => setRtoListAttemptFilter(opt === 'all' ? null : opt)}
+                      onClick={() => {
+                        setRtoListAttemptFilter((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(opt)) next.delete(opt);
+                          else next.add(opt);
+                          return next;
+                        });
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         active
                           ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.4)]'
                           : 'bg-white/10 text-purple-200 hover:bg-white/15 border border-white/10'
                       }`}
                     >
-                      {label}
+                      {opt}
                     </button>
                   );
                 })}
+                {rtoListAttemptFilter.size > 0 && (
+                  <button
+                    onClick={() => setRtoListAttemptFilter(new Set())}
+                    className="px-2 py-1 text-[10px] font-semibold text-purple-300 hover:text-white underline underline-offset-2"
+                  >
+                    clear
+                  </button>
+                )}
               </div>
               <div className="px-8 py-3 border-b border-white/10 bg-white/5">
                 <input

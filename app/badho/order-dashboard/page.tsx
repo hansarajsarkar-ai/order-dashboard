@@ -2635,7 +2635,7 @@ export default function OrderStatusDashboard() {
             <div>
               <h2 className="text-2xl font-bold text-white">Order Anomalies</h2>
               <p className="text-purple-300 text-sm mt-1">
-                Order count by status — last 30 days
+                Share of order statuses per day (100% stacked) — last 30 days
               </p>
             </div>
           </div>
@@ -2652,8 +2652,12 @@ export default function OrderStatusDashboard() {
             ) : anomaliesData.length === 0 ? (
               <div className="h-[360px] flex items-center justify-center text-purple-300">No data in this range</div>
             ) : (
-              <ResponsiveContainer width="100%" height={360}>
-                <BarChart data={anomaliesData} margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
+              <ResponsiveContainer width="100%" height={420}>
+                <BarChart
+                  data={anomaliesData}
+                  margin={{ top: 16, right: 16, left: 8, bottom: 8 }}
+                  stackOffset="expand"
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis
                     dataKey="date"
@@ -2662,11 +2666,14 @@ export default function OrderStatusDashboard() {
                       const [, m, dd] = d.split('-');
                       return `${dd}/${m}`;
                     }}
-                    minTickGap={15}
+                    minTickGap={4}
+                    interval={0}
                   />
                   <YAxis
                     tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
-                    width={70}
+                    tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+                    domain={[0, 1]}
+                    width={50}
                   />
                   <Tooltip
                     contentStyle={{
@@ -2678,12 +2685,61 @@ export default function OrderStatusDashboard() {
                     }}
                     labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
                     labelFormatter={(d) => `Date: ${d}`}
+                    formatter={(value, name, props) => {
+                      const n = typeof value === 'number' ? value : Number(value ?? 0);
+                      const row = props && (props as { payload?: Record<string, number> }).payload;
+                      const total = row
+                        ? (Number(row.PENDING || 0) + Number(row.INPROGRESS || 0) + Number(row.DISPATCHED || 0) + Number(row.COMPLETED || 0))
+                        : 0;
+                      const pct = total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
+                      return [`${n} (${pct}%)`, String(name)];
+                    }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12, color: '#e9d5ff' }} />
-                  <Bar dataKey="PENDING" stackId="status" fill="#ef4444" name="Pending" />
-                  <Bar dataKey="INPROGRESS" stackId="status" fill="#f97316" name="In Progress" />
-                  <Bar dataKey="DISPATCHED" stackId="status" fill="#3b82f6" name="Dispatched" />
-                  <Bar dataKey="COMPLETED" stackId="status" fill="#10b981" name="Completed" />
+                  <Bar dataKey="PENDING" stackId="status" fill="#ef4444" name="PENDING">
+                    <LabelList
+                      dataKey="PENDING"
+                      position="center"
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        return n > 0 ? String(n) : '';
+                      }}
+                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700 }}
+                    />
+                  </Bar>
+                  <Bar dataKey="INPROGRESS" stackId="status" fill="#fbcfe8" name="INPROGRESS">
+                    <LabelList
+                      dataKey="INPROGRESS"
+                      position="center"
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        return n > 0 ? String(n) : '';
+                      }}
+                      style={{ fill: '#831843', fontSize: 11, fontWeight: 700 }}
+                    />
+                  </Bar>
+                  <Bar dataKey="DISPATCHED" stackId="status" fill="#818cf8" name="DISPATCHED">
+                    <LabelList
+                      dataKey="DISPATCHED"
+                      position="center"
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        return n > 0 ? String(n) : '';
+                      }}
+                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700 }}
+                    />
+                  </Bar>
+                  <Bar dataKey="COMPLETED" stackId="status" fill="#84cc16" name="COMPLETED">
+                    <LabelList
+                      dataKey="COMPLETED"
+                      position="center"
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        return n > 0 ? String(n) : '';
+                      }}
+                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700 }}
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}

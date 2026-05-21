@@ -1,15 +1,17 @@
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 interface Row {
   status: string;
-  created_at: string;
+  created_at: string | Date;
   count: string;
 }
 
-export async function GET(req: NextRequest) {
+type DataRecord = Record<string, string | number>;
+
+export async function GET() {
   try {
     const sql = `
       SELECT
@@ -28,40 +30,34 @@ export async function GET(req: NextRequest) {
 
     const rows = await query<Row>(sql, []);
 
-    // Transform data for chart
-    const dataMap = new Map<string, Record<string, number>>();
+    const dataMap = new Map<string, DataRecord>();
 
     rows.forEach((row) => {
-      // Extract just the date part (YYYY-MM-DD)
       let dateStr: string;
       if (typeof row.created_at === 'string') {
         dateStr = row.created_at.split('T')[0];
       } else if (row.created_at instanceof Date) {
-        const d = new Date(row.created_at);
-        dateStr = d.toISOString().split('T')[0];
+        dateStr = row.created_at.toISOString().split('T')[0];
       } else {
         dateStr = String(row.created_at).split('T')[0];
       }
-      const dateKey = dateStr;
-      if (!dataMap.has(dateKey)) {
-        dataMap.set(dateKey, { date: dateKey });
+      if (!dataMap.has(dateStr)) {
+        dataMap.set(dateStr, { date: dateStr });
       }
-      const record = dataMap.get(dateKey)!;
+      const record = dataMap.get(dateStr)!;
       record[row.status] = parseInt(row.count);
     });
 
-    // Get all unique statuses to ensure consistent keys
     const statuses = Array.from(new Set(rows.map(r => r.status))).sort();
 
-    // Convert map to array and ensure all status columns exist
     const data = Array.from(dataMap.values()).sort((a, b) => {
       const dateA = new Date(a.date as string);
       const dateB = new Date(b.date as string);
       return dateA.getTime() - dateB.getTime();
     }).map(record => {
-      const result: Record<string, any> = { date: record.date };
+      const result: DataRecord = { date: record.date };
       statuses.forEach(status => {
-        result[status] = record[status] || 0;
+        result[status] = (record[status] as number) || 0;
       });
       return result;
     });

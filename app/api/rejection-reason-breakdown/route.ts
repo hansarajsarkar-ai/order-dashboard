@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
 
     const rows = await query<RejectReasonRow>(sql, [year]);
 
-    const reasonMap: Record<string, Record<string, Record<string, Record<number, { count: number; amount: number }>>>> = {};
+    const reasonMap: Record<string, Record<string, Record<string, Record<string, { count: number; amount: number }>>>> = {};
     const totals = {
       byMonth: {} as Record<string, { count: number; amount: number }>,
       byReason: {} as Record<string, { count: number; amount: number }>,

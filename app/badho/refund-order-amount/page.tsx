@@ -207,6 +207,16 @@ export default function RefundOrderAmountDashboard() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
+  // Seller wise tab doesn't expose Day/Week/Month presets — if the user lands
+  // there with one of those active, fall back to 'all' so the active state
+  // matches a visible button.
+  useEffect(() => {
+    if (tab !== 'sellers') return;
+    if (preset === 'day' || preset === 'week' || preset === 'month') {
+      setPreset('all');
+    }
+  }, [tab, preset]);
+
   // Seed custom-range inputs the first time the user switches to Custom.
   useEffect(() => {
     if (preset !== 'custom') return;
@@ -489,11 +499,12 @@ export default function RefundOrderAmountDashboard() {
 
   // Reusable preset bar — same instance of state, rendered above each tab's
   // main content area. State lives in the parent component so switching tabs
-  // preserves the selected range.
-  const presetBar = (
+  // preserves the selected range. `allowedPresets` lets a tab opt out of
+  // certain options (e.g. Seller wise hides Day/Week/Month).
+  const renderPresetBar = (allowedPresets: readonly Preset[]) => (
     <div className="mb-5 flex items-center gap-3 flex-wrap">
       <div className="inline-flex gap-0.5 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]">
-        {(['all', 'today', 'last7', 'day', 'week', 'month', 'custom'] as const).map((p) => {
+        {allowedPresets.map((p) => {
           const label = p === 'all' ? 'All' : p === 'today' ? 'Today' : p === 'last7' ? '7d' : p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom';
           const isActive = preset === p;
           return (
@@ -685,7 +696,7 @@ export default function RefundOrderAmountDashboard() {
             </div>
 
             {/* Date-range preset bar drives the breakdown granularity + range */}
-            {presetBar}
+            {renderPresetBar(['all', 'today', 'last7', 'day', 'week', 'month', 'custom'])}
 
             {/* Granular breakdown — Day / Week / Month / Custom */}
             <div>
@@ -783,7 +794,7 @@ export default function RefundOrderAmountDashboard() {
 
         {tab === 'sellers' && (
           <>
-            {presetBar}
+            {renderPresetBar(['all', 'today', 'last7', 'custom'])}
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h2 className="text-lg font-bold text-white">Seller-wise Refund Exposure</h2>
@@ -861,7 +872,7 @@ export default function RefundOrderAmountDashboard() {
 
         {tab === 'orders' && (
           <>
-            {presetBar}
+            {renderPresetBar(['all', 'today', 'last7', 'day', 'week', 'month', 'custom'])}
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between gap-3 p-4 border-b border-white/10 flex-wrap">
               <div>

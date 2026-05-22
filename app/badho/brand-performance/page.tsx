@@ -1593,52 +1593,56 @@ export default function BrandPerformanceDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleProducts.map((p, idx) => (
+                    {visibleProducts.map((p, idx) => {
+                      const brandCellCompact = t.brandCell.replace('py-3', 'py-1.5');
+                      const dataCellCompact = t.dataCell.replace('py-3', 'py-1.5');
+                      const emptyCellCompact = t.emptyCell.replace('py-3', 'py-1.5').replace('text-base', 'text-xs');
+                      const totalBodyCompact = t.totalBody.replace('py-3', 'py-1.5');
+                      return (
                       <tr key={p.skuId} className={`${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
-                        <td className={t.brandCell}>
-                          <div className="flex items-center gap-3">
+                        <td className={brandCellCompact}>
+                          <div className="flex items-center gap-2">
                             <span className={t.brandRowNum}>{idx + 1}</span>
                             <span className={t.brandAccent} />
-                            <div className="flex flex-col">
-                              <span className={t.brandName}>{p.skuLabel}</span>
-                              <span className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                                {p.brandName ?? '—'}{p.size ? ` · ${p.size}` : ''}
-                              </span>
-                            </div>
+                            <span className={`${t.brandName} text-xs`}>{p.skuLabel}</span>
+                            <span className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'} truncate`}>
+                              · {p.brandName ?? '—'}{p.size ? ` · ${p.size}` : ''}
+                            </span>
                           </div>
                         </td>
                         {months.flatMap((m) => {
                           const c = p.months[m];
                           if (!c || c.count === 0) {
                             return [
-                              <td key={`pr_${p.skuId}_${m}_c`} className={t.emptyCell}>—</td>,
-                              <td key={`pr_${p.skuId}_${m}_a`} className={t.emptyCell}>—</td>,
-                              <td key={`pr_${p.skuId}_${m}_b`} className={t.emptyCell}>—</td>,
+                              <td key={`pr_${p.skuId}_${m}_c`} className={emptyCellCompact}>—</td>,
+                              <td key={`pr_${p.skuId}_${m}_a`} className={emptyCellCompact}>—</td>,
+                              <td key={`pr_${p.skuId}_${m}_b`} className={emptyCellCompact}>—</td>,
                             ];
                           }
                           return [
-                            <td key={`pr_${p.skuId}_${m}_c`} className={t.dataCell}>
-                              <div className={t.cellCount}>{c.count.toLocaleString('en-IN')}</div>
+                            <td key={`pr_${p.skuId}_${m}_c`} className={dataCellCompact}>
+                              <div className={`text-sm font-extrabold tabular-nums leading-tight ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{c.count.toLocaleString('en-IN')}</div>
                             </td>,
-                            <td key={`pr_${p.skuId}_${m}_a`} className={t.dataCell}>
-                              <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-200' : 'text-slate-700'}`}>
+                            <td key={`pr_${p.skuId}_${m}_a`} className={dataCellCompact}>
+                              <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-purple-200' : 'text-slate-700'}`}>
                                 {formatAmount(c.amount)}
                               </div>
                             </td>,
-                            <td key={`pr_${p.skuId}_${m}_b`} className={t.dataCell}>
-                              <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{c.buyers.toLocaleString('en-IN')}</div>
+                            <td key={`pr_${p.skuId}_${m}_b`} className={dataCellCompact}>
+                              <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{c.buyers.toLocaleString('en-IN')}</div>
                             </td>,
                           ];
                         })}
-                        <td className={t.totalBody} colSpan={3}>
-                          <div className="flex items-baseline justify-end gap-3 whitespace-nowrap">
-                            <div className={t.totalBodyCount}>{p.total.count.toLocaleString('en-IN')}</div>
-                            <div className={t.totalBodyAmount}>{formatAmount(p.total.amount)}</div>
-                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{p.total.buyers.toLocaleString('en-IN')} buyers</div>
+                        <td className={totalBodyCompact} colSpan={3}>
+                          <div className="flex items-baseline justify-end gap-2 whitespace-nowrap">
+                            <div className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-purple-900'}`}>{p.total.count.toLocaleString('en-IN')}</div>
+                            <div className={`text-[11px] font-semibold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{formatAmount(p.total.amount)}</div>
+                            <div className={`text-[11px] font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{p.total.buyers.toLocaleString('en-IN')}b</div>
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                   <tfoot className={t.footRow}>
                     <tr>
@@ -1646,22 +1650,22 @@ export default function BrandPerformanceDashboard() {
                       {months.flatMap((m) => {
                         const c = productData.totals.byMonth[m] ?? { count: 0, amount: 0, buyers: 0, quantity: 0 };
                         return [
-                          <td key={`ptot_${m}_c`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
-                            <div className={t.cellCount}>{c.count.toLocaleString('en-IN')}</div>
+                          <td key={`ptot_${m}_c`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
+                            <div className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{c.count.toLocaleString('en-IN')}</div>
                           </td>,
-                          <td key={`ptot_${m}_a`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
-                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(c.amount)}</div>
+                          <td key={`ptot_${m}_a`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
+                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(c.amount)}</div>
                           </td>,
-                          <td key={`ptot_${m}_b`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
-                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{c.buyers.toLocaleString('en-IN')}</div>
+                          <td key={`ptot_${m}_b`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
+                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{c.buyers.toLocaleString('en-IN')}</div>
                           </td>,
                         ];
                       })}
-                      <td className={t.totalFoot} colSpan={3}>
-                        <div className="flex items-baseline justify-end gap-3 whitespace-nowrap">
-                          <div className={t.totalFootCount}>{productData.totals.grand.count.toLocaleString('en-IN')}</div>
-                          <div className={t.totalFootAmount}>{formatAmount(productData.totals.grand.amount)}</div>
-                          <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-100' : 'text-sky-50'}`}>{productData.totals.grand.buyers.toLocaleString('en-IN')} buyers</div>
+                      <td className={t.totalFoot.replace('py-3', 'py-1.5')} colSpan={3}>
+                        <div className="flex items-baseline justify-end gap-2 whitespace-nowrap">
+                          <div className={`text-sm font-extrabold tabular-nums text-white`}>{productData.totals.grand.count.toLocaleString('en-IN')}</div>
+                          <div className={`text-[11px] font-semibold tabular-nums ${t.isDark ? 'text-fuchsia-100' : 'text-purple-100'}`}>{formatAmount(productData.totals.grand.amount)}</div>
+                          <div className={`text-[11px] font-bold tabular-nums ${t.isDark ? 'text-sky-100' : 'text-sky-50'}`}>{productData.totals.grand.buyers.toLocaleString('en-IN')}b</div>
                         </div>
                       </td>
                     </tr>
@@ -1904,89 +1908,87 @@ export default function BrandPerformanceDashboard() {
                     const grandRef = topSort === 'quantity' ? topData!.grand.quantity : topData!.grand.amount;
                     const sharePct = grandRef > 0 ? (sortKey(br.total) / grandRef) * 100 : 0;
                     const topProduct = br.products[0];
+                    const brandCellCompact = t.brandCell.replace('py-3', 'py-1.5');
+                    const dataCellCompact = t.dataCell.replace('py-3', 'py-1.5');
                     return (
                       <Fragment key={key}>
                         <tr
                           onClick={() => toggleTopBrand(key)}
                           className={`cursor-pointer ${brIdx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover} select-none`}
                         >
-                          <td className={t.brandCell}>
-                            <div className="flex items-center gap-3">
-                              <span className={`inline-block w-4 text-center text-[11px] ${t.isDark ? 'text-purple-300' : 'text-slate-400'}`}>{expanded ? '▾' : '▸'}</span>
+                          <td className={brandCellCompact}>
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-block w-3 text-center text-[11px] ${t.isDark ? 'text-purple-300' : 'text-slate-400'}`}>{expanded ? '▾' : '▸'}</span>
                               <span className={t.brandRowNum}>{brIdx + 1}</span>
                               <span className={t.brandAccent} />
-                              <div className="flex flex-col">
-                                <span className={t.brandName}>{br.brandLabel}</span>
-                                {topProduct && (
-                                  <span className={`text-[10px] ${t.isDark ? 'text-fuchsia-300/80' : 'text-purple-600'}`} title={`Top SKU by ${topSort === 'quantity' ? 'quantity' : '₹ value'}`}>
-                                    ★ {topProduct.skuLabel}
-                                  </span>
-                                )}
-                              </div>
+                              <span className={`${t.brandName} text-xs`}>{br.brandLabel}</span>
+                              {topProduct && (
+                                <span className={`text-[10px] truncate ${t.isDark ? 'text-fuchsia-300/80' : 'text-purple-600'}`} title={`Top SKU by ${topSort === 'quantity' ? 'quantity' : '₹ value'}`}>
+                                  · ★ {topProduct.skuLabel}
+                                </span>
+                              )}
                             </div>
                           </td>
-                          <td className={t.dataCell}>
-                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{br.products.length}</div>
+                          <td className={dataCellCompact}>
+                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{br.products.length}</div>
                           </td>
-                          <td className={t.dataCell}>
-                            <div className={t.cellCount}>{br.total.count.toLocaleString('en-IN')}</div>
+                          <td className={dataCellCompact}>
+                            <div className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{br.total.count.toLocaleString('en-IN')}</div>
                           </td>
-                          <td className={t.dataCell}>
-                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(br.total.amount)}</div>
+                          <td className={dataCellCompact}>
+                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(br.total.amount)}</div>
                           </td>
-                          <td className={t.dataCell}>
-                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{br.total.buyers.toLocaleString('en-IN')}</div>
+                          <td className={dataCellCompact}>
+                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{br.total.buyers.toLocaleString('en-IN')}</div>
                           </td>
-                          <td className={t.dataCell}>
-                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{fmtQty(br.total.quantity)}</div>
+                          <td className={dataCellCompact}>
+                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{fmtQty(br.total.quantity)}</div>
                           </td>
-                          <td className={t.dataCell}>
+                          <td className={dataCellCompact}>
                             <div className="flex items-center justify-end gap-2">
-                              <div className={`relative h-1.5 w-16 rounded-full overflow-hidden ${t.isDark ? 'bg-white/10' : 'bg-slate-200'}`}>
+                              <div className={`relative h-1 w-14 rounded-full overflow-hidden ${t.isDark ? 'bg-white/10' : 'bg-slate-200'}`}>
                                 <div
                                   className="absolute inset-y-0 left-0 bg-gradient-to-r from-fuchsia-500 to-purple-500"
                                   style={{ width: `${Math.min(100, sharePct).toFixed(1)}%` }}
                                 />
                               </div>
-                              <span className={`text-[11px] font-bold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{sharePct.toFixed(1)}%</span>
+                              <span className={`text-[10px] font-bold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{sharePct.toFixed(1)}%</span>
                             </div>
                           </td>
                         </tr>
                         {expanded && br.products.map((p, pIdx) => (
                           <tr key={`${key}_${p.skuId}`} className={`${t.isDark ? 'bg-white/[0.015]' : 'bg-slate-50/40'} ${t.rowHover}`}>
-                            <td className={`${t.brandCell} pl-12`}>
-                              <div className="flex items-center gap-3">
+                            <td className={`${brandCellCompact} pl-10`}>
+                              <div className="flex items-center gap-2">
                                 <span className={`text-[10px] tabular-nums font-bold w-5 text-right ${pIdx === 0 ? (t.isDark ? 'text-fuchsia-300' : 'text-purple-600') : (t.isDark ? 'text-purple-400/60' : 'text-slate-400')}`}>
                                   {pIdx === 0 ? '★' : pIdx + 1}
                                 </span>
-                                <div className="flex flex-col">
-                                  <span className={`text-sm font-semibold ${t.isDark ? 'text-white' : 'text-slate-800'}`}>{p.skuLabel}</span>
-                                  {p.size && (
-                                    <span className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>{p.size}</span>
-                                  )}
-                                </div>
+                                <span className={`text-xs font-semibold ${t.isDark ? 'text-white' : 'text-slate-800'}`}>{p.skuLabel}</span>
+                                {p.size && (
+                                  <span className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'} truncate`}>· {p.size}</span>
+                                )}
                               </div>
                             </td>
-                            <td className={t.dataCell}>—</td>
-                            <td className={t.dataCell}>
-                              <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{p.total.count.toLocaleString('en-IN')}</div>
+                            <td className={dataCellCompact}>—</td>
+                            <td className={dataCellCompact}>
+                              <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{p.total.count.toLocaleString('en-IN')}</div>
                             </td>
-                            <td className={t.dataCell}>
-                              <div className={`text-sm font-semibold tabular-nums ${t.isDark ? 'text-purple-200' : 'text-slate-700'}`}>{formatAmount(p.total.amount)}</div>
+                            <td className={dataCellCompact}>
+                              <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-purple-200' : 'text-slate-700'}`}>{formatAmount(p.total.amount)}</div>
                             </td>
-                            <td className={t.dataCell}>
+                            <td className={dataCellCompact}>
                               <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-300/80' : 'text-sky-600'}`}>{p.total.buyers.toLocaleString('en-IN')}</div>
                             </td>
-                            <td className={t.dataCell}>
+                            <td className={dataCellCompact}>
                               <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-emerald-300/80' : 'text-emerald-600'}`}>{fmtQty(p.total.quantity)}</div>
                             </td>
-                            <td className={t.dataCell}>
+                            <td className={dataCellCompact}>
                               {(() => {
                                 const denom = sortKey(br.total);
                                 const pct = denom > 0 ? (sortKey(p.total) / denom) * 100 : 0;
                                 return (
                                   <div className="flex items-center justify-end gap-2">
-                                    <div className={`relative h-1 w-14 rounded-full overflow-hidden ${t.isDark ? 'bg-white/10' : 'bg-slate-200'}`}>
+                                    <div className={`relative h-1 w-12 rounded-full overflow-hidden ${t.isDark ? 'bg-white/10' : 'bg-slate-200'}`}>
                                       <div
                                         className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-400 to-teal-500"
                                         style={{ width: `${Math.min(100, pct).toFixed(1)}%` }}
@@ -2006,22 +2008,22 @@ export default function BrandPerformanceDashboard() {
                 <tfoot className={t.footRow}>
                   <tr>
                     <td className={t.footLabel}>Total</td>
-                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
-                      <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{topData.productCount.toLocaleString('en-IN')}</div>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
+                      <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{topData.productCount.toLocaleString('en-IN')}</div>
                     </td>
-                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
-                      <div className={t.cellCount}>{topData.grand.count.toLocaleString('en-IN')}</div>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
+                      <div className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{topData.grand.count.toLocaleString('en-IN')}</div>
                     </td>
-                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
-                      <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(topData.grand.amount)}</div>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
+                      <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(topData.grand.amount)}</div>
                     </td>
-                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
-                      <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{topData.grand.buyers.toLocaleString('en-IN')}</div>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
+                      <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{topData.grand.buyers.toLocaleString('en-IN')}</div>
                     </td>
-                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
-                      <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{fmtQty(topData.grand.quantity)}</div>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
+                      <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{fmtQty(topData.grand.quantity)}</div>
                     </td>
-                    <td className={`border-t ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                    <td className={`border-t ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
                       <span className={`text-[10px] uppercase tracking-wider ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>sorted by {topSort === 'quantity' ? 'qty' : '₹ value'}</span>
                     </td>
                   </tr>

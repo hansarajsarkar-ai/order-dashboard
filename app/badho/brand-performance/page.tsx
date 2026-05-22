@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ResponsiveContainer, ComposedChart, LineChart, BarChart, PieChart, AreaChart,
-  Line, Bar, Pie, Area, Cell,
+  Line, Bar, Pie, Area, Cell, LabelList,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import IndiaStateMap, { type StateRow } from '../order-dashboard/components/IndiaStateMap';
@@ -423,6 +423,11 @@ export default function BrandPerformanceDashboard() {
     topBrands: string[];
     dow: Array<{ dow: string; orders: number; amount: number }>;
     cohort: Array<{ month: number; new: number; returning: number; orders: number; amount: number }>;
+    funnel: Array<{ status: string; bucket: 'success' | 'inflight' | 'failed'; orders: number; amount: number; sharePct: number }>;
+    funnelBuckets: Array<{ bucket: 'success' | 'inflight' | 'failed'; orders: number; amount: number; sharePct: number }>;
+    topStates: Array<{ state: string; orders: number; amount: number; buyers: number }>;
+    orderSize: Array<{ bucket: string; sortKey: number; orders: number; amount: number }>;
+    monthlyAov: Array<{ month: number; orders: number; amount: number; aov: number; deliveredOrders: number; deliveredAmount: number; deliveredAov: number }>;
     kpi: {
       current: { orders: number; amount: number; buyers: number; deliveredOrders: number; deliveredAmount: number; deliveredBuyers: number; aov: number; deliveryRate: number; delAov: number; };
       prior:   { orders: number; amount: number; buyers: number; deliveredOrders: number; deliveredAmount: number; aov: number; deliveryRate: number; delAov: number; };
@@ -2516,6 +2521,7 @@ export default function BrandPerformanceDashboard() {
                           />
                           <Bar dataKey="gmv" radius={[0, 4, 4, 0]}>
                             {topBrandsChart.map((_, idx) => (<Cell key={idx} fill={palette[idx % palette.length]} />))}
+                            <LabelList dataKey="gmv" position="right" formatter={(v: unknown) => formatAmount(Number(v))} style={{ fill: tipText, fontSize: 11, fontWeight: 700 }} />
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
@@ -2544,7 +2550,7 @@ export default function BrandPerformanceDashboard() {
                             layout="vertical"
                             wrapperStyle={{ fontSize: 11, color: tipText }}
                           />
-                          <Pie data={statusMix} dataKey="value" nameKey="name" cx="40%" cy="50%" innerRadius={60} outerRadius={110} paddingAngle={2}>
+                          <Pie data={statusMix} dataKey="value" nameKey="name" cx="40%" cy="50%" innerRadius={60} outerRadius={110} paddingAngle={2} label={(p: any) => `${p.payload.value.toLocaleString('en-IN')} (${((p.payload.value / statusMix.reduce((s, x) => s + x.value, 0)) * 100).toFixed(1)}%)`} labelLine={{ stroke: tipText, strokeWidth: 0.5 }} style={{ fontSize: 11, fontWeight: 600 }}>
                             {statusMix.map((s, idx) => (<Cell key={idx} fill={statusColor[s.name] || palette[idx % palette.length]} />))}
                           </Pie>
                         </PieChart>
@@ -2576,6 +2582,7 @@ export default function BrandPerformanceDashboard() {
                           />
                           <Bar dataKey="gmv" radius={[0, 4, 4, 0]}>
                             {topSkusChart.map((_, idx) => (<Cell key={idx} fill={palette[idx % palette.length]} />))}
+                            <LabelList dataKey="gmv" position="right" formatter={(v: unknown) => formatAmount(Number(v))} style={{ fill: tipText, fontSize: 10, fontWeight: 700 }} />
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
@@ -2681,15 +2688,19 @@ export default function BrandPerformanceDashboard() {
                             formatter={(v: any, n) => n === 'amount' ? [formatAmount(v), 'GMV'] : [v.toLocaleString('en-IN'), 'Orders']}
                           />
                           <Legend wrapperStyle={{ fontSize: 11, color: tipText }} />
-                          <Bar yAxisId="left"  dataKey="orders" fill="#a78bfa" radius={[4,4,0,0]} name="Orders" />
-                          <Line yAxisId="right" type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: '#10b981' }} name="GMV" />
+                          <Bar yAxisId="left"  dataKey="orders" fill="#a78bfa" radius={[4,4,0,0]} name="Orders">
+                            <LabelList dataKey="orders" position="top" formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: tipText, fontSize: 11, fontWeight: 700 }} />
+                          </Bar>
+                          <Line yAxisId="right" type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: '#10b981' }} name="GMV">
+                            <LabelList dataKey="amount" position="top" formatter={(v: unknown) => formatAmount(Number(v))} style={{ fill: '#10b981', fontSize: 10, fontWeight: 600 }} />
+                          </Line>
                         </ComposedChart>
                       </ResponsiveContainer>
                     )}
                   </div>
                 </div>
 
-                <div className={t.sectionCard}>
+                <div className={t.sectionCard} id="cohort-section">
                   <div className={t.sectionAccent} />
                   <div className={`px-6 py-2 flex items-center justify-between ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
                     <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Buyer cohort · new vs returning</h3>
@@ -2717,12 +2728,162 @@ export default function BrandPerformanceDashboard() {
                               formatter={(v: any, n) => [v.toLocaleString('en-IN'), n === 'new' ? 'New buyers' : 'Returning buyers']}
                             />
                             <Legend wrapperStyle={{ fontSize: 11, color: tipText }} formatter={(v) => v === 'new' ? 'New buyers' : 'Returning buyers'} />
-                            <Bar dataKey="new"       stackId="b" fill="#d946ef" radius={[0,0,0,0]} />
-                            <Bar dataKey="returning" stackId="b" fill="#10b981" radius={[4,4,0,0]} />
+                            <Bar dataKey="new"       stackId="b" fill="#d946ef" radius={[0,0,0,0]}>
+                              <LabelList dataKey="new" position="center" formatter={(v: unknown) => { const n = Number(v); return n > 0 ? n.toLocaleString('en-IN') : ''; }} style={{ fill: '#ffffff', fontSize: 10, fontWeight: 700 }} />
+                            </Bar>
+                            <Bar dataKey="returning" stackId="b" fill="#10b981" radius={[4,4,0,0]}>
+                              <LabelList dataKey="returning" position="center" formatter={(v: unknown) => { const n = Number(v); return n > 0 ? n.toLocaleString('en-IN') : ''; }} style={{ fill: '#ffffff', fontSize: 10, fontWeight: 700 }} />
+                              <LabelList dataKey="orders" position="top" formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: tipText, fontSize: 11, fontWeight: 700 }} />
+                            </Bar>
                           </BarChart>
                         </ResponsiveContainer>
                       );
                     })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Row: Order-funnel snapshot + AOV trend */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={`px-6 py-2 flex items-center justify-between ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                    <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Order outcome · success / in-flight / failed</h3>
+                    {trendsExtra && (() => {
+                      const succ = trendsExtra.funnelBuckets.find(b => b.bucket === 'success');
+                      return succ ? <span className={`text-[11px] font-semibold ${t.isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Success: {succ.sharePct.toFixed(1)}%</span> : null;
+                    })()}
+                  </div>
+                  <div className="p-4" style={{ height: 320 }}>
+                    {trendsExtraLoading || !trendsExtra || trendsExtra.funnel.length === 0 ? (
+                      <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>{trendsExtraLoading ? 'Loading…' : 'No data'}</div>
+                    ) : (() => {
+                      const bucketColor: Record<string, string> = { success: '#10b981', inflight: '#38bdf8', failed: '#f43f5e' };
+                      return (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart layout="vertical" data={trendsExtra.funnel} margin={{ left: 10, right: 70 }}>
+                            <CartesianGrid stroke={grid} strokeDasharray="3 3" horizontal={false} />
+                            <XAxis type="number" stroke={ax} fontSize={11} tickFormatter={(v: any) => Number(v).toLocaleString('en-IN')} />
+                            <YAxis type="category" dataKey="status" stroke={ax} fontSize={11} width={100} />
+                            <Tooltip
+                              contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                              formatter={(v: any, _n: any, p: any) => [`${Number(v).toLocaleString('en-IN')} orders · ${formatAmount(p.payload.amount)} · ${p.payload.sharePct.toFixed(1)}%`, p.payload.status]}
+                            />
+                            <Bar dataKey="orders" radius={[0, 4, 4, 0]}>
+                              {trendsExtra.funnel.map((r, idx) => (<Cell key={idx} fill={bucketColor[r.bucket] || '#a78bfa'} />))}
+                              <LabelList dataKey="orders" position="right" formatter={(v: unknown) => `${Number(v).toLocaleString('en-IN')}`} style={{ fill: tipText, fontSize: 11, fontWeight: 700 }} />
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={`px-6 py-2 flex items-center justify-between ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                    <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Average order value · monthly</h3>
+                    {trendsExtra && trendsExtra.monthlyAov.length > 1 && (() => {
+                      const f = trendsExtra.monthlyAov[0].deliveredAov;
+                      const l = trendsExtra.monthlyAov[trendsExtra.monthlyAov.length - 1].deliveredAov;
+                      const ch = f > 0 ? ((l - f) / f) * 100 : 0;
+                      const pos = ch >= 0;
+                      return <span className={`text-[11px] font-semibold ${pos ? (t.isDark ? 'text-emerald-300' : 'text-emerald-700') : (t.isDark ? 'text-rose-300' : 'text-rose-700')}`}>{pos ? '▲' : '▼'} {ch >= 0 ? '+' : ''}{ch.toFixed(1)}% delivered AOV</span>;
+                    })()}
+                  </div>
+                  <div className="p-4" style={{ height: 320 }}>
+                    {trendsExtraLoading || !trendsExtra || trendsExtra.monthlyAov.length === 0 ? (
+                      <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>{trendsExtraLoading ? 'Loading…' : 'No data'}</div>
+                    ) : (() => {
+                      const monthLabel = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                      const data = trendsExtra.monthlyAov.map(r => ({ ...r, monthLabel: monthLabel[r.month - 1] || r.month }));
+                      return (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={data} margin={{ top: 20, right: 20, bottom: 0, left: 0 }}>
+                            <CartesianGrid stroke={grid} strokeDasharray="3 3" />
+                            <XAxis dataKey="monthLabel" stroke={ax} fontSize={11} />
+                            <YAxis stroke={ax} fontSize={11} tickFormatter={(v: any) => formatAmount(Number(v))} width={70} />
+                            <Tooltip
+                              contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                              formatter={(v: any, n: any) => [formatAmount(Number(v)), n === 'aov' ? 'AOV (all)' : 'AOV (delivered)']}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 11, color: tipText }} formatter={(n: any) => n === 'aov' ? 'AOV (all)' : 'AOV (delivered)'} />
+                            <Line type="monotone" dataKey="aov" stroke="#a78bfa" strokeWidth={2.5} dot={{ r: 4, fill: '#a78bfa' }}>
+                              <LabelList dataKey="aov" position="top" formatter={(v: unknown) => formatAmount(Number(v))} style={{ fill: '#a78bfa', fontSize: 10, fontWeight: 600 }} />
+                            </Line>
+                            <Line type="monotone" dataKey="deliveredAov" stroke="#10b981" strokeWidth={2.5} dot={{ r: 4, fill: '#10b981' }}>
+                              <LabelList dataKey="deliveredAov" position="bottom" formatter={(v: unknown) => formatAmount(Number(v))} style={{ fill: '#10b981', fontSize: 10, fontWeight: 600 }} />
+                            </Line>
+                          </LineChart>
+                        </ResponsiveContainer>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Row: Top 10 buyer states + Order-size distribution */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={`px-6 py-2 flex items-center justify-between ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                    <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Top 10 buyer states · delivered GMV</h3>
+                    {trendsExtra && trendsExtra.topStates[0] && <span className={`text-[11px] font-semibold ${t.isDark ? 'text-fuchsia-300' : 'text-purple-700'}`}>#1 {trendsExtra.topStates[0].state}: {formatAmount(trendsExtra.topStates[0].amount)}</span>}
+                  </div>
+                  <div className="p-4" style={{ height: 380 }}>
+                    {trendsExtraLoading || !trendsExtra || trendsExtra.topStates.length === 0 ? (
+                      <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>{trendsExtraLoading ? 'Loading…' : 'No data'}</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart layout="vertical" data={trendsExtra.topStates} margin={{ left: 10, right: 70 }}>
+                          <CartesianGrid stroke={grid} strokeDasharray="3 3" horizontal={false} />
+                          <XAxis type="number" stroke={ax} fontSize={11} tickFormatter={(v: any) => formatAmount(Number(v))} />
+                          <YAxis type="category" dataKey="state" stroke={ax} fontSize={11} width={120} interval={0} />
+                          <Tooltip
+                            contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                            formatter={(v: any, _n: any, p: any) => [`${formatAmount(Number(v))} · ${p.payload.orders.toLocaleString('en-IN')} orders · ${p.payload.buyers.toLocaleString('en-IN')} buyers`, p.payload.state]}
+                          />
+                          <Bar dataKey="amount" radius={[0, 4, 4, 0]}>
+                            {trendsExtra.topStates.map((_, idx) => (<Cell key={idx} fill={palette[idx % palette.length]} />))}
+                            <LabelList dataKey="amount" position="right" formatter={(v: unknown) => formatAmount(Number(v))} style={{ fill: tipText, fontSize: 11, fontWeight: 700 }} />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={`px-6 py-2 flex items-center justify-between ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                    <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Order-size distribution · delivered orders</h3>
+                    {trendsExtra && trendsExtra.orderSize.length > 0 && (() => {
+                      const tot = trendsExtra.orderSize.reduce((s, r) => s + r.orders, 0);
+                      const top = trendsExtra.orderSize.reduce((m, r) => r.orders > m.orders ? r : m, trendsExtra.orderSize[0]);
+                      return <span className={`text-[11px] font-semibold ${t.isDark ? 'text-sky-300' : 'text-sky-700'}`}>Most common: {top.bucket} ({tot > 0 ? ((top.orders / tot) * 100).toFixed(0) : 0}%)</span>;
+                    })()}
+                  </div>
+                  <div className="p-4" style={{ height: 380 }}>
+                    {trendsExtraLoading || !trendsExtra || trendsExtra.orderSize.length === 0 ? (
+                      <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>{trendsExtraLoading ? 'Loading…' : 'No data'}</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={trendsExtra.orderSize} margin={{ top: 20, right: 20, bottom: 0, left: 0 }}>
+                          <CartesianGrid stroke={grid} strokeDasharray="3 3" />
+                          <XAxis dataKey="bucket" stroke={ax} fontSize={11} angle={-15} textAnchor="end" height={50} />
+                          <YAxis stroke={ax} fontSize={11} tickFormatter={(v: any) => Number(v).toLocaleString('en-IN')} />
+                          <Tooltip
+                            contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                            formatter={(v: any, _n: any, p: any) => [`${Number(v).toLocaleString('en-IN')} orders · ${formatAmount(p.payload.amount)}`, p.payload.bucket]}
+                          />
+                          <Bar dataKey="orders" fill="#38bdf8" radius={[4,4,0,0]}>
+                            {trendsExtra.orderSize.map((_, idx) => (<Cell key={idx} fill={['#38bdf8','#a78bfa','#d946ef','#f59e0b','#10b981','#f43f5e'][idx % 6]} />))}
+                            <LabelList dataKey="orders" position="top" formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: tipText, fontSize: 11, fontWeight: 700 }} />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 </div>
               </div>

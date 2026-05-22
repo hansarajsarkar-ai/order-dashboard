@@ -947,10 +947,10 @@ export default function RefundOrderAmountDashboard() {
           onClick={() => setModal(null)}
         >
           <div
-            className="w-full max-w-[98vw] h-[97vh] max-h-[97vh] bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="w-full max-w-[98vw] h-[97vh] max-h-[97vh] bg-gradient-to-br from-slate-950 via-purple-950/50 to-slate-950 border border-fuchsia-400/30 rounded-2xl shadow-[0_0_80px_-15px_rgba(217,70,239,0.5)] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
+            <div className="flex items-center justify-between p-4 border-b border-fuchsia-400/20 bg-gradient-to-r from-fuchsia-500/10 via-purple-500/5 to-transparent">
               <div>
                 <h3 className="text-base font-bold text-white">{modal.title}</h3>
                 <p className="text-purple-300/70 text-xs mt-0.5">
@@ -1077,107 +1077,110 @@ export default function RefundOrderAmountDashboard() {
                       : 'No orders match this slice.'}
                   </div>
                 ) : (
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-900/95 backdrop-blur sticky top-0 z-10">
-                      <tr className="text-purple-200 uppercase">
-                        <th className="px-3 py-2 text-left">PO Number</th>
-                        <th className="px-3 py-2 text-left">PO ID</th>
-                        <th className="px-3 py-2 text-left">Status</th>
-                        <th className="px-3 py-2 text-left">Delivery Status</th>
-                        <th className="px-3 py-2 text-left">Reason Category</th>
-                        <th className="px-3 py-2 text-right">Order Amt</th>
-                        <th className="px-3 py-2 text-right">Paid</th>
-                        <th className="px-3 py-2 text-right">Wallet</th>
-                        <th className="px-3 py-2 text-left">Payment Event</th>
-                        <th className="px-3 py-2 text-left">Payment Option</th>
-                        <th className="px-3 py-2 text-left">Payment Attempt ID</th>
-                        <th className="px-3 py-2 text-right">Refund</th>
-                        <th className="px-3 py-2 text-left">Refund ARN</th>
-                        <th className="px-3 py-2 text-right" title="Time the bank took to settle the refund — markedStatusCompletedTime − markedStatusInitiatedTime.">Settlement Time</th>
-                        <th className="px-3 py-2 text-right" title="Total customer wait — from the order being rejected/cancelled to the refund being completed.">Customer Wait Time</th>
-                        <th className="px-3 py-2 text-left">Created At</th>
-                        <th className="px-3 py-2 text-left">Order Placed At</th>
-                        <th className="px-3 py-2 text-left">Rejected At</th>
-                        <th className="px-3 py-2 text-left">Cancelled At</th>
-                        <th className="px-3 py-2 text-left">Reject/Cancel At</th>
-                        <th className="px-3 py-2 text-left">Refunded At</th>
-                        <th className="px-3 py-2 text-left">Buyer</th>
-                        <th className="px-3 py-2 text-left">Seller</th>
-                        <th className="px-3 py-2 text-left">Reject Reason</th>
-                        <th className="px-3 py-2 text-left">Rejected By</th>
-                        <th className="px-3 py-2 text-left">Badho Team Reason</th>
+                  <table className="w-full text-xs border-separate border-spacing-0">
+                    <thead className="bg-slate-950/95 backdrop-blur-xl sticky top-0 z-10 shadow-[0_2px_0_0_rgba(217,70,239,0.35)]">
+                      <tr className="text-fuchsia-300/90 uppercase font-bold tracking-wider">
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">PO Number</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">PO ID</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Status</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Delivery</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Reason Category</th>
+                        <th className="px-3 py-3 text-right border-b border-fuchsia-400/20">Order Amt</th>
+                        <th className="px-3 py-3 text-right border-b border-fuchsia-400/20">Paid</th>
+                        <th className="px-3 py-3 text-right border-b border-fuchsia-400/20">Wallet</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Payment Event</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Payment Option</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Payment Attempt ID</th>
+                        <th className="px-3 py-3 text-right border-b border-fuchsia-400/20">Refund</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Refund ARN</th>
+                        <th className="px-3 py-3 text-right border-b border-fuchsia-400/20" title="Time the bank took to settle the refund — markedStatusCompletedTime − markedStatusInitiatedTime.">Settlement</th>
+                        <th className="px-3 py-3 text-right border-b border-fuchsia-400/20" title="Total customer wait — from the order being rejected/cancelled to the refund being completed.">Customer Wait</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Created At</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Order Placed At</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Rejected At</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Cancelled At</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Reject/Cancel At</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Refunded At</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Buyer</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Seller</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Reject Reason</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Rejected By</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Badho Team Reason</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredModalOrders.map((r) => (
-                        <tr key={r.purchaseOrderId} className="border-t border-white/5 hover:bg-white/5">
-                          <td className="px-3 py-2 text-fuchsia-300 font-mono">{r.poNumber}</td>
-                          <td className="px-3 py-2 text-purple-300/70 font-mono text-[10px] select-all" title={r.purchaseOrderId}>{r.purchaseOrderId}</td>
-                          <td className="px-3 py-2">
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                              r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
-                              : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
+                      {filteredModalOrders.map((r, i) => (
+                        <tr
+                          key={r.purchaseOrderId}
+                          className={`transition-colors duration-100 ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.025]'} hover:bg-fuchsia-500/10 hover:shadow-[inset_3px_0_0_0_rgba(217,70,239,0.7)]`}
+                        >
+                          <td className="px-3 py-2.5 text-fuchsia-300 font-mono font-bold">{r.poNumber}</td>
+                          <td className="px-3 py-2.5 text-purple-300/60 font-mono text-[10px] select-all" title={r.purchaseOrderId}>{r.purchaseOrderId}</td>
+                          <td className="px-3 py-2.5">
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ring-1 whitespace-nowrap ${
+                              r.status === 'REJECTED' ? 'bg-rose-500/30 text-rose-100 ring-rose-400/50 shadow-[0_0_10px_rgba(244,63,94,0.3)]'
+                              : 'bg-amber-500/30 text-amber-100 ring-amber-400/50 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
                             }`}>{r.status}</span>
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5">
                             {r.deliveryStatus
-                              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-500/15 text-sky-200 border border-sky-400/30 whitespace-nowrap">{r.deliveryStatus}</span>
-                              : <span className="text-purple-400/50 italic">—</span>}
+                              ? <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ring-1 bg-sky-500/25 text-sky-100 ring-sky-400/50 shadow-[0_0_10px_rgba(56,189,248,0.3)] whitespace-nowrap">{r.deliveryStatus}</span>
+                              : <span className="text-white/30 italic">—</span>}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5">
                             {(() => {
                               const cat = categoryStyleFor(r.reasonCategory);
                               return (
-                                <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ring-1 whitespace-nowrap ${cat.bg} ${cat.tone} ${cat.ring}`}>
+                                <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ring-1 whitespace-nowrap ${cat.bg} ${cat.tone} ${cat.ring}`}>
                                   {r.reasonCategory}
                                 </span>
                               );
                             })()}
                           </td>
-                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.amount)}</td>
-                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{formatAmount(r.orderPaidAmount)}</td>
-                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums">
-                            {r.appliedWalletAmount != null && r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : <span className="text-purple-400/50">—</span>}
+                          <td className="px-3 py-2.5 text-right text-white tabular-nums font-bold">{formatAmount(r.amount)}</td>
+                          <td className="px-3 py-2.5 text-right text-white tabular-nums font-bold">{formatAmount(r.orderPaidAmount)}</td>
+                          <td className="px-3 py-2.5 text-right text-amber-200 tabular-nums font-semibold">
+                            {r.appliedWalletAmount != null && r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : <span className="text-white/30">—</span>}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5">
                             {r.paymentEvent
-                              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 whitespace-nowrap">{r.paymentEvent}</span>
-                              : <span className="text-purple-400/50 italic">—</span>}
+                              ? <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ring-1 bg-indigo-500/25 text-indigo-100 ring-indigo-400/50 shadow-[0_0_10px_rgba(99,102,241,0.3)] whitespace-nowrap">{r.paymentEvent}</span>
+                              : <span className="text-white/30 italic">—</span>}
                           </td>
-                          <td className="px-3 py-2 text-purple-200">{r.paymentOption ?? '—'}</td>
-                          <td className="px-3 py-2 text-purple-300/70 font-mono text-[10px] select-all" title={r.paymentAttemptId || ''}>
-                            {r.paymentAttemptId || <span className="text-purple-400/50 italic">—</span>}
+                          <td className="px-3 py-2.5 text-purple-100">{r.paymentOption ?? '—'}</td>
+                          <td className="px-3 py-2.5 text-purple-300/60 font-mono text-[10px] select-all" title={r.paymentAttemptId || ''}>
+                            {r.paymentAttemptId || <span className="text-white/30 italic">—</span>}
                           </td>
-                          <td className={`px-3 py-2 text-right tabular-nums font-semibold ${r.refundAmount != null ? 'text-emerald-300' : 'text-rose-300/70'}`}>
+                          <td className={`px-3 py-2.5 text-right tabular-nums font-black ${r.refundAmount != null ? 'text-emerald-400 drop-shadow-[0_0_4px_rgba(16,185,129,0.4)]' : 'text-rose-400'}`}>
                             {r.refundAmount != null ? formatAmount(r.refundAmount) : 'Pending'}
                           </td>
-                          <td className="px-3 py-2 text-emerald-200/90 font-mono text-[10px] select-all" title={r.refundARN || ''}>
-                            {r.refundARN || <span className="text-purple-400/50 italic">—</span>}
+                          <td className="px-3 py-2.5 text-emerald-300 font-mono text-[10px] font-semibold select-all" title={r.refundARN || ''}>
+                            {r.refundARN || <span className="text-white/30 italic">—</span>}
                           </td>
-                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">
-                            {r.refundProcessingHours != null ? r.refundProcessingHours.toFixed(1) : <span className="text-purple-400/50">—</span>}
+                          <td className="px-3 py-2.5 text-right text-cyan-300 tabular-nums font-bold">
+                            {r.refundProcessingHours != null ? `${r.refundProcessingHours.toFixed(1)}h` : <span className="text-white/30">—</span>}
                           </td>
-                          <td className="px-3 py-2 text-right text-purple-100 tabular-nums font-semibold">{r.hoursTillRefund != null ? r.hoursTillRefund.toFixed(1) : '—'}</td>
-                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
-                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
-                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedRejectedTime)}</td>
-                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedCancelledTime)}</td>
-                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.rejectedOrCancelledTime)}</td>
-                          <td className="px-3 py-2 text-purple-200 whitespace-nowrap">{formatDateTime(r.markedStatusCompletedTime)}</td>
-                          <td className="px-3 py-2 text-purple-200">
-                            <div className="text-white">{r.buyerBusinessName || '—'}</div>
-                            <div className="text-purple-300/70 text-[10px]">{r.buyerPhone || ''}</div>
+                          <td className="px-3 py-2.5 text-right text-pink-300 tabular-nums font-bold">{r.hoursTillRefund != null ? `${r.hoursTillRefund.toFixed(1)}h` : '—'}</td>
+                          <td className="px-3 py-2.5 text-purple-200/90 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
+                          <td className="px-3 py-2.5 text-purple-200/90 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
+                          <td className="px-3 py-2.5 text-purple-200/90 whitespace-nowrap">{formatDateTime(r.markedRejectedTime)}</td>
+                          <td className="px-3 py-2.5 text-purple-200/90 whitespace-nowrap">{formatDateTime(r.markedCancelledTime)}</td>
+                          <td className="px-3 py-2.5 text-purple-200/90 whitespace-nowrap">{formatDateTime(r.rejectedOrCancelledTime)}</td>
+                          <td className="px-3 py-2.5 text-emerald-200/90 whitespace-nowrap font-semibold">{formatDateTime(r.markedStatusCompletedTime)}</td>
+                          <td className="px-3 py-2.5">
+                            <div className="text-white font-semibold">{r.buyerBusinessName || '—'}</div>
+                            <div className="text-purple-300/60 text-[10px] font-mono">{r.buyerPhone || ''}</div>
                           </td>
-                          <td className="px-3 py-2 text-purple-200">
-                            <div className="text-white">{r.sellerBusinessName || '—'}</div>
-                            <div className="text-purple-300/70 text-[10px]">{r.sellerPhone || ''}</div>
+                          <td className="px-3 py-2.5">
+                            <div className="text-white font-semibold">{r.sellerBusinessName || '—'}</div>
+                            <div className="text-purple-300/60 text-[10px] font-mono">{r.sellerPhone || ''}</div>
                           </td>
-                          <td className="px-3 py-2 text-purple-100 min-w-[180px] max-w-[300px]">
-                            {r.rejectReason ? <span className="block whitespace-normal break-words leading-snug">{r.rejectReason}</span> : <span className="text-purple-400/50 italic">—</span>}
+                          <td className="px-3 py-2.5 text-purple-100 min-w-[180px] max-w-[300px]">
+                            {r.rejectReason ? <span className="block whitespace-normal break-words leading-snug">{r.rejectReason}</span> : <span className="text-white/30 italic">—</span>}
                           </td>
-                          <td className="px-3 py-2 text-purple-200">{r.rejectedBy || <span className="text-purple-400/50 italic">—</span>}</td>
-                          <td className="px-3 py-2 text-purple-100 min-w-[180px] max-w-[300px]">
-                            {r.reasonAddedByBadhoTeam ? <span className="block whitespace-normal break-words leading-snug">{r.reasonAddedByBadhoTeam}</span> : <span className="text-purple-400/50 italic">—</span>}
+                          <td className="px-3 py-2.5 text-purple-100">{r.rejectedBy || <span className="text-white/30 italic">—</span>}</td>
+                          <td className="px-3 py-2.5 text-purple-100 min-w-[180px] max-w-[300px]">
+                            {r.reasonAddedByBadhoTeam ? <span className="block whitespace-normal break-words leading-snug">{r.reasonAddedByBadhoTeam}</span> : <span className="text-white/30 italic">—</span>}
                           </td>
                         </tr>
                       ))}

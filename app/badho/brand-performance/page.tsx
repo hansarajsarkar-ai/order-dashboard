@@ -1395,27 +1395,46 @@ export default function BrandPerformanceDashboard() {
           return (
         <div className={t.sectionCard}>
           <div className={t.sectionAccent} />
-          <div className={t.sectionHeader}>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className={t.sectionTag('details')}>PRODUCT</span>
-                <h2 className={t.h2}>Product × Month</h2>
+          <div className={`px-6 py-2 flex items-center gap-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+            <span className={t.sectionTag('details')}>PRODUCT</span>
+            <h2 className={`text-base font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Product × Month</h2>
+            <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>top {productData?.limit ?? 300} SKUs by ₹ value · orders · ₹ · buyers</span>
+          </div>
+
+          <div className={`px-6 py-2 border-b flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
+            <span className={t.chipLabel}>Date</span>
+            {([
+              { key: 'year',   label: `${currentYear} (full year)` },
+              { key: '30d',    label: 'Last 30 days' },
+              { key: '7d',     label: 'Last 7 days' },
+              { key: 'today',  label: 'Today' },
+              { key: 'custom', label: 'Custom' },
+            ] as const).map((opt) => {
+              const active = range === opt.key;
+              return (
+                <button key={opt.key} onClick={() => setRange(opt.key)} className={active ? t.chipActive : t.chipInactive}>
+                  {opt.label}
+                </button>
+              );
+            })}
+            {range === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={t.dateInput} />
+                <span className={t.dateLabel}>to</span>
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
               </div>
-              <p className={t.p}>
-                Rows = brand SKU (top {productData?.limit ?? 300} by ₹ value). Each cell shows orders · ₹value · unique buyers. Filtered by the brand multi-select below.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
+            )}
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setMbsBrandDropdownOpen((v) => !v)}
-                  className={`min-w-[240px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+                  className={`min-w-[180px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
                 >
                   <span className="truncate font-semibold">
                     {mbsBrands.size === 0 && <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All brands</span>}
                     {mbsBrands.size === 1 && Array.from(mbsBrands)[0]}
-                    {mbsBrands.size > 1 && <span className={t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}>{mbsBrands.size} brands selected</span>}
+                    {mbsBrands.size > 1 && <span className={t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}>{mbsBrands.size} brands</span>}
                   </span>
                   <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
                 </button>
@@ -1500,9 +1519,16 @@ export default function BrandPerformanceDashboard() {
                   className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
                   title="Clear brand filter"
                 >
-                  ✕ Clear
+                  ✕
                 </button>
               )}
+              <input
+                type="text"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Search product / brand / size…"
+                className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'min-w-[180px]')}
+              />
               {productData && (
                 <button
                   className={t.csvBtn}
@@ -1529,38 +1555,6 @@ export default function BrandPerformanceDashboard() {
                 </button>
               )}
             </div>
-          </div>
-
-          <div className={t.chipRow}>
-            <span className={t.chipLabel}>Date (markedPendingTime)</span>
-            {([
-              { key: 'year',   label: `${currentYear} (full year)` },
-              { key: '30d',    label: 'Last 30 days' },
-              { key: '7d',     label: 'Last 7 days' },
-              { key: 'today',  label: 'Today' },
-              { key: 'custom', label: 'Custom' },
-            ] as const).map((opt) => {
-              const active = range === opt.key;
-              return (
-                <button key={opt.key} onClick={() => setRange(opt.key)} className={active ? t.chipActive : t.chipInactive}>
-                  {opt.label}
-                </button>
-              );
-            })}
-            {range === 'custom' && (
-              <div className="flex items-center gap-2 ml-2">
-                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={t.dateInput} />
-                <span className={t.dateLabel}>to</span>
-                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
-              </div>
-            )}
-            <input
-              type="text"
-              value={productSearch}
-              onChange={(e) => setProductSearch(e.target.value)}
-              placeholder="Search product / brand / size…"
-              className={t.searchInput}
-            />
           </div>
 
           <div className={t.tableWrap}>
@@ -1710,27 +1704,46 @@ export default function BrandPerformanceDashboard() {
           return (
         <div className={t.sectionCard}>
           <div className={t.sectionAccent} />
-          <div className={t.sectionHeader}>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className={t.sectionTag('pivot')}>TOP SELLERS</span>
-                <h2 className={t.h2}>Brand × Product</h2>
+          <div className={`px-6 py-2 flex items-center gap-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+            <span className={t.sectionTag('pivot')}>TOP SELLERS</span>
+            <h2 className={`text-base font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Brand × Product</h2>
+            <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>brands ranked by sales — click to expand top SKUs</span>
+          </div>
+
+          <div className={`px-6 py-2 border-b flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
+            <span className={t.chipLabel}>Date</span>
+            {([
+              { key: 'year',   label: `${currentYear} (full year)` },
+              { key: '30d',    label: 'Last 30 days' },
+              { key: '7d',     label: 'Last 7 days' },
+              { key: 'today',  label: 'Today' },
+              { key: 'custom', label: 'Custom' },
+            ] as const).map((opt) => {
+              const active = range === opt.key;
+              return (
+                <button key={opt.key} onClick={() => setRange(opt.key)} className={active ? t.chipActive : t.chipInactive}>
+                  {opt.label}
+                </button>
+              );
+            })}
+            {range === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={t.dateInput} />
+                <span className={t.dateLabel}>to</span>
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
               </div>
-              <p className={t.p}>
-                Brands ranked by total sales — click any brand to expand its top-selling SKUs. Toggle the sort to find the highest-quantity movers.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className={`inline-flex gap-1 p-1 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
+            )}
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
+              <div className={`inline-flex gap-1 p-0.5 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
                 {(['amount', 'quantity'] as const).map((m) => {
                   const active = topSort === m;
                   return (
                     <button
                       key={m}
                       onClick={() => setTopSort(m)}
-                      className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all whitespace-nowrap ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}
                     >
-                      {m === 'amount' ? 'By ₹ value' : 'By quantity'}
+                      {m === 'amount' ? '₹ value' : 'Qty'}
                     </button>
                   );
                 })}
@@ -1739,12 +1752,12 @@ export default function BrandPerformanceDashboard() {
                 <button
                   type="button"
                   onClick={() => setMbsBrandDropdownOpen((v) => !v)}
-                  className={`min-w-[200px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+                  className={`min-w-[160px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
                 >
                   <span className="truncate font-semibold">
                     {mbsBrands.size === 0 && <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All brands</span>}
                     {mbsBrands.size === 1 && Array.from(mbsBrands)[0]}
-                    {mbsBrands.size > 1 && <span className={t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}>{mbsBrands.size} brands selected</span>}
+                    {mbsBrands.size > 1 && <span className={t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}>{mbsBrands.size} brands</span>}
                   </span>
                   <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
                 </button>
@@ -1823,6 +1836,22 @@ export default function BrandPerformanceDashboard() {
                   </>
                 )}
               </div>
+              {mbsBrands.size > 0 && (
+                <button
+                  onClick={() => setMbsBrands(new Set())}
+                  className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
+                  title="Clear brand filter"
+                >
+                  ✕
+                </button>
+              )}
+              <input
+                type="text"
+                value={topSearch}
+                onChange={(e) => setTopSearch(e.target.value)}
+                placeholder="Search brand / product…"
+                className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'min-w-[180px]')}
+              />
               {topData && (
                 <button
                   className={t.csvBtn}
@@ -1847,38 +1876,6 @@ export default function BrandPerformanceDashboard() {
                 </button>
               )}
             </div>
-          </div>
-
-          <div className={t.chipRow}>
-            <span className={t.chipLabel}>Date (markedPendingTime)</span>
-            {([
-              { key: 'year',   label: `${currentYear} (full year)` },
-              { key: '30d',    label: 'Last 30 days' },
-              { key: '7d',     label: 'Last 7 days' },
-              { key: 'today',  label: 'Today' },
-              { key: 'custom', label: 'Custom' },
-            ] as const).map((opt) => {
-              const active = range === opt.key;
-              return (
-                <button key={opt.key} onClick={() => setRange(opt.key)} className={active ? t.chipActive : t.chipInactive}>
-                  {opt.label}
-                </button>
-              );
-            })}
-            {range === 'custom' && (
-              <div className="flex items-center gap-2 ml-2">
-                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={t.dateInput} />
-                <span className={t.dateLabel}>to</span>
-                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
-              </div>
-            )}
-            <input
-              type="text"
-              value={topSearch}
-              onChange={(e) => setTopSearch(e.target.value)}
-              placeholder="Search brand / product…"
-              className={t.searchInput}
-            />
           </div>
 
           <div className={t.tableWrap}>

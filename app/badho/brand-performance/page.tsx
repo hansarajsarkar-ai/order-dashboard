@@ -2294,7 +2294,8 @@ export default function BrandPerformanceDashboard() {
           return (
             <div className="flex flex-col gap-6">
               {/* Compact filter bar — date + granularity + brand picker */}
-              <div className={t.sectionCard}>
+              {/* overflow-visible so the brand-picker dropdown can escape this short card */}
+              <div className={t.sectionCard.replace('overflow-hidden', 'overflow-visible')}>
                 <div className={t.sectionAccent} />
                 <div className={`px-6 py-2 flex items-center gap-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
                   <span className={t.sectionTag('pivot')}>CHART &amp; TREND</span>

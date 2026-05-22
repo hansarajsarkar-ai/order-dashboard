@@ -37,77 +37,20 @@ interface SellerSummary {
   refundedAmount: number;
   pendingAmount: number;
   refundedOrders: number;
-  totalSellerOrders: number;
-  totalSellerAmount: number;
+  totalOrders: number;
+  totalAmount: number;
+  deliveredOrders: number;
+  deliveredAmount: number;
   refundOrderPctOfTotal: number;
-}
-
-interface ListItem {
-  purchaseOrderId: string;
-  status: string;
-  deliveryStatus: string | null;
-  amount: number;
-  createdAt: string | null;
-  markedPendingTime: string | null;
-  markedRejectedTime: string | null;
-  markedCancelledTime: string | null;
-  rejectedOrCancelledTime: string | null;
-  poNumber: string;
-  paymentOption: string | null;
-  paymentEvent: string | null;
-  paymentAttemptId: string | null;
-  appliedWalletAmount: number | null;
-  buyerPhone: string | null;
-  buyerBusinessName: string | null;
-  sellerPhone: string | null;
-  sellerBusinessName: string | null;
-  orderPaidAmount: number;
-  refundAmount: number | null;
-  refundARN: string | null;
-  markedStatusCompletedTime: string | null;
-  markedStatusInitiatedTime: string | null;
-  refundProcessingHours: number | null;
-  hoursTillRefund: number | null;
-  rejectReason: string | null;
-  rejectedBy: string | null;
-  reasonAddedByBadhoTeam: string | null;
-  reasonCategory: string;
-}
-
-interface AlertItem {
-  purchaseOrderId: string;
-  status: string;
-  poNumber: string;
-  paidAmount: number;
-  paymentOption: string | null;
-  paymentEvent: string | null;
-  paymentAttemptId: string | null;
-  appliedWalletAmount: number | null;
-  buyerPhone: string | null;
-  buyerBusinessName: string | null;
-  sellerPhone: string | null;
-  sellerBusinessName: string | null;
-  createdAt: string | null;
-  markedPendingTime: string | null;
-  rejectedOrCancelledTime: string | null;
-  minutesPending: number;
-  deliveryStatus: string | null;
-  rejectReason: string | null;
-  rejectedBy: string | null;
-  reasonAddedByBadhoTeam: string | null;
-  reasonCategory: string;
 }
 
 interface ResultRow {
   result: {
     summary: Summary;
     summaryAllTime: Summary;
-    byDay: Bucket[] | null;
-    byWeek: Bucket[] | null;
-    byMonth: Bucket[] | null;
+    buckets: Bucket[] | null;
     topSellers: SellerSummary[] | null;
-    list: ListItem[] | null;
-    alerts: AlertItem[] | null;
+    alertsCount: number;
   } | null;
 }
 
@@ -161,15 +104,16 @@ const PFC_AGG_JOIN = `
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  // Date range filter, applied to rejected_or_cancelled_time (the user-provided
-  // base query filters here too). Defaults to current year if missing.
   const today = new Date();
   const yyyymmdd = (d: Date) => d.toISOString().slice(0, 10);
   const yearStart = new Date(today.getFullYear(), 0, 1);
   const startDate = searchParams.get('startDate') || yyyymmdd(yearStart);
   const endDate   = searchParams.get('endDate')   || yyyymmdd(today);
+  const granularityParam = (searchParams.get('granularity') || 'month').toLowerCase();
+  const granularity = (['day', 'week', 'month'] as const).includes(granularityParam as 'day' | 'week' | 'month')
+    ? (granularityParam as 'day' | 'week' | 'month')
+    : 'month';
 
-  // Basic validation — must be YYYY-MM-DD-ish (Postgres will reject anything weirder).
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
     return NextResponse.json({ error: 'startDate and endDate must be YYYY-MM-DD' }, { status: 400 });
   }
@@ -182,73 +126,22 @@ export async function GET(req: NextRequest) {
     const sql = `
       WITH source AS MATERIALIZED (
         SELECT
-          a."id"                                  AS purchase_order_id,
-          a."status"                              AS po_status,
-          a."amount"::numeric                     AS po_amount,
-          a."created_at"                          AS created_at,
-          a."markedPendingTime"                   AS marked_pending_time,
-          a."markedRejectedTime"                  AS marked_rejected_time,
-          a."markedCancelledTime"                 AS marked_cancelled_time,
+          a."status"                                              AS po_status,
           COALESCE(a."markedRejectedTime", a."markedCancelledTime") AS rejected_or_cancelled_time,
-          a."poNumber"                            AS po_number,
-          a."paymentInfo"->>'option'              AS payment_option,
-          b."phone"                               AS buyer_phone,
-          b."businessName"                        AS buyer_business_name,
-          s."id"                                  AS seller_id,
-          s."phone"                               AS seller_phone,
-          s."businessName"                        AS seller_business_name,
-          pop_agg.total_paid                      AS order_paid_amount,
-          pop_agg.payment_event                   AS payment_event,
-          pop_agg.total_wallet                    AS applied_wallet_amount,
-          poa."id"                                AS payment_attempt_id,
-          pfc_agg.total_refund                    AS refund_amount,
-          pfc_agg.latest_refund_arn               AS refund_arn,
-          pfc_agg.latest_completed_time           AS marked_status_completed_time,
-          pfc_agg.latest_initiated_time           AS marked_status_initiated_time,
+          s."id"                                                  AS seller_id,
+          s."phone"                                               AS seller_phone,
+          s."businessName"                                        AS seller_business_name,
+          pop_agg.total_paid                                      AS order_paid_amount,
+          pfc_agg.total_refund                                    AS refund_amount,
           EXTRACT(EPOCH FROM (pfc_agg.latest_completed_time - pfc_agg.latest_initiated_time)) / 3600
-                                                  AS refund_processing_hours,
+                                                                  AS refund_processing_hours,
           EXTRACT(EPOCH FROM (pfc_agg.latest_completed_time
             - COALESCE(a."markedRejectedTime", a."markedCancelledTime"))) / 3600
-                                                  AS hours_till_refund,
-          a."rejectReason"                        AS reject_reason,
-          a."rejectedBy"                          AS rejected_by,
-          a."reasonAddedByBadhoTeam"              AS reason_added_by_badho_team,
-          a."deliveryStatus"                      AS delivery_status,
-          CASE
-            WHEN EXISTS (
-              SELECT 1
-              FROM "deliveries"."intercityDelivery" di
-              WHERE di."purchaseOrderId" = a."id"
-                AND di."status" = 'NOT PICKED'
-                AND di."autoRejectionTime" IS NOT NULL
-            )
-              THEN 'Delivery Partner SLA Breach'
-            WHEN a."deliveryStatus" = 'RTO'
-              THEN 'Rejected due to RTO'
-            WHEN COALESCE(a."rejectReason", '')           ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
-              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
-              THEN 'Brand SLA Breach'
-            WHEN COALESCE(a."rejectReason", '')           ILIKE '%serviceab%'
-              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%serviceab%'
-              THEN 'Serviceability Issue'
-            WHEN COALESCE(a."rejectReason", '')           ILIKE '%address%'
-              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%address%'
-              THEN 'Address Issue'
-            ELSE 'Other Reasons'
-          END                                     AS reason_category
+                                                                  AS hours_till_refund
         FROM "purchaseOrder"."purchaseOrder" a
         JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
         JOIN "users"."seller" s   ON s."id" = a."sellerId"
         ${POP_AGG_JOIN}
-        LEFT JOIN LATERAL (
-          SELECT poa_inner."id"
-          FROM "purchaseOrder"."purchaseOrderPaymentAttempt" poa_inner
-          JOIN "purchaseOrder"."purchaseOrderPayment" pop_x
-            ON pop_x."id" = poa_inner."purchaseOrderPaymentId"
-          WHERE pop_x."purchaseOrderId" = a."id"
-            AND poa_inner."status" = 'COMPLETED'
-          LIMIT 1
-        ) AS poa ON TRUE
         ${PFC_AGG_JOIN}
         WHERE ${BASE_WHERE}
           AND COALESCE(a."markedRejectedTime", a."markedCancelledTime")::date >= $1::date
@@ -293,10 +186,14 @@ export async function GET(req: NextRequest) {
         ${PFC_AGG_JOIN}
         WHERE ${BASE_WHERE}
       ),
-      day_agg AS (
+      bucket_agg AS (
         SELECT
-          date_trunc('day', rejected_or_cancelled_time)::date          AS bucket_start,
-          date_trunc('day', rejected_or_cancelled_time)::date          AS bucket_end,
+          date_trunc('${granularity}', rejected_or_cancelled_time)::date AS bucket_start,
+          ${granularity === 'day'
+            ? `date_trunc('day', rejected_or_cancelled_time)::date`
+            : granularity === 'week'
+              ? `(date_trunc('week', rejected_or_cancelled_time) + interval '6 days')::date`
+              : `(date_trunc('month', rejected_or_cancelled_time) + interval '1 month' - interval '1 day')::date`} AS bucket_end,
           COUNT(*) FILTER (WHERE po_status = 'REJECTED')               AS rejected_count,
           COUNT(*) FILTER (WHERE po_status = 'CANCELLED')              AS cancelled_count,
           COUNT(*)                                                     AS order_count,
@@ -307,39 +204,7 @@ export async function GET(req: NextRequest) {
           AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
         FROM source
         WHERE rejected_or_cancelled_time IS NOT NULL
-        GROUP BY date_trunc('day', rejected_or_cancelled_time)
-      ),
-      week_agg AS (
-        SELECT
-          date_trunc('week', rejected_or_cancelled_time)::date                                  AS bucket_start,
-          (date_trunc('week', rejected_or_cancelled_time) + interval '6 days')::date            AS bucket_end,
-          COUNT(*) FILTER (WHERE po_status = 'REJECTED')               AS rejected_count,
-          COUNT(*) FILTER (WHERE po_status = 'CANCELLED')              AS cancelled_count,
-          COUNT(*)                                                     AS order_count,
-          COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
-          COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
-          COALESCE(SUM(order_paid_amount) FILTER (WHERE refund_amount IS NULL), 0) AS pending_amount,
-          COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
-          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
-        FROM source
-        WHERE rejected_or_cancelled_time IS NOT NULL
-        GROUP BY date_trunc('week', rejected_or_cancelled_time)
-      ),
-      month_agg AS (
-        SELECT
-          date_trunc('month', rejected_or_cancelled_time)::date                                          AS bucket_start,
-          (date_trunc('month', rejected_or_cancelled_time) + interval '1 month' - interval '1 day')::date AS bucket_end,
-          COUNT(*) FILTER (WHERE po_status = 'REJECTED')               AS rejected_count,
-          COUNT(*) FILTER (WHERE po_status = 'CANCELLED')              AS cancelled_count,
-          COUNT(*)                                                     AS order_count,
-          COALESCE(SUM(order_paid_amount), 0)                          AS paid_amount,
-          COALESCE(SUM(refund_amount), 0)                              AS refunded_amount,
-          COALESCE(SUM(order_paid_amount) FILTER (WHERE refund_amount IS NULL), 0) AS pending_amount,
-          COUNT(*) FILTER (WHERE refund_amount IS NOT NULL)            AS refunded_orders,
-          AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_processing_hours
-        FROM source
-        WHERE rejected_or_cancelled_time IS NOT NULL
-        GROUP BY date_trunc('month', rejected_or_cancelled_time)
+        GROUP BY date_trunc('${granularity}', rejected_or_cancelled_time)
       ),
       seller_agg AS (
         SELECT
@@ -356,95 +221,38 @@ export async function GET(req: NextRequest) {
         ORDER BY SUM(order_paid_amount) DESC NULLS LAST
         LIMIT 25
       ),
-      /* All-time DELIVERED + COMPLETED totals per seller — independent of the
-         date range filter so the % refunded column shows lifetime context for
-         each seller in the refund list. Restricted to seller_ids already in
-         seller_agg to avoid scanning the full PO table. */
+      /* All-time order context per seller — independent of the date range filter.
+         Two buckets so the UI can show both "what the seller put through" (placed
+         = any non-DRAFT) and "what actually shipped" (delivered + completed).
+         Refund % is computed against the placed bucket. Restricted to seller_ids
+         already in seller_agg to avoid scanning the full PO table. */
       seller_total_agg AS (
         SELECT
-          a."sellerId"                                                 AS seller_id,
-          COUNT(*)                                                     AS total_seller_orders,
-          COALESCE(SUM(a."amount"::numeric), 0)                        AS total_seller_amount
+          a."sellerId"                                                                                       AS seller_id,
+          COUNT(*) FILTER (WHERE a."status" <> 'DRAFT')                                                      AS total_orders,
+          COALESCE(SUM(a."amount"::numeric) FILTER (WHERE a."status" <> 'DRAFT'), 0)                         AS total_amount,
+          COUNT(*) FILTER (WHERE a."status" IN ('DELIVERED', 'COMPLETED'))                                   AS delivered_orders,
+          COALESCE(SUM(a."amount"::numeric) FILTER (WHERE a."status" IN ('DELIVERED', 'COMPLETED')), 0)      AS delivered_amount
         FROM "purchaseOrder"."purchaseOrder" a
         JOIN "users"."buyer" b ON b."id" = a."buyerId"
         WHERE a."sellerId" IN (SELECT seller_id FROM seller_agg)
-          AND a."status" IN ('DELIVERED', 'COMPLETED')
           AND a."isTest" = FALSE
           AND b."isTest" = FALSE
         GROUP BY a."sellerId"
       ),
-      list_data AS (
-        SELECT *
-        FROM source
-        ORDER BY rejected_or_cancelled_time DESC NULLS LAST
-        LIMIT 2000
-      ),
-      /* Alerts — orders pending refund > 10 minutes. Always ALL-TIME so the
-         Alerts tab is independent of whatever preset is active on the other
-         tabs (it's a current-state ops view, not a historical slice). */
-      alerts_data AS (
-        SELECT
-          a."id"                                  AS purchase_order_id,
-          a."status"                              AS po_status,
-          a."poNumber"                            AS po_number,
-          a."paymentInfo"->>'option'              AS payment_option,
-          a."deliveryStatus"                      AS delivery_status,
-          a."markedPendingTime"                   AS marked_pending_time,
-          COALESCE(a."markedRejectedTime", a."markedCancelledTime") AS rejected_or_cancelled_time,
-          a."rejectReason"                        AS reject_reason,
-          a."rejectedBy"                          AS rejected_by,
-          a."reasonAddedByBadhoTeam"              AS reason_added_by_badho_team,
-          a."created_at"                          AS created_at,
-          b."phone"                               AS buyer_phone,
-          b."businessName"                        AS buyer_business_name,
-          s."phone"                               AS seller_phone,
-          s."businessName"                        AS seller_business_name,
-          pop_agg.total_paid                      AS order_paid_amount,
-          pop_agg.payment_event                   AS payment_event,
-          pop_agg.total_wallet                    AS applied_wallet_amount,
-          poa."id"                                AS payment_attempt_id,
-          CASE
-            WHEN EXISTS (
-              SELECT 1
-              FROM "deliveries"."intercityDelivery" di
-              WHERE di."purchaseOrderId" = a."id"
-                AND di."status" = 'NOT PICKED'
-                AND di."autoRejectionTime" IS NOT NULL
-            )
-              THEN 'Delivery Partner SLA Breach'
-            WHEN a."deliveryStatus" = 'RTO'
-              THEN 'Rejected due to RTO'
-            WHEN COALESCE(a."rejectReason", '')           ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
-              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%AUTO REJECTED DUE TO SLA BREACH%'
-              THEN 'Brand SLA Breach'
-            WHEN COALESCE(a."rejectReason", '')           ILIKE '%serviceab%'
-              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%serviceab%'
-              THEN 'Serviceability Issue'
-            WHEN COALESCE(a."rejectReason", '')           ILIKE '%address%'
-              OR COALESCE(a."reasonAddedByBadhoTeam", '') ILIKE '%address%'
-              THEN 'Address Issue'
-            ELSE 'Other Reasons'
-          END                                     AS reason_category
+      /* Lightweight count of orders still pending refund > 10 minutes; the full
+         alerts payload is fetched lazily via /api/refund-order-amount/alerts.
+         This count powers the red badge on the Alerts tab. */
+      alerts_count AS (
+        SELECT COUNT(*) AS alert_count
         FROM "purchaseOrder"."purchaseOrder" a
-        JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
-        JOIN "users"."seller" s   ON s."id" = a."sellerId"
+        JOIN "users"."buyer"  b ON b."id" = a."buyerId"
         ${POP_AGG_JOIN}
-        LEFT JOIN LATERAL (
-          SELECT poa_inner."id"
-          FROM "purchaseOrder"."purchaseOrderPaymentAttempt" poa_inner
-          JOIN "purchaseOrder"."purchaseOrderPayment" pop_x
-            ON pop_x."id" = poa_inner."purchaseOrderPaymentId"
-          WHERE pop_x."purchaseOrderId" = a."id"
-            AND poa_inner."status" = 'COMPLETED'
-          LIMIT 1
-        ) AS poa ON TRUE
         ${PFC_AGG_JOIN}
         WHERE ${BASE_WHERE}
-          AND pfc_agg.total_refund IS NULL   -- no completed refund records at all
+          AND pfc_agg.total_refund IS NULL
           AND COALESCE(a."markedRejectedTime", a."markedCancelledTime") IS NOT NULL
           AND COALESCE(a."markedRejectedTime", a."markedCancelledTime") < NOW() - INTERVAL '10 minutes'
-        ORDER BY COALESCE(a."markedRejectedTime", a."markedCancelledTime") ASC
-        LIMIT 500
       )
       SELECT json_build_object(
         'summary', (
@@ -475,7 +283,7 @@ export async function GET(req: NextRequest) {
           )
           FROM all_time_summary_agg
         ),
-        'byDay', (
+        'buckets', (
           SELECT json_agg(json_build_object(
             'bucketStart',                TO_CHAR(bucket_start, 'YYYY-MM-DD'),
             'bucketEnd',                  TO_CHAR(bucket_end, 'YYYY-MM-DD'),
@@ -488,37 +296,7 @@ export async function GET(req: NextRequest) {
             'refundedOrders',             refunded_orders,
             'avgRefundProcessingHours',   avg_refund_processing_hours
           ) ORDER BY bucket_start DESC)
-          FROM day_agg
-        ),
-        'byWeek', (
-          SELECT json_agg(json_build_object(
-            'bucketStart',                TO_CHAR(bucket_start, 'YYYY-MM-DD'),
-            'bucketEnd',                  TO_CHAR(bucket_end, 'YYYY-MM-DD'),
-            'rejectedCount',              rejected_count,
-            'cancelledCount',             cancelled_count,
-            'orderCount',                 order_count,
-            'paidAmount',                 paid_amount,
-            'refundedAmount',             refunded_amount,
-            'pendingAmount',              pending_amount,
-            'refundedOrders',             refunded_orders,
-            'avgRefundProcessingHours',   avg_refund_processing_hours
-          ) ORDER BY bucket_start DESC)
-          FROM week_agg
-        ),
-        'byMonth', (
-          SELECT json_agg(json_build_object(
-            'bucketStart',                TO_CHAR(bucket_start, 'YYYY-MM-DD'),
-            'bucketEnd',                  TO_CHAR(bucket_end, 'YYYY-MM-DD'),
-            'rejectedCount',              rejected_count,
-            'cancelledCount',             cancelled_count,
-            'orderCount',                 order_count,
-            'paidAmount',                 paid_amount,
-            'refundedAmount',             refunded_amount,
-            'pendingAmount',              pending_amount,
-            'refundedOrders',             refunded_orders,
-            'avgRefundProcessingHours',   avg_refund_processing_hours
-          ) ORDER BY bucket_start DESC)
-          FROM month_agg
+          FROM bucket_agg
         ),
         'topSellers', (
           SELECT json_agg(json_build_object(
@@ -530,77 +308,20 @@ export async function GET(req: NextRequest) {
             'refundedAmount',             sa.refunded_amount,
             'pendingAmount',              sa.pending_amount,
             'refundedOrders',             sa.refunded_orders,
-            'totalSellerOrders',          COALESCE(sta.total_seller_orders, 0),
-            'totalSellerAmount',          COALESCE(sta.total_seller_amount, 0),
+            'totalOrders',                COALESCE(sta.total_orders, 0),
+            'totalAmount',                COALESCE(sta.total_amount, 0),
+            'deliveredOrders',            COALESCE(sta.delivered_orders, 0),
+            'deliveredAmount',            COALESCE(sta.delivered_amount, 0),
             'refundOrderPctOfTotal',      CASE
-                                            WHEN COALESCE(sta.total_seller_orders, 0) > 0
-                                              THEN ROUND((sa.refunded_orders::numeric / sta.total_seller_orders) * 100, 2)
+                                            WHEN COALESCE(sta.total_orders, 0) > 0
+                                              THEN ROUND((sa.refunded_orders::numeric * 100) / sta.total_orders, 2)
                                             ELSE 0
                                           END
           ))
           FROM seller_agg sa
           LEFT JOIN seller_total_agg sta ON sta.seller_id = sa.seller_id
         ),
-        'list', (
-          SELECT json_agg(json_build_object(
-            'purchaseOrderId',            purchase_order_id::text,
-            'status',                     po_status,
-            'deliveryStatus',             delivery_status,
-            'amount',                     po_amount,
-            'createdAt',                  created_at,
-            'markedPendingTime',          marked_pending_time,
-            'markedRejectedTime',         marked_rejected_time,
-            'markedCancelledTime',        marked_cancelled_time,
-            'rejectedOrCancelledTime',    rejected_or_cancelled_time,
-            'poNumber',                   po_number,
-            'paymentOption',              payment_option,
-            'paymentEvent',               payment_event,
-            'paymentAttemptId',           payment_attempt_id::text,
-            'appliedWalletAmount',        applied_wallet_amount,
-            'buyerPhone',                 buyer_phone,
-            'buyerBusinessName',          buyer_business_name,
-            'sellerPhone',                seller_phone,
-            'sellerBusinessName',         seller_business_name,
-            'orderPaidAmount',            order_paid_amount,
-            'refundAmount',               refund_amount,
-            'refundARN',                  refund_arn,
-            'markedStatusCompletedTime',  marked_status_completed_time,
-            'markedStatusInitiatedTime',  marked_status_initiated_time,
-            'refundProcessingHours',      refund_processing_hours,
-            'hoursTillRefund',            hours_till_refund,
-            'rejectReason',               reject_reason,
-            'rejectedBy',                 rejected_by,
-            'reasonAddedByBadhoTeam',     reason_added_by_badho_team,
-            'reasonCategory',             reason_category
-          ))
-          FROM list_data
-        ),
-        'alerts', (
-          SELECT json_agg(json_build_object(
-            'purchaseOrderId',          purchase_order_id::text,
-            'status',                   po_status,
-            'poNumber',                 po_number,
-            'paidAmount',               order_paid_amount,
-            'paymentOption',            payment_option,
-            'paymentEvent',             payment_event,
-            'paymentAttemptId',         payment_attempt_id::text,
-            'appliedWalletAmount',      applied_wallet_amount,
-            'buyerPhone',               buyer_phone,
-            'buyerBusinessName',        buyer_business_name,
-            'sellerPhone',              seller_phone,
-            'sellerBusinessName',       seller_business_name,
-            'createdAt',                created_at,
-            'markedPendingTime',        marked_pending_time,
-            'rejectedOrCancelledTime',  rejected_or_cancelled_time,
-            'minutesPending',           EXTRACT(EPOCH FROM (NOW() - rejected_or_cancelled_time)) / 60,
-            'deliveryStatus',           delivery_status,
-            'rejectReason',             reject_reason,
-            'rejectedBy',               rejected_by,
-            'reasonAddedByBadhoTeam',   reason_added_by_badho_team,
-            'reasonCategory',           reason_category
-          ))
-          FROM alerts_data
-        )
+        'alertsCount', (SELECT alert_count FROM alerts_count)
       ) AS result;
     `;
 
@@ -608,7 +329,6 @@ export async function GET(req: NextRequest) {
     const r = rows[0]?.result;
 
     if (!r) {
-      // No matching orders in range — return empty shells so the UI can render.
       const emptySummary = {
         totalOrders: 0, totalPaidAmount: 0, refundedOrders: 0, totalRefundedAmount: 0,
         pendingRefundAmount: 0, refundRate: 0, avgRefundAmount: 0,
@@ -617,8 +337,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         summary: emptySummary,
         summaryAllTime: emptySummary,
-        byDay: [], byWeek: [], byMonth: [], topSellers: [], list: [], alerts: [],
-        startDate, endDate,
+        buckets: [], topSellers: [], alertsCount: 0,
+        granularity, startDate, endDate,
         timestamp: new Date().toISOString(),
       });
     }
@@ -626,13 +346,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       summary: r.summary,
       summaryAllTime: r.summaryAllTime,
-      byDay:      r.byDay      ?? [],
-      byWeek:     r.byWeek     ?? [],
-      byMonth:    r.byMonth    ?? [],
-      topSellers: r.topSellers ?? [],
-      list:       r.list       ?? [],
-      alerts:     r.alerts     ?? [],
-      startDate, endDate,
+      buckets:     r.buckets     ?? [],
+      topSellers:  r.topSellers  ?? [],
+      alertsCount: r.alertsCount ?? 0,
+      granularity, startDate, endDate,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

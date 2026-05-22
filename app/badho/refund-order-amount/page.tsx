@@ -86,8 +86,10 @@ interface SellerRow {
   refundedAmount: number;
   pendingAmount: number;
   refundedOrders: number;
-  totalSellerOrders: number;
-  totalSellerAmount: number;
+  totalOrders: number;
+  totalAmount: number;
+  deliveredOrders: number;
+  deliveredAmount: number;
   refundOrderPctOfTotal: number;
 }
 interface ListRow {
@@ -147,12 +149,10 @@ interface AlertItem {
 interface RefundApiResponse {
   summary: Summary;
   summaryAllTime: Summary;
-  byDay: Bucket[];
-  byWeek: Bucket[];
-  byMonth: Bucket[];
+  buckets: Bucket[];
   topSellers: SellerRow[];
-  list: ListRow[];
-  alerts: AlertItem[];
+  alertsCount: number;
+  granularity: 'day' | 'week' | 'month';
   startDate: string;
   endDate: string;
   timestamp: string;
@@ -183,6 +183,15 @@ export default function RefundOrderAmountDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'overview' | 'sellers' | 'orders' | 'alerts'>('overview');
+  // Lazy-loaded: Order Details list (only when the orders tab is opened) and
+  // Alerts payload (only when the alerts tab is opened). Kept out of the main
+  // /api/refund-order-amount payload to keep the initial dashboard load fast.
+  const [listData, setListData] = useState<ListRow[] | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  const [alertsData, setAlertsData] = useState<AlertItem[] | null>(null);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'REJECTED' | 'CANCELLED'>('all');
@@ -308,8 +317,12 @@ export default function RefundOrderAmountDashboard() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Invalidate lazy-tab caches whenever the range/granularity changes, so
+    // re-opening Order Details or Alerts re-fetches against the new filter.
+    setListData(null); setListError(null);
+    setAlertsData(null); setAlertsError(null);
     try {
-      const qs = new URLSearchParams({ startDate, endDate }).toString();
+      const qs = new URLSearchParams({ startDate, endDate, granularity }).toString();
       const res = await fetch(`/api/refund-order-amount?${qs}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
@@ -319,11 +332,48 @@ export default function RefundOrderAmountDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, granularity]);
 
   useEffect(() => {
     if (authChecked) fetchData();
   }, [authChecked, fetchData]);
+
+  // Lazy fetch the Order Details list (heavy ~2k-row payload) only when the
+  // user actually opens the orders tab and we haven't already loaded it for
+  // the current range.
+  useEffect(() => {
+    if (tab !== 'orders' || listData !== null || listLoading) return;
+    const ctrl = new AbortController();
+    setListLoading(true); setListError(null);
+    const qs = new URLSearchParams({ startDate, endDate }).toString();
+    fetch(`/api/refund-order-amount/orders?${qs}`, { signal: ctrl.signal })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok) throw new Error(j?.error || 'Fetch failed');
+        setListData(j.orders as ListRow[]);
+      })
+      .catch((err) => { if (err.name !== 'AbortError') setListError(err.message); })
+      .finally(() => setListLoading(false));
+    return () => ctrl.abort();
+  }, [tab, listData, listLoading, startDate, endDate]);
+
+  // Lazy fetch the Alerts payload (all-time, expensive) only when the alerts
+  // tab is opened. The badge count comes from `data.alertsCount` so it can
+  // render immediately without this payload.
+  useEffect(() => {
+    if (tab !== 'alerts' || alertsData !== null || alertsLoading) return;
+    const ctrl = new AbortController();
+    setAlertsLoading(true); setAlertsError(null);
+    fetch(`/api/refund-order-amount/alerts`, { signal: ctrl.signal })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok) throw new Error(j?.error || 'Fetch failed');
+        setAlertsData(j.alerts as AlertItem[]);
+      })
+      .catch((err) => { if (err.name !== 'AbortError') setAlertsError(err.message); })
+      .finally(() => setAlertsLoading(false));
+    return () => ctrl.abort();
+  }, [tab, alertsData, alertsLoading]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -335,32 +385,29 @@ export default function RefundOrderAmountDashboard() {
     router.replace('/login');
   };
 
-  const buckets = useMemo<Bucket[]>(() => {
-    if (!data) return [];
-    if (granularity === 'week')  return data.byWeek;
-    if (granularity === 'month') return data.byMonth;
-    return data.byDay;
-  }, [data, granularity]);
+  // The API returns buckets for the requested granularity only — pick from the
+  // single array rather than re-deriving on the client.
+  const buckets = useMemo<Bucket[]>(() => data?.buckets ?? [], [data]);
 
 
   // Dropdown options derived from the actual loaded set so users only see
   // values that actually exist in the current range.
   const categoryOptions = useMemo(() => {
     const set = new Set<string>();
-    (data?.list ?? []).forEach((r) => { if (r.reasonCategory) set.add(r.reasonCategory); });
+    (listData ?? []).forEach((r) => { if (r.reasonCategory) set.add(r.reasonCategory); });
     return Array.from(set).sort();
-  }, [data]);
+  }, [listData]);
 
   const deliveryOptions = useMemo(() => {
     const set = new Set<string>();
-    (data?.list ?? []).forEach((r) => { if (r.deliveryStatus) set.add(r.deliveryStatus); });
+    (listData ?? []).forEach((r) => { if (r.deliveryStatus) set.add(r.deliveryStatus); });
     return Array.from(set).sort();
   }, [data]);
 
   const filteredList = useMemo(() => {
-    if (!data?.list) return [];
+    if (!listData) return [];
     const q = search.trim().toLowerCase();
-    return data.list.filter((r) => {
+    return listData.filter((r) => {
       if (categoryFilter !== 'all' && r.reasonCategory !== categoryFilter) return false;
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
       if (refundStateFilter === 'refunded' && r.refundAmount == null) return false;
@@ -373,12 +420,12 @@ export default function RefundOrderAmountDashboard() {
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [data, search, categoryFilter, statusFilter, refundStateFilter, deliveryFilter]);
+  }, [listData, search, categoryFilter, statusFilter, refundStateFilter, deliveryFilter]);
 
   const orderDetailsFilterActive = !!search || categoryFilter !== 'all' || statusFilter !== 'all' || refundStateFilter !== 'all' || deliveryFilter !== 'all';
 
   // Reset Order Details page to 1 whenever filters change
-  useEffect(() => { setOrdersPage(1); }, [search, categoryFilter, statusFilter, refundStateFilter, deliveryFilter, data]);
+  useEffect(() => { setOrdersPage(1); }, [search, categoryFilter, statusFilter, refundStateFilter, deliveryFilter, listData]);
 
   // Paged slice for Order Details
   const pagedOrders = useMemo(() => {
@@ -559,7 +606,7 @@ export default function RefundOrderAmountDashboard() {
         <div className="mb-6 inline-flex gap-1 p-1 bg-slate-900/70 backdrop-blur-xl border border-white/10 rounded-xl">
           {(['overview', 'sellers', 'orders', 'alerts'] as const).map((t) => {
             const isAlerts = t === 'alerts';
-            const alertCount = data?.alerts.length ?? 0;
+            const alertCount = data?.alertsCount ?? 0;
             const hasAlerts = alertCount > 0;
             return (
               <button
@@ -740,8 +787,11 @@ export default function RefundOrderAmountDashboard() {
                   if (!data?.topSellers) return;
                   downloadCSV(
                     `refund-top-sellers-${startDate}-${endDate}.csv`,
-                    ['Seller', 'Phone', 'Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders', 'Total Orders (Delivered/Completed, All-time)', 'Total Amount (All-time)', 'Refund Orders % of Total'],
-                    data.topSellers.map((s) => [s.sellerBusinessName ?? '', s.sellerPhone ?? '', s.orderCount, s.paidAmount, s.refundedAmount, s.pendingAmount, s.refundedOrders, s.totalSellerOrders, s.totalSellerAmount, s.refundOrderPctOfTotal]),
+                    ['Seller', 'Phone', 'Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', '% Refunded', 'Total Orders (All-time, non-DRAFT)', 'Total Amount (All-time, non-DRAFT)', 'Refund % of Total', 'Completed Orders (All-time)', 'Completed Amount (All-time)'],
+                    data.topSellers.map((s) => {
+                      const refundedPct = s.paidAmount > 0 ? Math.min((s.refundedAmount / s.paidAmount) * 100, 100) : 0;
+                      return [s.sellerBusinessName ?? '', s.sellerPhone ?? '', s.orderCount, s.paidAmount, s.refundedAmount, s.pendingAmount, refundedPct.toFixed(1), s.totalOrders, s.totalAmount, s.refundOrderPctOfTotal, s.deliveredOrders, s.deliveredAmount];
+                    }),
                   );
                 }}
                 className="px-3 py-1 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider"
@@ -760,9 +810,9 @@ export default function RefundOrderAmountDashboard() {
                     <th className="px-4 py-3 text-right">Refunded</th>
                     <th className="px-4 py-3 text-right">Pending</th>
                     <th className="px-4 py-3 text-right">% Refunded</th>
-                    <th className="px-4 py-3 text-right" title="Seller's lifetime DELIVERED + COMPLETED orders">Total Orders</th>
-                    <th className="px-4 py-3 text-right" title="Seller's lifetime DELIVERED + COMPLETED order value">Total Amount</th>
-                    <th className="px-4 py-3 text-right" title="Refund order count in range ÷ seller's lifetime delivered/completed orders">Refund % of Total</th>
+                    <th className="px-4 py-3 text-right" title="Seller's lifetime orders placed (any status except DRAFT) — count and value">Total Orders Value</th>
+                    <th className="px-4 py-3 text-right" title="Refund order count in range × 100 ÷ seller's lifetime placed orders (non-DRAFT)">Refund % of Total</th>
+                    <th className="px-4 py-3 text-right" title="Seller's lifetime DELIVERED + COMPLETED orders — count and value">Completed Orders Value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -780,9 +830,15 @@ export default function RefundOrderAmountDashboard() {
                         <td className="px-4 py-2 text-right text-emerald-300 tabular-nums font-semibold">{formatAmount(seller.refundedAmount)}</td>
                         <td className="px-4 py-2 text-right text-rose-300 tabular-nums font-semibold">{formatAmount(seller.pendingAmount)}</td>
                         <td className="px-4 py-2 text-right text-purple-100 tabular-nums font-semibold">{pct.toFixed(1)}%</td>
-                        <td className="px-4 py-2 text-right text-sky-200 tabular-nums font-semibold">{(seller.totalSellerOrders ?? 0).toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-2 text-right text-sky-200 tabular-nums font-semibold">{formatAmount(seller.totalSellerAmount ?? 0)}</td>
+                        <td className="px-4 py-2 text-right text-sky-200 tabular-nums font-semibold">
+                          <div>{(seller.totalOrders ?? 0).toLocaleString('en-IN')}</div>
+                          <div className="text-xs text-sky-300/70">{formatAmount(seller.totalAmount ?? 0)}</div>
+                        </td>
                         <td className="px-4 py-2 text-right text-amber-300 tabular-nums font-semibold">{(seller.refundOrderPctOfTotal ?? 0).toFixed(2)}%</td>
+                        <td className="px-4 py-2 text-right text-emerald-200 tabular-nums font-semibold">
+                          <div>{(seller.deliveredOrders ?? 0).toLocaleString('en-IN')}</div>
+                          <div className="text-xs text-emerald-300/70">{formatAmount(seller.deliveredAmount ?? 0)}</div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -806,7 +862,7 @@ export default function RefundOrderAmountDashboard() {
               <div>
                 <h2 className="text-lg font-bold text-white">Order Details</h2>
                 <p className="text-purple-300/70 text-xs mt-0.5">
-                  {data?.list.length ?? 0} orders (showing latest 2,000) · <span className={orderDetailsFilterActive ? 'text-fuchsia-300 font-semibold' : ''}>{filteredList.length} match</span>
+                  {listLoading ? 'Loading…' : `${listData?.length ?? 0} orders (showing latest 5,000)`} · <span className={orderDetailsFilterActive ? 'text-fuchsia-300 font-semibold' : ''}>{filteredList.length} match</span>
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -1018,14 +1074,19 @@ export default function RefundOrderAmountDashboard() {
                       </td>
                     </tr>
                   ))}
-                  {!loading && filteredList.length === 0 && (
+                  {!listLoading && filteredList.length === 0 && (
                     <tr>
                       <td colSpan={24} className="px-4 py-8 text-center text-purple-300/70">
-                        {data?.list && data.list.length > 0 && orderDetailsFilterActive
-                          ? <>No orders match the filters. <button onClick={() => { setCategoryFilter('all'); setSearch(''); setStatusFilter('all'); setRefundStateFilter('all'); setDeliveryFilter('all'); }} className="text-fuchsia-300 hover:text-fuchsia-200 underline font-semibold">Clear filters</button>.</>
-                          : 'No orders match.'}
+                        {listError
+                          ? <>Failed to load: {listError}</>
+                          : listData && listData.length > 0 && orderDetailsFilterActive
+                            ? <>No orders match the filters. <button onClick={() => { setCategoryFilter('all'); setSearch(''); setStatusFilter('all'); setRefundStateFilter('all'); setDeliveryFilter('all'); }} className="text-fuchsia-300 hover:text-fuchsia-200 underline font-semibold">Clear filters</button>.</>
+                            : 'No orders match.'}
                       </td>
                     </tr>
+                  )}
+                  {listLoading && (
+                    <tr><td colSpan={24} className="px-4 py-8 text-center text-purple-300/70">Loading orders…</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1045,8 +1106,8 @@ export default function RefundOrderAmountDashboard() {
 
         {tab === 'alerts' && (
           <AlertsTabContent
-            alerts={data?.alerts ?? []}
-            loading={loading}
+            alerts={alertsData ?? []}
+            loading={alertsLoading}
             onRefresh={fetchData}
           />
         )}

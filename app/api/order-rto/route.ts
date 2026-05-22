@@ -144,33 +144,37 @@ export async function GET(req: NextRequest) {
 
     const topSellers = sellerRows.map((r) => {
       const pushedCount = parseInt(r.pushed_count);
+      const deliveredCount = parseInt(r.delivered_count);
       const rtoCount = parseInt(r.rto_count);
+      const denom = rtoCount + deliveredCount;
       return {
         sellerId: r.seller_id,
         sellerPhone: r.seller_phone,
         sellerBusinessName: r.seller_business_name,
         pushedCount,
         pushedAmount: parseFloat(r.pushed_amount),
-        deliveredCount: parseInt(r.delivered_count),
+        deliveredCount,
         deliveredAmount: parseFloat(r.delivered_amount),
         rtoCount,
         rtoAmount: parseFloat(r.rto_amount),
-        rtoRate: pushedCount > 0 ? parseFloat(((rtoCount / pushedCount) * 100).toFixed(2)) : 0,
+        rtoRate: denom > 0 ? parseFloat(((rtoCount / denom) * 100).toFixed(2)) : 0,
       };
     });
 
     const topStates = stateRows.map((r) => {
       const pushedCount = parseInt(r.pushed_count);
+      const deliveredCount = parseInt(r.delivered_count);
       const rtoCount = parseInt(r.rto_count);
+      const denom = rtoCount + deliveredCount;
       return {
         state: r.state,
         pushedCount,
         pushedAmount: parseFloat(r.pushed_amount),
-        deliveredCount: parseInt(r.delivered_count),
+        deliveredCount,
         deliveredAmount: parseFloat(r.delivered_amount),
         rtoCount,
         rtoAmount: parseFloat(r.rto_amount),
-        rtoRate: pushedCount > 0 ? parseFloat(((rtoCount / pushedCount) * 100).toFixed(2)) : 0,
+        rtoRate: denom > 0 ? parseFloat(((rtoCount / denom) * 100).toFixed(2)) : 0,
       };
     });
 

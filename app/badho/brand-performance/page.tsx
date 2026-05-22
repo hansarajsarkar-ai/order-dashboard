@@ -3,6 +3,11 @@
 import { useEffect, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  ResponsiveContainer, ComposedChart, LineChart, BarChart, PieChart,
+  Line, Bar, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+} from 'recharts';
 import IndiaStateMap, { type StateRow } from '../order-dashboard/components/IndiaStateMap';
 
 // ─── CSV utility ─────────────────────────────────────────────────────────
@@ -321,7 +326,7 @@ export default function BrandPerformanceDashboard() {
   const [customTo, setCustomTo] = useState('');
   const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
-  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers'>('dashboard');
+  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers' | 'trends'>('dashboard');
   const [detailsSearch, setDetailsSearch] = useState('');
   const [detailsSort, setDetailsSort] = useState<'orders' | 'gmv' | 'brand' | 'month' | 'status'>('orders');
 
@@ -388,6 +393,29 @@ export default function BrandPerformanceDashboard() {
   const [topDir, setTopDir] = useState<'asc' | 'desc'>('desc');
   const [topSearch, setTopSearch] = useState('');
   const [topExpanded, setTopExpanded] = useState<Set<string>>(new Set());
+
+  // Chart & Trend tab
+  interface TrendPoint {
+    bucket: string;
+    totalOrders: number;
+    deliveredOrders: number;
+    rejectedOrders: number;
+    cancelledOrders: number;
+    deliveredAmount: number;
+    totalAmount: number;
+    buyers: number;
+    successPct: number;
+    aov: number;
+  }
+  interface TrendData {
+    data: TrendPoint[];
+    totals: Omit<TrendPoint, 'bucket'>;
+    granularity: 'day' | 'week' | 'month';
+  }
+  const [trendData, setTrendData] = useState<TrendData | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendGranularity, setTrendGranularity] = useState<'day' | 'week' | 'month'>('month');
+  const [trendMetric, setTrendMetric] = useState<'gmv' | 'orders' | 'buyers' | 'success'>('gmv');
 
   const resolveRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
@@ -532,6 +560,34 @@ export default function BrandPerformanceDashboard() {
     setTopExpanded((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   };
 
+  const fetchTrend = async () => {
+    try {
+      setTrendLoading(true);
+      const params = new URLSearchParams({ year: String(currentYear), granularity: trendGranularity });
+      const { startDate, endDate } = resolveRange();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+      const res = await fetch(`/api/brand-performance/trend?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setTrendData(json);
+    } catch (err) {
+      console.error('Trend fetch error:', err);
+      setTrendData(null);
+    } finally {
+      setTrendLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authChecked || bpTab !== 'trends') return;
+    fetchTrend();
+    fetchMbs();      // status mix uses mbsData
+    fetchTopSellers(); // top brands + top SKUs + pareto use topData
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands, trendGranularity]);
+
   const toggleStatus = (s: string) => {
     setExpandedStatuses((prev) => { const n = new Set(prev); if (n.has(s)) n.delete(s); else n.add(s); return n; });
   };
@@ -645,6 +701,7 @@ export default function BrandPerformanceDashboard() {
             { key: 'details',    label: 'Pivot',           icon: '▥' },
             { key: 'product',    label: 'Product wise',    icon: '◫' },
             { key: 'topsellers', label: 'Brand × Product', icon: '★' },
+            { key: 'trends',     label: 'Chart & Trend',   icon: '∿' },
           ] as const).map((tab) => {
             const active = bpTab === tab.key;
             return (
@@ -2083,6 +2140,423 @@ export default function BrandPerformanceDashboard() {
             </div>
           )}
         </div>
+          );
+        })()}
+
+        {bpTab === 'trends' && (() => {
+          // Theme-aware chart palette
+          const ax = t.isDark ? '#a78bfa' : '#64748b';          // axis labels
+          const grid = t.isDark ? '#ffffff15' : '#e2e8f0';      // grid lines
+          const tipBg = t.isDark ? '#0f0721' : '#ffffff';
+          const tipBorder = t.isDark ? '#7c3aed55' : '#e2e8f0';
+          const tipText = t.isDark ? '#ede9fe' : '#0f172a';
+          // Status colors — match the pill table
+          const statusColor: Record<string, string> = {
+            DELIVERED: '#34d399', COMPLETED: '#10b981',
+            REJECTED:  '#f43f5e', CANCELLED: '#f59e0b',
+            PENDING:   '#38bdf8', ACCEPTED:  '#a78bfa',
+            INVOICED:  '#e879f9', DISPATCHED:'#22d3ee',
+            INPROGRESS:'#818cf8',
+          };
+          const palette = ['#d946ef', '#a78bfa', '#22d3ee', '#34d399', '#f59e0b', '#f43f5e', '#38bdf8', '#fb7185', '#e879f9', '#facc15'];
+
+          const fmtBucket = (s: string) => {
+            const d = new Date(s);
+            if (trendGranularity === 'month') return d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+            if (trendGranularity === 'week')  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+          };
+          const fmtMetricValue = (v: number) => {
+            if (trendMetric === 'gmv')     return formatAmount(v);
+            if (trendMetric === 'success') return `${v.toFixed(1)}%`;
+            return v.toLocaleString('en-IN');
+          };
+          const metricKey =
+            trendMetric === 'gmv'     ? 'deliveredAmount' :
+            trendMetric === 'orders'  ? 'totalOrders'     :
+            trendMetric === 'buyers'  ? 'buyers'          :
+                                        'successPct';
+          const metricLabel =
+            trendMetric === 'gmv'     ? 'GMV (delivered)' :
+            trendMetric === 'orders'  ? 'Orders'          :
+            trendMetric === 'buyers'  ? 'Distinct buyers' :
+                                        'Delivery success %';
+          const metricColor =
+            trendMetric === 'gmv'     ? '#10b981' :
+            trendMetric === 'orders'  ? '#d946ef' :
+            trendMetric === 'buyers'  ? '#38bdf8' :
+                                        '#facc15';
+
+          // ── Derived datasets ───────────────────────────────────────────
+          const topBrandsChart = topData?.brands?.slice(0, 10).map((br) => ({
+            name: br.brandLabel.length > 18 ? br.brandLabel.slice(0, 17) + '…' : br.brandLabel,
+            fullName: br.brandLabel,
+            gmv: br.total.amount,
+            orders: br.total.count,
+            buyers: br.total.buyers,
+          })) ?? [];
+
+          const topSkusChart = (() => {
+            if (!topData) return [];
+            const all: { name: string; fullName: string; brand: string; gmv: number; orders: number }[] = [];
+            for (const br of topData.brands) {
+              for (const p of br.products) {
+                all.push({
+                  name: p.skuLabel.length > 28 ? p.skuLabel.slice(0, 27) + '…' : p.skuLabel,
+                  fullName: p.skuLabel,
+                  brand: br.brandLabel,
+                  gmv: p.total.amount,
+                  orders: p.total.count,
+                });
+              }
+            }
+            return all.sort((a, b) => b.gmv - a.gmv).slice(0, 15);
+          })();
+
+          const statusMix = mbsData?.data?.map((row) => ({
+            name: row.status,
+            value: row.total.count,
+            amount: row.total.amount,
+          })).sort((a, b) => b.value - a.value) ?? [];
+
+          const paretoData = (() => {
+            if (!topData) return [];
+            const all: { name: string; gmv: number }[] = [];
+            for (const br of topData.brands) for (const p of br.products) all.push({ name: p.skuLabel, gmv: p.total.amount });
+            all.sort((a, b) => b.gmv - a.gmv);
+            const total = all.reduce((s, x) => s + x.gmv, 0);
+            let cum = 0;
+            return all.slice(0, 50).map((p, i) => {
+              cum += p.gmv;
+              return { rank: i + 1, name: p.name, gmv: p.gmv, cumulativePct: total > 0 ? (cum / total) * 100 : 0 };
+            });
+          })();
+          const skusFor80Pct = (() => {
+            if (!topData) return null;
+            const all: number[] = [];
+            for (const br of topData.brands) for (const p of br.products) all.push(p.total.amount);
+            all.sort((a, b) => b - a);
+            const total = all.reduce((s, x) => s + x, 0);
+            if (total === 0) return null;
+            let cum = 0;
+            for (let i = 0; i < all.length; i++) {
+              cum += all[i];
+              if (cum / total >= 0.8) return { count: i + 1, totalSkus: all.length };
+            }
+            return { count: all.length, totalSkus: all.length };
+          })();
+
+          const grandSuccessPct = trendData?.totals.successPct ?? 0;
+          const grandAov = trendData?.totals.aov ?? 0;
+
+          return (
+            <div className="flex flex-col gap-6">
+              {/* Compact filter bar — date + granularity + brand picker */}
+              <div className={t.sectionCard}>
+                <div className={t.sectionAccent} />
+                <div className={`px-6 py-2 flex items-center gap-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                  <span className={t.sectionTag('pivot')}>CHART &amp; TREND</span>
+                  <h2 className={`text-base font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Business view</h2>
+                  <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>trend · top brands · status mix · top SKUs · Pareto</span>
+                </div>
+                <div className={`px-6 py-2 border-b flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
+                  <span className={t.chipLabel}>Date</span>
+                  {([
+                    { key: 'year',   label: `${currentYear} (full year)` },
+                    { key: '30d',    label: 'Last 30 days' },
+                    { key: '7d',     label: 'Last 7 days' },
+                    { key: 'today',  label: 'Today' },
+                    { key: 'custom', label: 'Custom' },
+                  ] as const).map((opt) => {
+                    const active = range === opt.key;
+                    return (
+                      <button key={opt.key} onClick={() => setRange(opt.key)} className={active ? t.chipActive : t.chipInactive}>
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                  {range === 'custom' && (
+                    <div className="flex items-center gap-2 ml-2">
+                      <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={t.dateInput} />
+                      <span className={t.dateLabel}>to</span>
+                      <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
+                    </div>
+                  )}
+                  {(range !== 'year' || customFrom || customTo) && (
+                    <button
+                      onClick={() => { setRange('year'); setCustomFrom(''); setCustomTo(''); }}
+                      className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
+                    >
+                      ✕ Clear date
+                    </button>
+                  )}
+                  <div className="ml-auto flex items-center gap-2 flex-wrap">
+                    <span className={t.chipLabel}>Granularity</span>
+                    <div className={`inline-flex gap-1 p-0.5 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
+                      {(['day', 'week', 'month'] as const).map((g) => {
+                        const active = trendGranularity === g;
+                        return (
+                          <button
+                            key={g}
+                            onClick={() => setTrendGranularity(g)}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold capitalize transition-all ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}
+                          >
+                            {g}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setMbsBrandDropdownOpen((v) => !v)}
+                        className={`min-w-[160px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+                      >
+                        <span className="truncate font-semibold">
+                          {mbsBrands.size === 0 && <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All brands</span>}
+                          {mbsBrands.size === 1 && Array.from(mbsBrands)[0]}
+                          {mbsBrands.size > 1 && <span className={t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}>{mbsBrands.size} brands</span>}
+                        </span>
+                        <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
+                      </button>
+                      {mbsBrandDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-[55]" onClick={() => setMbsBrandDropdownOpen(false)} />
+                          <div className={`absolute top-full right-0 mt-1 z-[60] w-[340px] max-h-[420px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                            <div className={`p-2 border-b flex items-center gap-2 ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
+                              <input
+                                type="text"
+                                autoFocus
+                                value={mbsBrandSearch}
+                                onChange={(e) => setMbsBrandSearch(e.target.value)}
+                                placeholder="Search brand…"
+                                className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'flex-1 min-w-0')}
+                              />
+                              {mbsBrands.size > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setMbsBrands(new Set())}
+                                  className={`px-2 py-1.5 text-[10px] font-bold rounded border whitespace-nowrap ${t.isDark ? 'bg-rose-500/20 text-rose-200 border-rose-400/40' : 'bg-rose-50 text-rose-700 border-rose-200'}`}
+                                >
+                                  Clear all
+                                </button>
+                              )}
+                            </div>
+                            <div className={`overflow-y-auto flex-1 ${t.isDark ? 'bg-slate-950' : 'bg-white'}`}>
+                              {(() => {
+                                const allBrands = pivotData?.brands?.map((b) => b.brandName) ?? [];
+                                const q = mbsBrandSearch.trim().toLowerCase();
+                                const filtered = q ? allBrands.filter((n) => n.toLowerCase().includes(q)) : allBrands;
+                                if (filtered.length === 0) return <div className={`px-3 py-4 text-xs ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>No matches</div>;
+                                const toggle = (name: string) => setMbsBrands((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; });
+                                return filtered.map((name) => {
+                                  const checked = mbsBrands.has(name);
+                                  return (
+                                    <label key={name} className={`flex items-center gap-2 px-3 py-2 text-xs border-b cursor-pointer ${t.isDark ? 'bg-slate-950 border-white/5 hover:bg-white/10' : 'bg-white border-slate-100 hover:bg-slate-100'} ${checked ? (t.isDark ? 'bg-fuchsia-500/15' : 'bg-purple-50') : ''}`}>
+                                      <input type="checkbox" checked={checked} onChange={() => toggle(name)} className="accent-fuchsia-500 w-3.5 h-3.5" />
+                                      <span className={checked ? (t.isDark ? 'text-fuchsia-200 font-semibold' : 'text-purple-700 font-semibold') : (t.isDark ? 'text-white' : 'text-slate-800')}>{name}</span>
+                                    </label>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* KPI strip */}
+              {trendData && (
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                  {[
+                    { label: 'Total orders',     value: trendData.totals.totalOrders.toLocaleString('en-IN'),                color: 'from-fuchsia-500/30 to-purple-500/10',  text: 'text-fuchsia-200' },
+                    { label: 'Delivered orders', value: trendData.totals.deliveredOrders.toLocaleString('en-IN'),            color: 'from-emerald-500/30 to-teal-500/10',    text: 'text-emerald-200' },
+                    { label: 'Delivered GMV',    value: formatAmount(trendData.totals.deliveredAmount),                       color: 'from-amber-500/30 to-orange-500/10',    text: 'text-amber-200' },
+                    { label: 'Delivery success', value: `${grandSuccessPct.toFixed(1)}%`,                                     color: 'from-sky-500/30 to-blue-500/10',        text: 'text-sky-200' },
+                    { label: 'AOV (delivered)',  value: formatAmount(grandAov),                                               color: 'from-rose-500/30 to-pink-500/10',       text: 'text-rose-200' },
+                  ].map((kpi, i) => (
+                    <div key={i} className={`relative rounded-xl p-3 border overflow-hidden ${t.isDark ? `bg-gradient-to-br ${kpi.color} border-white/10 backdrop-blur-xl` : 'bg-white border-slate-200 shadow-sm'}`}>
+                      <div className={`text-[10px] uppercase tracking-wider font-bold ${t.isDark ? kpi.text : 'text-slate-500'}`}>{kpi.label}</div>
+                      <div className={`text-2xl font-black tabular-nums mt-1 ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{kpi.value}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Trend chart — full width */}
+              <div className={t.sectionCard}>
+                <div className={t.sectionAccent} />
+                <div className={`px-6 py-2 flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                  <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Trend over time</h3>
+                  <div className={`inline-flex gap-1 p-0.5 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
+                    {([
+                      { k: 'gmv',     l: 'GMV' },
+                      { k: 'orders',  l: 'Orders' },
+                      { k: 'buyers',  l: 'Buyers' },
+                      { k: 'success', l: 'Success %' },
+                    ] as const).map(({ k, l }) => {
+                      const active = trendMetric === k;
+                      return (
+                        <button
+                          key={k}
+                          onClick={() => setTrendMetric(k)}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}
+                        >
+                          {l}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="p-4" style={{ height: 360 }}>
+                  {trendLoading || !trendData ? (
+                    <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading trend…</div>
+                  ) : trendData.data.length === 0 ? (
+                    <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No data for this selection</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trendData.data.map((p) => ({ ...p, bucketLabel: fmtBucket(p.bucket) }))}>
+                        <CartesianGrid stroke={grid} strokeDasharray="3 3" />
+                        <XAxis dataKey="bucketLabel" stroke={ax} fontSize={11} tickMargin={6} />
+                        <YAxis stroke={ax} fontSize={11} tickFormatter={fmtMetricValue} width={75} />
+                        <Tooltip
+                          contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                          labelStyle={{ color: tipText, fontWeight: 700 }}
+                          formatter={(v: number) => fmtMetricValue(v)}
+                        />
+                        <Line type="monotone" dataKey={metricKey} stroke={metricColor} strokeWidth={2.5} dot={{ r: 4, fill: metricColor }} activeDot={{ r: 6 }} name={metricLabel} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              {/* Row: Top brands bar + Status mix donut */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={`px-6 py-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                    <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Top 10 brands · delivered GMV</h3>
+                  </div>
+                  <div className="p-4" style={{ height: 380 }}>
+                    {topLoading || topBrandsChart.length === 0 ? (
+                      <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading…</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={topBrandsChart} layout="vertical" margin={{ left: 10, right: 30 }}>
+                          <CartesianGrid stroke={grid} strokeDasharray="3 3" horizontal={false} />
+                          <XAxis type="number" stroke={ax} fontSize={11} tickFormatter={(v: number) => formatAmount(v)} />
+                          <YAxis type="category" dataKey="name" stroke={ax} fontSize={11} width={130} interval={0} />
+                          <Tooltip
+                            contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                            formatter={(v: number, _n, p) => [formatAmount(v), p.payload.fullName]}
+                          />
+                          <Bar dataKey="gmv" radius={[0, 4, 4, 0]}>
+                            {topBrandsChart.map((_, idx) => (<Cell key={idx} fill={palette[idx % palette.length]} />))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={`px-6 py-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                    <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Status mix · all orders</h3>
+                  </div>
+                  <div className="p-4" style={{ height: 380 }}>
+                    {mbsLoading || statusMix.length === 0 ? (
+                      <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading…</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Tooltip
+                            contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                            formatter={(v: number, n, p) => [`${v.toLocaleString('en-IN')} orders · ${formatAmount(p.payload.amount)}`, n]}
+                          />
+                          <Legend
+                            verticalAlign="middle"
+                            align="right"
+                            layout="vertical"
+                            wrapperStyle={{ fontSize: 11, color: tipText }}
+                          />
+                          <Pie data={statusMix} dataKey="value" nameKey="name" cx="40%" cy="50%" innerRadius={60} outerRadius={110} paddingAngle={2}>
+                            {statusMix.map((s, idx) => (<Cell key={idx} fill={statusColor[s.name] || palette[idx % palette.length]} />))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Row: Top SKUs bar + Pareto */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={`px-6 py-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                    <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Top 15 SKUs · delivered GMV</h3>
+                  </div>
+                  <div className="p-4" style={{ height: 480 }}>
+                    {topLoading || topSkusChart.length === 0 ? (
+                      <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading…</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={topSkusChart} layout="vertical" margin={{ left: 10, right: 30 }}>
+                          <CartesianGrid stroke={grid} strokeDasharray="3 3" horizontal={false} />
+                          <XAxis type="number" stroke={ax} fontSize={11} tickFormatter={(v: number) => formatAmount(v)} />
+                          <YAxis type="category" dataKey="name" stroke={ax} fontSize={10} width={180} interval={0} />
+                          <Tooltip
+                            contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                            formatter={(v: number, _n, p) => [formatAmount(v), `${p.payload.fullName} (${p.payload.brand})`]}
+                          />
+                          <Bar dataKey="gmv" radius={[0, 4, 4, 0]}>
+                            {topSkusChart.map((_, idx) => (<Cell key={idx} fill={palette[idx % palette.length]} />))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={`px-6 py-2 flex items-center justify-between ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                    <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Pareto · how concentrated is GMV?</h3>
+                    {skusFor80Pct && (
+                      <span className={`text-[11px] font-semibold ${t.isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                        {skusFor80Pct.count} of {skusFor80Pct.totalSkus.toLocaleString('en-IN')} SKUs drive 80% of GMV
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-4" style={{ height: 480 }}>
+                    {topLoading || paretoData.length === 0 ? (
+                      <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading…</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={paretoData}>
+                          <CartesianGrid stroke={grid} strokeDasharray="3 3" />
+                          <XAxis dataKey="rank" stroke={ax} fontSize={11} label={{ value: 'SKU rank', position: 'insideBottom', offset: -2, fontSize: 10, fill: ax }} />
+                          <YAxis yAxisId="left"  stroke={ax} fontSize={11} tickFormatter={(v: number) => formatAmount(v)} width={70} />
+                          <YAxis yAxisId="right" orientation="right" stroke={ax} fontSize={11} tickFormatter={(v: number) => `${Math.round(v)}%`} width={40} domain={[0, 100]} />
+                          <Tooltip
+                            contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                            formatter={(v: number, n) => n === 'cumulativePct' ? [`${v.toFixed(1)}%`, 'Cumulative GMV %'] : [formatAmount(v), 'SKU GMV']}
+                            labelFormatter={(rank, items) => `#${rank} · ${items?.[0]?.payload?.name ?? ''}`}
+                          />
+                          <Bar yAxisId="left"  dataKey="gmv"           fill="#a78bfa" />
+                          <Line yAxisId="right" type="monotone" dataKey="cumulativePct" stroke="#fbbf24" strokeWidth={2.5} dot={false} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           );
         })()}
 

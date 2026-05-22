@@ -420,12 +420,24 @@ export default function RejectionReasonPivotTable() {
                                   e.stopPropagation();
                                   if (has) openModal(row.reason, p, periodLabel(p, data.granularity, data.month));
                                 }}
-                                className={`px-2 py-3 text-right text-purple-100 tabular-nums ${has ? 'cursor-pointer hover:bg-fuchsia-500/30 hover:text-white font-semibold' : ''}`}
+                                className={`group/cell px-2 py-3 text-right text-purple-100 tabular-nums ${has ? 'cursor-pointer' : ''}`}
                               >
-                                {cell?.count?.toLocaleString() || <span className="text-purple-500/40">—</span>}
+                                {cell?.count ? (
+                                  <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35] group-hover/cell:font-extrabold group-hover/cell:text-white group-hover/cell:[text-shadow:0_0_14px_rgba(217,70,239,0.95),0_0_28px_rgba(168,85,247,0.6)]">
+                                    {cell.count.toLocaleString()}
+                                  </span>
+                                ) : (
+                                  <span className="text-purple-500/40">—</span>
+                                )}
                               </td>
-                              <td className="px-2 py-3 text-right text-purple-200/90 tabular-nums border-r border-white/10">
-                                {cell?.amount ? formatAmount(cell.amount) : <span className="text-purple-500/40">—</span>}
+                              <td className="group/cell px-2 py-3 text-right text-purple-200/90 tabular-nums border-r border-white/10">
+                                {cell?.amount ? (
+                                  <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.3] group-hover/cell:font-bold group-hover/cell:text-fuchsia-100 group-hover/cell:[text-shadow:0_0_12px_rgba(217,70,239,0.85)]">
+                                    {formatAmount(cell.amount)}
+                                  </span>
+                                ) : (
+                                  <span className="text-purple-500/40">—</span>
+                                )}
                               </td>
                             </Fragment>
                           );
@@ -436,12 +448,16 @@ export default function RejectionReasonPivotTable() {
                             e.stopPropagation();
                             openModal(row.reason, null, 'All periods');
                           }}
-                          className="px-2 py-3 text-right font-bold text-white tabular-nums bg-purple-500/15 cursor-pointer hover:bg-fuchsia-500/30 hover:text-white"
+                          className="group/cell px-2 py-3 text-right font-bold text-white tabular-nums bg-purple-500/15 cursor-pointer"
                         >
-                          {row.total.count.toLocaleString()}
+                          <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35] group-hover/cell:text-white group-hover/cell:[text-shadow:0_0_16px_rgba(217,70,239,1),0_0_32px_rgba(168,85,247,0.7)]">
+                            {row.total.count.toLocaleString()}
+                          </span>
                         </td>
-                        <td className="px-2 py-3 text-right font-bold text-fuchsia-300 tabular-nums bg-purple-500/15 border-r border-white/10">
-                          {formatAmount(row.total.amount)}
+                        <td className="group/cell px-2 py-3 text-right font-bold text-fuchsia-300 tabular-nums bg-purple-500/15 border-r border-white/10">
+                          <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.3] group-hover/cell:text-fuchsia-100 group-hover/cell:[text-shadow:0_0_14px_rgba(217,70,239,0.95)]">
+                            {formatAmount(row.total.amount)}
+                          </span>
                         </td>
                       </tr>
 
@@ -484,12 +500,24 @@ export default function RejectionReasonPivotTable() {
                                   <Fragment key={p}>
                                     <td
                                       onClick={() => has && openModal(row.reason, p, periodLabel(p, data.granularity, data.month), orderStatus, deliveryStatus)}
-                                      className={`px-2 py-2 text-right text-purple-200/80 tabular-nums ${has ? 'cursor-pointer hover:bg-fuchsia-500/30 hover:text-white font-semibold' : ''}`}
+                                      className={`group/cell px-2 py-2 text-right text-purple-200/80 tabular-nums ${has ? 'cursor-pointer' : ''}`}
                                     >
-                                      {cell?.count ? cell.count.toLocaleString() : <span className="text-purple-500/30">—</span>}
+                                      {cell?.count ? (
+                                        <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35] group-hover/cell:font-extrabold group-hover/cell:text-white group-hover/cell:[text-shadow:0_0_14px_rgba(217,70,239,0.95),0_0_28px_rgba(168,85,247,0.6)]">
+                                          {cell.count.toLocaleString()}
+                                        </span>
+                                      ) : (
+                                        <span className="text-purple-500/30">—</span>
+                                      )}
                                     </td>
-                                    <td className="px-2 py-2 text-right text-purple-300/70 tabular-nums border-r border-white/10">
-                                      {cell?.amount ? formatAmount(cell.amount) : <span className="text-purple-500/30">—</span>}
+                                    <td className="group/cell px-2 py-2 text-right text-purple-300/70 tabular-nums border-r border-white/10">
+                                      {cell?.amount ? (
+                                        <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.3] group-hover/cell:font-bold group-hover/cell:text-fuchsia-100 group-hover/cell:[text-shadow:0_0_12px_rgba(217,70,239,0.85)]">
+                                          {formatAmount(cell.amount)}
+                                        </span>
+                                      ) : (
+                                        <span className="text-purple-500/30">—</span>
+                                      )}
                                     </td>
                                   </Fragment>
                                 );
@@ -497,12 +525,16 @@ export default function RejectionReasonPivotTable() {
                               {/* Sub-row Total at END */}
                               <td
                                 onClick={() => subTotalCount && openModal(row.reason, null, 'All periods', orderStatus, deliveryStatus)}
-                                className={`px-2 py-2 text-right text-purple-100 tabular-nums bg-purple-500/15 ${subTotalCount ? 'cursor-pointer hover:bg-fuchsia-500/30 hover:text-white font-semibold' : ''}`}
+                                className={`group/cell px-2 py-2 text-right text-purple-100 tabular-nums bg-purple-500/15 ${subTotalCount ? 'cursor-pointer' : ''}`}
                               >
-                                {subTotalCount.toLocaleString()}
+                                <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35] group-hover/cell:font-extrabold group-hover/cell:text-white group-hover/cell:[text-shadow:0_0_14px_rgba(217,70,239,0.95),0_0_28px_rgba(168,85,247,0.6)]">
+                                  {subTotalCount.toLocaleString()}
+                                </span>
                               </td>
-                              <td className="px-2 py-2 text-right text-fuchsia-300/90 tabular-nums bg-purple-500/15 border-r border-white/10">
-                                {formatAmount(subTotalAmount)}
+                              <td className="group/cell px-2 py-2 text-right text-fuchsia-300/90 tabular-nums bg-purple-500/15 border-r border-white/10">
+                                <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.3] group-hover/cell:font-bold group-hover/cell:text-fuchsia-100 group-hover/cell:[text-shadow:0_0_12px_rgba(217,70,239,0.85)]">
+                                  {formatAmount(subTotalAmount)}
+                                </span>
                               </td>
                             </tr>
                           );
@@ -520,20 +552,32 @@ export default function RejectionReasonPivotTable() {
                     const t = data.totals.byPeriod[p];
                     return (
                       <Fragment key={p}>
-                        <td className="px-2 py-3 text-right text-white tabular-nums">
-                          {t?.count?.toLocaleString() || '—'}
+                        <td className="group/cell px-2 py-3 text-right text-white tabular-nums">
+                          {t?.count ? (
+                            <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35] group-hover/cell:[text-shadow:0_0_16px_rgba(217,70,239,1),0_0_32px_rgba(168,85,247,0.7)]">
+                              {t.count.toLocaleString()}
+                            </span>
+                          ) : '—'}
                         </td>
-                        <td className="px-2 py-3 text-right text-fuchsia-200 tabular-nums border-r border-white/10">
-                          {t?.amount ? formatAmount(t.amount) : '—'}
+                        <td className="group/cell px-2 py-3 text-right text-fuchsia-200 tabular-nums border-r border-white/10">
+                          {t?.amount ? (
+                            <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.3] group-hover/cell:text-fuchsia-100 group-hover/cell:[text-shadow:0_0_14px_rgba(217,70,239,0.95)]">
+                              {formatAmount(t.amount)}
+                            </span>
+                          ) : '—'}
                         </td>
                       </Fragment>
                     );
                   })}
-                  <td className="px-2 py-3 text-right text-white tabular-nums bg-purple-500/25">
-                    {data.totals.grand.count.toLocaleString()}
+                  <td className="group/cell px-2 py-3 text-right text-white tabular-nums bg-purple-500/25">
+                    <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35] group-hover/cell:[text-shadow:0_0_16px_rgba(217,70,239,1),0_0_32px_rgba(168,85,247,0.7)]">
+                      {data.totals.grand.count.toLocaleString()}
+                    </span>
                   </td>
-                  <td className="px-2 py-3 text-right text-fuchsia-200 tabular-nums bg-purple-500/25 border-r border-white/10">
-                    {formatAmount(data.totals.grand.amount)}
+                  <td className="group/cell px-2 py-3 text-right text-fuchsia-200 tabular-nums bg-purple-500/25 border-r border-white/10">
+                    <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.3] group-hover/cell:text-fuchsia-100 group-hover/cell:[text-shadow:0_0_14px_rgba(217,70,239,0.95)]">
+                      {formatAmount(data.totals.grand.amount)}
+                    </span>
                   </td>
                 </tr>
               </tbody>

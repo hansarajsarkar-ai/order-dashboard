@@ -2393,17 +2393,7 @@ export default function BrandPerformanceDashboard() {
                                 const q = mbsBrandSearch.trim().toLowerCase();
                                 const filtered = q ? allBrands.filter((n) => n.toLowerCase().includes(q)) : allBrands;
                                 if (filtered.length === 0) return <div className={`px-3 py-4 text-xs ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>No matches</div>;
-                                // Chart & Trend uses single-pick semantics: ticking a brand
-                                // replaces the selection (and closes the dropdown). Ticking the
-                                // already-checked brand clears the filter back to "All brands".
-                                const toggle = (name: string) => {
-                                  setMbsBrands((prev) => {
-                                    const next = new Set<string>();
-                                    if (!prev.has(name) || prev.size > 1) next.add(name);
-                                    return next;
-                                  });
-                                  setMbsBrandDropdownOpen(false);
-                                };
+                                const toggle = (name: string) => setMbsBrands((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; });
                                 return filtered.map((name) => {
                                   const checked = mbsBrands.has(name);
                                   return (
@@ -2414,6 +2404,18 @@ export default function BrandPerformanceDashboard() {
                                   );
                                 });
                               })()}
+                            </div>
+                            <div className={`p-2 border-t flex items-center justify-between gap-2 ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
+                              <span className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                                {mbsBrands.size === 0 ? 'no filter — showing all brands' : `${mbsBrands.size} selected`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setMbsBrandDropdownOpen(false)}
+                                className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm"
+                              >
+                                Done
+                              </button>
                             </div>
                           </div>
                         </>

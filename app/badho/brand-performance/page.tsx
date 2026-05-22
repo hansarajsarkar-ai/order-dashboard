@@ -2485,7 +2485,7 @@ export default function BrandPerformanceDashboard() {
                         <Tooltip
                           contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
                           labelStyle={{ color: tipText, fontWeight: 700 }}
-                          formatter={(v: number) => fmtMetricValue(v)}
+                          formatter={(v: any) => fmtMetricValue(v)}
                         />
                         <Line type="monotone" dataKey={metricKey} stroke={metricColor} strokeWidth={2.5} dot={{ r: 4, fill: metricColor }} activeDot={{ r: 6 }} name={metricLabel} />
                       </LineChart>
@@ -2512,7 +2512,7 @@ export default function BrandPerformanceDashboard() {
                           <YAxis type="category" dataKey="name" stroke={ax} fontSize={11} width={130} interval={0} />
                           <Tooltip
                             contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
-                            formatter={(v: number, _n, p) => [formatAmount(v), p.payload.fullName]}
+                            formatter={(v: any, _n, p) => [formatAmount(v), p.payload.fullName]}
                           />
                           <Bar dataKey="gmv" radius={[0, 4, 4, 0]}>
                             {topBrandsChart.map((_, idx) => (<Cell key={idx} fill={palette[idx % palette.length]} />))}
@@ -2536,7 +2536,7 @@ export default function BrandPerformanceDashboard() {
                         <PieChart>
                           <Tooltip
                             contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
-                            formatter={(v: number, n, p) => [`${v.toLocaleString('en-IN')} orders · ${formatAmount(p.payload.amount)}`, n]}
+                            formatter={(v: any, n, p) => [`${v.toLocaleString('en-IN')} orders · ${formatAmount(p.payload.amount)}`, n]}
                           />
                           <Legend
                             verticalAlign="middle"
@@ -2572,7 +2572,7 @@ export default function BrandPerformanceDashboard() {
                           <YAxis type="category" dataKey="name" stroke={ax} fontSize={10} width={180} interval={0} />
                           <Tooltip
                             contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
-                            formatter={(v: number, _n, p) => [formatAmount(v), `${p.payload.fullName} (${p.payload.brand})`]}
+                            formatter={(v: any, _n, p) => [formatAmount(v), `${p.payload.fullName} (${p.payload.brand})`]}
                           />
                           <Bar dataKey="gmv" radius={[0, 4, 4, 0]}>
                             {topSkusChart.map((_, idx) => (<Cell key={idx} fill={palette[idx % palette.length]} />))}
@@ -2605,7 +2605,7 @@ export default function BrandPerformanceDashboard() {
                           <YAxis yAxisId="right" orientation="right" stroke={ax} fontSize={11} tickFormatter={(v: number) => `${Math.round(v)}%`} width={40} domain={[0, 100]} />
                           <Tooltip
                             contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
-                            formatter={(v: number, n) => n === 'cumulativePct' ? [`${v.toFixed(1)}%`, 'Cumulative GMV %'] : [formatAmount(v), 'SKU GMV']}
+                            formatter={(v: any, n) => n === 'cumulativePct' ? [`${v.toFixed(1)}%`, 'Cumulative GMV %'] : [formatAmount(v), 'SKU GMV']}
                             labelFormatter={(rank, items) => `#${rank} · ${items?.[0]?.payload?.name ?? ''}`}
                           />
                           <Bar yAxisId="left"  dataKey="gmv"           fill="#a78bfa" />
@@ -2642,7 +2642,7 @@ export default function BrandPerformanceDashboard() {
                           <YAxis stroke={ax} fontSize={11} tickFormatter={(v: number) => formatAmount(v)} width={75} />
                           <Tooltip
                             contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
-                            formatter={(v: number, n) => [formatAmount(v), n]}
+                            formatter={(v: any, n) => [formatAmount(v), n]}
                           />
                           <Legend wrapperStyle={{ fontSize: 11, color: tipText }} />
                           {seriesKeys.map((k) => (
@@ -2678,7 +2678,7 @@ export default function BrandPerformanceDashboard() {
                           <YAxis yAxisId="right" orientation="right" stroke={ax} fontSize={11} tickFormatter={(v: number) => formatAmount(v)} width={70} />
                           <Tooltip
                             contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
-                            formatter={(v: number, n) => n === 'amount' ? [formatAmount(v), 'GMV'] : [v.toLocaleString('en-IN'), 'Orders']}
+                            formatter={(v: any, n) => n === 'amount' ? [formatAmount(v), 'GMV'] : [v.toLocaleString('en-IN'), 'Orders']}
                           />
                           <Legend wrapperStyle={{ fontSize: 11, color: tipText }} />
                           <Bar yAxisId="left"  dataKey="orders" fill="#a78bfa" radius={[4,4,0,0]} name="Orders" />
@@ -2714,7 +2714,7 @@ export default function BrandPerformanceDashboard() {
                             <YAxis stroke={ax} fontSize={11} tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
                             <Tooltip
                               contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
-                              formatter={(v: number, n) => [v.toLocaleString('en-IN'), n === 'new' ? 'New buyers' : 'Returning buyers']}
+                              formatter={(v: any, n) => [v.toLocaleString('en-IN'), n === 'new' ? 'New buyers' : 'Returning buyers']}
                             />
                             <Legend wrapperStyle={{ fontSize: 11, color: tipText }} formatter={(v) => v === 'new' ? 'New buyers' : 'Returning buyers'} />
                             <Bar dataKey="new"       stackId="b" fill="#d946ef" radius={[0,0,0,0]} />

@@ -321,7 +321,7 @@ export default function BrandPerformanceDashboard() {
   const [customTo, setCustomTo] = useState('');
   const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
-  const [bpTab, setBpTab] = useState<'dashboard' | 'details'>('dashboard');
+  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers'>('dashboard');
   const [detailsSearch, setDetailsSearch] = useState('');
   const [detailsSort, setDetailsSort] = useState<'orders' | 'gmv' | 'brand' | 'month' | 'status'>('orders');
 
@@ -346,6 +346,46 @@ export default function BrandPerformanceDashboard() {
   const [mapData, setMapData] = useState<StateRow[] | null>(null);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapMetric, setMapMetric] = useState<'count' | 'amount'>('count');
+
+  // Product tab — rows = SKU, cols = month, shares brand multi-select & date filters
+  interface ProdCell { count: number; amount: number; buyers: number; quantity: number; }
+  interface ProductRow {
+    skuId: string;
+    skuLabel: string;
+    brandName: string | null;
+    size: string | null;
+    months: Record<number, ProdCell>;
+    total: ProdCell;
+  }
+  interface ProductData {
+    data: ProductRow[];
+    months: number[];
+    totals: { byMonth: Record<number, ProdCell>; grand: ProdCell };
+    productCount: number;
+    returned: number;
+    truncated: boolean;
+    limit: number;
+  }
+  const [productData, setProductData] = useState<ProductData | null>(null);
+  const [productLoading, setProductLoading] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+
+  // Top Sellers tab — brand-grouped, each brand expandable to its top SKUs
+  interface TsCell { count: number; amount: number; buyers: number; quantity: number; }
+  interface TsSku { skuId: string; skuLabel: string; size: string | null; total: TsCell; }
+  interface TsBrand { brandId: string | null; brandLabel: string; total: TsCell; products: TsSku[]; }
+  interface TopSellersData {
+    brands: TsBrand[];
+    grand: TsCell;
+    brandCount: number;
+    productCount: number;
+    sort: 'amount' | 'quantity';
+  }
+  const [topData, setTopData] = useState<TopSellersData | null>(null);
+  const [topLoading, setTopLoading] = useState(false);
+  const [topSort, setTopSort] = useState<'amount' | 'quantity'>('amount');
+  const [topSearch, setTopSearch] = useState('');
+  const [topExpanded, setTopExpanded] = useState<Set<string>>(new Set());
 
   const resolveRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
@@ -433,6 +473,62 @@ export default function BrandPerformanceDashboard() {
     fetchMap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands]);
+
+  const fetchProducts = async () => {
+    try {
+      setProductLoading(true);
+      const params = new URLSearchParams({ year: String(currentYear) });
+      const { startDate, endDate } = resolveRange();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+      const res = await fetch(`/api/brand-performance/monthly-by-product?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setProductData(json);
+    } catch (err) {
+      console.error('Product fetch error:', err);
+      setProductData(null);
+    } finally {
+      setProductLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authChecked || bpTab !== 'product') return;
+    fetchProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands]);
+
+  const fetchTopSellers = async () => {
+    try {
+      setTopLoading(true);
+      const params = new URLSearchParams({ year: String(currentYear), sort: topSort });
+      const { startDate, endDate } = resolveRange();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+      const res = await fetch(`/api/brand-performance/brand-product-summary?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setTopData(json);
+    } catch (err) {
+      console.error('Top sellers fetch error:', err);
+      setTopData(null);
+    } finally {
+      setTopLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authChecked || bpTab !== 'topsellers') return;
+    fetchTopSellers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands, topSort]);
+
+  const toggleTopBrand = (key: string) => {
+    setTopExpanded((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  };
 
   const toggleStatus = (s: string) => {
     setExpandedStatuses((prev) => { const n = new Set(prev); if (n.has(s)) n.delete(s); else n.add(s); return n; });
@@ -543,8 +639,10 @@ export default function BrandPerformanceDashboard() {
         {/* Sub-tab — sits directly beneath the title */}
         <div className={`mb-6 ${t.tabWrap}`}>
           {([
-            { key: 'dashboard', label: 'Dashboard', icon: '▤' },
-            { key: 'details',   label: 'Pivot',     icon: '▥' },
+            { key: 'dashboard',  label: 'Dashboard',       icon: '▤' },
+            { key: 'details',    label: 'Pivot',           icon: '▥' },
+            { key: 'product',    label: 'Product wise',    icon: '◫' },
+            { key: 'topsellers', label: 'Brand × Product', icon: '★' },
           ] as const).map((tab) => {
             const active = bpTab === tab.key;
             return (
@@ -1281,6 +1379,664 @@ export default function BrandPerformanceDashboard() {
           )}
         </div>
         )}
+
+        {bpTab === 'product' && (() => {
+          const visibleProducts = (() => {
+            if (!productData) return [];
+            const q = productSearch.trim().toLowerCase();
+            if (!q) return productData.data;
+            return productData.data.filter(
+              (p) =>
+                p.skuLabel.toLowerCase().includes(q) ||
+                (p.brandName ?? '').toLowerCase().includes(q) ||
+                (p.size ?? '').toLowerCase().includes(q),
+            );
+          })();
+          return (
+        <div className={t.sectionCard}>
+          <div className={t.sectionAccent} />
+          <div className={t.sectionHeader}>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={t.sectionTag('details')}>PRODUCT</span>
+                <h2 className={t.h2}>Product × Month</h2>
+              </div>
+              <p className={t.p}>
+                Rows = brand SKU (top {productData?.limit ?? 300} by ₹ value). Each cell shows orders · ₹value · unique buyers. Filtered by the brand multi-select below.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMbsBrandDropdownOpen((v) => !v)}
+                  className={`min-w-[240px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+                >
+                  <span className="truncate font-semibold">
+                    {mbsBrands.size === 0 && <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All brands</span>}
+                    {mbsBrands.size === 1 && Array.from(mbsBrands)[0]}
+                    {mbsBrands.size > 1 && <span className={t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}>{mbsBrands.size} brands selected</span>}
+                  </span>
+                  <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
+                </button>
+                {mbsBrandDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[55]" onClick={() => setMbsBrandDropdownOpen(false)} />
+                    <div className={`absolute top-full right-0 mt-1 z-[60] w-[340px] max-h-[420px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                      <div className={`p-2 border-b flex items-center gap-2 ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={mbsBrandSearch}
+                          onChange={(e) => setMbsBrandSearch(e.target.value)}
+                          placeholder="Search brand…"
+                          className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'flex-1 min-w-0')}
+                        />
+                        {mbsBrands.size > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setMbsBrands(new Set())}
+                            className={`px-2 py-1.5 text-[10px] font-bold rounded border whitespace-nowrap ${t.isDark ? 'bg-rose-500/20 text-rose-200 border-rose-400/40 hover:bg-rose-500/30' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'}`}
+                          >
+                            Clear all
+                          </button>
+                        )}
+                      </div>
+                      <div className={`overflow-y-auto flex-1 ${t.isDark ? 'bg-slate-950' : 'bg-white'}`}>
+                        {(() => {
+                          const allBrands = pivotData?.brands?.map((b) => b.brandName) ?? [];
+                          const q = mbsBrandSearch.trim().toLowerCase();
+                          const filtered = q ? allBrands.filter((n) => n.toLowerCase().includes(q)) : allBrands;
+                          if (filtered.length === 0) {
+                            return <div className={`px-3 py-4 text-xs ${t.isDark ? 'bg-slate-950 text-purple-300/60' : 'bg-white text-slate-400'}`}>No matches</div>;
+                          }
+                          const toggle = (name: string) => {
+                            setMbsBrands((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(name)) next.delete(name); else next.add(name);
+                              return next;
+                            });
+                          };
+                          return filtered.map((name) => {
+                            const checked = mbsBrands.has(name);
+                            return (
+                              <label
+                                key={name}
+                                className={`flex items-center gap-2 px-3 py-2 text-xs border-b cursor-pointer ${t.isDark ? 'bg-slate-950 border-white/5 hover:bg-white/10' : 'bg-white border-slate-100 hover:bg-slate-100'} ${checked ? (t.isDark ? 'bg-fuchsia-500/15' : 'bg-purple-50') : ''}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggle(name)}
+                                  className="accent-fuchsia-500 w-3.5 h-3.5"
+                                />
+                                <span className={checked ? (t.isDark ? 'text-fuchsia-200 font-semibold' : 'text-purple-700 font-semibold') : (t.isDark ? 'text-white' : 'text-slate-800')}>
+                                  {name}
+                                </span>
+                              </label>
+                            );
+                          });
+                        })()}
+                      </div>
+                      <div className={`p-2 border-t flex items-center justify-between gap-2 ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
+                        <span className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                          {mbsBrands.size === 0 ? 'no filter — showing all brands' : `${mbsBrands.size} selected`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setMbsBrandDropdownOpen(false)}
+                          className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              {mbsBrands.size > 0 && (
+                <button
+                  onClick={() => setMbsBrands(new Set())}
+                  className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
+                  title="Clear brand filter"
+                >
+                  ✕ Clear
+                </button>
+              )}
+              {productData && (
+                <button
+                  className={t.csvBtn}
+                  onClick={() => {
+                    if (!productData) return;
+                    const headers = ['Brand', 'Product', 'Size', 'Month', 'Orders', 'GMV', 'Distinct Buyers', 'Quantity'];
+                    const rows: CsvCell[][] = [];
+                    for (const p of productData.data) {
+                      for (const m of productData.months) {
+                        const c = p.months[m];
+                        if (!c || c.count === 0) continue;
+                        rows.push([p.brandName ?? '', p.skuLabel, p.size ?? '', MONTH_NAMES[m - 1] || m, c.count, c.amount, c.buyers, c.quantity]);
+                      }
+                    }
+                    const suffix = mbsBrands.size === 0
+                      ? 'all-brands'
+                      : mbsBrands.size === 1
+                        ? Array.from(mbsBrands)[0].toLowerCase().replace(/\s+/g, '-')
+                        : `${mbsBrands.size}-brands`;
+                    downloadCSV(`product-by-month-${suffix}-${currentYear}.csv`, headers, rows);
+                  }}
+                >
+                  ↓ CSV
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className={t.chipRow}>
+            <span className={t.chipLabel}>Date (markedPendingTime)</span>
+            {([
+              { key: 'year',   label: `${currentYear} (full year)` },
+              { key: '30d',    label: 'Last 30 days' },
+              { key: '7d',     label: 'Last 7 days' },
+              { key: 'today',  label: 'Today' },
+              { key: 'custom', label: 'Custom' },
+            ] as const).map((opt) => {
+              const active = range === opt.key;
+              return (
+                <button key={opt.key} onClick={() => setRange(opt.key)} className={active ? t.chipActive : t.chipInactive}>
+                  {opt.label}
+                </button>
+              );
+            })}
+            {range === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={t.dateInput} />
+                <span className={t.dateLabel}>to</span>
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
+              </div>
+            )}
+            <input
+              type="text"
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              placeholder="Search product / brand / size…"
+              className={t.searchInput}
+            />
+          </div>
+
+          <div className={t.tableWrap}>
+            {productLoading || !productData ? (
+              <div className={t.loading}>Loading…</div>
+            ) : visibleProducts.length === 0 ? (
+              <div className={t.loading}>No products for this selection</div>
+            ) : (() => {
+              const months = productData.months;
+              return (
+                <table className="w-full text-sm border-separate border-spacing-0">
+                  <thead className={`sticky top-0 z-20 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                    <tr>
+                      <th rowSpan={2} className={`${t.brandCell} text-left font-semibold uppercase tracking-wider min-w-[280px] ${t.isDark ? 'text-purple-200' : 'text-slate-500'}`}>
+                        Product
+                      </th>
+                      {months.map((m) => (
+                        <th key={`pmh_${m}`} colSpan={3} className={t.monthHeader}>
+                          {MONTH_NAMES[m - 1] || m}
+                        </th>
+                      ))}
+                      <th rowSpan={2} colSpan={3} className={t.totalHeader}>Total</th>
+                    </tr>
+                    <tr>
+                      {months.flatMap((m) => [
+                        <th key={`ps_${m}_c`} className={`${t.deliveryHeader} text-right`}>Orders</th>,
+                        <th key={`ps_${m}_a`} className={`${t.deliveryHeader} text-right`}>₹ Value</th>,
+                        <th key={`ps_${m}_b`} className={`${t.deliveryHeader} text-right`}>Buyers</th>,
+                      ])}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleProducts.map((p, idx) => (
+                      <tr key={p.skuId} className={`${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
+                        <td className={t.brandCell}>
+                          <div className="flex items-center gap-3">
+                            <span className={t.brandRowNum}>{idx + 1}</span>
+                            <span className={t.brandAccent} />
+                            <div className="flex flex-col">
+                              <span className={t.brandName}>{p.skuLabel}</span>
+                              <span className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                                {p.brandName ?? '—'}{p.size ? ` · ${p.size}` : ''}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        {months.flatMap((m) => {
+                          const c = p.months[m];
+                          if (!c || c.count === 0) {
+                            return [
+                              <td key={`pr_${p.skuId}_${m}_c`} className={t.emptyCell}>—</td>,
+                              <td key={`pr_${p.skuId}_${m}_a`} className={t.emptyCell}>—</td>,
+                              <td key={`pr_${p.skuId}_${m}_b`} className={t.emptyCell}>—</td>,
+                            ];
+                          }
+                          return [
+                            <td key={`pr_${p.skuId}_${m}_c`} className={t.dataCell}>
+                              <div className={t.cellCount}>{c.count.toLocaleString('en-IN')}</div>
+                            </td>,
+                            <td key={`pr_${p.skuId}_${m}_a`} className={t.dataCell}>
+                              <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-200' : 'text-slate-700'}`}>
+                                {formatAmount(c.amount)}
+                              </div>
+                            </td>,
+                            <td key={`pr_${p.skuId}_${m}_b`} className={t.dataCell}>
+                              <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{c.buyers.toLocaleString('en-IN')}</div>
+                            </td>,
+                          ];
+                        })}
+                        <td className={t.totalBody} colSpan={3}>
+                          <div className="flex items-baseline justify-end gap-3 whitespace-nowrap">
+                            <div className={t.totalBodyCount}>{p.total.count.toLocaleString('en-IN')}</div>
+                            <div className={t.totalBodyAmount}>{formatAmount(p.total.amount)}</div>
+                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{p.total.buyers.toLocaleString('en-IN')} buyers</div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className={t.footRow}>
+                    <tr>
+                      <td className={t.footLabel}>Total</td>
+                      {months.flatMap((m) => {
+                        const c = productData.totals.byMonth[m] ?? { count: 0, amount: 0, buyers: 0, quantity: 0 };
+                        return [
+                          <td key={`ptot_${m}_c`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                            <div className={t.cellCount}>{c.count.toLocaleString('en-IN')}</div>
+                          </td>,
+                          <td key={`ptot_${m}_a`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(c.amount)}</div>
+                          </td>,
+                          <td key={`ptot_${m}_b`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{c.buyers.toLocaleString('en-IN')}</div>
+                          </td>,
+                        ];
+                      })}
+                      <td className={t.totalFoot} colSpan={3}>
+                        <div className="flex items-baseline justify-end gap-3 whitespace-nowrap">
+                          <div className={t.totalFootCount}>{productData.totals.grand.count.toLocaleString('en-IN')}</div>
+                          <div className={t.totalFootAmount}>{formatAmount(productData.totals.grand.amount)}</div>
+                          <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-100' : 'text-sky-50'}`}>{productData.totals.grand.buyers.toLocaleString('en-IN')} buyers</div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              );
+            })()}
+          </div>
+          {productData && (
+            <div className={t.footnote}>
+              {visibleProducts.length} of {productData.productCount} product{productData.productCount === 1 ? '' : 's'}
+              {productData.truncated && <> · showing top {productData.limit} by ₹ value</>}
+              {' · '}buyer counts are distinct per cell — row / column totals sum those per-cell distinct counts.
+            </div>
+          )}
+        </div>
+          );
+        })()}
+
+        {bpTab === 'topsellers' && (() => {
+          const sortKey = (c: TsCell) => topSort === 'quantity' ? c.quantity : c.amount;
+          const visibleBrandsTs = (() => {
+            if (!topData) return [];
+            const q = topSearch.trim().toLowerCase();
+            if (!q) return topData.brands;
+            return topData.brands
+              .map((br) => {
+                const brMatch = br.brandLabel.toLowerCase().includes(q);
+                const filteredProducts = brMatch
+                  ? br.products
+                  : br.products.filter((p) => p.skuLabel.toLowerCase().includes(q) || (p.size ?? '').toLowerCase().includes(q));
+                if (!brMatch && filteredProducts.length === 0) return null;
+                return { ...br, products: filteredProducts };
+              })
+              .filter((b): b is TsBrand => b !== null);
+          })();
+          const fmtQty = (n: number) => {
+            if (n >= 100000) return `${(n / 100000).toFixed(2)}L`;
+            if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+            return n.toLocaleString('en-IN');
+          };
+          return (
+        <div className={t.sectionCard}>
+          <div className={t.sectionAccent} />
+          <div className={t.sectionHeader}>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={t.sectionTag('pivot')}>TOP SELLERS</span>
+                <h2 className={t.h2}>Brand × Product</h2>
+              </div>
+              <p className={t.p}>
+                Brands ranked by total sales — click any brand to expand its top-selling SKUs. Toggle the sort to find the highest-quantity movers.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className={`inline-flex gap-1 p-1 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
+                {(['amount', 'quantity'] as const).map((m) => {
+                  const active = topSort === m;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setTopSort(m)}
+                      className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}
+                    >
+                      {m === 'amount' ? 'By ₹ value' : 'By quantity'}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMbsBrandDropdownOpen((v) => !v)}
+                  className={`min-w-[200px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+                >
+                  <span className="truncate font-semibold">
+                    {mbsBrands.size === 0 && <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All brands</span>}
+                    {mbsBrands.size === 1 && Array.from(mbsBrands)[0]}
+                    {mbsBrands.size > 1 && <span className={t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}>{mbsBrands.size} brands selected</span>}
+                  </span>
+                  <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
+                </button>
+                {mbsBrandDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[55]" onClick={() => setMbsBrandDropdownOpen(false)} />
+                    <div className={`absolute top-full right-0 mt-1 z-[60] w-[340px] max-h-[420px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                      <div className={`p-2 border-b flex items-center gap-2 ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={mbsBrandSearch}
+                          onChange={(e) => setMbsBrandSearch(e.target.value)}
+                          placeholder="Search brand…"
+                          className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'flex-1 min-w-0')}
+                        />
+                        {mbsBrands.size > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setMbsBrands(new Set())}
+                            className={`px-2 py-1.5 text-[10px] font-bold rounded border whitespace-nowrap ${t.isDark ? 'bg-rose-500/20 text-rose-200 border-rose-400/40 hover:bg-rose-500/30' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'}`}
+                          >
+                            Clear all
+                          </button>
+                        )}
+                      </div>
+                      <div className={`overflow-y-auto flex-1 ${t.isDark ? 'bg-slate-950' : 'bg-white'}`}>
+                        {(() => {
+                          const allBrands = pivotData?.brands?.map((b) => b.brandName) ?? [];
+                          const q = mbsBrandSearch.trim().toLowerCase();
+                          const filtered = q ? allBrands.filter((n) => n.toLowerCase().includes(q)) : allBrands;
+                          if (filtered.length === 0) {
+                            return <div className={`px-3 py-4 text-xs ${t.isDark ? 'bg-slate-950 text-purple-300/60' : 'bg-white text-slate-400'}`}>No matches</div>;
+                          }
+                          const toggle = (name: string) => {
+                            setMbsBrands((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(name)) next.delete(name); else next.add(name);
+                              return next;
+                            });
+                          };
+                          return filtered.map((name) => {
+                            const checked = mbsBrands.has(name);
+                            return (
+                              <label
+                                key={name}
+                                className={`flex items-center gap-2 px-3 py-2 text-xs border-b cursor-pointer ${t.isDark ? 'bg-slate-950 border-white/5 hover:bg-white/10' : 'bg-white border-slate-100 hover:bg-slate-100'} ${checked ? (t.isDark ? 'bg-fuchsia-500/15' : 'bg-purple-50') : ''}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggle(name)}
+                                  className="accent-fuchsia-500 w-3.5 h-3.5"
+                                />
+                                <span className={checked ? (t.isDark ? 'text-fuchsia-200 font-semibold' : 'text-purple-700 font-semibold') : (t.isDark ? 'text-white' : 'text-slate-800')}>
+                                  {name}
+                                </span>
+                              </label>
+                            );
+                          });
+                        })()}
+                      </div>
+                      <div className={`p-2 border-t flex items-center justify-between gap-2 ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
+                        <span className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                          {mbsBrands.size === 0 ? 'no filter — showing all brands' : `${mbsBrands.size} selected`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setMbsBrandDropdownOpen(false)}
+                          className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              {topData && (
+                <button
+                  className={t.csvBtn}
+                  onClick={() => {
+                    if (!topData) return;
+                    const headers = ['Rank in brand', 'Brand', 'Product', 'Size', 'Orders', 'GMV', 'Distinct Buyers', 'Quantity'];
+                    const rows: CsvCell[][] = [];
+                    for (const br of topData.brands) {
+                      br.products.forEach((p, i) => {
+                        rows.push([i + 1, br.brandLabel, p.skuLabel, p.size ?? '', p.total.count, p.total.amount, p.total.buyers, p.total.quantity]);
+                      });
+                    }
+                    const suffix = mbsBrands.size === 0
+                      ? 'all-brands'
+                      : mbsBrands.size === 1
+                        ? Array.from(mbsBrands)[0].toLowerCase().replace(/\s+/g, '-')
+                        : `${mbsBrands.size}-brands`;
+                    downloadCSV(`top-sellers-${suffix}-${topSort}-${currentYear}.csv`, headers, rows);
+                  }}
+                >
+                  ↓ CSV
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className={t.chipRow}>
+            <span className={t.chipLabel}>Date (markedPendingTime)</span>
+            {([
+              { key: 'year',   label: `${currentYear} (full year)` },
+              { key: '30d',    label: 'Last 30 days' },
+              { key: '7d',     label: 'Last 7 days' },
+              { key: 'today',  label: 'Today' },
+              { key: 'custom', label: 'Custom' },
+            ] as const).map((opt) => {
+              const active = range === opt.key;
+              return (
+                <button key={opt.key} onClick={() => setRange(opt.key)} className={active ? t.chipActive : t.chipInactive}>
+                  {opt.label}
+                </button>
+              );
+            })}
+            {range === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={t.dateInput} />
+                <span className={t.dateLabel}>to</span>
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
+              </div>
+            )}
+            <input
+              type="text"
+              value={topSearch}
+              onChange={(e) => setTopSearch(e.target.value)}
+              placeholder="Search brand / product…"
+              className={t.searchInput}
+            />
+          </div>
+
+          <div className={t.tableWrap}>
+            {topLoading || !topData ? (
+              <div className={t.loading}>Loading…</div>
+            ) : visibleBrandsTs.length === 0 ? (
+              <div className={t.loading}>No brands match this selection</div>
+            ) : (
+              <table className="w-full text-sm border-separate border-spacing-0">
+                <thead className={`sticky top-0 z-20 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                  <tr>
+                    <th className={`${t.brandCell} text-left font-semibold uppercase tracking-wider min-w-[320px] ${t.isDark ? 'text-purple-200' : 'text-slate-500'}`}>
+                      Brand · Product
+                    </th>
+                    <th className={`${t.deliveryHeader} text-right`}>SKUs</th>
+                    <th className={`${t.deliveryHeader} text-right`}>Orders</th>
+                    <th className={`${t.deliveryHeader} text-right`}>₹ Value</th>
+                    <th className={`${t.deliveryHeader} text-right`}>Buyers</th>
+                    <th className={`${t.deliveryHeader} text-right`}>Qty sold</th>
+                    <th className={`${t.deliveryHeader} text-right min-w-[110px]`}>Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleBrandsTs.map((br, brIdx) => {
+                    const key = (br.brandId ?? '') + '::' + br.brandLabel;
+                    const expanded = topExpanded.has(key);
+                    const grandRef = topSort === 'quantity' ? topData!.grand.quantity : topData!.grand.amount;
+                    const sharePct = grandRef > 0 ? (sortKey(br.total) / grandRef) * 100 : 0;
+                    const topProduct = br.products[0];
+                    return (
+                      <Fragment key={key}>
+                        <tr
+                          onClick={() => toggleTopBrand(key)}
+                          className={`cursor-pointer ${brIdx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover} select-none`}
+                        >
+                          <td className={t.brandCell}>
+                            <div className="flex items-center gap-3">
+                              <span className={`inline-block w-4 text-center text-[11px] ${t.isDark ? 'text-purple-300' : 'text-slate-400'}`}>{expanded ? '▾' : '▸'}</span>
+                              <span className={t.brandRowNum}>{brIdx + 1}</span>
+                              <span className={t.brandAccent} />
+                              <div className="flex flex-col">
+                                <span className={t.brandName}>{br.brandLabel}</span>
+                                {topProduct && (
+                                  <span className={`text-[10px] ${t.isDark ? 'text-fuchsia-300/80' : 'text-purple-600'}`} title={`Top SKU by ${topSort === 'quantity' ? 'quantity' : '₹ value'}`}>
+                                    ★ {topProduct.skuLabel}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className={t.dataCell}>
+                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{br.products.length}</div>
+                          </td>
+                          <td className={t.dataCell}>
+                            <div className={t.cellCount}>{br.total.count.toLocaleString('en-IN')}</div>
+                          </td>
+                          <td className={t.dataCell}>
+                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(br.total.amount)}</div>
+                          </td>
+                          <td className={t.dataCell}>
+                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{br.total.buyers.toLocaleString('en-IN')}</div>
+                          </td>
+                          <td className={t.dataCell}>
+                            <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{fmtQty(br.total.quantity)}</div>
+                          </td>
+                          <td className={t.dataCell}>
+                            <div className="flex items-center justify-end gap-2">
+                              <div className={`relative h-1.5 w-16 rounded-full overflow-hidden ${t.isDark ? 'bg-white/10' : 'bg-slate-200'}`}>
+                                <div
+                                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-fuchsia-500 to-purple-500"
+                                  style={{ width: `${Math.min(100, sharePct).toFixed(1)}%` }}
+                                />
+                              </div>
+                              <span className={`text-[11px] font-bold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{sharePct.toFixed(1)}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {expanded && br.products.map((p, pIdx) => (
+                          <tr key={`${key}_${p.skuId}`} className={`${t.isDark ? 'bg-white/[0.015]' : 'bg-slate-50/40'} ${t.rowHover}`}>
+                            <td className={`${t.brandCell} pl-12`}>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-[10px] tabular-nums font-bold w-5 text-right ${pIdx === 0 ? (t.isDark ? 'text-fuchsia-300' : 'text-purple-600') : (t.isDark ? 'text-purple-400/60' : 'text-slate-400')}`}>
+                                  {pIdx === 0 ? '★' : pIdx + 1}
+                                </span>
+                                <div className="flex flex-col">
+                                  <span className={`text-sm font-semibold ${t.isDark ? 'text-white' : 'text-slate-800'}`}>{p.skuLabel}</span>
+                                  {p.size && (
+                                    <span className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>{p.size}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className={t.dataCell}>—</td>
+                            <td className={t.dataCell}>
+                              <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{p.total.count.toLocaleString('en-IN')}</div>
+                            </td>
+                            <td className={t.dataCell}>
+                              <div className={`text-sm font-semibold tabular-nums ${t.isDark ? 'text-purple-200' : 'text-slate-700'}`}>{formatAmount(p.total.amount)}</div>
+                            </td>
+                            <td className={t.dataCell}>
+                              <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-300/80' : 'text-sky-600'}`}>{p.total.buyers.toLocaleString('en-IN')}</div>
+                            </td>
+                            <td className={t.dataCell}>
+                              <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-emerald-300/80' : 'text-emerald-600'}`}>{fmtQty(p.total.quantity)}</div>
+                            </td>
+                            <td className={t.dataCell}>
+                              {(() => {
+                                const denom = sortKey(br.total);
+                                const pct = denom > 0 ? (sortKey(p.total) / denom) * 100 : 0;
+                                return (
+                                  <div className="flex items-center justify-end gap-2">
+                                    <div className={`relative h-1 w-14 rounded-full overflow-hidden ${t.isDark ? 'bg-white/10' : 'bg-slate-200'}`}>
+                                      <div
+                                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-400 to-teal-500"
+                                        style={{ width: `${Math.min(100, pct).toFixed(1)}%` }}
+                                      />
+                                    </div>
+                                    <span className={`text-[10px] font-semibold tabular-nums ${t.isDark ? 'text-emerald-200/80' : 'text-emerald-700'}`}>{pct.toFixed(1)}%</span>
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+                <tfoot className={t.footRow}>
+                  <tr>
+                    <td className={t.footLabel}>Total</td>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                      <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{topData.productCount.toLocaleString('en-IN')}</div>
+                    </td>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                      <div className={t.cellCount}>{topData.grand.count.toLocaleString('en-IN')}</div>
+                    </td>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                      <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(topData.grand.amount)}</div>
+                    </td>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                      <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{topData.grand.buyers.toLocaleString('en-IN')}</div>
+                    </td>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                      <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{fmtQty(topData.grand.quantity)}</div>
+                    </td>
+                    <td className={`border-t ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right`}>
+                      <span className={`text-[10px] uppercase tracking-wider ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>sorted by {topSort === 'quantity' ? 'qty' : '₹ value'}</span>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+          {topData && (
+            <div className={t.footnote}>
+              {visibleBrandsTs.length} of {topData.brandCount} brand{topData.brandCount === 1 ? '' : 's'} · {topData.productCount.toLocaleString('en-IN')} SKUs · ★ marks the top SKU within each brand. Orders / buyers are summed across SKUs — an order with multiple SKUs from one brand counts once per SKU.
+            </div>
+          )}
+        </div>
+          );
+        })()}
 
       </div>
 

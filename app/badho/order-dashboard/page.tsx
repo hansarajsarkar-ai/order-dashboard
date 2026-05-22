@@ -1507,6 +1507,29 @@ export default function OrderStatusDashboard() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   })();
 
+  const pivotPushedCounts = (() => {
+    const total = pivotDrillRows?.length ?? 0;
+    let pushed = 0;
+    if (pivotDrillRows) {
+      for (const r of pivotDrillRows) {
+        if ((r.pushedStatus || 'Not Pushed') === 'Pushed') pushed += 1;
+      }
+    }
+    return { all: total, pushed, notPushed: total - pushed };
+  })();
+
+  const pivotDrillHasActiveFilters =
+    pivotDrillSearch.trim() !== '' ||
+    pivotDrillPushedFilter !== 'all' ||
+    pivotDrillRejectReasonFilter !== 'all';
+
+  const resetPivotDrillFilters = () => {
+    setPivotDrillSearch('');
+    setPivotDrillPushedFilter('all');
+    setPivotDrillRejectReasonFilter('all');
+    setPivotDrillSort(null);
+  };
+
   const filteredPivotDrillRows = (() => {
     if (!pivotDrillRows) return null;
     let rows: OrderListRow[] = pivotDrillRows;
@@ -4837,54 +4860,128 @@ export default function OrderStatusDashboard() {
                   </button>
                 </div>
               </div>
-              <div className="px-6 py-3 border-b border-slate-200 bg-white grid grid-cols-1 md:grid-cols-12 gap-3">
-                <div className="md:col-span-6">
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Search</label>
-                  <input
-                    type="text"
-                    value={pivotDrillSearch}
-                    onChange={(e) => setPivotDrillSearch(e.target.value)}
-                    placeholder="PO number, buyer phone, or seller phone..."
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                  />
+              <div className="px-6 py-3 border-b border-slate-200 bg-white">
+                <div className="flex flex-col md:flex-row md:items-end gap-3">
+                  <div className="flex-1 min-w-0">
+                    <label htmlFor="pivot-drill-search" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Search</label>
+                    <div className="relative">
+                      <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-3.5-3.5" />
+                      </svg>
+                      <input
+                        id="pivot-drill-search"
+                        type="text"
+                        value={pivotDrillSearch}
+                        onChange={(e) => setPivotDrillSearch(e.target.value)}
+                        placeholder="Search orders…"
+                        className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                      />
+                      {pivotDrillSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setPivotDrillSearch('')}
+                          aria-label="Clear search"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 inline-flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-400">PO number, buyer phone, seller phone</p>
+                  </div>
+
+                  <div className="md:w-auto">
+                    <span className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Pushed</span>
+                    <div role="group" aria-label="Filter by pushed status" className="inline-flex rounded-lg border border-slate-300 overflow-hidden text-sm bg-white">
+                      {([
+                        { value: 'all' as const, label: 'All', count: pivotPushedCounts.all },
+                        { value: 'Pushed' as const, label: 'Pushed', count: pivotPushedCounts.pushed },
+                        { value: 'Not Pushed' as const, label: 'Not Pushed', count: pivotPushedCounts.notPushed },
+                      ]).map((opt, idx) => {
+                        const active = pivotDrillPushedFilter === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setPivotDrillPushedFilter(opt.value)}
+                            aria-pressed={active}
+                            className={`px-3 py-2 whitespace-nowrap transition-colors ${idx > 0 ? 'border-l border-slate-300' : ''} ${active ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
+                          >
+                            {opt.label}
+                            <span className={`ml-1.5 text-[11px] tabular-nums ${active ? 'text-slate-300' : 'text-slate-400'}`}>{opt.count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {pivotRejectReasonOptions.length > 0 && (
+                    <div className="md:w-64">
+                      <label htmlFor="pivot-drill-reject-reason" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                        Reject reason <span className="text-slate-400 font-normal normal-case">({pivotRejectReasonOptions.length})</span>
+                      </label>
+                      <select
+                        id="pivot-drill-reject-reason"
+                        value={pivotDrillRejectReasonFilter}
+                        onChange={(e) => setPivotDrillRejectReasonFilter(e.target.value)}
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                      >
+                        <option value="all">All reasons</option>
+                        {pivotRejectReasonOptions.map((reason) => (
+                          <option key={reason} value={reason}>{reason.length > 60 ? `${reason.slice(0, 60)}…` : reason}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Pushed</label>
-                  <select
-                    value={pivotDrillPushedFilter}
-                    onChange={(e) => setPivotDrillPushedFilter(e.target.value as 'all' | 'Pushed' | 'Not Pushed')}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                  >
-                    <option value="all">All</option>
-                    <option value="Pushed">Pushed</option>
-                    <option value="Not Pushed">Not Pushed</option>
-                  </select>
-                </div>
-                <div className="md:col-span-3">
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                    Reject Reason{pivotRejectReasonOptions.length > 0 ? ` (${pivotRejectReasonOptions.length})` : ''}
-                  </label>
-                  <select
-                    value={pivotDrillRejectReasonFilter}
-                    onChange={(e) => setPivotDrillRejectReasonFilter(e.target.value)}
-                    disabled={pivotRejectReasonOptions.length === 0}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent disabled:bg-slate-50 disabled:text-slate-400"
-                  >
-                    <option value="all">All reasons</option>
-                    {pivotRejectReasonOptions.map((reason) => (
-                      <option key={reason} value={reason}>{reason.length > 60 ? `${reason.slice(0, 60)}…` : reason}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="md:col-span-1 flex items-end">
-                  <button
-                    onClick={() => { setPivotDrillSearch(''); setPivotDrillPushedFilter('all'); setPivotDrillRejectReasonFilter('all'); setPivotDrillSort(null); }}
-                    className="w-full px-3 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
-                    title="Clear filters and sorting"
-                  >
-                    Reset
-                  </button>
-                </div>
+
+                {pivotDrillHasActiveFilters && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Active</span>
+                    {pivotDrillSearch.trim() !== '' && (
+                      <button
+                        type="button"
+                        onClick={() => setPivotDrillSearch('')}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs border border-slate-200"
+                      >
+                        <span>Search: &ldquo;{pivotDrillSearch.length > 24 ? `${pivotDrillSearch.slice(0, 24)}…` : pivotDrillSearch}&rdquo;</span>
+                        <span aria-hidden className="text-slate-500">×</span>
+                        <span className="sr-only">Remove search filter</span>
+                      </button>
+                    )}
+                    {pivotDrillPushedFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setPivotDrillPushedFilter('all')}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs border border-slate-200"
+                      >
+                        <span>Pushed: {pivotDrillPushedFilter}</span>
+                        <span aria-hidden className="text-slate-500">×</span>
+                        <span className="sr-only">Remove pushed filter</span>
+                      </button>
+                    )}
+                    {pivotDrillRejectReasonFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setPivotDrillRejectReasonFilter('all')}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs border border-slate-200"
+                        title={pivotDrillRejectReasonFilter}
+                      >
+                        <span>Reason: {pivotDrillRejectReasonFilter.length > 30 ? `${pivotDrillRejectReasonFilter.slice(0, 30)}…` : pivotDrillRejectReasonFilter}</span>
+                        <span aria-hidden className="text-slate-500">×</span>
+                        <span className="sr-only">Remove reject reason filter</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={resetPivotDrillFilters}
+                      className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-900 underline underline-offset-2"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="flex-1 overflow-auto">
                 {pivotDrillLoading ? (

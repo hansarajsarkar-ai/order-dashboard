@@ -326,7 +326,7 @@ export default function BrandPerformanceDashboard() {
   const [customTo, setCustomTo] = useState('');
   const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
-  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers' | 'trends'>('dashboard');
+  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers' | 'trends'>('trends');
   const [detailsSearch, setDetailsSearch] = useState('');
   const [detailsSort, setDetailsSort] = useState<'orders' | 'gmv' | 'brand' | 'month' | 'status'>('orders');
 
@@ -739,11 +739,11 @@ export default function BrandPerformanceDashboard() {
         {/* Sub-tab — sits directly beneath the title */}
         <div className={`mb-6 ${t.tabWrap}`}>
           {([
+            { key: 'trends',     label: 'Chart & Trend',   icon: '∿' },
             { key: 'dashboard',  label: 'Dashboard',       icon: '▤' },
             { key: 'details',    label: 'Pivot',           icon: '▥' },
             { key: 'product',    label: 'Product wise',    icon: '◫' },
             { key: 'topsellers', label: 'Brand × Product', icon: '★' },
-            { key: 'trends',     label: 'Chart & Trend',   icon: '∿' },
           ] as const).map((tab) => {
             const active = bpTab === tab.key;
             return (

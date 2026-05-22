@@ -338,11 +338,15 @@ export default function RefundOrderAmountDashboard() {
     if (authChecked) fetchData();
   }, [authChecked, fetchData]);
 
-  // Lazy fetch the Order Details list (heavy ~2k-row payload) only when the
-  // user actually opens the orders tab and we haven't already loaded it for
-  // the current range.
+  // Lazy fetch the Order Details list (heavy ~5k-row payload) only when the
+  // user opens the orders tab. `listData` is intentionally NOT in the deps —
+  // including it makes the effect cleanup fire `ctrl.abort()` immediately
+  // after the fetch settles (listData transitions null → []), which races
+  // the just-completed setState and produces a Loading→count→Loading flicker.
+  // fetchData() clears listData on date-range change, so this still re-fetches
+  // when needed without a self-trigger loop.
   useEffect(() => {
-    if (tab !== 'orders' || listData !== null || listLoading) return;
+    if (tab !== 'orders' || listData !== null) return;
     const ctrl = new AbortController();
     setListLoading(true); setListError(null);
     const qs = new URLSearchParams({ startDate, endDate }).toString();
@@ -355,13 +359,13 @@ export default function RefundOrderAmountDashboard() {
       .catch((err) => { if (err.name !== 'AbortError') setListError(err.message); })
       .finally(() => setListLoading(false));
     return () => ctrl.abort();
-  }, [tab, listData, listLoading, startDate, endDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, startDate, endDate]);
 
-  // Lazy fetch the Alerts payload (all-time, expensive) only when the alerts
-  // tab is opened. The badge count comes from `data.alertsCount` so it can
-  // render immediately without this payload.
+  // Lazy fetch the Alerts payload (all-time, expensive). Same dep-omission
+  // rationale as the orders effect above.
   useEffect(() => {
-    if (tab !== 'alerts' || alertsData !== null || alertsLoading) return;
+    if (tab !== 'alerts' || alertsData !== null) return;
     const ctrl = new AbortController();
     setAlertsLoading(true); setAlertsError(null);
     fetch(`/api/refund-order-amount/alerts`, { signal: ctrl.signal })
@@ -373,7 +377,8 @@ export default function RefundOrderAmountDashboard() {
       .catch((err) => { if (err.name !== 'AbortError') setAlertsError(err.message); })
       .finally(() => setAlertsLoading(false));
     return () => ctrl.abort();
-  }, [tab, alertsData, alertsLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -1112,21 +1117,6 @@ export default function RefundOrderAmountDashboard() {
           />
         )}
 
-        {loading && !data && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 backdrop-blur-md">
-            <div className="flex flex-col items-center gap-5 px-8 py-7 rounded-2xl bg-white/5 border border-fuchsia-400/30 shadow-[0_0_60px_-10px_rgba(217,70,239,0.55)]">
-              <div className="relative w-14 h-14">
-                <div className="absolute inset-0 rounded-full border-2 border-fuchsia-400/20"></div>
-                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-fuchsia-400 border-r-purple-400 animate-spin"></div>
-                <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-indigo-400 border-l-fuchsia-300 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.4s' }}></div>
-              </div>
-              <div className="text-center">
-                <div className="text-white text-sm font-semibold tracking-wide">Loading refund data…</div>
-                <div className="text-purple-300/70 text-xs mt-1">Fetching refund orders and computing KPIs</div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Drill-down modal */}

@@ -4,8 +4,8 @@ import { useEffect, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ResponsiveContainer, ComposedChart, LineChart, BarChart, PieChart,
-  Line, Bar, Pie, Cell,
+  ResponsiveContainer, ComposedChart, LineChart, BarChart, PieChart, AreaChart,
+  Line, Bar, Pie, Area, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import IndiaStateMap, { type StateRow } from '../order-dashboard/components/IndiaStateMap';
@@ -417,6 +417,22 @@ export default function BrandPerformanceDashboard() {
   const [trendGranularity, setTrendGranularity] = useState<'day' | 'week' | 'month'>('month');
   const [trendMetric, setTrendMetric] = useState<'gmv' | 'orders' | 'buyers' | 'success'>('gmv');
 
+  // Additive trends — brand share over months, DOW pattern, cohort, KPI delta vs prior period
+  interface TrendsExtra {
+    brandShare: Array<Record<string, number>>;
+    topBrands: string[];
+    dow: Array<{ dow: string; orders: number; amount: number }>;
+    cohort: Array<{ month: number; new: number; returning: number; orders: number; amount: number }>;
+    kpi: {
+      current: { orders: number; amount: number; buyers: number; deliveredOrders: number; deliveredAmount: number; deliveredBuyers: number; aov: number; deliveryRate: number; delAov: number; };
+      prior:   { orders: number; amount: number; buyers: number; deliveredOrders: number; deliveredAmount: number; aov: number; deliveryRate: number; delAov: number; };
+      deltaPct: { orders: number | null; amount: number | null; buyers: number | null; aov: number | null; deliveredOrders: number | null; deliveredAmount: number | null; delAov: number | null; deliveryRate: number | null; };
+    };
+    window: { curStart: string; curEnd: string; prevStart: string; prevEnd: string };
+  }
+  const [trendsExtra, setTrendsExtra] = useState<TrendsExtra | null>(null);
+  const [trendsExtraLoading, setTrendsExtraLoading] = useState(false);
+
   const resolveRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
@@ -580,11 +596,32 @@ export default function BrandPerformanceDashboard() {
     }
   };
 
+  const fetchTrendsExtra = async () => {
+    try {
+      setTrendsExtraLoading(true);
+      const params = new URLSearchParams({ year: String(currentYear) });
+      const { startDate, endDate } = resolveRange();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+      const res = await fetch(`/api/brand-performance/trends?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setTrendsExtra(json);
+    } catch (err) {
+      console.error('Trends-extra fetch error:', err);
+      setTrendsExtra(null);
+    } finally {
+      setTrendsExtraLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!authChecked || bpTab !== 'trends') return;
     fetchTrend();
-    fetchMbs();      // status mix uses mbsData
-    fetchTopSellers(); // top brands + top SKUs + pareto use topData
+    fetchMbs();          // status mix uses mbsData
+    fetchTopSellers();   // top brands + top SKUs + pareto use topData
+    fetchTrendsExtra();  // brand share area, DOW, cohort, KPI deltas
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands, trendGranularity]);
 
@@ -2368,23 +2405,46 @@ export default function BrandPerformanceDashboard() {
                 </div>
               </div>
 
-              {/* KPI strip */}
-              {trendData && (
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                  {[
-                    { label: 'Total orders',     value: trendData.totals.totalOrders.toLocaleString('en-IN'),                color: 'from-fuchsia-500/30 to-purple-500/10',  text: 'text-fuchsia-200' },
-                    { label: 'Delivered orders', value: trendData.totals.deliveredOrders.toLocaleString('en-IN'),            color: 'from-emerald-500/30 to-teal-500/10',    text: 'text-emerald-200' },
-                    { label: 'Delivered GMV',    value: formatAmount(trendData.totals.deliveredAmount),                       color: 'from-amber-500/30 to-orange-500/10',    text: 'text-amber-200' },
-                    { label: 'Delivery success', value: `${grandSuccessPct.toFixed(1)}%`,                                     color: 'from-sky-500/30 to-blue-500/10',        text: 'text-sky-200' },
-                    { label: 'AOV (delivered)',  value: formatAmount(grandAov),                                               color: 'from-rose-500/30 to-pink-500/10',       text: 'text-rose-200' },
-                  ].map((kpi, i) => (
-                    <div key={i} className={`relative rounded-xl p-3 border overflow-hidden ${t.isDark ? `bg-gradient-to-br ${kpi.color} border-white/10 backdrop-blur-xl` : 'bg-white border-slate-200 shadow-sm'}`}>
-                      <div className={`text-[10px] uppercase tracking-wider font-bold ${t.isDark ? kpi.text : 'text-slate-500'}`}>{kpi.label}</div>
-                      <div className={`text-2xl font-black tabular-nums mt-1 ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{kpi.value}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* KPI strip — with delta vs prior comparable window */}
+              {trendData && (() => {
+                const delta = trendsExtra?.kpi?.deltaPct;
+                const win   = trendsExtra?.kpi ? `vs ${trendsExtra.window.prevStart} → ${trendsExtra.window.prevEnd}` : '';
+                const fmtDeltaPct = (v: number | null | undefined) => v == null ? null : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
+                const fmtDeltaPp  = (v: number | null | undefined) => v == null ? null : `${v >= 0 ? '+' : ''}${v.toFixed(1)} pp`;
+                const tiles = [
+                  { label: 'Total orders',     value: trendData.totals.totalOrders.toLocaleString('en-IN'),     delta: fmtDeltaPct(delta?.orders),          deltaSign: delta?.orders,          color: 'from-fuchsia-500/30 to-purple-500/10',  text: 'text-fuchsia-200' },
+                  { label: 'Delivered orders', value: trendData.totals.deliveredOrders.toLocaleString('en-IN'), delta: fmtDeltaPct(delta?.deliveredOrders), deltaSign: delta?.deliveredOrders, color: 'from-emerald-500/30 to-teal-500/10',    text: 'text-emerald-200' },
+                  { label: 'Delivered GMV',    value: formatAmount(trendData.totals.deliveredAmount),           delta: fmtDeltaPct(delta?.deliveredAmount), deltaSign: delta?.deliveredAmount, color: 'from-amber-500/30 to-orange-500/10',    text: 'text-amber-200' },
+                  { label: 'Delivery success', value: `${grandSuccessPct.toFixed(1)}%`,                         delta: fmtDeltaPp(delta?.deliveryRate),     deltaSign: delta?.deliveryRate,    color: 'from-sky-500/30 to-blue-500/10',        text: 'text-sky-200' },
+                  { label: 'AOV (delivered)',  value: formatAmount(grandAov),                                   delta: fmtDeltaPct(delta?.delAov),          deltaSign: delta?.delAov,          color: 'from-rose-500/30 to-pink-500/10',       text: 'text-rose-200' },
+                ];
+                return (
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                    {tiles.map((kpi, i) => {
+                      const pos  = kpi.deltaSign != null && kpi.deltaSign >= 0;
+                      const neg  = kpi.deltaSign != null && kpi.deltaSign < 0;
+                      const chip = pos
+                        ? (t.isDark ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' : 'bg-emerald-100 text-emerald-700 border border-emerald-200')
+                        : neg
+                          ? (t.isDark ? 'bg-rose-500/20 text-rose-200 border border-rose-400/40' : 'bg-rose-100 text-rose-700 border border-rose-200')
+                          : (t.isDark ? 'bg-white/5 text-purple-300/70 border border-white/10' : 'bg-slate-100 text-slate-500 border border-slate-200');
+                      return (
+                        <div key={i} className={`relative rounded-xl p-3 border overflow-hidden ${t.isDark ? `bg-gradient-to-br ${kpi.color} border-white/10 backdrop-blur-xl` : 'bg-white border-slate-200 shadow-sm'}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className={`text-[10px] uppercase tracking-wider font-bold ${t.isDark ? kpi.text : 'text-slate-500'}`}>{kpi.label}</div>
+                            {kpi.delta && (
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${chip}`} title={win}>
+                                {pos ? '▲ ' : neg ? '▼ ' : ''}{kpi.delta}
+                              </span>
+                            )}
+                          </div>
+                          <div className={`text-2xl font-black tabular-nums mt-1 ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{kpi.value}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* Trend chart — full width */}
               <div className={t.sectionCard}>
@@ -2553,6 +2613,116 @@ export default function BrandPerformanceDashboard() {
                         </ComposedChart>
                       </ResponsiveContainer>
                     )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Brand-mix evolution — stacked area, top 5 brands + Others */}
+              <div className={t.sectionCard}>
+                <div className={t.sectionAccent} />
+                <div className={`px-6 py-2 flex items-center justify-between ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                  <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Brand-mix evolution · delivered GMV by month</h3>
+                  <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>top 5 brands + Others</span>
+                </div>
+                <div className="p-4" style={{ height: 340 }}>
+                  {trendsExtraLoading || !trendsExtra || trendsExtra.brandShare.length === 0 ? (
+                    <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>{trendsExtraLoading ? 'Loading…' : 'No data'}</div>
+                  ) : (() => {
+                    const monthLabel = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const data = trendsExtra.brandShare.map((r) => ({ ...r, monthLabel: monthLabel[(r.month as number) - 1] || r.month }));
+                    const seriesKeys = [...trendsExtra.topBrands, 'Others'];
+                    const seriesColors: Record<string, string> = {};
+                    trendsExtra.topBrands.forEach((b, i) => { seriesColors[b] = palette[i % palette.length]; });
+                    seriesColors['Others'] = t.isDark ? '#475569' : '#94a3b8';
+                    return (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={data} margin={{ top: 5, right: 20, bottom: 0, left: 0 }}>
+                          <CartesianGrid stroke={grid} strokeDasharray="3 3" />
+                          <XAxis dataKey="monthLabel" stroke={ax} fontSize={11} />
+                          <YAxis stroke={ax} fontSize={11} tickFormatter={(v: number) => formatAmount(v)} width={75} />
+                          <Tooltip
+                            contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                            formatter={(v: number, n) => [formatAmount(v), n]}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 11, color: tipText }} />
+                          {seriesKeys.map((k) => (
+                            <Area key={k} type="monotone" dataKey={k} stackId="1" stroke={seriesColors[k]} fill={seriesColors[k]} fillOpacity={0.55} />
+                          ))}
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Row: Day-of-week pattern + Buyer cohort (new vs returning) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={`px-6 py-2 flex items-center justify-between ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                    <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Day-of-week rhythm</h3>
+                    {trendsExtra && (() => {
+                      const top = [...trendsExtra.dow].sort((a, b) => b.orders - a.orders)[0];
+                      return top ? <span className={`text-[11px] font-semibold ${t.isDark ? 'text-fuchsia-300' : 'text-purple-700'}`}>Peak: {top.dow} ({top.orders.toLocaleString('en-IN')})</span> : null;
+                    })()}
+                  </div>
+                  <div className="p-4" style={{ height: 320 }}>
+                    {trendsExtraLoading || !trendsExtra ? (
+                      <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading…</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={trendsExtra.dow}>
+                          <CartesianGrid stroke={grid} strokeDasharray="3 3" />
+                          <XAxis dataKey="dow" stroke={ax} fontSize={11} />
+                          <YAxis yAxisId="left"  stroke={ax} fontSize={11} tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
+                          <YAxis yAxisId="right" orientation="right" stroke={ax} fontSize={11} tickFormatter={(v: number) => formatAmount(v)} width={70} />
+                          <Tooltip
+                            contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                            formatter={(v: number, n) => n === 'amount' ? [formatAmount(v), 'GMV'] : [v.toLocaleString('en-IN'), 'Orders']}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 11, color: tipText }} />
+                          <Bar yAxisId="left"  dataKey="orders" fill="#a78bfa" radius={[4,4,0,0]} name="Orders" />
+                          <Line yAxisId="right" type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: '#10b981' }} name="GMV" />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={`px-6 py-2 flex items-center justify-between ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                    <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Buyer cohort · new vs returning</h3>
+                    {trendsExtra && (() => {
+                      const tot = trendsExtra.cohort.reduce((s, r) => ({ n: s.n + r.new, r: s.r + r.returning }), { n: 0, r: 0 });
+                      const sum = tot.n + tot.r;
+                      const pct = sum > 0 ? (tot.r / sum) * 100 : 0;
+                      return <span className={`text-[11px] font-semibold ${t.isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Repeat rate: {pct.toFixed(1)}%</span>;
+                    })()}
+                  </div>
+                  <div className="p-4" style={{ height: 320 }}>
+                    {trendsExtraLoading || !trendsExtra || trendsExtra.cohort.length === 0 ? (
+                      <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>{trendsExtraLoading ? 'Loading…' : 'No data'}</div>
+                    ) : (() => {
+                      const monthLabel = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                      const data = trendsExtra.cohort.map((r) => ({ ...r, monthLabel: monthLabel[r.month - 1] || r.month }));
+                      return (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={data}>
+                            <CartesianGrid stroke={grid} strokeDasharray="3 3" />
+                            <XAxis dataKey="monthLabel" stroke={ax} fontSize={11} />
+                            <YAxis stroke={ax} fontSize={11} tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
+                            <Tooltip
+                              contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                              formatter={(v: number, n) => [v.toLocaleString('en-IN'), n === 'new' ? 'New buyers' : 'Returning buyers']}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 11, color: tipText }} formatter={(v) => v === 'new' ? 'New buyers' : 'Returning buyers'} />
+                            <Bar dataKey="new"       stackId="b" fill="#d946ef" radius={[0,0,0,0]} />
+                            <Bar dataKey="returning" stackId="b" fill="#10b981" radius={[4,4,0,0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

@@ -791,7 +791,7 @@ export default function RefundOrderAmountDashboard() {
                   onClick={() => {
                     downloadCSV(
                       `refund-orders-${startDate}-${endDate}.csv`,
-                      ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Applied Wallet Amount', 'Refund Amount', 'Refund ARN', 'Bank Settlement Time (hrs)', 'Total Refund Time (hrs)', 'Created At', 'Order Placed At', 'Reject/Cancel At', 'Refunded At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason', 'Reason Category', 'Delivery Status'],
+                      ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Applied Wallet Amount', 'Refund Amount', 'Refund ARN', 'Bank Settlement Time (hrs)', 'Total Refund Time (hrs)', 'Created At', 'Order Placed At', 'Reject/Cancel At', 'Refunded At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason', 'Reason Category', 'Delivery Status', 'PO ID', 'Payment Event', 'Payment Option', 'Payment Attempt ID'],
                       filteredList.map((r) => [
                         r.poNumber, r.status,
                         r.amount, r.orderPaidAmount, r.appliedWalletAmount ?? '',
@@ -804,6 +804,7 @@ export default function RefundOrderAmountDashboard() {
                         r.sellerBusinessName ?? '', r.sellerPhone ?? '',
                         r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? '',
                         r.reasonCategory, r.deliveryStatus ?? '',
+                        r.purchaseOrderId, r.paymentEvent ?? '', r.paymentOption ?? '', r.paymentAttemptId ?? '',
                       ]),
                     );
                   }}
@@ -837,6 +838,10 @@ export default function RefundOrderAmountDashboard() {
                     <th className="px-3 py-2 text-left">Badho Team Reason</th>
                     <th className="px-3 py-2 text-left">Reason Category</th>
                     <th className="px-3 py-2 text-left">Delivery</th>
+                    <th className="px-3 py-2 text-left">PO ID</th>
+                    <th className="px-3 py-2 text-left">Payment Event</th>
+                    <th className="px-3 py-2 text-left">Payment Option</th>
+                    <th className="px-3 py-2 text-left">Payment Attempt ID</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -898,11 +903,21 @@ export default function RefundOrderAmountDashboard() {
                           ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-500/15 text-sky-200 border border-sky-400/30 whitespace-nowrap">{r.deliveryStatus}</span>
                           : <span className="text-white/30 italic">—</span>}
                       </td>
+                      <td className="px-3 py-2 text-purple-300/60 font-mono text-[10px] select-all" title={r.purchaseOrderId}>{r.purchaseOrderId}</td>
+                      <td className="px-3 py-2">
+                        {r.paymentEvent
+                          ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 whitespace-nowrap">{r.paymentEvent}</span>
+                          : <span className="text-white/30 italic">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-purple-100">{r.paymentOption ?? '—'}</td>
+                      <td className="px-3 py-2 text-purple-300/60 font-mono text-[10px] select-all" title={r.paymentAttemptId || ''}>
+                        {r.paymentAttemptId || <span className="text-white/30 italic">—</span>}
+                      </td>
                     </tr>
                   ))}
                   {!loading && filteredList.length === 0 && (
                     <tr>
-                      <td colSpan={20} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
+                      <td colSpan={24} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
                     </tr>
                   )}
                 </tbody>
@@ -953,7 +968,7 @@ export default function RefundOrderAmountDashboard() {
                     onClick={() => {
                       downloadCSV(
                         `refund-${modal.filter}-${modal.startDate}-${modal.endDate}.csv`,
-                        ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Applied Wallet Amount', 'Refund Amount', 'Refund ARN', 'Bank Settlement Time (hrs)', 'Total Refund Time (hrs)', 'Created At', 'Order Placed At', 'Reject/Cancel At', 'Refunded At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason', 'Reason Category', 'Delivery Status'],
+                        ['PO Number', 'Status', 'Order Amount', 'Paid Amount', 'Applied Wallet Amount', 'Refund Amount', 'Refund ARN', 'Bank Settlement Time (hrs)', 'Total Refund Time (hrs)', 'Created At', 'Order Placed At', 'Reject/Cancel At', 'Refunded At', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason', 'Reason Category', 'Delivery Status', 'PO ID', 'Payment Event', 'Payment Option', 'Payment Attempt ID'],
                         filteredModalOrders.map((r) => [
                           r.poNumber, r.status,
                           r.amount, r.orderPaidAmount, r.appliedWalletAmount ?? '',
@@ -966,6 +981,7 @@ export default function RefundOrderAmountDashboard() {
                           r.sellerBusinessName ?? '', r.sellerPhone ?? '',
                           r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? '',
                           r.reasonCategory, r.deliveryStatus ?? '',
+                          r.purchaseOrderId, r.paymentEvent ?? '', r.paymentOption ?? '', r.paymentAttemptId ?? '',
                         ]),
                       );
                     }}
@@ -1088,6 +1104,10 @@ export default function RefundOrderAmountDashboard() {
                         <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Badho Team Reason</th>
                         <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Reason Category</th>
                         <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Delivery</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">PO ID</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Payment Event</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Payment Option</th>
+                        <th className="px-3 py-3 text-left border-b border-fuchsia-400/20">Payment Attempt ID</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1151,6 +1171,16 @@ export default function RefundOrderAmountDashboard() {
                             {r.deliveryStatus
                               ? <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ring-1 bg-sky-500/25 text-sky-100 ring-sky-400/50 shadow-[0_0_10px_rgba(56,189,248,0.3)] whitespace-nowrap">{r.deliveryStatus}</span>
                               : <span className="text-white/30 italic">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-purple-300/60 font-mono text-[10px] select-all" title={r.purchaseOrderId}>{r.purchaseOrderId}</td>
+                          <td className="px-3 py-2.5">
+                            {r.paymentEvent
+                              ? <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ring-1 bg-indigo-500/25 text-indigo-100 ring-indigo-400/50 shadow-[0_0_10px_rgba(99,102,241,0.3)] whitespace-nowrap">{r.paymentEvent}</span>
+                              : <span className="text-white/30 italic">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-purple-100">{r.paymentOption ?? '—'}</td>
+                          <td className="px-3 py-2.5 text-purple-300/60 font-mono text-[10px] select-all" title={r.paymentAttemptId || ''}>
+                            {r.paymentAttemptId || <span className="text-white/30 italic">—</span>}
                           </td>
                         </tr>
                       ))}

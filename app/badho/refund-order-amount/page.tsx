@@ -182,6 +182,9 @@ export default function RefundOrderAmountDashboard() {
   const [tab, setTab] = useState<'overview' | 'sellers' | 'orders' | 'alerts'>('overview');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'REJECTED' | 'CANCELLED'>('all');
+  const [refundStateFilter, setRefundStateFilter] = useState<'all' | 'refunded' | 'pending'>('all');
+  const [deliveryFilter, setDeliveryFilter] = useState<string>('all');
   const [preset, setPreset] = useState<Preset>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -331,11 +334,17 @@ export default function RefundOrderAmountDashboard() {
   }, [data, granularity]);
 
 
-  // Category options derived from the data so the dropdown only shows what's
-  // actually present in the current year — and always sorted alphabetically.
+  // Dropdown options derived from the actual loaded set so users only see
+  // values that actually exist in the current range.
   const categoryOptions = useMemo(() => {
     const set = new Set<string>();
     (data?.list ?? []).forEach((r) => { if (r.reasonCategory) set.add(r.reasonCategory); });
+    return Array.from(set).sort();
+  }, [data]);
+
+  const deliveryOptions = useMemo(() => {
+    const set = new Set<string>();
+    (data?.list ?? []).forEach((r) => { if (r.deliveryStatus) set.add(r.deliveryStatus); });
     return Array.from(set).sort();
   }, [data]);
 
@@ -344,12 +353,20 @@ export default function RefundOrderAmountDashboard() {
     const q = search.trim().toLowerCase();
     return data.list.filter((r) => {
       if (categoryFilter !== 'all' && r.reasonCategory !== categoryFilter) return false;
+      if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+      if (refundStateFilter === 'refunded' && r.refundAmount == null) return false;
+      if (refundStateFilter === 'pending'  && r.refundAmount != null) return false;
+      if (deliveryFilter !== 'all' && r.deliveryStatus !== deliveryFilter) return false;
       if (!q) return true;
-      return [r.poNumber, r.buyerBusinessName, r.buyerPhone, r.sellerBusinessName, r.sellerPhone, r.paymentOption, r.status, r.reasonCategory]
+      return [r.poNumber, r.purchaseOrderId, r.paymentAttemptId, r.refundARN,
+              r.buyerBusinessName, r.buyerPhone, r.sellerBusinessName, r.sellerPhone,
+              r.paymentOption, r.paymentEvent, r.status, r.reasonCategory, r.rejectReason, r.reasonAddedByBadhoTeam]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [data, search, categoryFilter]);
+  }, [data, search, categoryFilter, statusFilter, refundStateFilter, deliveryFilter]);
+
+  const orderDetailsFilterActive = !!search || categoryFilter !== 'all' || statusFilter !== 'all' || refundStateFilter !== 'all' || deliveryFilter !== 'all';
 
   // ── In-modal filters: dropdown options and filtered list ────────────────
   const modalCategoryOptions = useMemo(() => {
@@ -755,34 +772,86 @@ export default function RefundOrderAmountDashboard() {
               <div>
                 <h2 className="text-lg font-bold text-white">Order Details</h2>
                 <p className="text-purple-300/70 text-xs mt-0.5">
-                  {data?.list.length ?? 0} orders (showing latest 2,000) · {filteredList.length} match filter
-                  {categoryFilter !== 'all' && <span className="text-fuchsia-300"> · category: {categoryFilter}</span>}
+                  {data?.list.length ?? 0} orders (showing latest 2,000) · <span className={orderDetailsFilterActive ? 'text-fuchsia-300 font-semibold' : ''}>{filteredList.length} match</span>
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="text"
+                  placeholder="Search PO #, PO ID, ARN, buyer, seller, phone…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg text-xs bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/15 transition-colors min-w-[260px]"
+                />
+                {/* Refund State — the most-asked filter on this tab */}
+                <div className="inline-flex gap-0.5 p-1 bg-slate-900/70 border border-white/10 rounded-lg">
+                  {(['all', 'refunded', 'pending'] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setRefundStateFilter(s)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-150 ${
+                        refundStateFilter === s
+                          ? (s === 'refunded'
+                              ? 'bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+                              : s === 'pending'
+                              ? 'bg-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.5)]'
+                              : 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_12px_rgba(217,70,239,0.5)]')
+                          : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {s === 'all' ? 'Any Refund' : s}
+                    </button>
+                  ))}
+                </div>
+                {/* Status — REJECTED vs CANCELLED */}
+                <div className="inline-flex gap-0.5 p-1 bg-slate-900/70 border border-white/10 rounded-lg">
+                  {(['all', 'REJECTED', 'CANCELLED'] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setStatusFilter(s)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-150 ${
+                        statusFilter === s
+                          ? (s === 'REJECTED'
+                              ? 'bg-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.5)]'
+                              : s === 'CANCELLED'
+                              ? 'bg-amber-500 text-white shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+                              : 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_12px_rgba(217,70,239,0.5)]')
+                          : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {s === 'all' ? 'Any Status' : s}
+                    </button>
+                  ))}
+                </div>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg text-xs bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                  className="px-3 py-1.5 rounded-lg text-xs bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/15 transition-colors"
                   aria-label="Filter by reason category"
                 >
-                  <option value="all" className="bg-slate-900">All Categories</option>
+                  <option value="all" className="bg-slate-900">All Reasons</option>
                   {categoryOptions.map((c) => (
                     <option key={c} value={c} className="bg-slate-900">{c}</option>
                   ))}
                 </select>
-                <input
-                  type="text"
-                  placeholder="Search PO, buyer, seller…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg text-xs bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 min-w-[220px]"
-                />
-                {(categoryFilter !== 'all' || search) && (
+                {deliveryOptions.length > 0 && (
+                  <select
+                    value={deliveryFilter}
+                    onChange={(e) => setDeliveryFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg text-xs bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/15 transition-colors"
+                    aria-label="Filter by delivery status"
+                  >
+                    <option value="all" className="bg-slate-900">All Delivery</option>
+                    {deliveryOptions.map((d) => (
+                      <option key={d} value={d} className="bg-slate-900">{d}</option>
+                    ))}
+                  </select>
+                )}
+                {orderDetailsFilterActive && (
                   <button
-                    onClick={() => { setCategoryFilter('all'); setSearch(''); }}
-                    className="px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 hover:bg-rose-500 hover:text-white border border-white/10 hover:border-rose-300/60 text-purple-200 transition-all duration-150"
-                    title="Clear filters"
+                    onClick={() => { setCategoryFilter('all'); setSearch(''); setStatusFilter('all'); setRefundStateFilter('all'); setDeliveryFilter('all'); }}
+                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 hover:bg-rose-500 hover:text-white border border-white/10 hover:border-rose-300/60 text-purple-200 transition-all duration-150"
+                    title="Clear all filters"
                   >
                     Clear
                   </button>
@@ -917,7 +986,11 @@ export default function RefundOrderAmountDashboard() {
                   ))}
                   {!loading && filteredList.length === 0 && (
                     <tr>
-                      <td colSpan={24} className="px-4 py-8 text-center text-purple-300/70">No orders match.</td>
+                      <td colSpan={24} className="px-4 py-8 text-center text-purple-300/70">
+                        {data?.list && data.list.length > 0 && orderDetailsFilterActive
+                          ? <>No orders match the filters. <button onClick={() => { setCategoryFilter('all'); setSearch(''); setStatusFilter('all'); setRefundStateFilter('all'); setDeliveryFilter('all'); }} className="text-fuchsia-300 hover:text-fuchsia-200 underline font-semibold">Clear filters</button>.</>
+                          : 'No orders match.'}
+                      </td>
                     </tr>
                   )}
                 </tbody>

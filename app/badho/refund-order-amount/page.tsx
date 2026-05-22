@@ -242,11 +242,22 @@ export default function RefundOrderAmountDashboard() {
   }
   const [modal, setModal] = useState<ModalRequest | null>(null);
   const [modalOrders, setModalOrders] = useState<ListRow[] | null>(null);
+  // In-modal filter state
+  const [modalSearch, setModalSearch] = useState('');
+  const [modalCategoryFilter, setModalCategoryFilter] = useState<string>('all');
+  const [modalStatusFilter, setModalStatusFilter] = useState<'all' | 'REJECTED' | 'CANCELLED'>('all');
+  const [modalDeliveryFilter, setModalDeliveryFilter] = useState<string>('all');
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!modal) { setModalOrders(null); setModalError(null); return; }
+    if (!modal) {
+      setModalOrders(null); setModalError(null);
+      setModalSearch(''); setModalCategoryFilter('all'); setModalStatusFilter('all'); setModalDeliveryFilter('all');
+      return;
+    }
+    // Reset filters on every new modal open
+    setModalSearch(''); setModalCategoryFilter('all'); setModalStatusFilter('all'); setModalDeliveryFilter('all');
     const ctrl = new AbortController();
     setModalLoading(true);
     setModalError(null);
@@ -339,6 +350,37 @@ export default function RefundOrderAmountDashboard() {
         .some((v) => String(v).toLowerCase().includes(q));
     });
   }, [data, search, categoryFilter]);
+
+  // ── In-modal filters: dropdown options and filtered list ────────────────
+  const modalCategoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    modalOrders?.forEach((r) => { if (r.reasonCategory) set.add(r.reasonCategory); });
+    return Array.from(set).sort();
+  }, [modalOrders]);
+
+  const modalDeliveryOptions = useMemo(() => {
+    const set = new Set<string>();
+    modalOrders?.forEach((r) => { if (r.deliveryStatus) set.add(r.deliveryStatus); });
+    return Array.from(set).sort();
+  }, [modalOrders]);
+
+  const filteredModalOrders = useMemo(() => {
+    if (!modalOrders) return null;
+    const q = modalSearch.trim().toLowerCase();
+    return modalOrders.filter((r) => {
+      if (modalCategoryFilter !== 'all' && r.reasonCategory !== modalCategoryFilter) return false;
+      if (modalStatusFilter !== 'all' && r.status !== modalStatusFilter) return false;
+      if (modalDeliveryFilter !== 'all' && r.deliveryStatus !== modalDeliveryFilter) return false;
+      if (!q) return true;
+      return [
+        r.poNumber, r.purchaseOrderId, r.paymentAttemptId, r.refundARN,
+        r.buyerBusinessName, r.buyerPhone, r.sellerBusinessName, r.sellerPhone,
+        r.paymentOption, r.paymentEvent, r.reasonCategory, r.rejectReason, r.reasonAddedByBadhoTeam,
+      ]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+  }, [modalOrders, modalSearch, modalCategoryFilter, modalStatusFilter, modalDeliveryFilter]);
 
   if (!authChecked) {
     return (
@@ -913,17 +955,21 @@ export default function RefundOrderAmountDashboard() {
                 <h3 className="text-base font-bold text-white">{modal.title}</h3>
                 <p className="text-purple-300/70 text-xs mt-0.5">
                   {modal.startDate}{modal.startDate !== modal.endDate ? ` → ${modal.endDate}` : ''}
-                  {modalOrders ? ` · ${modalOrders.length} orders` : ''}
+                  {modalOrders
+                    ? filteredModalOrders && filteredModalOrders.length !== modalOrders.length
+                      ? ` · ${filteredModalOrders.length} of ${modalOrders.length} match`
+                      : ` · ${modalOrders.length} orders`
+                    : ''}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {modalOrders && modalOrders.length > 0 && (
+                {filteredModalOrders && filteredModalOrders.length > 0 && (
                   <button
                     onClick={() => {
                       downloadCSV(
                         `refund-${modal.filter}-${modal.startDate}-${modal.endDate}.csv`,
                         ['PO Number', 'PO ID', 'Status', 'Reason Category', 'Order Amount', 'Paid Amount', 'Applied Wallet', 'Payment Event', 'Payment Option', 'Payment Attempt ID', 'Refund Amount', 'Refund ARN', 'Created At', 'Rejected/Cancelled At', 'Refund Completed At', 'Hours till Refund', 'Buyer', 'Buyer Phone', 'Seller', 'Seller Phone', 'Reject Reason', 'Rejected By', 'Badho Team Reason'],
-                        modalOrders.map((r) => [
+                        filteredModalOrders.map((r) => [
                           r.poNumber, r.purchaseOrderId, r.status, r.reasonCategory,
                           r.amount, r.orderPaidAmount, r.appliedWalletAmount ?? '',
                           r.paymentEvent ?? '', r.paymentOption ?? '', r.paymentAttemptId ?? '',
@@ -949,6 +995,73 @@ export default function RefundOrderAmountDashboard() {
                 </button>
               </div>
             </div>
+
+            {/* In-modal filter bar — narrows the loaded slice without re-fetching */}
+            {modalOrders && modalOrders.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap p-3 border-b border-white/10 bg-slate-950/40">
+                <input
+                  type="text"
+                  placeholder="Search PO #, PO ID, ARN, buyer, seller, phone…"
+                  value={modalSearch}
+                  onChange={(e) => setModalSearch(e.target.value)}
+                  className="flex-1 min-w-[260px] px-3 py-1.5 rounded-lg text-xs bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/15 transition-colors"
+                />
+                <select
+                  value={modalCategoryFilter}
+                  onChange={(e) => setModalCategoryFilter(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg text-xs bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/15 transition-colors"
+                  aria-label="Reason category"
+                >
+                  <option value="all" className="bg-slate-900">All Reasons</option>
+                  {modalCategoryOptions.map((c) => (
+                    <option key={c} value={c} className="bg-slate-900">{c}</option>
+                  ))}
+                </select>
+                {/* Status pill toggle: All / REJECTED / CANCELLED */}
+                <div className="inline-flex gap-0.5 p-1 bg-slate-900/70 border border-white/10 rounded-lg">
+                  {(['all', 'REJECTED', 'CANCELLED'] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setModalStatusFilter(s)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-150 ${
+                        modalStatusFilter === s
+                          ? (s === 'REJECTED'
+                              ? 'bg-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.5)]'
+                              : s === 'CANCELLED'
+                              ? 'bg-amber-500 text-white shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+                              : 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_12px_rgba(217,70,239,0.5)]')
+                          : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {s === 'all' ? 'All Status' : s}
+                    </button>
+                  ))}
+                </div>
+                {modalDeliveryOptions.length > 0 && (
+                  <select
+                    value={modalDeliveryFilter}
+                    onChange={(e) => setModalDeliveryFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg text-xs bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/15 transition-colors"
+                    aria-label="Delivery status"
+                  >
+                    <option value="all" className="bg-slate-900">All Delivery</option>
+                    {modalDeliveryOptions.map((d) => (
+                      <option key={d} value={d} className="bg-slate-900">{d}</option>
+                    ))}
+                  </select>
+                )}
+                {(modalSearch || modalCategoryFilter !== 'all' || modalStatusFilter !== 'all' || modalDeliveryFilter !== 'all') && (
+                  <button
+                    onClick={() => { setModalSearch(''); setModalCategoryFilter('all'); setModalStatusFilter('all'); setModalDeliveryFilter('all'); }}
+                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 hover:bg-rose-500 hover:text-white border border-white/10 hover:border-rose-300/60 text-purple-200 transition-all duration-150"
+                    title="Clear all filters"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="flex-1 overflow-auto">
               {modalLoading && (
                 <div className="p-8 text-center text-purple-200 text-sm">Loading orders…</div>
@@ -956,9 +1069,13 @@ export default function RefundOrderAmountDashboard() {
               {modalError && (
                 <div className="p-4 m-4 rounded-xl bg-rose-500/15 border border-rose-400/30 text-rose-200 text-sm">{modalError}</div>
               )}
-              {modalOrders && !modalLoading && (
-                modalOrders.length === 0 ? (
-                  <div className="p-8 text-center text-purple-300/70 text-sm">No orders match this slice.</div>
+              {filteredModalOrders && !modalLoading && (
+                filteredModalOrders.length === 0 ? (
+                  <div className="p-8 text-center text-purple-300/70 text-sm">
+                    {modalOrders && modalOrders.length > 0
+                      ? <>No orders match the filters. <button onClick={() => { setModalSearch(''); setModalCategoryFilter('all'); setModalStatusFilter('all'); setModalDeliveryFilter('all'); }} className="text-fuchsia-300 hover:text-fuchsia-200 underline font-semibold">Clear filters</button>.</>
+                      : 'No orders match this slice.'}
+                  </div>
                 ) : (
                   <table className="w-full text-xs">
                     <thead className="bg-slate-900/95 backdrop-blur sticky top-0 z-10">
@@ -992,7 +1109,7 @@ export default function RefundOrderAmountDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {modalOrders.map((r) => (
+                      {filteredModalOrders.map((r) => (
                         <tr key={r.purchaseOrderId} className="border-t border-white/5 hover:bg-white/5">
                           <td className="px-3 py-2 text-fuchsia-300 font-mono">{r.poNumber}</td>
                           <td className="px-3 py-2 text-purple-300/70 font-mono text-[10px] select-all" title={r.purchaseOrderId}>{r.purchaseOrderId}</td>

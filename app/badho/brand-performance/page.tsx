@@ -2492,7 +2492,9 @@ export default function BrandPerformanceDashboard() {
                           labelStyle={{ color: tipText, fontWeight: 700 }}
                           formatter={(v: any) => fmtMetricValue(v)}
                         />
-                        <Line type="monotone" dataKey={metricKey} stroke={metricColor} strokeWidth={2.5} dot={{ r: 4, fill: metricColor }} activeDot={{ r: 6 }} name={metricLabel} />
+                        <Line type="monotone" dataKey={metricKey} stroke={metricColor} strokeWidth={2.5} dot={{ r: 4, fill: metricColor }} activeDot={{ r: 6 }} name={metricLabel}>
+                          <LabelList dataKey={metricKey} position="top" offset={10} formatter={(v: unknown) => fmtMetricValue(Number(v))} style={{ fill: metricColor, fontSize: 11, fontWeight: 700 }} />
+                        </Line>
                       </LineChart>
                     </ResponsiveContainer>
                   )}

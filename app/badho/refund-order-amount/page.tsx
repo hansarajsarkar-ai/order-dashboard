@@ -86,6 +86,9 @@ interface SellerRow {
   refundedAmount: number;
   pendingAmount: number;
   refundedOrders: number;
+  totalSellerOrders: number;
+  totalSellerAmount: number;
+  refundOrderPctOfTotal: number;
 }
 interface ListRow {
   purchaseOrderId: string;
@@ -737,8 +740,8 @@ export default function RefundOrderAmountDashboard() {
                   if (!data?.topSellers) return;
                   downloadCSV(
                     `refund-top-sellers-${startDate}-${endDate}.csv`,
-                    ['Seller', 'Phone', 'Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders'],
-                    data.topSellers.map((s) => [s.sellerBusinessName ?? '', s.sellerPhone ?? '', s.orderCount, s.paidAmount, s.refundedAmount, s.pendingAmount, s.refundedOrders]),
+                    ['Seller', 'Phone', 'Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders', 'Total Orders (Delivered/Completed, All-time)', 'Total Amount (All-time)', 'Refund Orders % of Total'],
+                    data.topSellers.map((s) => [s.sellerBusinessName ?? '', s.sellerPhone ?? '', s.orderCount, s.paidAmount, s.refundedAmount, s.pendingAmount, s.refundedOrders, s.totalSellerOrders, s.totalSellerAmount, s.refundOrderPctOfTotal]),
                   );
                 }}
                 className="px-3 py-1 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider"
@@ -757,6 +760,9 @@ export default function RefundOrderAmountDashboard() {
                     <th className="px-4 py-3 text-right">Refunded</th>
                     <th className="px-4 py-3 text-right">Pending</th>
                     <th className="px-4 py-3 text-right">% Refunded</th>
+                    <th className="px-4 py-3 text-right" title="Seller's lifetime DELIVERED + COMPLETED orders">Total Orders</th>
+                    <th className="px-4 py-3 text-right" title="Seller's lifetime DELIVERED + COMPLETED order value">Total Amount</th>
+                    <th className="px-4 py-3 text-right" title="Refund order count in range ÷ seller's lifetime delivered/completed orders">Refund % of Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -774,12 +780,15 @@ export default function RefundOrderAmountDashboard() {
                         <td className="px-4 py-2 text-right text-emerald-300 tabular-nums font-semibold">{formatAmount(seller.refundedAmount)}</td>
                         <td className="px-4 py-2 text-right text-rose-300 tabular-nums font-semibold">{formatAmount(seller.pendingAmount)}</td>
                         <td className="px-4 py-2 text-right text-purple-100 tabular-nums font-semibold">{pct.toFixed(1)}%</td>
+                        <td className="px-4 py-2 text-right text-sky-200 tabular-nums font-semibold">{(seller.totalSellerOrders ?? 0).toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2 text-right text-sky-200 tabular-nums font-semibold">{formatAmount(seller.totalSellerAmount ?? 0)}</td>
+                        <td className="px-4 py-2 text-right text-amber-300 tabular-nums font-semibold">{(seller.refundOrderPctOfTotal ?? 0).toFixed(2)}%</td>
                       </tr>
                     );
                   })}
                   {!loading && !data?.topSellers?.length && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-purple-300/70">No data for this range.</td>
+                      <td colSpan={10} className="px-4 py-8 text-center text-purple-300/70">No data for this range.</td>
                     </tr>
                   )}
                 </tbody>
@@ -1043,7 +1052,19 @@ export default function RefundOrderAmountDashboard() {
         )}
 
         {loading && !data && (
-          <div className="mt-6 text-purple-200 text-sm">Loading refund data…</div>
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 backdrop-blur-md">
+            <div className="flex flex-col items-center gap-5 px-8 py-7 rounded-2xl bg-white/5 border border-fuchsia-400/30 shadow-[0_0_60px_-10px_rgba(217,70,239,0.55)]">
+              <div className="relative w-14 h-14">
+                <div className="absolute inset-0 rounded-full border-2 border-fuchsia-400/20"></div>
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-fuchsia-400 border-r-purple-400 animate-spin"></div>
+                <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-indigo-400 border-l-fuchsia-300 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.4s' }}></div>
+              </div>
+              <div className="text-center">
+                <div className="text-white text-sm font-semibold tracking-wide">Loading refund data…</div>
+                <div className="text-purple-300/70 text-xs mt-1">Fetching refund orders and computing KPIs</div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

@@ -37,6 +37,9 @@ interface SellerSummary {
   refundedAmount: number;
   pendingAmount: number;
   refundedOrders: number;
+  totalSellerOrders: number;
+  totalSellerAmount: number;
+  refundOrderPctOfTotal: number;
 }
 
 interface ListItem {
@@ -353,6 +356,23 @@ export async function GET(req: NextRequest) {
         ORDER BY SUM(order_paid_amount) DESC NULLS LAST
         LIMIT 25
       ),
+      /* All-time DELIVERED + COMPLETED totals per seller — independent of the
+         date range filter so the % refunded column shows lifetime context for
+         each seller in the refund list. Restricted to seller_ids already in
+         seller_agg to avoid scanning the full PO table. */
+      seller_total_agg AS (
+        SELECT
+          a."sellerId"                                                 AS seller_id,
+          COUNT(*)                                                     AS total_seller_orders,
+          COALESCE(SUM(a."amount"::numeric), 0)                        AS total_seller_amount
+        FROM "purchaseOrder"."purchaseOrder" a
+        JOIN "users"."buyer" b ON b."id" = a."buyerId"
+        WHERE a."sellerId" IN (SELECT seller_id FROM seller_agg)
+          AND a."status" IN ('DELIVERED', 'COMPLETED')
+          AND a."isTest" = FALSE
+          AND b."isTest" = FALSE
+        GROUP BY a."sellerId"
+      ),
       list_data AS (
         SELECT *
         FROM source
@@ -502,16 +522,24 @@ export async function GET(req: NextRequest) {
         ),
         'topSellers', (
           SELECT json_agg(json_build_object(
-            'sellerId',                   seller_id::text,
-            'sellerPhone',                seller_phone,
-            'sellerBusinessName',         seller_business_name,
-            'orderCount',                 order_count,
-            'paidAmount',                 paid_amount,
-            'refundedAmount',             refunded_amount,
-            'pendingAmount',              pending_amount,
-            'refundedOrders',             refunded_orders
+            'sellerId',                   sa.seller_id::text,
+            'sellerPhone',                sa.seller_phone,
+            'sellerBusinessName',         sa.seller_business_name,
+            'orderCount',                 sa.order_count,
+            'paidAmount',                 sa.paid_amount,
+            'refundedAmount',             sa.refunded_amount,
+            'pendingAmount',              sa.pending_amount,
+            'refundedOrders',             sa.refunded_orders,
+            'totalSellerOrders',          COALESCE(sta.total_seller_orders, 0),
+            'totalSellerAmount',          COALESCE(sta.total_seller_amount, 0),
+            'refundOrderPctOfTotal',      CASE
+                                            WHEN COALESCE(sta.total_seller_orders, 0) > 0
+                                              THEN ROUND((sa.refunded_orders::numeric / sta.total_seller_orders) * 100, 2)
+                                            ELSE 0
+                                          END
           ))
-          FROM seller_agg
+          FROM seller_agg sa
+          LEFT JOIN seller_total_agg sta ON sta.seller_id = sa.seller_id
         ),
         'list', (
           SELECT json_agg(json_build_object(

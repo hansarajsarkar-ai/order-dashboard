@@ -1398,7 +1398,7 @@ export default function BrandPerformanceDashboard() {
           <div className={`px-6 py-2 flex items-center gap-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
             <span className={t.sectionTag('details')}>PRODUCT</span>
             <h2 className={`text-base font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Product × Month</h2>
-            <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>top {productData?.limit ?? 300} SKUs by ₹ value · orders · ₹ · buyers</span>
+            <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>delivered + completed orders · top {productData?.limit ?? 300} SKUs by ₹ value</span>
           </div>
 
           <div className={`px-6 py-2 border-b flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
@@ -1707,7 +1707,7 @@ export default function BrandPerformanceDashboard() {
           <div className={`px-6 py-2 flex items-center gap-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
             <span className={t.sectionTag('pivot')}>TOP SELLERS</span>
             <h2 className={`text-base font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Brand × Product</h2>
-            <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>brands ranked by sales — click to expand top SKUs</span>
+            <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>delivered + completed orders · click any brand to expand top SKUs</span>
           </div>
 
           <div className={`px-6 py-2 border-b flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>

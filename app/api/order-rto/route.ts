@@ -4,8 +4,20 @@ import { query } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 interface MonthRow { month: string; count: string; amount: string; }
-interface SellerRow { seller_id: string; seller_phone: string | null; seller_business_name: string | null; count: string; amount: string; }
-interface StateRow { state: string | null; count: string; amount: string; }
+interface SellerRow {
+  seller_id: string;
+  seller_phone: string | null;
+  seller_business_name: string | null;
+  pushed_count: string; pushed_amount: string;
+  delivered_count: string; delivered_amount: string;
+  rto_count: string; rto_amount: string;
+}
+interface StateRow {
+  state: string | null;
+  pushed_count: string; pushed_amount: string;
+  delivered_count: string; delivered_amount: string;
+  rto_count: string; rto_amount: string;
+}
 interface GrandRow { count: string; amount: string; }
 interface DeliveredRow { delivered_count: string; }
 
@@ -47,44 +59,50 @@ export async function GET(req: NextRequest) {
     `;
     const monthlyRows = await query<MonthRow>(monthlySql, [year]);
 
-    // 2. Top sellers by RTO count
+    // 2. Top sellers — funnel (pushed → delivered → RTO) for orders pushed in $year
     const sellerSql = `
       SELECT
         s."id"::text                                  AS seller_id,
         s."phone"                                     AS seller_phone,
         s."businessName"                              AS seller_business_name,
-        COUNT(*)                                      AS count,
-        COALESCE(SUM(po."amount"::numeric), 0)::text  AS amount
+        COUNT(*)                                                                                            AS pushed_count,
+        COALESCE(SUM(po."amount"::numeric), 0)::text                                                        AS pushed_amount,
+        COUNT(*) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))                                    AS delivered_count,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS delivered_amount,
+        COUNT(*) FILTER (WHERE po."status" = 'REJECTED' AND po."deliveryStatus" ILIKE '%RTO%')              AS rto_count,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'REJECTED' AND po."deliveryStatus" ILIKE '%RTO%'), 0)::text AS rto_amount
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
-      WHERE po."status" = 'REJECTED'
-        AND po."deliveryStatus" ILIKE '%RTO%'
-        AND po."markedRejectedTime" IS NOT NULL
-        AND EXTRACT(YEAR FROM po."markedRejectedTime") = $1
+      WHERE po."markedPendingTime" IS NOT NULL
+        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
         ${STD_FILTERS}
       GROUP BY s."id", s."phone", s."businessName"
-      ORDER BY count DESC
+      HAVING COUNT(*) FILTER (WHERE po."status" = 'REJECTED' AND po."deliveryStatus" ILIKE '%RTO%') > 0
+      ORDER BY rto_count DESC
       LIMIT 20;
     `;
     const sellerRows = await query<SellerRow>(sellerSql, [year]);
 
-    // 3. Top states by RTO count
+    // 3. Top states — funnel (pushed → delivered → RTO) for orders pushed in $year
     const stateSql = `
       SELECT
-        b."state"                                     AS state,
-        COUNT(*)                                      AS count,
-        COALESCE(SUM(po."amount"::numeric), 0)::text  AS amount
+        b."state"                                                                                           AS state,
+        COUNT(*)                                                                                            AS pushed_count,
+        COALESCE(SUM(po."amount"::numeric), 0)::text                                                        AS pushed_amount,
+        COUNT(*) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))                                    AS delivered_count,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS delivered_amount,
+        COUNT(*) FILTER (WHERE po."status" = 'REJECTED' AND po."deliveryStatus" ILIKE '%RTO%')              AS rto_count,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'REJECTED' AND po."deliveryStatus" ILIKE '%RTO%'), 0)::text AS rto_amount
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
-      WHERE po."status" = 'REJECTED'
-        AND po."deliveryStatus" ILIKE '%RTO%'
-        AND po."markedRejectedTime" IS NOT NULL
-        AND EXTRACT(YEAR FROM po."markedRejectedTime") = $1
+      WHERE po."markedPendingTime" IS NOT NULL
+        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
         ${STD_FILTERS}
       GROUP BY b."state"
-      ORDER BY count DESC
+      HAVING COUNT(*) FILTER (WHERE po."status" = 'REJECTED' AND po."deliveryStatus" ILIKE '%RTO%') > 0
+      ORDER BY rto_count DESC
       LIMIT 20;
     `;
     const stateRows = await query<StateRow>(stateSql, [year]);
@@ -124,19 +142,37 @@ export async function GET(req: NextRequest) {
       amount: parseFloat(r.amount),
     }));
 
-    const topSellers = sellerRows.map((r) => ({
-      sellerId: r.seller_id,
-      sellerPhone: r.seller_phone,
-      sellerBusinessName: r.seller_business_name,
-      count: parseInt(r.count),
-      amount: parseFloat(r.amount),
-    }));
+    const topSellers = sellerRows.map((r) => {
+      const pushedCount = parseInt(r.pushed_count);
+      const rtoCount = parseInt(r.rto_count);
+      return {
+        sellerId: r.seller_id,
+        sellerPhone: r.seller_phone,
+        sellerBusinessName: r.seller_business_name,
+        pushedCount,
+        pushedAmount: parseFloat(r.pushed_amount),
+        deliveredCount: parseInt(r.delivered_count),
+        deliveredAmount: parseFloat(r.delivered_amount),
+        rtoCount,
+        rtoAmount: parseFloat(r.rto_amount),
+        rtoRate: pushedCount > 0 ? parseFloat(((rtoCount / pushedCount) * 100).toFixed(2)) : 0,
+      };
+    });
 
-    const topStates = stateRows.map((r) => ({
-      state: r.state,
-      count: parseInt(r.count),
-      amount: parseFloat(r.amount),
-    }));
+    const topStates = stateRows.map((r) => {
+      const pushedCount = parseInt(r.pushed_count);
+      const rtoCount = parseInt(r.rto_count);
+      return {
+        state: r.state,
+        pushedCount,
+        pushedAmount: parseFloat(r.pushed_amount),
+        deliveredCount: parseInt(r.delivered_count),
+        deliveredAmount: parseFloat(r.delivered_amount),
+        rtoCount,
+        rtoAmount: parseFloat(r.rto_amount),
+        rtoRate: pushedCount > 0 ? parseFloat(((rtoCount / pushedCount) * 100).toFixed(2)) : 0,
+      };
+    });
 
     const grand = {
       count: parseInt(grandRows[0]?.count || '0'),

@@ -404,8 +404,22 @@ export default function OrderStatusDashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography'>('dashboard');
   // RTO tab
   interface RtoMonth { month: number; count: number; amount: number; }
-  interface RtoSeller { sellerId: string; sellerPhone: string | null; sellerBusinessName: string | null; count: number; amount: number; }
-  interface RtoState { state: string | null; count: number; amount: number; }
+  interface RtoSeller {
+    sellerId: string;
+    sellerPhone: string | null;
+    sellerBusinessName: string | null;
+    pushedCount: number; pushedAmount: number;
+    deliveredCount: number; deliveredAmount: number;
+    rtoCount: number; rtoAmount: number;
+    rtoRate: number;
+  }
+  interface RtoState {
+    state: string | null;
+    pushedCount: number; pushedAmount: number;
+    deliveredCount: number; deliveredAmount: number;
+    rtoCount: number; rtoAmount: number;
+    rtoRate: number;
+  }
   interface RtoData {
     grand: { count: number; amount: number };
     deliveredCount: number;
@@ -3372,15 +3386,24 @@ export default function OrderStatusDashboard() {
                 <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-bold text-white">Top sellers by RTO</h3>
-                    <p className="text-purple-300/70 text-xs mt-0.5">Highest RTO order count this year</p>
+                    <p className="text-purple-300/70 text-xs mt-0.5">Pushed → Delivered → RTO funnel (cohort: <span className="font-mono text-fuchsia-300">markedPendingTime</span> in {currentYear})</p>
                   </div>
                   {rtoData && rtoData.topSellers.length > 0 && (
                     <button
                       className={DOWNLOAD_BTN_CLASS}
                       onClick={() => {
-                        const headers = ['Seller Business', 'Seller Phone', 'RTO Count', 'RTO Amount'];
+                        const headers = [
+                          'Seller Business', 'Seller Phone',
+                          'Pushed Orders', 'Pushed Value',
+                          'Delivered+Completed', 'Delivered Value', 'Delivery %',
+                          'RTO Orders', 'RTO Value', 'RTO %',
+                        ];
                         const rows: CsvCell[][] = rtoData.topSellers.map((s) => [
-                          s.sellerBusinessName, s.sellerPhone, s.count, s.amount,
+                          s.sellerBusinessName, s.sellerPhone,
+                          s.pushedCount, s.pushedAmount,
+                          s.deliveredCount, s.deliveredAmount,
+                          s.pushedCount > 0 ? +((s.deliveredCount / s.pushedCount) * 100).toFixed(2) : 0,
+                          s.rtoCount, s.rtoAmount, s.rtoRate,
                         ]);
                         downloadCSV(`rto-top-sellers-${currentYear}.csv`, headers, rows);
                       }}
@@ -3398,24 +3421,46 @@ export default function OrderStatusDashboard() {
                     <table className="w-full text-sm">
                       <thead className="bg-white/5 border-b border-white/10">
                         <tr>
-                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200">#</th>
-                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200">Seller</th>
-                          <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200">RTO</th>
-                          <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200">Value</th>
+                          <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-purple-200">#</th>
+                          <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-purple-200">Seller</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-purple-200">Pushed</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-emerald-200">Delivered</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-rose-200">RTO</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-rose-300">RTO %</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {rtoData.topSellers.slice(0, 10).map((s, i) => (
-                          <tr key={s.sellerId} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                            <td className="px-4 py-2.5 text-purple-300 tabular-nums">{i + 1}</td>
-                            <td className="px-4 py-2.5">
-                              <div className="text-white font-medium leading-tight">{s.sellerBusinessName || '—'}</div>
-                              <div className="text-purple-300/70 text-[10px] tabular-nums leading-tight mt-0.5">{s.sellerPhone || '—'}</div>
-                            </td>
-                            <td className="px-4 py-2.5 text-right tabular-nums font-bold text-rose-200">{s.count.toLocaleString()}</td>
-                            <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{formatAmount(s.amount)}</td>
-                          </tr>
-                        ))}
+                        {rtoData.topSellers.slice(0, 10).map((s, i) => {
+                          const deliveryRate = s.pushedCount > 0 ? (s.deliveredCount / s.pushedCount) * 100 : 0;
+                          return (
+                            <tr key={s.sellerId} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                              <td className="px-3 py-2.5 text-purple-300 tabular-nums align-top">{i + 1}</td>
+                              <td className="px-3 py-2.5 align-top">
+                                <div className="text-white font-medium leading-tight">{s.sellerBusinessName || '—'}</div>
+                                <div className="text-purple-300/70 text-[10px] tabular-nums leading-tight mt-0.5">{s.sellerPhone || '—'}</div>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums align-top">
+                                <div className="text-white font-bold leading-tight">{s.pushedCount.toLocaleString()}</div>
+                                <div className="text-purple-300/70 text-[10px] leading-tight mt-0.5">{formatAmount(s.pushedAmount)}</div>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums align-top">
+                                <div className="text-emerald-200 font-bold leading-tight">{s.deliveredCount.toLocaleString()}</div>
+                                <div className="text-emerald-300/70 text-[10px] leading-tight mt-0.5">{formatAmount(s.deliveredAmount)} · {deliveryRate.toFixed(1)}%</div>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums align-top">
+                                <div className="text-rose-200 font-bold leading-tight">{s.rtoCount.toLocaleString()}</div>
+                                <div className="text-rose-300/70 text-[10px] leading-tight mt-0.5">{formatAmount(s.rtoAmount)}</div>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums align-top">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                  s.rtoRate >= 30 ? 'bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/40'
+                                  : s.rtoRate >= 15 ? 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40'
+                                  : 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/40'
+                                }`}>{s.rtoRate.toFixed(1)}%</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -3426,14 +3471,25 @@ export default function OrderStatusDashboard() {
                 <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-bold text-white">Top states by RTO</h3>
-                    <p className="text-purple-300/70 text-xs mt-0.5">Highest RTO order count this year</p>
+                    <p className="text-purple-300/70 text-xs mt-0.5">Pushed → Delivered → RTO funnel (cohort: <span className="font-mono text-fuchsia-300">markedPendingTime</span> in {currentYear})</p>
                   </div>
                   {rtoData && rtoData.topStates.length > 0 && (
                     <button
                       className={DOWNLOAD_BTN_CLASS}
                       onClick={() => {
-                        const headers = ['State', 'RTO Count', 'RTO Amount'];
-                        const rows: CsvCell[][] = rtoData.topStates.map((s) => [s.state ?? '(no state)', s.count, s.amount]);
+                        const headers = [
+                          'State',
+                          'Pushed Orders', 'Pushed Value',
+                          'Delivered+Completed', 'Delivered Value', 'Delivery %',
+                          'RTO Orders', 'RTO Value', 'RTO %',
+                        ];
+                        const rows: CsvCell[][] = rtoData.topStates.map((s) => [
+                          s.state ?? '(no state)',
+                          s.pushedCount, s.pushedAmount,
+                          s.deliveredCount, s.deliveredAmount,
+                          s.pushedCount > 0 ? +((s.deliveredCount / s.pushedCount) * 100).toFixed(2) : 0,
+                          s.rtoCount, s.rtoAmount, s.rtoRate,
+                        ]);
                         downloadCSV(`rto-top-states-${currentYear}.csv`, headers, rows);
                       }}
                     >
@@ -3450,21 +3506,43 @@ export default function OrderStatusDashboard() {
                     <table className="w-full text-sm">
                       <thead className="bg-white/5 border-b border-white/10">
                         <tr>
-                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200">#</th>
-                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-purple-200">State</th>
-                          <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200">RTO</th>
-                          <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-purple-200">Value</th>
+                          <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-purple-200">#</th>
+                          <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-purple-200">State</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-purple-200">Pushed</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-emerald-200">Delivered</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-rose-200">RTO</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-rose-300">RTO %</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {rtoData.topStates.slice(0, 10).map((st, i) => (
-                          <tr key={(st.state ?? 'unknown') + i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                            <td className="px-4 py-2.5 text-purple-300 tabular-nums">{i + 1}</td>
-                            <td className="px-4 py-2.5 text-white">{st.state || <span className="text-purple-300/70 italic">(no state)</span>}</td>
-                            <td className="px-4 py-2.5 text-right tabular-nums font-bold text-rose-200">{st.count.toLocaleString()}</td>
-                            <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{formatAmount(st.amount)}</td>
-                          </tr>
-                        ))}
+                        {rtoData.topStates.slice(0, 10).map((st, i) => {
+                          const deliveryRate = st.pushedCount > 0 ? (st.deliveredCount / st.pushedCount) * 100 : 0;
+                          return (
+                            <tr key={(st.state ?? 'unknown') + i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                              <td className="px-3 py-2.5 text-purple-300 tabular-nums align-top">{i + 1}</td>
+                              <td className="px-3 py-2.5 text-white align-top">{st.state || <span className="text-purple-300/70 italic">(no state)</span>}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums align-top">
+                                <div className="text-white font-bold leading-tight">{st.pushedCount.toLocaleString()}</div>
+                                <div className="text-purple-300/70 text-[10px] leading-tight mt-0.5">{formatAmount(st.pushedAmount)}</div>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums align-top">
+                                <div className="text-emerald-200 font-bold leading-tight">{st.deliveredCount.toLocaleString()}</div>
+                                <div className="text-emerald-300/70 text-[10px] leading-tight mt-0.5">{formatAmount(st.deliveredAmount)} · {deliveryRate.toFixed(1)}%</div>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums align-top">
+                                <div className="text-rose-200 font-bold leading-tight">{st.rtoCount.toLocaleString()}</div>
+                                <div className="text-rose-300/70 text-[10px] leading-tight mt-0.5">{formatAmount(st.rtoAmount)}</div>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums align-top">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                  st.rtoRate >= 30 ? 'bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/40'
+                                  : st.rtoRate >= 15 ? 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40'
+                                  : 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/40'
+                                }`}>{st.rtoRate.toFixed(1)}%</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -4725,21 +4803,21 @@ export default function OrderStatusDashboard() {
                       if (!filteredPivotDrillRows) return;
                       const isRejected = pivotDrillStatus === 'REJECTED';
                       const headers = [
-                        'Pushed', 'PO Number', 'Status', 'PO Amount', 'Paid Amount', 'Coupon Amount',
-                        'Seller Discount', 'Payment Option Badho Discount', 'Wallet Amount',
-                        'Payment Option', 'Payment Date', 'Payment Event',
-                        'AWB Number', 'Courier Name', 'Delivery Status', 'COD Amount',
-                        'Buyer Phone', 'Buyer Business', 'Seller Phone', 'Seller Business',
+                        'Pushed', 'PO Number', 'Order Status', 'PO Amount', 'Paid Amount', 'Coupon Amount',
+                        'Seller Discount', 'Applied Wallet Amount', 'Payment Option',
+                        'AWB Number', 'Courier Name', 'COD Amount', 'Buyer Phone',
+                        'Payment Option Badho Discount', 'Payment Date', 'Payment Event',
+                        'Delivery Status', 'Buyer Business', 'Seller Phone', 'Seller Business',
                         'Marked Pending', 'Refund Initiated', 'Refund Completed',
                         ...(isRejected ? ['Reject Reason', 'Rejected By', 'Reason Added By Badho Team'] : []),
                       ];
                       const rows: CsvCell[][] = filteredPivotDrillRows.map((r) => [
                         r.pushedStatus ?? 'Not Pushed', r.poNumber, r.orderStatus ?? r.status,
                         r.poAmount ?? '', r.paidAmount ?? '', r.CoupanAmount ?? '',
-                        r.discountBySeller ?? '', r.PaymentOptionDiscountByBadho ?? '', r.appliedWalletAmount ?? '',
-                        r.PaymentOption ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
-                        r.awbNumber ?? '', r.courierName ?? '', r.deliveryStatus ?? '', r.codAmountToBeCollected ?? '',
-                        r.buyerPhone ?? '', r.buyerBusinessName ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
+                        r.discountBySeller ?? '', r.appliedWalletAmount ?? '', r.PaymentOption ?? '',
+                        r.awbNumber ?? '', r.courierName ?? '', r.codAmountToBeCollected ?? '', r.buyerPhone ?? '',
+                        r.PaymentOptionDiscountByBadho ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
+                        r.deliveryStatus ?? '', r.buyerBusinessName ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
                         r.MarkedpendingTime ?? r.markedPendingTime ?? '',
                         r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '',
                         ...(isRejected ? [r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? ''] : []),
@@ -4846,21 +4924,21 @@ export default function OrderStatusDashboard() {
                             <>
                               <SortTh k="pushed" label="Pushed" />
                               <SortTh k="poNumber" label="PO Number" />
-                              <SortTh k="status" label="Status" />
+                              <SortTh k="status" label="Order Status" />
                               <SortTh k="poAmount" label="PO Amount" align="right" />
                               <SortTh k="paidAmount" label="Paid Amount" align="right" />
                               <SortTh k="coupon" label="Coupon Amount" align="right" />
                               <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
-                              <SortTh k="badhoDiscount" label="Payment Option Badho Discount" align="right" />
-                              <SortTh k="wallet" label="Wallet Amount" align="right" />
+                              <SortTh k="wallet" label="Applied Wallet Amount" align="right" />
                               <SortTh k="paymentOption" label="Payment Option" />
-                              <SortTh k="paymentDate" label="Payment Date" />
-                              <SortTh k="paymentEvent" label="Payment Event" />
                               <SortTh k="awb" label="AWB Number" />
                               <SortTh k="courier" label="Courier Name" />
-                              <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="cod" label="COD Amount" align="right" />
                               <SortTh k="buyerPhone" label="Buyer Phone" />
+                              <SortTh k="badhoDiscount" label="Payment Option Badho Discount" align="right" />
+                              <SortTh k="paymentDate" label="Payment Date" />
+                              <SortTh k="paymentEvent" label="Payment Event" />
+                              <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="buyerBusiness" label="Buyer Business" />
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
@@ -4896,16 +4974,16 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || <span className="text-slate-400 italic">—</span>}</td>

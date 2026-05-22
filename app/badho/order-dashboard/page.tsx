@@ -432,6 +432,9 @@ export default function OrderStatusDashboard() {
   }
   const [rtoData, setRtoData] = useState<RtoData | null>(null);
   const [rtoLoading, setRtoLoading] = useState(false);
+  const RTO_PAGE_SIZE = 10;
+  const [rtoSellerPage, setRtoSellerPage] = useState(1);
+  const [rtoStatePage, setRtoStatePage] = useState(1);
   // RTO trend chart granularity + data
   interface RtoTrendPoint { bucket: string; label: string; count: number; amount: number; }
   const [rtoTrendGranularity, setRtoTrendGranularity] = useState<'month' | 'week' | 'day' | 'custom'>('month');
@@ -766,6 +769,8 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch RTO');
       const json = await res.json();
       setRtoData(json);
+      setRtoSellerPage(1);
+      setRtoStatePage(1);
     } catch (err) {
       console.error('RTO fetch error:', err);
       setRtoData(null);
@@ -1572,6 +1577,26 @@ export default function OrderStatusDashboard() {
     const startIdx = (safePage - 1) * PAGE_SIZE;
     const endIdx = Math.min(startIdx + PAGE_SIZE, filteredPivotDrillRows.length);
     return { totalPages, safePage, startIdx, endIdx, rows: filteredPivotDrillRows.slice(startIdx, endIdx) };
+  })();
+
+  const rtoSellersPaged = (() => {
+    if (!rtoData) return null;
+    const total = rtoData.topSellers.length;
+    const totalPages = Math.max(1, Math.ceil(total / RTO_PAGE_SIZE));
+    const safePage = Math.min(Math.max(1, rtoSellerPage), totalPages);
+    const startIdx = (safePage - 1) * RTO_PAGE_SIZE;
+    const endIdx = Math.min(startIdx + RTO_PAGE_SIZE, total);
+    return { total, totalPages, safePage, startIdx, endIdx, rows: rtoData.topSellers.slice(startIdx, endIdx) };
+  })();
+
+  const rtoStatesPaged = (() => {
+    if (!rtoData) return null;
+    const total = rtoData.topStates.length;
+    const totalPages = Math.max(1, Math.ceil(total / RTO_PAGE_SIZE));
+    const safePage = Math.min(Math.max(1, rtoStatePage), totalPages);
+    const startIdx = (safePage - 1) * RTO_PAGE_SIZE;
+    const endIdx = Math.min(startIdx + RTO_PAGE_SIZE, total);
+    return { total, totalPages, safePage, startIdx, endIdx, rows: rtoData.topStates.slice(startIdx, endIdx) };
   })();
 
   const timestamp = mounted ? new Date().toLocaleString() : '';
@@ -3409,7 +3434,7 @@ export default function OrderStatusDashboard() {
                 <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-bold text-white">Top sellers by RTO</h3>
-                    <p className="text-purple-300/70 text-xs mt-0.5">Pushed → Delivered → RTO funnel (cohort: <span className="font-mono text-fuchsia-300">markedPendingTime</span> in {currentYear})</p>
+                    <p className="text-purple-300/70 text-xs mt-0.5">Punch → Delivered → RTO funnel (cohort: <span className="font-mono text-fuchsia-300">markedPendingTime</span> in {currentYear})</p>
                   </div>
                   {rtoData && rtoData.topSellers.length > 0 && (
                     <button
@@ -3446,18 +3471,19 @@ export default function OrderStatusDashboard() {
                         <tr>
                           <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-purple-200">#</th>
                           <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-purple-200">Seller</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-purple-200">Pushed</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-purple-200">Punch</th>
                           <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-emerald-200">Delivered</th>
                           <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-rose-200">RTO</th>
                           <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-rose-300">RTO %</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {rtoData.topSellers.slice(0, 10).map((s, i) => {
+                        {(rtoSellersPaged?.rows ?? []).map((s, i) => {
                           const deliveryRate = s.pushedCount > 0 ? (s.deliveredCount / s.pushedCount) * 100 : 0;
+                          const rank = (rtoSellersPaged?.startIdx ?? 0) + i + 1;
                           return (
                             <tr key={s.sellerId} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                              <td className="px-3 py-2.5 text-purple-300 tabular-nums align-top">{i + 1}</td>
+                              <td className="px-3 py-2.5 text-purple-300 tabular-nums align-top">{rank}</td>
                               <td className="px-3 py-2.5 align-top">
                                 <div className="text-white font-medium leading-tight">{s.sellerBusinessName || '—'}</div>
                                 <div className="text-purple-300/70 text-[10px] tabular-nums leading-tight mt-0.5">{s.sellerPhone || '—'}</div>
@@ -3488,13 +3514,39 @@ export default function OrderStatusDashboard() {
                     </table>
                   )}
                 </div>
+                {rtoSellersPaged && rtoSellersPaged.total > RTO_PAGE_SIZE && (
+                  <div className="px-6 py-3 border-t border-white/10 bg-white/5 flex items-center justify-between text-xs text-purple-200 flex-wrap gap-2">
+                    <div>
+                      Showing <span className="font-semibold text-white">{rtoSellersPaged.startIdx + 1}</span>–<span className="font-semibold text-white">{rtoSellersPaged.endIdx}</span> of <span className="font-semibold text-white">{rtoSellersPaged.total.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setRtoSellerPage((p) => Math.max(1, p - 1))}
+                        disabled={rtoSellersPaged.safePage <= 1}
+                        className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Prev
+                      </button>
+                      <span className="px-1 text-purple-300/70">
+                        Page <span className="text-white font-semibold">{rtoSellersPaged.safePage}</span> of {rtoSellersPaged.totalPages}
+                      </span>
+                      <button
+                        onClick={() => setRtoSellerPage((p) => Math.min(rtoSellersPaged.totalPages, p + 1))}
+                        disabled={rtoSellersPaged.safePage >= rtoSellersPaged.totalPages}
+                        className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
                 <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-bold text-white">Top states by RTO</h3>
-                    <p className="text-purple-300/70 text-xs mt-0.5">Pushed → Delivered → RTO funnel (cohort: <span className="font-mono text-fuchsia-300">markedPendingTime</span> in {currentYear})</p>
+                    <p className="text-purple-300/70 text-xs mt-0.5">Punch → Delivered → RTO funnel (cohort: <span className="font-mono text-fuchsia-300">markedPendingTime</span> in {currentYear})</p>
                   </div>
                   {rtoData && rtoData.topStates.length > 0 && (
                     <button
@@ -3531,18 +3583,19 @@ export default function OrderStatusDashboard() {
                         <tr>
                           <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-purple-200">#</th>
                           <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-purple-200">State</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-purple-200">Pushed</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-purple-200">Punch</th>
                           <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-emerald-200">Delivered</th>
                           <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-rose-200">RTO</th>
                           <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-rose-300">RTO %</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {rtoData.topStates.slice(0, 10).map((st, i) => {
+                        {(rtoStatesPaged?.rows ?? []).map((st, i) => {
                           const deliveryRate = st.pushedCount > 0 ? (st.deliveredCount / st.pushedCount) * 100 : 0;
+                          const rank = (rtoStatesPaged?.startIdx ?? 0) + i + 1;
                           return (
                             <tr key={(st.state ?? 'unknown') + i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                              <td className="px-3 py-2.5 text-purple-300 tabular-nums align-top">{i + 1}</td>
+                              <td className="px-3 py-2.5 text-purple-300 tabular-nums align-top">{rank}</td>
                               <td className="px-3 py-2.5 text-white align-top">{st.state || <span className="text-purple-300/70 italic">(no state)</span>}</td>
                               <td className="px-3 py-2.5 text-right tabular-nums align-top">
                                 <div className="text-white font-bold leading-tight">{st.pushedCount.toLocaleString()}</div>
@@ -3570,6 +3623,32 @@ export default function OrderStatusDashboard() {
                     </table>
                   )}
                 </div>
+                {rtoStatesPaged && rtoStatesPaged.total > RTO_PAGE_SIZE && (
+                  <div className="px-6 py-3 border-t border-white/10 bg-white/5 flex items-center justify-between text-xs text-purple-200 flex-wrap gap-2">
+                    <div>
+                      Showing <span className="font-semibold text-white">{rtoStatesPaged.startIdx + 1}</span>–<span className="font-semibold text-white">{rtoStatesPaged.endIdx}</span> of <span className="font-semibold text-white">{rtoStatesPaged.total.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setRtoStatePage((p) => Math.max(1, p - 1))}
+                        disabled={rtoStatesPaged.safePage <= 1}
+                        className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Prev
+                      </button>
+                      <span className="px-1 text-purple-300/70">
+                        Page <span className="text-white font-semibold">{rtoStatesPaged.safePage}</span> of {rtoStatesPaged.totalPages}
+                      </span>
+                      <button
+                        onClick={() => setRtoStatePage((p) => Math.min(rtoStatesPaged.totalPages, p + 1))}
+                        disabled={rtoStatesPaged.safePage >= rtoStatesPaged.totalPages}
+                        className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             </>

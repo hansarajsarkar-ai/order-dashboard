@@ -79,8 +79,7 @@ export async function GET(req: NextRequest) {
         ${STD_FILTERS}
       GROUP BY s."id", s."phone", s."businessName"
       HAVING COUNT(*) FILTER (WHERE po."status" = 'REJECTED' AND po."deliveryStatus" ILIKE '%RTO%') > 0
-      ORDER BY rto_count DESC
-      LIMIT 20;
+      ORDER BY rto_count DESC;
     `;
     const sellerRows = await query<SellerRow>(sellerSql, [year]);
 
@@ -102,8 +101,7 @@ export async function GET(req: NextRequest) {
         ${STD_FILTERS}
       GROUP BY b."state"
       HAVING COUNT(*) FILTER (WHERE po."status" = 'REJECTED' AND po."deliveryStatus" ILIKE '%RTO%') > 0
-      ORDER BY rto_count DESC
-      LIMIT 20;
+      ORDER BY rto_count DESC;
     `;
     const stateRows = await query<StateRow>(stateSql, [year]);
 

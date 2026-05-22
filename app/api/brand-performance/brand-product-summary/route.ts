@@ -16,8 +16,9 @@ interface Row {
 }
 
 // Brand × Product summary: top-level rows are brands, each with a nested list
-// of SKUs. Both layers are sortable by ₹ value (default) or quantity, so the
-// "most sold" product surfaces at the top of each brand group.
+// of SKUs. Both layers are sortable by ?sort=orders|amount|quantity (default
+// amount) and ?direction=asc|desc (default desc), so the "most sold" — or
+// least sold — product surfaces at the top of each brand group.
 //
 // Honors the same date range + brand multi-select used elsewhere on the page.
 export async function GET(req: NextRequest) {
@@ -27,7 +28,12 @@ export async function GET(req: NextRequest) {
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
   const brand = searchParams.get('brand');
-  const sort = searchParams.get('sort') === 'quantity' ? 'quantity' : 'amount';
+  const sortParam = searchParams.get('sort');
+  const sort: 'orders' | 'amount' | 'quantity' =
+    sortParam === 'quantity' ? 'quantity'
+    : sortParam === 'orders' ? 'orders'
+    : 'amount';
+  const direction: 'asc' | 'desc' = searchParams.get('direction') === 'asc' ? 'asc' : 'desc';
 
   try {
     const params: (string | number)[] = [];
@@ -137,9 +143,9 @@ export async function GET(req: NextRequest) {
       grand.quantity += quantity;
     }
 
-    const cmp = (a: Cell, b: Cell) => sort === 'quantity'
-      ? b.quantity - a.quantity
-      : b.amount - a.amount;
+    const pick = (c: Cell) => sort === 'quantity' ? c.quantity : sort === 'orders' ? c.count : c.amount;
+    const sign = direction === 'asc' ? 1 : -1;
+    const cmp = (a: Cell, b: Cell) => (pick(a) - pick(b)) * sign;
 
     const brands = Array.from(brandMap.values())
       .map((br) => ({
@@ -156,6 +162,7 @@ export async function GET(req: NextRequest) {
       brandCount: brands.length,
       productCount,
       sort,
+      direction,
       year,
       startDate: startDate || null,
       endDate: endDate || null,

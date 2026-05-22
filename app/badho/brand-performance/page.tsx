@@ -379,11 +379,13 @@ export default function BrandPerformanceDashboard() {
     grand: TsCell;
     brandCount: number;
     productCount: number;
-    sort: 'amount' | 'quantity';
+    sort: 'orders' | 'amount' | 'quantity';
+    direction: 'asc' | 'desc';
   }
   const [topData, setTopData] = useState<TopSellersData | null>(null);
   const [topLoading, setTopLoading] = useState(false);
-  const [topSort, setTopSort] = useState<'amount' | 'quantity'>('amount');
+  const [topSort, setTopSort] = useState<'orders' | 'amount' | 'quantity'>('amount');
+  const [topDir, setTopDir] = useState<'asc' | 'desc'>('desc');
   const [topSearch, setTopSearch] = useState('');
   const [topExpanded, setTopExpanded] = useState<Set<string>>(new Set());
 
@@ -503,7 +505,7 @@ export default function BrandPerformanceDashboard() {
   const fetchTopSellers = async () => {
     try {
       setTopLoading(true);
-      const params = new URLSearchParams({ year: String(currentYear), sort: topSort });
+      const params = new URLSearchParams({ year: String(currentYear), sort: topSort, direction: topDir });
       const { startDate, endDate } = resolveRange();
       if (startDate) params.append('startDate', startDate);
       if (endDate)   params.append('endDate',   endDate);
@@ -524,7 +526,7 @@ export default function BrandPerformanceDashboard() {
     if (!authChecked || bpTab !== 'topsellers') return;
     fetchTopSellers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands, topSort]);
+  }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands, topSort, topDir]);
 
   const toggleTopBrand = (key: string) => {
     setTopExpanded((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
@@ -1707,7 +1709,9 @@ export default function BrandPerformanceDashboard() {
         })()}
 
         {bpTab === 'topsellers' && (() => {
-          const sortKey = (c: TsCell) => topSort === 'quantity' ? c.quantity : c.amount;
+          const sortKey = (c: TsCell) => topSort === 'quantity' ? c.quantity : topSort === 'orders' ? c.count : c.amount;
+          const sortLabelShort = topSort === 'quantity' ? 'qty' : topSort === 'orders' ? 'orders' : '₹ value';
+          const sortLabelFull = topSort === 'quantity' ? 'quantity' : topSort === 'orders' ? 'orders' : '₹ value';
           const visibleBrandsTs = (() => {
             if (!topData) return [];
             const q = topSearch.trim().toLowerCase();
@@ -1771,19 +1775,28 @@ export default function BrandPerformanceDashboard() {
             )}
             <div className="ml-auto flex items-center gap-2 flex-wrap">
               <div className={`inline-flex gap-1 p-0.5 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
-                {(['amount', 'quantity'] as const).map((m) => {
+                {(['orders', 'amount', 'quantity'] as const).map((m) => {
                   const active = topSort === m;
+                  const label = m === 'amount' ? '₹ value' : m === 'quantity' ? 'Qty' : 'Orders';
                   return (
                     <button
                       key={m}
                       onClick={() => setTopSort(m)}
                       className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all whitespace-nowrap ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}
                     >
-                      {m === 'amount' ? '₹ value' : 'Qty'}
+                      {label}
                     </button>
                   );
                 })}
               </div>
+              <button
+                type="button"
+                onClick={() => setTopDir((d) => d === 'desc' ? 'asc' : 'desc')}
+                className={`px-2 py-1 rounded-md text-[11px] font-bold whitespace-nowrap ${t.isDark ? 'bg-white/10 border border-white/15 text-purple-100 hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                title={`Sort direction (currently ${topDir === 'desc' ? 'highest first' : 'lowest first'})`}
+              >
+                {topDir === 'desc' ? '↓ Desc' : '↑ Asc'}
+              </button>
               <div className="relative">
                 <button
                   type="button"
@@ -1905,7 +1918,7 @@ export default function BrandPerformanceDashboard() {
                       : mbsBrands.size === 1
                         ? Array.from(mbsBrands)[0].toLowerCase().replace(/\s+/g, '-')
                         : `${mbsBrands.size}-brands`;
-                    downloadCSV(`top-sellers-${suffix}-${topSort}-${currentYear}.csv`, headers, rows);
+                    downloadCSV(`top-sellers-${suffix}-${topSort}-${topDir}-${currentYear}.csv`, headers, rows);
                   }}
                 >
                   ↓ CSV
@@ -1938,7 +1951,7 @@ export default function BrandPerformanceDashboard() {
                   {visibleBrandsTs.map((br, brIdx) => {
                     const key = (br.brandId ?? '') + '::' + br.brandLabel;
                     const expanded = topExpanded.has(key);
-                    const grandRef = topSort === 'quantity' ? topData!.grand.quantity : topData!.grand.amount;
+                    const grandRef = sortKey(topData!.grand);
                     const sharePct = grandRef > 0 ? (sortKey(br.total) / grandRef) * 100 : 0;
                     const topProduct = br.products[0];
                     const brandCellCompact = t.brandCell.replace('py-3', 'py-1.5');
@@ -1956,7 +1969,7 @@ export default function BrandPerformanceDashboard() {
                               <span className={t.brandAccent} />
                               <span className={`${t.brandName} text-xs`}>{br.brandLabel}</span>
                               {topProduct && (
-                                <span className={`text-[10px] truncate ${t.isDark ? 'text-fuchsia-300/80' : 'text-purple-600'}`} title={`Top SKU by ${topSort === 'quantity' ? 'quantity' : '₹ value'}`}>
+                                <span className={`text-[10px] truncate ${t.isDark ? 'text-fuchsia-300/80' : 'text-purple-600'}`} title={`Top SKU by ${sortLabelFull}`}>
                                   · ★ {topProduct.skuLabel}
                                 </span>
                               )}
@@ -2057,7 +2070,7 @@ export default function BrandPerformanceDashboard() {
                       <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{fmtQty(topData.grand.quantity)}</div>
                     </td>
                     <td className={`border-t ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
-                      <span className={`text-[10px] uppercase tracking-wider ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>sorted by {topSort === 'quantity' ? 'qty' : '₹ value'}</span>
+                      <span className={`text-[10px] uppercase tracking-wider ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>sorted by {sortLabelShort} {topDir === 'desc' ? '↓' : '↑'}</span>
                     </td>
                   </tr>
                 </tfoot>

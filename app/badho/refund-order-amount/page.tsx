@@ -533,8 +533,8 @@ export default function RefundOrderAmountDashboard() {
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <MiniStat label="Avg Refund / Order" value={s ? formatAmount(s.avgRefundAmount) : '—'} hint="per completed refund" />
-              <MiniStat label="Refund Processing" value={formatHours(s?.avgRefundProcessingHours ?? null)} hint="initiated → completed" />
-              <MiniStat label="Reject/Cancel → Refund" value={formatHours(s?.avgHoursTillRefund ?? null)} hint="reject/cancel → completed" />
+              <MiniStat label="Avg Settlement Time" value={formatHours(s?.avgRefundProcessingHours ?? null)} hint="how long the bank takes" />
+              <MiniStat label="Avg Customer Wait Time" value={formatHours(s?.avgHoursTillRefund ?? null)} hint="rejected → refund in buyer's account" />
               <MiniStat
                 label="Unrefunded Orders"
                 value={s ? (s.totalOrders - s.refundedOrders).toLocaleString('en-IN') : '—'}
@@ -565,7 +565,7 @@ export default function RefundOrderAmountDashboard() {
                       if (!buckets.length) return;
                       downloadCSV(
                         `refund-${granularity}-${startDate}-${endDate}.csv`,
-                        ['Period', 'Period Start', 'Period End', 'Rejected', 'Cancelled', 'Total Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders', 'Avg Refund Time (hrs)'],
+                        ['Period', 'Period Start', 'Period End', 'Rejected', 'Cancelled', 'Total Orders', 'Paid Amount', 'Refunded Amount', 'Pending Amount', 'Refunded Orders', 'Avg Settlement Time (hrs)'],
                         buckets.map((b) => [
                           formatBucketLabel(b, granularity), b.bucketStart, b.bucketEnd,
                           b.rejectedCount, b.cancelledCount, b.orderCount,
@@ -593,7 +593,7 @@ export default function RefundOrderAmountDashboard() {
                       <th className="px-4 py-3 text-center">Paid</th>
                       <th className="px-4 py-3 text-center">Refunded</th>
                       <th className="px-4 py-3 text-center">Pending</th>
-                      <th className="px-4 py-3 text-center">Avg Refund Time</th>
+                      <th className="px-4 py-3 text-center" title="Average time the bank took to settle the refund after Badho initiated it (refund completed − refund initiated).">Avg Settlement Time</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -785,8 +785,8 @@ export default function RefundOrderAmountDashboard() {
                     <th className="px-3 py-2 text-left">Payment Attempt ID</th>
                     <th className="px-3 py-2 text-right">Refund</th>
                     <th className="px-3 py-2 text-left">Refund ARN</th>
-                    <th className="px-3 py-2 text-right">Refund Proc Hrs</th>
-                    <th className="px-3 py-2 text-right">Hrs→Refund</th>
+                    <th className="px-3 py-2 text-right" title="Time the bank took to settle the refund — markedStatusCompletedTime − markedStatusInitiatedTime.">Settlement Time</th>
+                    <th className="px-3 py-2 text-right" title="Total customer wait — from the order being rejected/cancelled to the refund being completed.">Customer Wait Time</th>
                     <th className="px-3 py-2 text-left">Created At</th>
                     <th className="px-3 py-2 text-left">Order Placed At</th>
                     <th className="px-3 py-2 text-left">Rejected At</th>
@@ -901,11 +901,11 @@ export default function RefundOrderAmountDashboard() {
       {/* Drill-down modal */}
       {modal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-black/70 backdrop-blur-sm"
           onClick={() => setModal(null)}
         >
           <div
-            className="w-full max-w-6xl max-h-[90vh] bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="w-full max-w-[98vw] h-[97vh] max-h-[97vh] bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
@@ -976,8 +976,8 @@ export default function RefundOrderAmountDashboard() {
                         <th className="px-3 py-2 text-left">Payment Attempt ID</th>
                         <th className="px-3 py-2 text-right">Refund</th>
                         <th className="px-3 py-2 text-left">Refund ARN</th>
-                        <th className="px-3 py-2 text-right">Refund Proc Hrs</th>
-                        <th className="px-3 py-2 text-right">Hrs→Refund</th>
+                        <th className="px-3 py-2 text-right" title="Time the bank took to settle the refund — markedStatusCompletedTime − markedStatusInitiatedTime.">Settlement Time</th>
+                        <th className="px-3 py-2 text-right" title="Total customer wait — from the order being rejected/cancelled to the refund being completed.">Customer Wait Time</th>
                         <th className="px-3 py-2 text-left">Created At</th>
                         <th className="px-3 py-2 text-left">Order Placed At</th>
                         <th className="px-3 py-2 text-left">Rejected At</th>

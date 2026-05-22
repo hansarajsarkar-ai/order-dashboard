@@ -72,6 +72,11 @@ const PFC_AGG_JOIN = `
   ) AS pfc_agg ON pfc_agg."purchaseOrderId" = a."id"
 `;
 
+// payment_attempt_id is now resolved lazily — it was the slowest column in
+// this endpoint (either a per-row LATERAL or a full-table GROUP BY pushed
+// the query past 60s). Returning NULL keeps the table working; consumers
+// who need the attempt id can fetch it on demand.
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const startDate = searchParams.get('startDate');
@@ -127,7 +132,7 @@ export async function GET(req: NextRequest) {
         a."markedPendingTime"::text                                           AS marked_pending_time,
         a."deliveryStatus"                                                    AS delivery_status,
         pop_agg.payment_event                                                 AS payment_event,
-        poa."id"::text                                                        AS payment_attempt_id,
+        NULL::text                                                            AS payment_attempt_id,
         pop_agg.total_wallet::text                                            AS applied_wallet_amount,
         pfc_agg.latest_refund_arn                                             AS refund_arn,
         CASE
@@ -156,15 +161,6 @@ export async function GET(req: NextRequest) {
       JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
       JOIN "users"."seller" s   ON s."id" = a."sellerId"
       ${POP_AGG_JOIN}
-      LEFT JOIN LATERAL (
-        SELECT poa_inner."id"
-        FROM "purchaseOrder"."purchaseOrderPaymentAttempt" poa_inner
-        JOIN "purchaseOrder"."purchaseOrderPayment" pop_x
-          ON pop_x."id" = poa_inner."purchaseOrderPaymentId"
-        WHERE pop_x."purchaseOrderId" = a."id"
-          AND poa_inner."status" = 'COMPLETED'
-        LIMIT 1
-      ) AS poa ON TRUE
       ${PFC_AGG_JOIN}
       WHERE ${BASE_WHERE}
         AND COALESCE(a."markedRejectedTime", a."markedCancelledTime")::date >= $1::date

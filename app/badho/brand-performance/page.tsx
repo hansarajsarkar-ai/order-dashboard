@@ -822,6 +822,15 @@ export default function BrandPerformanceDashboard() {
                 <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
               </div>
             )}
+            {(range !== 'year' || customFrom || customTo) && (
+              <button
+                onClick={() => { setRange('year'); setCustomFrom(''); setCustomTo(''); }}
+                className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
+                title="Reset to full year"
+              >
+                ✕ Clear date
+              </button>
+            )}
             {mbsData && (
               <span className={`ml-auto text-xs font-semibold ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
                 {mbsBrands.size === 0 ? 'All brands' : (
@@ -1206,6 +1215,15 @@ export default function BrandPerformanceDashboard() {
                 <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
               </div>
             )}
+            {(range !== 'year' || customFrom || customTo) && (
+              <button
+                onClick={() => { setRange('year'); setCustomFrom(''); setCustomTo(''); }}
+                className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
+                title="Reset to full year"
+              >
+                ✕ Clear date
+              </button>
+            )}
             <input
               type="text"
               value={search}
@@ -1423,6 +1441,15 @@ export default function BrandPerformanceDashboard() {
                 <span className={t.dateLabel}>to</span>
                 <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
               </div>
+            )}
+            {(range !== 'year' || customFrom || customTo) && (
+              <button
+                onClick={() => { setRange('year'); setCustomFrom(''); setCustomTo(''); }}
+                className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
+                title="Reset to full year"
+              >
+                ✕ Clear date
+              </button>
             )}
             <div className="ml-auto flex items-center gap-2 flex-wrap">
               <div className="relative">
@@ -1732,6 +1759,15 @@ export default function BrandPerformanceDashboard() {
                 <span className={t.dateLabel}>to</span>
                 <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={t.dateInput} />
               </div>
+            )}
+            {(range !== 'year' || customFrom || customTo) && (
+              <button
+                onClick={() => { setRange('year'); setCustomFrom(''); setCustomTo(''); }}
+                className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
+                title="Reset to full year"
+              >
+                ✕ Clear date
+              </button>
             )}
             <div className="ml-auto flex items-center gap-2 flex-wrap">
               <div className={`inline-flex gap-1 p-0.5 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>

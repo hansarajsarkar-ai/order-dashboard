@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useState, Fragment, useRef } from 'react';
 
 interface DrilldownCell {
   count: number;
@@ -141,6 +141,9 @@ export default function RejectionReasonPivotTable() {
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSearch, setModalSearch] = useState('');
+  const [colFilters, setColFilters] = useState<Record<string, Set<string>>>({});
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const filterBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -207,7 +210,20 @@ export default function RejectionReasonPivotTable() {
     setModalFilters(null);
     setModalData(null);
     setModalSearch('');
+    setColFilters({});
+    setOpenFilter(null);
   };
+
+  useEffect(() => {
+    if (!openFilter) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (filterBarRef.current && !filterBarRef.current.contains(e.target as Node)) {
+        setOpenFilter(null);
+      }
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [openFilter]);
 
   const toggleExpand = (reason: string) => {
     const next = new Set(expandedReasons);
@@ -235,25 +251,87 @@ export default function RejectionReasonPivotTable() {
     setModalSearch('');
   };
 
-  // Filter modal data by search
-  const filteredModalData = modalData && modalSearch.trim()
-    ? modalData.filter((r) => {
-        const q = modalSearch.toLowerCase();
-        return (
-          (r.poNumber || '').toLowerCase().includes(q) ||
-          (r.sellerBusinessName || '').toLowerCase().includes(q) ||
-          (r.sellerPhone || '').toLowerCase().includes(q) ||
-          (r.buyerBusinessName || '').toLowerCase().includes(q) ||
-          (r.buyerPhone || '').toLowerCase().includes(q) ||
-          (r.awbNumber || '').toLowerCase().includes(q) ||
-          (r.courierName || '').toLowerCase().includes(q) ||
-          (r.rejectReason || '').toLowerCase().includes(q) ||
-          (r.reasonAddedByBadhoTeam || '').toLowerCase().includes(q) ||
-          (r.deliveryStatusPo || '').toLowerCase().includes(q) ||
-          (r.deliveryStatusDv || '').toLowerCase().includes(q)
-        );
-      })
-    : modalData;
+  const FILTER_DEFS: { key: string; label: string }[] = [
+    { key: 'orderStatus', label: 'Order Status' },
+    { key: 'deliveryStatusDv', label: 'Delivery' },
+    { key: 'PaymentOption', label: 'Payment' },
+    { key: 'courierName', label: 'Courier' },
+    { key: 'reason_category', label: 'Reason' },
+    { key: 'refundStatus', label: 'Refund' },
+  ];
+
+  const valueForFilterKey = (r: OrderDetail, key: string): string => {
+    if (key === 'refundStatus') {
+      if (r.RefundCompletedTime) return 'Completed';
+      if (r.RefundIntiatedTime) return 'Initiated';
+      return 'None';
+    }
+    const v = (r as unknown as Record<string, unknown>)[key];
+    const s = v == null ? '' : String(v).trim();
+    return s || '—';
+  };
+
+  const filterColumnTallies = (key: string): [string, number][] => {
+    const map = new Map<string, number>();
+    if (!modalData) return [];
+    for (const r of modalData) {
+      const v = valueForFilterKey(r, key);
+      map.set(v, (map.get(v) || 0) + 1);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  };
+
+  let filteredModalData: OrderDetail[] | null = modalData;
+  if (filteredModalData && modalSearch.trim()) {
+    const q = modalSearch.toLowerCase();
+    filteredModalData = filteredModalData.filter((r) => (
+      (r.poNumber || '').toLowerCase().includes(q) ||
+      (r.sellerBusinessName || '').toLowerCase().includes(q) ||
+      (r.sellerPhone || '').toLowerCase().includes(q) ||
+      (r.buyerBusinessName || '').toLowerCase().includes(q) ||
+      (r.buyerPhone || '').toLowerCase().includes(q) ||
+      (r.awbNumber || '').toLowerCase().includes(q) ||
+      (r.courierName || '').toLowerCase().includes(q) ||
+      (r.rejectReason || '').toLowerCase().includes(q) ||
+      (r.reasonAddedByBadhoTeam || '').toLowerCase().includes(q) ||
+      (r.deliveryStatusPo || '').toLowerCase().includes(q) ||
+      (r.deliveryStatusDv || '').toLowerCase().includes(q)
+    ));
+  }
+  if (filteredModalData) {
+    for (const [key, set] of Object.entries(colFilters)) {
+      if (!set || set.size === 0) continue;
+      filteredModalData = filteredModalData.filter((r) => set.has(valueForFilterKey(r, key)));
+    }
+  }
+
+  const activeFilterCount = Object.values(colFilters).reduce((s, set) => s + set.size, 0);
+
+  const toggleFilterValue = (key: string, value: string) => {
+    setColFilters((prev) => {
+      const next = { ...prev };
+      const set = new Set(next[key] || []);
+      if (set.has(value)) set.delete(value);
+      else set.add(value);
+      if (set.size === 0) delete next[key];
+      else next[key] = set;
+      return next;
+    });
+  };
+
+  const clearFilterKey = (key: string) => {
+    setColFilters((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const clearAllModalFilters = () => {
+    setColFilters({});
+    setModalSearch('');
+    setOpenFilter(null);
+  };
 
   return (
     <>
@@ -637,14 +715,86 @@ export default function RejectionReasonPivotTable() {
               </button>
             </div>
 
-            <div className="px-6 py-3 border-b border-purple-500/20 bg-slate-900/50 flex items-center gap-3 flex-wrap">
+            <div
+              ref={filterBarRef}
+              className="px-6 py-3 border-b border-purple-500/20 bg-slate-900/50 flex items-center gap-2 flex-wrap"
+            >
               <input
                 type="text"
                 value={modalSearch}
                 onChange={(e) => setModalSearch(e.target.value)}
                 placeholder="Search PO, buyer, seller, AWB, reject reason…"
-                className="flex-1 min-w-[280px] px-3 py-2 text-sm bg-purple-950/40 border border-purple-500/30 text-white placeholder-purple-400/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                className="flex-1 min-w-[260px] px-3 py-2 text-sm bg-purple-950/40 border border-purple-500/30 text-white placeholder-purple-400/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
               />
+              {modalData && FILTER_DEFS.map(({ key, label }) => {
+                const selected = colFilters[key] || new Set<string>();
+                const options = filterColumnTallies(key);
+                if (options.length === 0) return null;
+                const isOpen = openFilter === key;
+                return (
+                  <div key={key} className="relative">
+                    <button
+                      onClick={() => setOpenFilter(isOpen ? null : key)}
+                      className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                        selected.size > 0
+                          ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_14px_rgba(217,70,239,0.45)]'
+                          : 'bg-purple-950/40 border border-purple-500/30 text-purple-200 hover:border-fuchsia-400/60 hover:text-white'
+                      }`}
+                    >
+                      <span>{label}</span>
+                      {selected.size > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-white/25 text-[10px] tabular-nums">
+                          {selected.size}
+                        </span>
+                      )}
+                      <span className="opacity-70 text-[10px]">▾</span>
+                    </button>
+                    {isOpen && (
+                      <div className="absolute z-40 mt-1 right-0 min-w-[240px] max-h-72 overflow-auto bg-slate-900 border border-purple-500/40 rounded-xl shadow-2xl">
+                        <div className="sticky top-0 px-3 py-2 border-b border-purple-500/20 bg-slate-900/95 backdrop-blur flex items-center justify-between text-[10px] font-semibold text-purple-300 uppercase tracking-wide">
+                          <span>{label} · {options.length}</span>
+                          {selected.size > 0 && (
+                            <button
+                              onClick={() => clearFilterKey(key)}
+                              className="text-fuchsia-300 hover:text-white normal-case"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        {options.map(([val, count]) => {
+                          const checked = selected.has(val);
+                          return (
+                            <label
+                              key={val}
+                              className="flex items-center gap-2 px-3 py-1.5 hover:bg-fuchsia-500/15 cursor-pointer text-xs select-none"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleFilterValue(key, val)}
+                                className="accent-fuchsia-500 cursor-pointer"
+                              />
+                              <span className="flex-1 text-purple-100 truncate" title={val}>{val}</span>
+                              <span className="text-purple-400 tabular-nums text-[10px]">
+                                {count.toLocaleString()}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {(activeFilterCount > 0 || modalSearch.trim()) && (
+                <button
+                  onClick={clearAllModalFilters}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold bg-rose-500/15 border border-rose-500/40 text-rose-200 hover:bg-rose-500/25 hover:text-white whitespace-nowrap"
+                >
+                  ✕ Clear
+                </button>
+              )}
               {modalData && filteredModalData && filteredModalData.length > 0 && (
                 <button
                   className="px-3 py-2 rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white text-xs font-semibold hover:shadow-[0_0_18px_rgba(217,70,239,0.4)]"

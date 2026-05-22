@@ -185,6 +185,12 @@ export default function RefundOrderAmountDashboard() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'REJECTED' | 'CANCELLED'>('all');
   const [refundStateFilter, setRefundStateFilter] = useState<'all' | 'refunded' | 'pending'>('all');
   const [deliveryFilter, setDeliveryFilter] = useState<string>('all');
+  // Pagination for Order Details
+  const [ordersPageSize, setOrdersPageSize] = useState(50);
+  const [ordersPage, setOrdersPage] = useState(1);
+  // Pagination for Modal
+  const [modalPageSize, setModalPageSize] = useState(50);
+  const [modalPage, setModalPage] = useState(1);
   const [preset, setPreset] = useState<Preset>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -368,6 +374,15 @@ export default function RefundOrderAmountDashboard() {
 
   const orderDetailsFilterActive = !!search || categoryFilter !== 'all' || statusFilter !== 'all' || refundStateFilter !== 'all' || deliveryFilter !== 'all';
 
+  // Reset Order Details page to 1 whenever filters change
+  useEffect(() => { setOrdersPage(1); }, [search, categoryFilter, statusFilter, refundStateFilter, deliveryFilter, data]);
+
+  // Paged slice for Order Details
+  const pagedOrders = useMemo(() => {
+    const start = (ordersPage - 1) * ordersPageSize;
+    return filteredList.slice(start, start + ordersPageSize);
+  }, [filteredList, ordersPage, ordersPageSize]);
+
   // ── In-modal filters: dropdown options and filtered list ────────────────
   const modalCategoryOptions = useMemo(() => {
     const set = new Set<string>();
@@ -380,6 +395,9 @@ export default function RefundOrderAmountDashboard() {
     modalOrders?.forEach((r) => { if (r.deliveryStatus) set.add(r.deliveryStatus); });
     return Array.from(set).sort();
   }, [modalOrders]);
+
+  // Reset Modal page to 1 whenever modal opens, data swaps, or filters change
+  useEffect(() => { setModalPage(1); }, [modalOrders, modalSearch, modalCategoryFilter, modalStatusFilter, modalDeliveryFilter]);
 
   const filteredModalOrders = useMemo(() => {
     if (!modalOrders) return null;
@@ -398,6 +416,13 @@ export default function RefundOrderAmountDashboard() {
         .some((v) => String(v).toLowerCase().includes(q));
     });
   }, [modalOrders, modalSearch, modalCategoryFilter, modalStatusFilter, modalDeliveryFilter]);
+
+  // Paged slice for Modal
+  const pagedModalOrders = useMemo(() => {
+    if (!filteredModalOrders) return null;
+    const start = (modalPage - 1) * modalPageSize;
+    return filteredModalOrders.slice(start, start + modalPageSize);
+  }, [filteredModalOrders, modalPage, modalPageSize]);
 
   if (!authChecked) {
     return (
@@ -914,7 +939,7 @@ export default function RefundOrderAmountDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredList.map((r) => (
+                  {pagedOrders.map((r) => (
                     <tr key={r.purchaseOrderId} className="border-t border-white/5 hover:bg-white/5">
                       <td className="px-3 py-2 text-fuchsia-300 font-mono font-bold">{r.poNumber}</td>
                       <td className="px-3 py-2">
@@ -996,6 +1021,15 @@ export default function RefundOrderAmountDashboard() {
                 </tbody>
               </table>
             </div>
+            {filteredList.length > 0 && (
+              <Pagination
+                totalItems={filteredList.length}
+                pageSize={ordersPageSize}
+                setPageSize={setOrdersPageSize}
+                currentPage={ordersPage}
+                setCurrentPage={setOrdersPage}
+              />
+            )}
           </div>
           </>
         )}
@@ -1184,7 +1218,7 @@ export default function RefundOrderAmountDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredModalOrders.map((r, i) => (
+                      {(pagedModalOrders ?? []).map((r, i) => (
                         <tr
                           key={r.purchaseOrderId}
                           className={`transition-colors duration-100 ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.025]'} hover:bg-fuchsia-500/10 hover:shadow-[inset_3px_0_0_0_rgba(217,70,239,0.7)]`}
@@ -1262,6 +1296,15 @@ export default function RefundOrderAmountDashboard() {
                 )
               )}
             </div>
+            {filteredModalOrders && filteredModalOrders.length > 0 && (
+              <Pagination
+                totalItems={filteredModalOrders.length}
+                pageSize={modalPageSize}
+                setPageSize={setModalPageSize}
+                currentPage={modalPage}
+                setCurrentPage={setModalPage}
+              />
+            )}
           </div>
         </div>
       )}
@@ -1279,6 +1322,55 @@ function KpiCard({ label, value, hint, tint }: { label: string; value: string; h
       <div className="text-[11px] uppercase tracking-[0.18em] text-purple-200/80 font-semibold">{label}</div>
       <div className="text-3xl font-black text-white tabular-nums tracking-tight mt-2">{value}</div>
       <div className="text-[11px] text-purple-200/70 mt-1">{hint}</div>
+    </div>
+  );
+}
+
+// Reusable pagination footer — used by Order Details, Modal, and Alerts tables.
+function Pagination({
+  totalItems, pageSize, setPageSize, currentPage, setCurrentPage,
+}: {
+  totalItems: number;
+  pageSize: number;
+  setPageSize: (n: number) => void;
+  currentPage: number;
+  setCurrentPage: (n: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const endIdx = Math.min(safePage * pageSize, totalItems);
+  const canPrev = safePage > 1;
+  const canNext = safePage < totalPages;
+  const btn = 'px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all duration-150';
+  const enabled = 'bg-white/5 hover:bg-fuchsia-500 hover:text-white border border-white/10 hover:border-fuchsia-300/60 hover:shadow-[0_0_10px_rgba(217,70,239,0.5)] text-purple-200';
+  const disabled = 'opacity-30 cursor-not-allowed bg-white/5 border border-white/10 text-purple-300';
+  return (
+    <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-2.5 border-t border-white/10 bg-slate-950/40">
+      <div className="text-[11px] text-purple-200/80 font-semibold tabular-nums">
+        {totalItems === 0
+          ? 'No rows'
+          : <>Showing <span className="text-white font-bold">{startIdx.toLocaleString('en-IN')}</span>–<span className="text-white font-bold">{endIdx.toLocaleString('en-IN')}</span> of <span className="text-white font-bold">{totalItems.toLocaleString('en-IN')}</span></>}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <select
+          value={pageSize}
+          onChange={(e) => { setPageSize(parseInt(e.target.value)); setCurrentPage(1); }}
+          className="px-2 py-1 rounded-md text-[11px] bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 hover:bg-white/15 transition-colors"
+          aria-label="Rows per page"
+        >
+          {[25, 50, 100, 200].map((n) => (
+            <option key={n} value={n} className="bg-slate-900">{n} / page</option>
+          ))}
+        </select>
+        <button onClick={() => setCurrentPage(1)} disabled={!canPrev} className={`${btn} ${canPrev ? enabled : disabled}`} aria-label="First page">« First</button>
+        <button onClick={() => setCurrentPage(safePage - 1)} disabled={!canPrev} className={`${btn} ${canPrev ? enabled : disabled}`} aria-label="Previous page">‹ Prev</button>
+        <span className="text-[11px] text-purple-200 font-semibold tabular-nums px-2">
+          Page <span className="text-white font-bold">{safePage}</span> / <span className="text-white font-bold">{totalPages}</span>
+        </span>
+        <button onClick={() => setCurrentPage(safePage + 1)} disabled={!canNext} className={`${btn} ${canNext ? enabled : disabled}`} aria-label="Next page">Next ›</button>
+        <button onClick={() => setCurrentPage(totalPages)} disabled={!canNext} className={`${btn} ${canNext ? enabled : disabled}`} aria-label="Last page">Last »</button>
+      </div>
     </div>
   );
 }
@@ -1399,6 +1491,15 @@ function AlertsTabContent({
 }) {
   const totalStuck = alerts.reduce((s, a) => s + (a.paidAmount || 0), 0);
   const oldest = alerts[0]?.minutesPending ?? 0;
+
+  // Pagination
+  const [alertsPageSize, setAlertsPageSize] = useState(50);
+  const [alertsPage, setAlertsPage] = useState(1);
+  useEffect(() => { setAlertsPage(1); }, [alerts]);
+  const pagedAlerts = useMemo(() => {
+    const start = (alertsPage - 1) * alertsPageSize;
+    return alerts.slice(start, start + alertsPageSize);
+  }, [alerts, alertsPage, alertsPageSize]);
 
   // ─── Send-alert modal state ──────────────────────────────────────
   type Channel = 'slack' | 'email' | 'whatsapp';
@@ -1605,7 +1706,7 @@ function AlertsTabContent({
                 </tr>
               </thead>
               <tbody>
-                {alerts.map((a) => {
+                {pagedAlerts.map((a) => {
                   const sev = severityFor(a.minutesPending);
                   return (
                     <tr key={a.purchaseOrderId} className="border-t border-white/5 hover:bg-white/5">
@@ -1663,6 +1764,15 @@ function AlertsTabContent({
               </tbody>
             </table>
           </div>
+          {alerts.length > 0 && (
+            <Pagination
+              totalItems={alerts.length}
+              pageSize={alertsPageSize}
+              setPageSize={setAlertsPageSize}
+              currentPage={alertsPage}
+              setCurrentPage={setAlertsPage}
+            />
+          )}
         </div>
       )}
 

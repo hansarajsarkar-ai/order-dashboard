@@ -186,7 +186,7 @@ export default function IndiaStateMap({ data, metric, onStateClick, selectedStat
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+    <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 ${showAllStatesScrollable ? 'items-stretch' : 'items-start'}`}>
       {/* MAP */}
       <div className="lg:col-span-2 relative bg-slate-950/40 rounded-2xl border border-white/5 overflow-hidden">
         <ComposableMap
@@ -338,7 +338,7 @@ export default function IndiaStateMap({ data, metric, onStateClick, selectedStat
       </div>
 
       {/* RIGHT PANEL — top states */}
-      <div className="space-y-4">
+      <div className={`space-y-4 ${showAllStatesScrollable ? 'flex flex-col min-h-0' : ''}`}>
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
             <div className="text-[10px] text-purple-300 uppercase tracking-wide">States</div>
@@ -354,7 +354,7 @@ export default function IndiaStateMap({ data, metric, onStateClick, selectedStat
           </div>
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex flex-col" style={{ maxHeight: showAllStatesScrollable ? 600 : undefined }}>
+        <div className={`bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex flex-col ${showAllStatesScrollable ? 'flex-1 min-h-0' : ''}`}>
           <div className="px-4 py-3 border-b border-white/10 bg-white/5 shrink-0">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-bold text-white">{showAllStatesScrollable ? `All states (${top.length})` : 'Top 10 states'}</h3>

@@ -15,6 +15,10 @@ interface Props {
   data: StateRow[];
   metric: 'count' | 'amount';
   onStateClick?: (stateName: string) => void;
+  /** When provided, side list shows ALL states ranked, in a scrollable panel. Pass the active state to highlight the row. */
+  selectedState?: string | null;
+  /** When true, side list shows all ranked states (scroll), with row click → onStateClick. */
+  showAllStatesScrollable?: boolean;
 }
 
 // Reconcile DB state names with the GeoJSON's ST_NM property.
@@ -110,7 +114,7 @@ const LABEL_OFFSETS: Record<string, [number, number]> = {
   'Dadra and Nagar Haveli and Daman and Diu': [-0.7, 0.2],
 };
 
-export default function IndiaStateMap({ data, metric, onStateClick }: Props) {
+export default function IndiaStateMap({ data, metric, onStateClick, selectedState, showAllStatesScrollable }: Props) {
   type GeoFeatureCollection = {
     type: 'FeatureCollection';
     features: { type: 'Feature'; properties: FeatureProps; geometry: unknown }[];
@@ -154,8 +158,11 @@ export default function IndiaStateMap({ data, metric, onStateClick }: Props) {
   }, [data, metric]);
 
   const top = useMemo(
-    () => [...data].filter((r) => r.state).sort((a, b) => b[metric] - a[metric]).slice(0, 10),
-    [data, metric]
+    () => {
+      const sorted = [...data].filter((r) => r.state).sort((a, b) => b[metric] - a[metric]);
+      return showAllStatesScrollable ? sorted : sorted.slice(0, 10);
+    },
+    [data, metric, showAllStatesScrollable]
   );
 
   const grand = useMemo(
@@ -347,20 +354,28 @@ export default function IndiaStateMap({ data, metric, onStateClick }: Props) {
           </div>
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/10 bg-white/5">
-            <h3 className="text-sm font-bold text-white">Top 10 states</h3>
+        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex flex-col" style={{ maxHeight: showAllStatesScrollable ? 600 : undefined }}>
+          <div className="px-4 py-3 border-b border-white/10 bg-white/5 shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-white">{showAllStatesScrollable ? `All states (${top.length})` : 'Top 10 states'}</h3>
+              {showAllStatesScrollable && <span className="text-[10px] text-purple-300/70">click row to drill into cities</span>}
+            </div>
             <p className="text-[11px] text-purple-300 mt-0.5">
               by {metric === 'count' ? 'order count' : 'revenue'}
             </p>
           </div>
-          <ol className="divide-y divide-white/5">
+          <ol className={`divide-y divide-white/5 ${showAllStatesScrollable ? 'overflow-y-auto flex-1' : ''}`}>
             {top.map((r, i) => {
               const value = r[metric];
               const max = top[0]?.[metric] || 1;
               const pct = (value / max) * 100;
+              const isSelected = !!(r.state && selectedState && r.state === selectedState);
               return (
-                <li key={r.state || i} className="px-4 py-2.5 flex items-center gap-3 hover:bg-white/5 transition-colors">
+                <li
+                  key={r.state || i}
+                  onClick={() => r.state && onStateClick?.(r.state)}
+                  className={`px-4 py-2.5 flex items-center gap-3 transition-colors ${onStateClick ? 'cursor-pointer' : ''} ${isSelected ? 'bg-fuchsia-500/15 ring-1 ring-inset ring-fuchsia-400/40' : 'hover:bg-white/5'}`}
+                >
                   <div className="w-6 text-purple-300 text-xs font-bold tabular-nums">{i + 1}</div>
                   <span className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-br from-fuchsia-500/30 to-purple-500/30 text-fuchsia-200 border border-fuchsia-400/40 tracking-wider" title={r.state || ''}>
                     {stateCode(r.state)}

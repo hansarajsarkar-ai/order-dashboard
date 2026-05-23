@@ -351,6 +351,11 @@ export default function BrandPerformanceDashboard() {
   const [mapData, setMapData] = useState<StateRow[] | null>(null);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapMetric, setMapMetric] = useState<'count' | 'amount'>('count');
+  const [selectedMapState, setSelectedMapState] = useState<string | null>(null);
+  interface CityRow { city: string | null; district: string | null; count: number; amount: number; buyers: number; }
+  const [cityData, setCityData] = useState<{ data: CityRow[]; grand: { count: number; amount: number; buyers: number } } | null>(null);
+  const [cityLoading, setCityLoading] = useState(false);
+  const [citySearch, setCitySearch] = useState('');
 
   // Product tab — rows = SKU, cols = month, shares brand multi-select & date filters
   interface ProdCell { count: number; amount: number; buyers: number; quantity: number; }
@@ -524,6 +529,36 @@ export default function BrandPerformanceDashboard() {
     fetchMap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands]);
+
+  const fetchCity = async (stateName: string) => {
+    try {
+      setCityLoading(true);
+      const params = new URLSearchParams({ year: String(currentYear), state: stateName });
+      const { startDate, endDate } = resolveRange();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+      const res = await fetch(`/api/brand-performance/by-city?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setCityData(json);
+    } catch (err) {
+      console.error('City fetch error:', err);
+      setCityData(null);
+    } finally {
+      setCityLoading(false);
+    }
+  };
+
+  // Re-fetch cities whenever the selected state, date range or brand filter changes.
+  useEffect(() => {
+    if (!authChecked || bpTab !== 'dashboard' || !selectedMapState) return;
+    fetchCity(selectedMapState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, bpTab, selectedMapState, range, customFrom, customTo, mbsBrands]);
+
+  // Reset selected state when filters change (avoid showing stale city data for the wrong state)
+  useEffect(() => { setSelectedMapState(null); setCityData(null); }, [range, customFrom, customTo, mbsBrands]);
 
   const fetchProducts = async () => {
     try {
@@ -1165,48 +1200,47 @@ export default function BrandPerformanceDashboard() {
             },
           ];
           return (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* Left column — 4 KPI tiles in a 2×2 grid */}
-              <div className="grid grid-cols-2 gap-4 content-start">
+            <div className="flex flex-col gap-4 mb-6">
+              {/* KPI strip — slim row across the top */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {tiles.map((tile, idx) => (
                   <div
                     key={idx}
-                    className={`relative rounded-2xl p-6 border overflow-hidden transition-all duration-300 hover:-translate-y-0.5 ${tile.cls.bg} ${tile.cls.border} ${t.isDark ? 'backdrop-blur-xl hover:shadow-[0_0_40px_rgba(217,70,239,0.18)]' : 'shadow-sm hover:shadow-md'}`}
+                    className={`relative rounded-xl p-3 border overflow-hidden transition-all duration-300 hover:-translate-y-0.5 ${tile.cls.bg} ${tile.cls.border} ${t.isDark ? 'backdrop-blur-xl hover:shadow-[0_0_40px_rgba(217,70,239,0.18)]' : 'shadow-sm hover:shadow-md'}`}
                   >
                     {t.isDark && <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] via-transparent to-transparent pointer-events-none" />}
                     <div className="relative">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className={`text-[11px] uppercase tracking-[0.18em] font-bold ${tile.cls.label}`}>{tile.label}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={`text-[10px] uppercase tracking-[0.15em] font-bold ${tile.cls.label}`}>{tile.label}</div>
                         {tile.pctLabel && (
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${tile.cls.chip} whitespace-nowrap`}>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${tile.cls.chip} whitespace-nowrap`}>
                             {tile.pctLabel}
                           </span>
                         )}
                       </div>
-                      <div className={`text-5xl font-black tabular-nums tracking-tight leading-none mt-3 truncate ${tile.cls.count}`} title={String(tile.count)}>
-                        {tile.count.toLocaleString('en-IN')}
-                      </div>
-                      <div className={`text-3xl font-black tabular-nums tracking-tight leading-none mt-2 ${tile.cls.amount}`}>
-                        {formatAmount(tile.amount)}
-                      </div>
-                      <div className={`text-[10px] uppercase tracking-[0.18em] mt-3 font-bold ${tile.cls.caption}`}>
-                        orders · value
+                      <div className="flex items-baseline gap-2 mt-1">
+                        <div className={`text-2xl font-black tabular-nums tracking-tight leading-none ${tile.cls.count}`} title={String(tile.count)}>
+                          {tile.count.toLocaleString('en-IN')}
+                        </div>
+                        <div className={`text-sm font-bold tabular-nums tracking-tight leading-none ${tile.cls.amount}`}>
+                          {formatAmount(tile.amount)}
+                        </div>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Right column — India state map */}
+              {/* Map + scrollable states list (full width, taller) */}
               <div className={t.sectionCard}>
                 <div className={t.sectionAccent} />
                 <div className={t.sectionHeader}>
                   <div>
                     <h2 className={`${t.h2} text-lg`}>Where they sell</h2>
                     <p className={`${t.p} mt-1`}>
-                      State-wise delivered orders.
+                      State-wise delivered orders. Click any state on the map (or a row in the list) to drill into city-level breakdown.
                       {mbsBrands.size === 0
-                        ? ' Showing all brands — pick brand(s) above to narrow.'
+                        ? ' Showing all brands.'
                         : mbsBrands.size === 1
                           ? <> Filtered to <span className={t.isDark ? 'text-fuchsia-300 font-semibold' : 'text-purple-700 font-semibold'}>{Array.from(mbsBrands)[0]}</span>.</>
                           : <> Filtered to <span className={t.isDark ? 'text-fuchsia-300 font-semibold' : 'text-purple-700 font-semibold'}>{mbsBrands.size} brands</span>.</>}
@@ -1229,23 +1263,138 @@ export default function BrandPerformanceDashboard() {
                 </div>
                 <div className="p-4">
                   {mapLoading || !mapData ? (
-                    <div className={`h-[420px] flex items-center justify-center ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                    <div className={`h-[640px] flex items-center justify-center ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
                       <div className="flex flex-col items-center gap-3">
                         <div className={`w-8 h-8 rounded-full border-2 ${t.isDark ? 'border-fuchsia-500/30 border-t-fuchsia-500' : 'border-purple-300 border-t-purple-600'} animate-spin`} />
                         <span className="text-xs">Loading map…</span>
                       </div>
                     </div>
                   ) : mapData.length === 0 ? (
-                    <div className={`h-[420px] flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                    <div className={`h-[640px] flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
                       No delivered orders for this selection
                     </div>
                   ) : (
-                    <div style={{ maxHeight: 460, overflow: 'hidden' }}>
-                      <IndiaStateMap data={mapData} metric={mapMetric} />
-                    </div>
+                    <IndiaStateMap
+                      data={mapData}
+                      metric={mapMetric}
+                      showAllStatesScrollable
+                      selectedState={selectedMapState}
+                      onStateClick={(name) => { setSelectedMapState(name === selectedMapState ? null : name); setCitySearch(''); }}
+                    />
                   )}
                 </div>
               </div>
+
+              {/* City drill-down panel — shown when a state is selected */}
+              {selectedMapState && (
+                <div className={t.sectionCard}>
+                  <div className={t.sectionAccent} />
+                  <div className={t.sectionHeader}>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className={t.sectionTag('details')}>CITIES</span>
+                        <h2 className={`${t.h2} text-lg`}>{selectedMapState}</h2>
+                        {cityData && (
+                          <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                            {cityData.data.length} cities · {cityData.grand.count.toLocaleString('en-IN')} orders · {formatAmount(cityData.grand.amount)} · {cityData.grand.buyers.toLocaleString('en-IN')} buyers
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <input
+                        type="text"
+                        value={citySearch}
+                        onChange={(e) => setCitySearch(e.target.value)}
+                        placeholder="Search city or district…"
+                        className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'min-w-[200px]')}
+                      />
+                      {cityData && cityData.data.length > 0 && (
+                        <button
+                          className={t.csvBtn}
+                          onClick={() => {
+                            if (!cityData) return;
+                            downloadCSV(
+                              `cities-${selectedMapState.toLowerCase().replace(/\s+/g, '-')}-${currentYear}.csv`,
+                              ['City', 'District', 'Orders', 'GMV', 'Buyers'],
+                              cityData.data.map((r) => [r.city ?? '', r.district ?? '', r.count, r.amount, r.buyers]),
+                            );
+                          }}
+                        >
+                          ↓ CSV
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setSelectedMapState(null); setCityData(null); }}
+                        className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}
+                      >
+                        ✕ Close
+                      </button>
+                    </div>
+                  </div>
+                  <div className="overflow-auto" style={{ maxHeight: 520 }}>
+                    {cityLoading ? (
+                      <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading cities…</div>
+                    ) : !cityData || cityData.data.length === 0 ? (
+                      <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No delivered orders in {selectedMapState}</div>
+                    ) : (() => {
+                      const q = citySearch.trim().toLowerCase();
+                      const visible = q
+                        ? cityData.data.filter((r) => (r.city ?? '').toLowerCase().includes(q) || (r.district ?? '').toLowerCase().includes(q))
+                        : cityData.data;
+                      const max = cityData.data[0]?.count || 1;
+                      return (
+                        <table className="w-full text-sm border-separate border-spacing-0">
+                          <thead className={`sticky top-0 z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                            <tr>
+                              <th className={`${t.brandCell} text-left text-[10px] font-semibold uppercase tracking-wider ${t.isDark ? 'text-purple-200' : 'text-slate-500'}`}>City · District</th>
+                              <th className={`${t.deliveryHeader} text-right`}>Orders</th>
+                              <th className={`${t.deliveryHeader} text-right`}>₹ Value</th>
+                              <th className={`${t.deliveryHeader} text-right`}>Buyers</th>
+                              <th className={`${t.deliveryHeader} text-right min-w-[140px]`}>Share</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {visible.map((r, idx) => {
+                              const pct = max > 0 ? (r.count / max) * 100 : 0;
+                              return (
+                                <tr key={`${r.city ?? ''}_${r.district ?? ''}_${idx}`} className={`${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
+                                  <td className={t.brandCell.replace('py-3', 'py-1.5')}>
+                                    <div className="flex items-center gap-2">
+                                      <span className={t.brandRowNum}>{idx + 1}</span>
+                                      <div className="flex flex-col">
+                                        <span className={`${t.brandName} text-xs`}>{r.city || '—'}</span>
+                                        <span className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{r.district || '—'}</span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                    <div className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{r.count.toLocaleString('en-IN')}</div>
+                                  </td>
+                                  <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                    <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-purple-200' : 'text-slate-700'}`}>{formatAmount(r.amount)}</div>
+                                  </td>
+                                  <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                    <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{r.buyers.toLocaleString('en-IN')}</div>
+                                  </td>
+                                  <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                    <div className="flex items-center justify-end gap-2">
+                                      <div className={`relative h-1.5 w-20 rounded-full overflow-hidden ${t.isDark ? 'bg-white/10' : 'bg-slate-200'}`}>
+                                        <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500" style={{ width: `${pct}%` }} />
+                                      </div>
+                                      <span className={`text-[10px] font-bold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{pct.toFixed(1)}%</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}

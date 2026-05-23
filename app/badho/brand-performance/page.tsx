@@ -326,7 +326,7 @@ export default function BrandPerformanceDashboard() {
   const [customTo, setCustomTo] = useState('');
   const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
-  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers' | 'trends' | 'priceset'>('trends');
+  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers' | 'trends' | 'priceset' | 'alerts'>('trends');
   const [detailsSearch, setDetailsSearch] = useState('');
   const [detailsSort, setDetailsSort] = useState<'orders' | 'gmv' | 'brand' | 'month' | 'status'>('orders');
 
@@ -465,6 +465,13 @@ export default function BrandPerformanceDashboard() {
   const [priceBrandOpen, setPriceBrandOpen] = useState(false);
   const [priceStateOpen, setPriceStateOpen] = useState(false);
 
+  // Alerts tab — data-quality flags on the same price-set catalog
+  type AlertKind = 'margin100' | 'mrpMissing' | 'priceMissing';
+  const [alertFilter, setAlertFilter] = useState<'all' | AlertKind>('all');
+  const [alertSearch, setAlertSearch] = useState('');
+  const [alertBrandFilter, setAlertBrandFilter] = useState<Set<string>>(new Set());
+  const [alertBrandOpen, setAlertBrandOpen] = useState(false);
+
   const resolveRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
@@ -594,7 +601,7 @@ export default function BrandPerformanceDashboard() {
     }
   };
   useEffect(() => {
-    if (!authChecked || bpTab !== 'priceset' || priceData) return;
+    if (!authChecked || (bpTab !== 'priceset' && bpTab !== 'alerts') || priceData) return;
     fetchPriceSet();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, bpTab]);
@@ -822,6 +829,7 @@ export default function BrandPerformanceDashboard() {
             { key: 'product',    label: 'Product wise',    icon: '◫' },
             { key: 'topsellers', label: 'Brand × Product', icon: '★' },
             { key: 'priceset',   label: 'Price Set',       icon: '₹' },
+            { key: 'alerts',     label: 'Alerts',          icon: '⚠' },
           ] as const).map((tab) => {
             const active = bpTab === tab.key;
             return (
@@ -3362,6 +3370,226 @@ export default function BrandPerformanceDashboard() {
             </div>
             {sorted.length > 1000 && (
               <div className={t.footnote}>showing top 1,000 rows · refine filters above to narrow further</div>
+            )}
+          </div>
+        </div>
+          );
+        })()}
+
+        {bpTab === 'alerts' && (() => {
+          const all = priceData?.data ?? [];
+          const flagsFor = (r: PriceRow): AlertKind[] => {
+            const out: AlertKind[] = [];
+            if (r.margin != null && r.margin >= 100) out.push('margin100');
+            if (r.mrp == null || r.mrp === 0)         out.push('mrpMissing');
+            if (r.unitPrice == null || r.unitPrice === 0) out.push('priceMissing');
+            return out;
+          };
+          const flagged = all
+            .map((r) => ({ row: r, flags: flagsFor(r) }))
+            .filter((x) => x.flags.length > 0);
+
+          const counts = {
+            margin100:    flagged.filter((x) => x.flags.includes('margin100')).length,
+            mrpMissing:   flagged.filter((x) => x.flags.includes('mrpMissing')).length,
+            priceMissing: flagged.filter((x) => x.flags.includes('priceMissing')).length,
+          };
+
+          const q = alertSearch.trim().toLowerCase();
+          const visible = flagged.filter(({ row: r, flags }) => {
+            if (alertFilter !== 'all' && !flags.includes(alertFilter)) return false;
+            if (alertBrandFilter.size > 0 && !alertBrandFilter.has(r.brandName ?? '')) return false;
+            if (!q) return true;
+            return [r.businessName, r.sellerName, r.productName, r.brandName, r.sellerCity, r.sellerDistrict, r.sellerState, r.pincode, r.phone]
+              .filter(Boolean).some((v) => v!.toLowerCase().includes(q));
+          });
+
+          const alertCards: Array<{ key: 'all' | AlertKind; label: string; sub: string; count: number; tint: string; ring: string; }> = [
+            { key: 'all',          label: 'All alerts',         sub: 'rows with ≥1 issue', count: flagged.length, tint: t.isDark ? 'from-fuchsia-500/30 to-purple-500/10 text-fuchsia-200' : 'from-purple-100 to-indigo-100 text-purple-700', ring: 'ring-fuchsia-400/60' },
+            { key: 'margin100',    label: 'Margin 100 %',       sub: 'looks too good to be true', count: counts.margin100, tint: t.isDark ? 'from-amber-500/30 to-orange-500/10 text-amber-200' : 'from-amber-100 to-orange-100 text-amber-700', ring: 'ring-amber-400/60' },
+            { key: 'mrpMissing',   label: 'MRP missing / 0',    sub: 'consumerSellingPrice is null or zero', count: counts.mrpMissing, tint: t.isDark ? 'from-rose-500/30 to-red-500/10 text-rose-200' : 'from-rose-100 to-red-100 text-rose-700', ring: 'ring-rose-400/60' },
+            { key: 'priceMissing', label: 'Unit price missing', sub: 'no slab price set', count: counts.priceMissing, tint: t.isDark ? 'from-sky-500/30 to-blue-500/10 text-sky-200' : 'from-sky-100 to-blue-100 text-sky-700', ring: 'ring-sky-400/60' },
+          ];
+
+          const flagChip = (k: AlertKind) => {
+            const map: Record<AlertKind, { label: string; cls: string }> = {
+              margin100:    { label: 'margin 100%',    cls: t.isDark ? 'bg-amber-500/20 text-amber-200 border-amber-400/40' : 'bg-amber-100 text-amber-700 border-amber-200' },
+              mrpMissing:   { label: 'MRP 0/null',     cls: t.isDark ? 'bg-rose-500/20 text-rose-200 border-rose-400/40'    : 'bg-rose-50 text-rose-700 border-rose-200' },
+              priceMissing: { label: 'price not set',  cls: t.isDark ? 'bg-sky-500/20 text-sky-200 border-sky-400/40'       : 'bg-sky-50 text-sky-700 border-sky-200' },
+            };
+            const m = map[k];
+            return <span key={k} className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${m.cls}`}>{m.label}</span>;
+          };
+
+          return (
+        <div className="flex flex-col gap-4">
+          {/* Header */}
+          <div className={t.sectionCard.replace('overflow-hidden', 'overflow-visible')}>
+            <div className={t.sectionAccent} />
+            <div className={`px-6 py-2 flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+              <span className={t.sectionTag('pivot')}>ALERTS</span>
+              <h2 className={`text-base font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Data-quality flags on the price catalog</h2>
+              <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                {priceData ? <>{flagged.length.toLocaleString('en-IN')} of {priceData.summary.rows.toLocaleString('en-IN')} catalog rows have ≥1 issue</> : 'loading…'}
+              </span>
+            </div>
+
+            {/* Alert cards */}
+            <div className={`px-6 py-3 grid grid-cols-2 lg:grid-cols-4 gap-3 border-b ${t.isDark ? 'border-white/10 bg-white/[0.02]' : 'border-slate-200 bg-white'}`}>
+              {alertCards.map((c) => {
+                const active = alertFilter === c.key;
+                return (
+                  <button
+                    key={c.key}
+                    onClick={() => setAlertFilter(c.key)}
+                    className={`text-left rounded-xl p-3 border overflow-hidden transition-all ${t.isDark ? `bg-gradient-to-br ${c.tint} backdrop-blur-xl` : `bg-gradient-to-br ${c.tint} shadow-sm`} ${active ? `ring-2 ${c.ring}` : 'border-white/10 hover:-translate-y-0.5'}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[10px] uppercase tracking-wider font-bold">{c.label}</div>
+                      <span className={`text-[9px] font-bold ${t.isDark ? 'text-white/60' : 'text-slate-500'}`}>{active ? 'filtering ↓' : ''}</span>
+                    </div>
+                    <div className={`text-2xl font-black tabular-nums mt-0.5 ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{c.count.toLocaleString('en-IN')}</div>
+                    <div className={`text-[10px] mt-0.5 ${t.isDark ? 'text-white/60' : 'text-slate-500'}`}>{c.sub}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Filter bar */}
+            <div className={`px-6 py-2 flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5' : 'bg-white'}`}>
+              <span className={t.chipLabel}>Filter</span>
+
+              {/* Brand picker */}
+              <div className="relative">
+                <button type="button" onClick={() => setAlertBrandOpen((v) => !v)} className={`min-w-[160px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>
+                  <span className="truncate font-semibold">
+                    {alertBrandFilter.size === 0 ? <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All brands</span> : alertBrandFilter.size === 1 ? Array.from(alertBrandFilter)[0] : `${alertBrandFilter.size} brands`}
+                  </span>
+                  <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
+                </button>
+                {alertBrandOpen && priceData && (
+                  <>
+                    <div className="fixed inset-0 z-[55]" onClick={() => setAlertBrandOpen(false)} />
+                    <div className={`absolute top-full left-0 mt-1 z-[60] w-[280px] max-h-[420px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                      <div className={`overflow-y-auto flex-1 ${t.isDark ? 'bg-slate-950' : 'bg-white'}`}>
+                        {priceData.brands.map((name) => {
+                          const checked = alertBrandFilter.has(name);
+                          return (
+                            <label key={name} className={`flex items-center gap-2 px-3 py-2 text-xs border-b cursor-pointer ${t.isDark ? 'border-white/5 hover:bg-white/10' : 'border-slate-100 hover:bg-slate-100'} ${checked ? (t.isDark ? 'bg-fuchsia-500/15' : 'bg-purple-50') : ''}`}>
+                              <input type="checkbox" checked={checked} onChange={() => setAlertBrandFilter((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; })} className="accent-fuchsia-500 w-3.5 h-3.5" />
+                              <span className={t.isDark ? 'text-white' : 'text-slate-800'}>{name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <div className={`p-2 border-t flex items-center justify-between gap-2 ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                        <button onClick={() => setAlertBrandFilter(new Set())} className={`text-[10px] ${t.isDark ? 'text-rose-300' : 'text-rose-700'}`}>Clear</button>
+                        <button onClick={() => setAlertBrandOpen(false)} className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white">Done</button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <input
+                type="text"
+                value={alertSearch}
+                onChange={(e) => setAlertSearch(e.target.value)}
+                placeholder="Search seller / product / city / phone…"
+                className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'flex-1 min-w-[260px]')}
+              />
+
+              {(alertFilter !== 'all' || alertBrandFilter.size > 0 || alertSearch) && (
+                <button
+                  onClick={() => { setAlertFilter('all'); setAlertBrandFilter(new Set()); setAlertSearch(''); }}
+                  className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}
+                >
+                  ✕ Reset
+                </button>
+              )}
+
+              {priceData && (
+                <button
+                  className={t.csvBtn}
+                  onClick={() => {
+                    downloadCSV(
+                      `price-alerts-${new Date().toISOString().slice(0,10)}.csv`,
+                      ['Alerts', 'Business', 'Seller', 'Phone', 'State', 'City', 'Brand', 'Product', 'MRP', 'Unit Price', 'Margin %'],
+                      visible.map(({ row: r, flags }) => [flags.join('|'), r.businessName ?? '', r.sellerName ?? '', r.phone ?? '', r.sellerState ?? '', r.sellerCity ?? '', r.brandName ?? '', r.productName ?? '', r.mrp ?? '', r.unitPrice ?? '', r.margin ?? '']),
+                    );
+                  }}
+                >
+                  ↓ CSV
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Flagged-row table */}
+          <div className={t.sectionCard}>
+            <div className={t.sectionAccent} />
+            <div className="overflow-auto" style={{ maxHeight: 720 }}>
+              {priceLoading || !priceData ? (
+                <div className={t.loading}>Loading catalog…</div>
+              ) : visible.length === 0 ? (
+                <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>✓ No data-quality alerts for this filter</div>
+              ) : (
+                <table className="w-full text-sm border-separate border-spacing-0">
+                  <thead className={`sticky top-0 z-20 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                    <tr>
+                      <th className={`${t.brandCell} text-left text-[10px] font-semibold uppercase tracking-wider ${t.isDark ? 'text-purple-200' : 'text-slate-500'}`}>Seller</th>
+                      <th className={`${t.deliveryHeader} text-left`}>Brand</th>
+                      <th className={`${t.deliveryHeader} text-left`}>Product</th>
+                      <th className={`${t.deliveryHeader} text-right`}>MRP</th>
+                      <th className={`${t.deliveryHeader} text-right`}>Unit price</th>
+                      <th className={`${t.deliveryHeader} text-right`}>Margin</th>
+                      <th className={`${t.deliveryHeader} text-left min-w-[200px]`}>Alerts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.slice(0, 1000).map(({ row: r, flags }, idx) => {
+                      const bad = (k: AlertKind) => flags.includes(k);
+                      const cellRed = t.isDark ? 'bg-rose-500/10 text-rose-200 font-extrabold' : 'bg-rose-50 text-rose-700 font-extrabold';
+                      const cellAmber = t.isDark ? 'bg-amber-500/10 text-amber-200 font-extrabold' : 'bg-amber-50 text-amber-700 font-extrabold';
+                      return (
+                        <tr key={`${r.sellerId}_${r.skuId}_${idx}`} className={`${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
+                          <td className={t.brandCell.replace('py-3', 'py-1.5')}>
+                            <div className="flex items-center gap-2">
+                              <span className={t.brandRowNum}>{idx + 1}</span>
+                              <div className="flex flex-col min-w-0">
+                                <span className={`${t.brandName} text-xs truncate`} title={r.businessName ?? ''}>{r.businessName ?? '—'}</span>
+                                <span className={`text-[10px] truncate ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{[r.sellerName, r.phone, r.sellerCity].filter(Boolean).join(' · ') || '—'}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                            <span className={`text-xs font-semibold ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{r.brandName ?? '—'}</span>
+                          </td>
+                          <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                            <div className={`text-xs ${t.isDark ? 'text-white' : 'text-slate-800'} max-w-[280px] truncate`} title={r.productName ?? ''}>{r.productName ?? '—'}</div>
+                            {r.size && <div className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{r.size}</div>}
+                          </td>
+                          <td className={`${t.dataCell.replace('py-3', 'py-1.5')} ${bad('mrpMissing') ? cellRed : ''}`}>
+                            <span className="text-xs tabular-nums">{r.mrp == null ? 'NULL' : r.mrp === 0 ? '0' : `₹${r.mrp.toLocaleString('en-IN')}`}</span>
+                          </td>
+                          <td className={`${t.dataCell.replace('py-3', 'py-1.5')} ${bad('priceMissing') ? cellRed : ''}`}>
+                            <span className="text-xs tabular-nums">{r.unitPrice == null ? 'NULL' : r.unitPrice === 0 ? '0' : `₹${r.unitPrice.toLocaleString('en-IN')}`}</span>
+                          </td>
+                          <td className={`${t.dataCell.replace('py-3', 'py-1.5')} ${bad('margin100') ? cellAmber : ''}`}>
+                            <span className="text-xs tabular-nums">{r.margin == null ? '—' : `${r.margin.toFixed(1)}%`}</span>
+                          </td>
+                          <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                            <div className="flex items-center gap-1 flex-wrap">{flags.map((k) => flagChip(k))}</div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            {visible.length > 1000 && (
+              <div className={t.footnote}>showing top 1,000 alerts · refine filters above to narrow further</div>
             )}
           </div>
         </div>

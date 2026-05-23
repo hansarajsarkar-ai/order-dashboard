@@ -472,6 +472,19 @@ export default function BrandPerformanceDashboard() {
   const [alertBrandFilter, setAlertBrandFilter] = useState<Set<string>>(new Set());
   const [alertBrandOpen, setAlertBrandOpen] = useState(false);
 
+  // Pagination state (per-table)
+  const [pricePage, setPricePage] = useState(1);
+  const [priceSize, setPriceSize] = useState(50);
+  const [alertPage, setAlertPage] = useState(1);
+  const [alertSize, setAlertSize] = useState(50);
+  const [cityPage,  setCityPage]  = useState(1);
+  const [citySize,  setCitySize]  = useState(50);
+
+  // Reset page when filters change
+  useEffect(() => { setPricePage(1); }, [priceSearch, priceBrandFilter, priceStateFilter, priceStatus, priceSort, priceSize]);
+  useEffect(() => { setAlertPage(1); }, [alertSearch, alertBrandFilter, alertFilter, alertSize]);
+  useEffect(() => { setCityPage(1);  }, [citySearch, selectedMapState, citySize]);
+
   const resolveRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
@@ -1394,7 +1407,12 @@ export default function BrandPerformanceDashboard() {
                         ? cityData.data.filter((r) => (r.city ?? '').toLowerCase().includes(q) || (r.district ?? '').toLowerCase().includes(q))
                         : cityData.data;
                       const max = cityData.data[0]?.count || 1;
+                      const total = visible.length;
+                      const pages = Math.max(1, Math.ceil(total / citySize));
+                      const page  = Math.min(cityPage, pages);
+                      const paged = visible.slice((page - 1) * citySize, page * citySize);
                       return (
+                        <>
                         <table className="w-full text-sm border-separate border-spacing-0">
                           <thead className={`sticky top-0 z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
                             <tr>
@@ -1406,13 +1424,14 @@ export default function BrandPerformanceDashboard() {
                             </tr>
                           </thead>
                           <tbody>
-                            {visible.map((r, idx) => {
+                            {paged.map((r, idx) => {
+                              const absIdx = (page - 1) * citySize + idx;
                               const pct = max > 0 ? (r.count / max) * 100 : 0;
                               return (
-                                <tr key={`${r.city ?? ''}_${r.district ?? ''}_${idx}`} className={`${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
+                                <tr key={`${r.city ?? ''}_${r.district ?? ''}_${idx}`} className={`${absIdx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
                                   <td className={t.brandCell.replace('py-3', 'py-1.5')}>
                                     <div className="flex items-center gap-2">
-                                      <span className={t.brandRowNum}>{idx + 1}</span>
+                                      <span className={t.brandRowNum}>{absIdx + 1}</span>
                                       <div className="flex flex-col">
                                         <span className={`${t.brandName} text-xs`}>{r.city || '—'}</span>
                                         <span className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{r.district || '—'}</span>
@@ -1441,6 +1460,23 @@ export default function BrandPerformanceDashboard() {
                             })}
                           </tbody>
                         </table>
+                        {total > 0 && (
+                          <div className={`px-6 py-2 border-t flex items-center justify-between gap-3 text-xs flex-wrap ${t.isDark ? 'border-white/10 bg-white/5 text-purple-200' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                            <div>Showing <span className={t.isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'}>{((page - 1) * citySize + 1).toLocaleString('en-IN')}–{Math.min(page * citySize, total).toLocaleString('en-IN')}</span> of {total.toLocaleString('en-IN')} cities</div>
+                            <div className="flex items-center gap-2">
+                              <span>Rows / page</span>
+                              <select value={citySize} onChange={(e) => setCitySize(parseInt(e.target.value))} className={`px-2 py-1 rounded ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>
+                                {[25, 50, 100, 250].map((s) => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                              <button onClick={() => setCityPage(1)} disabled={page === 1} className={`px-2 py-1 rounded font-bold ${page === 1 ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>«</button>
+                              <button onClick={() => setCityPage((p) => Math.max(1, p - 1))} disabled={page === 1} className={`px-2 py-1 rounded font-bold ${page === 1 ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>‹</button>
+                              <span className={t.isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'}>{page} / {pages}</span>
+                              <button onClick={() => setCityPage((p) => Math.min(pages, p + 1))} disabled={page === pages} className={`px-2 py-1 rounded font-bold ${page === pages ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>›</button>
+                              <button onClick={() => setCityPage(pages)} disabled={page === pages} className={`px-2 py-1 rounded font-bold ${page === pages ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>»</button>
+                            </div>
+                          </div>
+                        )}
+                        </>
                       );
                     })()}
                   </div>
@@ -3327,7 +3363,7 @@ export default function BrandPerformanceDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sorted.slice(0, 1000).map((r, idx) => (
+                    {sorted.slice((pricePage - 1) * priceSize, pricePage * priceSize).map((r, idx) => (
                       <tr key={`${r.sellerId}_${r.skuId}_${idx}`} className={`${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
                         <td className={t.brandCell.replace('py-3', 'py-1.5')}>
                           <div className="flex items-center gap-2">
@@ -3368,9 +3404,29 @@ export default function BrandPerformanceDashboard() {
                 </table>
               )}
             </div>
-            {sorted.length > 1000 && (
-              <div className={t.footnote}>showing top 1,000 rows · refine filters above to narrow further</div>
-            )}
+            {sorted.length > 0 && (() => {
+              const total = sorted.length;
+              const pages = Math.max(1, Math.ceil(total / priceSize));
+              const page  = Math.min(pricePage, pages);
+              const from  = (page - 1) * priceSize + 1;
+              const to    = Math.min(page * priceSize, total);
+              return (
+                <div className={`px-6 py-2 border-t flex items-center justify-between gap-3 text-xs flex-wrap ${t.isDark ? 'border-white/10 bg-white/5 text-purple-200' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                  <div>Showing <span className={t.isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'}>{from.toLocaleString('en-IN')}–{to.toLocaleString('en-IN')}</span> of {total.toLocaleString('en-IN')}</div>
+                  <div className="flex items-center gap-2">
+                    <span>Rows / page</span>
+                    <select value={priceSize} onChange={(e) => setPriceSize(parseInt(e.target.value))} className={`px-2 py-1 rounded ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>
+                      {[25, 50, 100, 250, 500].map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <button onClick={() => setPricePage(1)} disabled={page === 1} className={`px-2 py-1 rounded font-bold ${page === 1 ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>«</button>
+                    <button onClick={() => setPricePage((p) => Math.max(1, p - 1))} disabled={page === 1} className={`px-2 py-1 rounded font-bold ${page === 1 ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>‹</button>
+                    <span className={t.isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'}>{page} / {pages}</span>
+                    <button onClick={() => setPricePage((p) => Math.min(pages, p + 1))} disabled={page === pages} className={`px-2 py-1 rounded font-bold ${page === pages ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>›</button>
+                    <button onClick={() => setPricePage(pages)} disabled={page === pages} className={`px-2 py-1 rounded font-bold ${page === pages ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>»</button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
           );
@@ -3547,7 +3603,7 @@ export default function BrandPerformanceDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visible.slice(0, 1000).map(({ row: r, flags }, idx) => {
+                    {visible.slice((alertPage - 1) * alertSize, alertPage * alertSize).map(({ row: r, flags }, idx) => {
                       const bad = (k: AlertKind) => flags.includes(k);
                       const cellRed = t.isDark ? 'bg-rose-500/10 text-rose-200 font-extrabold' : 'bg-rose-50 text-rose-700 font-extrabold';
                       const cellAmber = t.isDark ? 'bg-amber-500/10 text-amber-200 font-extrabold' : 'bg-amber-50 text-amber-700 font-extrabold';
@@ -3588,9 +3644,29 @@ export default function BrandPerformanceDashboard() {
                 </table>
               )}
             </div>
-            {visible.length > 1000 && (
-              <div className={t.footnote}>showing top 1,000 alerts · refine filters above to narrow further</div>
-            )}
+            {visible.length > 0 && (() => {
+              const total = visible.length;
+              const pages = Math.max(1, Math.ceil(total / alertSize));
+              const page  = Math.min(alertPage, pages);
+              const from  = (page - 1) * alertSize + 1;
+              const to    = Math.min(page * alertSize, total);
+              return (
+                <div className={`px-6 py-2 border-t flex items-center justify-between gap-3 text-xs flex-wrap ${t.isDark ? 'border-white/10 bg-white/5 text-purple-200' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                  <div>Showing <span className={t.isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'}>{from.toLocaleString('en-IN')}–{to.toLocaleString('en-IN')}</span> of {total.toLocaleString('en-IN')} alerts</div>
+                  <div className="flex items-center gap-2">
+                    <span>Rows / page</span>
+                    <select value={alertSize} onChange={(e) => setAlertSize(parseInt(e.target.value))} className={`px-2 py-1 rounded ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>
+                      {[25, 50, 100, 250].map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <button onClick={() => setAlertPage(1)} disabled={page === 1} className={`px-2 py-1 rounded font-bold ${page === 1 ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>«</button>
+                    <button onClick={() => setAlertPage((p) => Math.max(1, p - 1))} disabled={page === 1} className={`px-2 py-1 rounded font-bold ${page === 1 ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>‹</button>
+                    <span className={t.isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'}>{page} / {pages}</span>
+                    <button onClick={() => setAlertPage((p) => Math.min(pages, p + 1))} disabled={page === pages} className={`px-2 py-1 rounded font-bold ${page === pages ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>›</button>
+                    <button onClick={() => setAlertPage(pages)} disabled={page === pages} className={`px-2 py-1 rounded font-bold ${page === pages ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>»</button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
           );

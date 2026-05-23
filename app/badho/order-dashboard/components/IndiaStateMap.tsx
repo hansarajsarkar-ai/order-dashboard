@@ -370,31 +370,36 @@ export default function IndiaStateMap({ data, metric, onStateClick, selectedStat
               const max = top[0]?.[metric] || 1;
               const pct = (value / max) * 100;
               const isSelected = !!(r.state && selectedState && r.state === selectedState);
+              const compact = showAllStatesScrollable;
               return (
                 <li
                   key={r.state || i}
                   onClick={() => r.state && onStateClick?.(r.state)}
-                  className={`px-4 py-2.5 flex items-center gap-3 transition-colors ${onStateClick ? 'cursor-pointer' : ''} ${isSelected ? 'bg-fuchsia-500/15 ring-1 ring-inset ring-fuchsia-400/40' : 'hover:bg-white/5'}`}
+                  className={`${compact ? 'px-3 py-1' : 'px-4 py-2.5'} flex items-center gap-2 transition-colors ${onStateClick ? 'cursor-pointer' : ''} ${isSelected ? 'bg-fuchsia-500/15 ring-1 ring-inset ring-fuchsia-400/40' : 'hover:bg-white/5'}`}
                 >
-                  <div className="w-6 text-purple-300 text-xs font-bold tabular-nums">{i + 1}</div>
-                  <span className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-br from-fuchsia-500/30 to-purple-500/30 text-fuchsia-200 border border-fuchsia-400/40 tracking-wider" title={r.state || ''}>
+                  <div className={`${compact ? 'w-4 text-[10px]' : 'w-6 text-xs'} text-purple-300 font-bold tabular-nums`}>{i + 1}</div>
+                  <span className={`inline-flex items-center justify-center ${compact ? 'min-w-[24px] px-1 text-[9px]' : 'min-w-[28px] px-1.5 text-[10px]'} py-0.5 rounded font-bold bg-gradient-to-br from-fuchsia-500/30 to-purple-500/30 text-fuchsia-200 border border-fuchsia-400/40 tracking-wider`} title={r.state || ''}>
                     {stateCode(r.state)}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="text-white text-sm truncate">{r.state}</div>
-                    <div className="h-1 rounded-full bg-white/5 mt-1 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
+                    <div className={`text-white ${compact ? 'text-xs' : 'text-sm'} truncate`}>{r.state}</div>
+                    {!compact && (
+                      <div className="h-1 rounded-full bg-white/5 mt-1 overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500" style={{ width: `${pct}%` }} />
+                      </div>
+                    )}
                   </div>
-                  <div className="text-right tabular-nums">
-                    <div className="text-white text-sm font-semibold">
+                  {compact && (
+                    <div className="w-16 h-1 rounded-full bg-white/5 overflow-hidden shrink-0">
+                      <div className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500" style={{ width: `${pct}%` }} />
+                    </div>
+                  )}
+                  <div className="text-right tabular-nums flex items-baseline gap-1.5 shrink-0">
+                    <div className={`text-white ${compact ? 'text-xs' : 'text-sm'} font-semibold`}>
                       {metric === 'count' ? r.count.toLocaleString() : formatAmount(r.amount)}
                     </div>
                     <div className="text-[10px] text-purple-300/70">
-                      {metric === 'count' ? formatAmount(r.amount) : `${r.count.toLocaleString()} orders`}
+                      {metric === 'count' ? formatAmount(r.amount) : `${r.count.toLocaleString()}`}
                     </div>
                   </div>
                 </li>

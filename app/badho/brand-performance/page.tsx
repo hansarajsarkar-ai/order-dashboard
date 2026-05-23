@@ -326,7 +326,7 @@ export default function BrandPerformanceDashboard() {
   const [customTo, setCustomTo] = useState('');
   const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
-  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers' | 'trends'>('trends');
+  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers' | 'trends' | 'priceset'>('trends');
   const [detailsSearch, setDetailsSearch] = useState('');
   const [detailsSort, setDetailsSort] = useState<'orders' | 'gmv' | 'brand' | 'month' | 'status'>('orders');
 
@@ -443,6 +443,28 @@ export default function BrandPerformanceDashboard() {
   const [trendsExtra, setTrendsExtra] = useState<TrendsExtra | null>(null);
   const [trendsExtraLoading, setTrendsExtraLoading] = useState(false);
 
+  // Price Set tab — flat catalog of seller × SKU × unit price × margin × MRP
+  interface PriceRow {
+    sellerId: string; sellerName: string | null; businessName: string | null; phone: string | null;
+    sellerState: string | null; sellerDistrict: string | null; sellerCity: string | null; pincode: string | null;
+    brandName: string | null; skuId: string | null; productName: string | null; size: string | null;
+    unitPrice: number | null; margin: number | null; mrp: number | null;
+  }
+  interface PriceData {
+    data: PriceRow[];
+    brands: string[]; states: string[]; sellers: string[];
+    summary: { rows: number; withPrice: number; withoutPrice: number; sellers: number; brands: number; products: number; states: number; minUnitPrice: number | null; maxUnitPrice: number | null; avgMargin: number | null; };
+  }
+  const [priceData, setPriceData] = useState<PriceData | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceSearch, setPriceSearch] = useState('');
+  const [priceBrandFilter, setPriceBrandFilter] = useState<Set<string>>(new Set());
+  const [priceStateFilter, setPriceStateFilter] = useState<Set<string>>(new Set());
+  const [priceStatus, setPriceStatus] = useState<'all' | 'priced' | 'unpriced'>('priced');
+  const [priceSort, setPriceSort] = useState<'price-asc' | 'price-desc' | 'margin-asc' | 'margin-desc' | 'mrp-desc' | 'brand'>('price-asc');
+  const [priceBrandOpen, setPriceBrandOpen] = useState(false);
+  const [priceStateOpen, setPriceStateOpen] = useState(false);
+
   const resolveRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
@@ -556,6 +578,26 @@ export default function BrandPerformanceDashboard() {
     fetchCity(selectedMapState);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, bpTab, selectedMapState, range, customFrom, customTo, mbsBrands]);
+
+  const fetchPriceSet = async () => {
+    try {
+      setPriceLoading(true);
+      const res = await fetch(`/api/brand-performance/product-price-set`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      setPriceData(json);
+    } catch (err) {
+      console.error('Price set fetch error:', err);
+      setPriceData(null);
+    } finally {
+      setPriceLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (!authChecked || bpTab !== 'priceset' || priceData) return;
+    fetchPriceSet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, bpTab]);
 
   // Reset selected state when filters change (avoid showing stale city data for the wrong state)
   useEffect(() => { setSelectedMapState(null); setCityData(null); }, [range, customFrom, customTo, mbsBrands]);
@@ -779,6 +821,7 @@ export default function BrandPerformanceDashboard() {
             { key: 'details',    label: 'Pivot',           icon: '▥' },
             { key: 'product',    label: 'Product wise',    icon: '◫' },
             { key: 'topsellers', label: 'Brand × Product', icon: '★' },
+            { key: 'priceset',   label: 'Price Set',       icon: '₹' },
           ] as const).map((tab) => {
             const active = bpTab === tab.key;
             return (
@@ -3054,6 +3097,274 @@ export default function BrandPerformanceDashboard() {
                 </div>
               </div>
             </div>
+          );
+        })()}
+
+        {bpTab === 'priceset' && (() => {
+          const all = priceData?.data ?? [];
+          const q = priceSearch.trim().toLowerCase();
+          const filtered = all.filter((r) => {
+            if (priceStatus === 'priced'   && r.unitPrice == null) return false;
+            if (priceStatus === 'unpriced' && r.unitPrice != null) return false;
+            if (priceBrandFilter.size > 0 && !priceBrandFilter.has(r.brandName ?? '')) return false;
+            if (priceStateFilter.size > 0 && !priceStateFilter.has(r.sellerState ?? '')) return false;
+            if (!q) return true;
+            return [r.businessName, r.sellerName, r.productName, r.brandName, r.sellerCity, r.sellerDistrict, r.sellerState, r.pincode, r.phone]
+              .filter(Boolean).some((v) => v!.toLowerCase().includes(q));
+          });
+          const sorted = [...filtered].sort((a, b) => {
+            const cmpNum = (x: number | null, y: number | null, asc: boolean) => {
+              if (x == null && y == null) return 0;
+              if (x == null) return 1;
+              if (y == null) return -1;
+              return asc ? x - y : y - x;
+            };
+            switch (priceSort) {
+              case 'price-asc':  return cmpNum(a.unitPrice, b.unitPrice, true);
+              case 'price-desc': return cmpNum(a.unitPrice, b.unitPrice, false);
+              case 'margin-asc': return cmpNum(a.margin, b.margin, true);
+              case 'margin-desc':return cmpNum(a.margin, b.margin, false);
+              case 'mrp-desc':   return cmpNum(a.mrp, b.mrp, false);
+              case 'brand':      return (a.brandName ?? '').localeCompare(b.brandName ?? '');
+            }
+          });
+
+          // Live aggregates on the filtered view
+          const visPriced = sorted.filter((r) => r.unitPrice != null);
+          const visAvgPrice = visPriced.length ? visPriced.reduce((s, r) => s + r.unitPrice!, 0) / visPriced.length : 0;
+          const visMargins = sorted.filter((r) => r.margin != null).map((r) => r.margin!);
+          const visAvgMargin = visMargins.length ? visMargins.reduce((s, v) => s + v, 0) / visMargins.length : 0;
+
+          const marginPill = (m: number | null) => {
+            if (m == null) return t.isDark ? 'text-slate-400' : 'text-slate-400';
+            if (m >= 50)   return t.isDark ? 'text-emerald-300' : 'text-emerald-700';
+            if (m >= 30)   return t.isDark ? 'text-amber-300'   : 'text-amber-700';
+            return            t.isDark ? 'text-rose-300'    : 'text-rose-700';
+          };
+
+          return (
+        <div className="flex flex-col gap-4">
+          {/* Compact header */}
+          <div className={t.sectionCard.replace('overflow-hidden', 'overflow-visible')}>
+            <div className={t.sectionAccent} />
+            <div className={`px-6 py-2 flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+              <span className={t.sectionTag('pivot')}>PRICE SET</span>
+              <h2 className={`text-base font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Seller × Product unit price</h2>
+              <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                {priceData ? <>{sorted.length.toLocaleString('en-IN')} of {priceData.summary.rows.toLocaleString('en-IN')} rows · {priceData.summary.sellers} sellers · {priceData.summary.brands} brands · {priceData.summary.products.toLocaleString('en-IN')} SKUs</> : 'loading…'}
+              </span>
+            </div>
+
+            {/* Stat strip */}
+            {priceData && (
+              <div className={`px-6 py-3 grid grid-cols-2 sm:grid-cols-4 gap-3 border-b ${t.isDark ? 'border-white/10 bg-white/[0.02]' : 'border-slate-200 bg-white'}`}>
+                {[
+                  { label: 'Rows in view',     value: sorted.length.toLocaleString('en-IN'),                                   tint: 'text-fuchsia-200' },
+                  { label: 'Priced / unpriced',value: `${visPriced.length.toLocaleString('en-IN')} / ${(sorted.length - visPriced.length).toLocaleString('en-IN')}`, tint: 'text-emerald-200' },
+                  { label: 'Avg unit price',   value: visPriced.length ? `₹${visAvgPrice.toFixed(0)}` : '—',                   tint: 'text-amber-200' },
+                  { label: 'Avg margin',       value: visMargins.length ? `${visAvgMargin.toFixed(1)}%` : '—',                 tint: 'text-sky-200' },
+                ].map((s, i) => (
+                  <div key={i} className={`rounded-lg p-2 border ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className={`text-[10px] uppercase tracking-wider font-bold ${t.isDark ? s.tint : 'text-slate-500'}`}>{s.label}</div>
+                    <div className={`text-lg font-black tabular-nums mt-0.5 ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Filter bar */}
+            <div className={`px-6 py-2 flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5' : 'bg-white'}`}>
+              <span className={t.chipLabel}>Status</span>
+              <div className={`inline-flex gap-1 p-0.5 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
+                {(['priced', 'unpriced', 'all'] as const).map((s) => {
+                  const active = priceStatus === s;
+                  return (
+                    <button key={s} onClick={() => setPriceStatus(s)} className={`px-2.5 py-1 rounded-md text-[10px] font-bold capitalize whitespace-nowrap ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}>
+                      {s === 'all' ? 'All' : s}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Brand picker */}
+              <div className="relative">
+                <button type="button" onClick={() => { setPriceBrandOpen((v) => !v); setPriceStateOpen(false); }} className={`min-w-[160px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>
+                  <span className="truncate font-semibold">
+                    {priceBrandFilter.size === 0 ? <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All brands</span> : priceBrandFilter.size === 1 ? Array.from(priceBrandFilter)[0] : `${priceBrandFilter.size} brands`}
+                  </span>
+                  <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
+                </button>
+                {priceBrandOpen && priceData && (
+                  <>
+                    <div className="fixed inset-0 z-[55]" onClick={() => setPriceBrandOpen(false)} />
+                    <div className={`absolute top-full left-0 mt-1 z-[60] w-[280px] max-h-[420px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                      <div className={`overflow-y-auto flex-1 ${t.isDark ? 'bg-slate-950' : 'bg-white'}`}>
+                        {priceData.brands.map((name) => {
+                          const checked = priceBrandFilter.has(name);
+                          return (
+                            <label key={name} className={`flex items-center gap-2 px-3 py-2 text-xs border-b cursor-pointer ${t.isDark ? 'border-white/5 hover:bg-white/10' : 'border-slate-100 hover:bg-slate-100'} ${checked ? (t.isDark ? 'bg-fuchsia-500/15' : 'bg-purple-50') : ''}`}>
+                              <input type="checkbox" checked={checked} onChange={() => setPriceBrandFilter((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; })} className="accent-fuchsia-500 w-3.5 h-3.5" />
+                              <span className={t.isDark ? 'text-white' : 'text-slate-800'}>{name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <div className={`p-2 border-t flex items-center justify-between gap-2 ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                        <button onClick={() => setPriceBrandFilter(new Set())} className={`text-[10px] ${t.isDark ? 'text-rose-300' : 'text-rose-700'}`}>Clear</button>
+                        <button onClick={() => setPriceBrandOpen(false)} className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white">Done</button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* State picker */}
+              <div className="relative">
+                <button type="button" onClick={() => { setPriceStateOpen((v) => !v); setPriceBrandOpen(false); }} className={`min-w-[160px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>
+                  <span className="truncate font-semibold">
+                    {priceStateFilter.size === 0 ? <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>All states</span> : priceStateFilter.size === 1 ? Array.from(priceStateFilter)[0] : `${priceStateFilter.size} states`}
+                  </span>
+                  <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
+                </button>
+                {priceStateOpen && priceData && (
+                  <>
+                    <div className="fixed inset-0 z-[55]" onClick={() => setPriceStateOpen(false)} />
+                    <div className={`absolute top-full left-0 mt-1 z-[60] w-[260px] max-h-[420px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                      <div className={`overflow-y-auto flex-1 ${t.isDark ? 'bg-slate-950' : 'bg-white'}`}>
+                        {priceData.states.map((name) => {
+                          const checked = priceStateFilter.has(name);
+                          return (
+                            <label key={name} className={`flex items-center gap-2 px-3 py-2 text-xs border-b cursor-pointer ${t.isDark ? 'border-white/5 hover:bg-white/10' : 'border-slate-100 hover:bg-slate-100'} ${checked ? (t.isDark ? 'bg-fuchsia-500/15' : 'bg-purple-50') : ''}`}>
+                              <input type="checkbox" checked={checked} onChange={() => setPriceStateFilter((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; })} className="accent-fuchsia-500 w-3.5 h-3.5" />
+                              <span className={t.isDark ? 'text-white' : 'text-slate-800'}>{name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <div className={`p-2 border-t flex items-center justify-between gap-2 ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                        <button onClick={() => setPriceStateFilter(new Set())} className={`text-[10px] ${t.isDark ? 'text-rose-300' : 'text-rose-700'}`}>Clear</button>
+                        <button onClick={() => setPriceStateOpen(false)} className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white">Done</button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <select
+                value={priceSort}
+                onChange={(e) => setPriceSort(e.target.value as typeof priceSort)}
+                className={`px-2 py-1.5 text-xs rounded-lg ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}
+              >
+                <option value="price-asc">Price ↑</option>
+                <option value="price-desc">Price ↓</option>
+                <option value="margin-desc">Margin ↓</option>
+                <option value="margin-asc">Margin ↑</option>
+                <option value="mrp-desc">MRP ↓</option>
+                <option value="brand">Brand A→Z</option>
+              </select>
+
+              <input
+                type="text"
+                value={priceSearch}
+                onChange={(e) => setPriceSearch(e.target.value)}
+                placeholder="Search seller / product / city / pin / phone…"
+                className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'flex-1 min-w-[260px]')}
+              />
+
+              {(priceBrandFilter.size > 0 || priceStateFilter.size > 0 || priceSearch || priceStatus !== 'priced') && (
+                <button
+                  onClick={() => { setPriceBrandFilter(new Set()); setPriceStateFilter(new Set()); setPriceSearch(''); setPriceStatus('priced'); }}
+                  className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}
+                >
+                  ✕ Reset
+                </button>
+              )}
+
+              {priceData && (
+                <button
+                  className={t.csvBtn}
+                  onClick={() => {
+                    downloadCSV(
+                      `price-set-${new Date().toISOString().slice(0,10)}.csv`,
+                      ['Business', 'Seller', 'Phone', 'State', 'District', 'City', 'Pin', 'Brand', 'Product', 'Size', 'Unit Price', 'Margin %', 'MRP'],
+                      sorted.map((r) => [r.businessName ?? '', r.sellerName ?? '', r.phone ?? '', r.sellerState ?? '', r.sellerDistrict ?? '', r.sellerCity ?? '', r.pincode ?? '', r.brandName ?? '', r.productName ?? '', r.size ?? '', r.unitPrice ?? '', r.margin ?? '', r.mrp ?? '']),
+                    );
+                  }}
+                >
+                  ↓ CSV
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className={t.sectionCard}>
+            <div className={t.sectionAccent} />
+            <div className="overflow-auto" style={{ maxHeight: 720 }}>
+              {priceLoading || !priceData ? (
+                <div className={t.loading}>Loading price catalog…</div>
+              ) : sorted.length === 0 ? (
+                <div className={t.loading}>No rows match this filter</div>
+              ) : (
+                <table className="w-full text-sm border-separate border-spacing-0">
+                  <thead className={`sticky top-0 z-20 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                    <tr>
+                      <th className={`${t.brandCell} text-left text-[10px] font-semibold uppercase tracking-wider ${t.isDark ? 'text-purple-200' : 'text-slate-500'}`}>Seller</th>
+                      <th className={`${t.deliveryHeader} text-left`}>Location</th>
+                      <th className={`${t.deliveryHeader} text-left`}>Brand</th>
+                      <th className={`${t.deliveryHeader} text-left`}>Product</th>
+                      <th className={`${t.deliveryHeader} text-right`}>MRP</th>
+                      <th className={`${t.deliveryHeader} text-right`}>Unit price</th>
+                      <th className={`${t.deliveryHeader} text-right`}>Margin %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.slice(0, 1000).map((r, idx) => (
+                      <tr key={`${r.sellerId}_${r.skuId}_${idx}`} className={`${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
+                        <td className={t.brandCell.replace('py-3', 'py-1.5')}>
+                          <div className="flex items-center gap-2">
+                            <span className={t.brandRowNum}>{idx + 1}</span>
+                            <div className="flex flex-col min-w-0">
+                              <span className={`${t.brandName} text-xs truncate`} title={r.businessName ?? ''}>{r.businessName ?? '—'}</span>
+                              <span className={`text-[10px] truncate ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{r.sellerName ?? '—'}{r.phone ? ` · ${r.phone}` : ''}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                          <div className={`text-xs ${t.isDark ? 'text-white' : 'text-slate-800'}`}>{r.sellerCity || '—'}{r.sellerState ? `, ${r.sellerState}` : ''}</div>
+                          <div className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{[r.sellerDistrict, r.pincode].filter(Boolean).join(' · ') || '—'}</div>
+                        </td>
+                        <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                          <span className={`text-xs font-semibold ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{r.brandName ?? '—'}</span>
+                        </td>
+                        <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                          <div className={`text-xs ${t.isDark ? 'text-white' : 'text-slate-800'} max-w-[260px] truncate`} title={r.productName ?? ''}>{r.productName ?? '—'}</div>
+                          {r.size && <div className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{r.size}</div>}
+                        </td>
+                        <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                          <span className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{r.mrp != null ? `₹${r.mrp.toLocaleString('en-IN')}` : '—'}</span>
+                        </td>
+                        <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                          {r.unitPrice != null ? (
+                            <span className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>₹{r.unitPrice.toLocaleString('en-IN')}</span>
+                          ) : (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.isDark ? 'bg-rose-500/20 text-rose-200 border border-rose-400/40' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>not set</span>
+                          )}
+                        </td>
+                        <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                          <span className={`text-sm font-extrabold tabular-nums ${marginPill(r.margin)}`}>{r.margin != null ? `${r.margin.toFixed(1)}%` : '—'}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            {sorted.length > 1000 && (
+              <div className={t.footnote}>showing top 1,000 rows · refine filters above to narrow further</div>
+            )}
+          </div>
+        </div>
           );
         })()}
 

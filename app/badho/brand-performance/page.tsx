@@ -3740,7 +3740,7 @@ export default function BrandPerformanceDashboard() {
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={closeDrill}>
             <div className={`absolute inset-0 ${t.isDark ? 'bg-slate-950/80' : 'bg-slate-900/60'} backdrop-blur-sm`} />
-            <div onClick={(e) => e.stopPropagation()} className={`relative z-10 w-[min(95vw,1100px)] max-h-[90vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl ${t.isDark ? 'bg-slate-950 border border-fuchsia-400/30' : 'bg-white border border-slate-200'}`}>
+            <div onClick={(e) => e.stopPropagation()} className={`relative z-10 w-[min(98vw,1600px)] max-h-[92vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl ${t.isDark ? 'bg-slate-950 border border-fuchsia-400/30' : 'bg-white border border-slate-200'}`}>
               <div className={`absolute inset-x-0 top-0 h-px ${t.isDark ? 'bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent' : 'bg-gradient-to-r from-purple-500 via-fuchsia-500 to-indigo-500'}`} />
               <div className={`px-6 py-4 flex items-start justify-between gap-4 border-b ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
                 <div className="min-w-0">
@@ -3762,16 +3762,22 @@ export default function BrandPerformanceDashboard() {
                 ) : drillRows.length === 0 ? (
                   <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No orders in this slice</div>
                 ) : (
-                  <table className="w-full text-sm border-separate border-spacing-0">
+                  <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 1500 }}>
                     <thead className={`sticky top-0 z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
                       <tr>
                         <th className={`${t.deliveryHeader} text-center w-6`}></th>
                         <th className={`${t.deliveryHeader} text-left`}>PO #</th>
                         <th className={`${t.deliveryHeader} text-left`}>Status</th>
-                        <th className={`${t.deliveryHeader} text-left`}>When</th>
-                        <th className={`${t.deliveryHeader} text-left`}>Brand</th>
                         <th className={`${t.deliveryHeader} text-right`}>PO ₹</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Marked pending</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Brand</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Buyer</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Buyer phone</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Seller</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Seller phone</th>
                         <th className={`${t.deliveryHeader} text-right`}>Wallet ₹</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Items</th>
+                        <th className={`${t.deliveryHeader} text-right`}>Units</th>
                         <th className={`${t.deliveryHeader} text-right`}>Details</th>
                       </tr>
                     </thead>
@@ -3780,12 +3786,11 @@ export default function BrandPerformanceDashboard() {
                         const sc = statusColor[r.status] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
                         const d = new Date(r.pendingAt);
                         const isOpen = drillExpanded.has(r.poId);
-                        const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-                          <div className={`text-[9px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/60' : 'text-slate-500'}`}>{children}</div>
-                        );
-                        const Value: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-                          <div className={`text-xs font-semibold ${t.isDark ? 'text-white' : 'text-slate-800'} ${className ?? ''}`}>{children}</div>
-                        );
+                        const itemPreview = r.items.length === 0
+                          ? '—'
+                          : r.items.length === 1
+                            ? (r.items[0].label ?? '(unnamed)')
+                            : `${r.items[0].label ?? '(unnamed)'} +${r.items.length - 1} more`;
                         return (
                           <Fragment key={r.poId}>
                             <tr
@@ -3801,6 +3806,9 @@ export default function BrandPerformanceDashboard() {
                               <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${sc.bg} ${sc.text} ${t.isDark ? 'border-white/15' : 'border-slate-200'}`}>{r.status}</span>
                               </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(r.orderAmount)}</span>
+                              </td>
                               <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
                                 <div className={`text-xs ${t.isDark ? 'text-white' : 'text-slate-800'}`}>{d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</div>
                                 <div className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
@@ -3808,11 +3816,27 @@ export default function BrandPerformanceDashboard() {
                               <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
                                 <span className={`text-[11px] font-semibold ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{drill.brand}</span>
                               </td>
-                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
-                                <span className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(r.orderAmount)}</span>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <div className={`text-xs font-semibold max-w-[180px] truncate ${t.isDark ? 'text-white' : 'text-slate-800'}`} title={r.buyerBusiness ?? ''}>{r.buyerBusiness ?? '—'}</div>
+                                <div className={`text-[10px] truncate ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}</div>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{r.buyerPhone ?? '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-semibold max-w-[180px] truncate inline-block ${t.isDark ? 'text-white' : 'text-slate-800'}`} title={r.sellerBusiness ?? ''}>{r.sellerBusiness ?? '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{r.sellerPhone ?? '—'}</span>
                               </td>
                               <td className={t.dataCell.replace('py-3', 'py-1.5')}>
                                 <span className={`text-xs font-extrabold tabular-nums ${r.appliedWalletAmount > 0 ? (t.isDark ? 'text-amber-200' : 'text-amber-700') : (t.isDark ? 'text-white/40' : 'text-slate-400')}`}>{r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs max-w-[200px] truncate inline-block ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`} title={r.items.map((it) => it.label).join(', ')}>{itemPreview}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{r.qty.toLocaleString('en-IN')}</span>
                               </td>
                               <td className={t.dataCell.replace('py-3', 'py-1.5')}>
                                 <span className={`text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
@@ -3822,28 +3846,11 @@ export default function BrandPerformanceDashboard() {
                             </tr>
                             {isOpen && (
                               <tr className={`${t.isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
-                                <td colSpan={8} className={`${t.isDark ? 'border-b border-fuchsia-400/20' : 'border-b border-purple-200'} px-6 py-3`}>
-                                  <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 pb-3 border-b ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
-                                    <div>
-                                      <Label>Buyer · businessName + phone</Label>
-                                      <Value className="truncate">{r.buyerBusiness ?? '—'}</Value>
-                                      <div className={`text-[11px] mt-0.5 flex items-center gap-2 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                                        {r.buyerPhone && <span className={t.isDark ? 'text-sky-200 font-semibold' : 'text-sky-700 font-semibold'}>📞 {r.buyerPhone}</span>}
-                                        <span>{[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}</span>
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <Label>Seller · businessName + phone</Label>
-                                      <Value className="truncate">{r.sellerBusiness ?? '—'}</Value>
-                                      <div className={`text-[11px] mt-0.5 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                                        {r.sellerPhone && <span className={t.isDark ? 'text-sky-200 font-semibold' : 'text-sky-700 font-semibold'}>📞 {r.sellerPhone}</span>}
-                                      </div>
-                                    </div>
-                                  </div>
+                                <td colSpan={14} className={`${t.isDark ? 'border-b border-fuchsia-400/20' : 'border-b border-purple-200'} px-6 py-3`}>
                                   {r.items.length > 0 && (
-                                    <div className="pt-3">
+                                    <>
                                       <div className="flex items-center justify-between mb-1">
-                                        <Label>{drill.sku ? 'Item' : `Items (${r.items.length})`} · unit · qty · ₹</Label>
+                                        <div className={`text-[9px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/60' : 'text-slate-500'}`}>{drill.sku ? 'Item' : `All items (${r.items.length})`} · unit · qty · ₹</div>
                                         <div className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
                                           Σ {r.qty.toLocaleString('en-IN')} units · {formatAmount(r.itemAmount)}
                                         </div>
@@ -3852,9 +3859,9 @@ export default function BrandPerformanceDashboard() {
                                         <thead>
                                           <tr className={t.isDark ? 'text-purple-300/70' : 'text-slate-500'}>
                                             <th className="text-left font-semibold py-1">Item</th>
-                                            <th className="text-right font-semibold py-1 w-20">Unit ₹</th>
-                                            <th className="text-right font-semibold py-1 w-16">Qty</th>
-                                            <th className="text-right font-semibold py-1 w-24">₹</th>
+                                            <th className="text-right font-semibold py-1 w-24">Unit ₹</th>
+                                            <th className="text-right font-semibold py-1 w-20">Qty</th>
+                                            <th className="text-right font-semibold py-1 w-28">₹</th>
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -3868,7 +3875,7 @@ export default function BrandPerformanceDashboard() {
                                           ))}
                                         </tbody>
                                       </table>
-                                    </div>
+                                    </>
                                   )}
                                 </td>
                               </tr>

@@ -13,6 +13,11 @@ interface PoSummaryRow {
   buyerPhone: string | null;
   sellerBusinessName: string | null;
   sellerPhone: string | null;
+  // paymentInfo is a jsonb column; surface the two scalars the UI needs
+  // (option = 'COD' | 'FULLY_PAID' | …, instrument = 'UPI' | … when paid).
+  // DRAFT POs usually have NULL paymentInfo — buyer picks at checkout.
+  paymentOption: string | null;
+  paymentInstrument: string | null;
 }
 
 interface PoItemRow {
@@ -345,10 +350,12 @@ async function loadPoAndItems(poNumber: string) {
       a."amount"::text     AS "amount",
       a."status"           AS "status",
       a."created_at"       AS "created_at",
-      b."businessName"     AS "buyerBusinessName",
-      b."phone"            AS "buyerPhone",
-      s."businessName"     AS "sellerBusinessName",
-      s."phone"            AS "sellerPhone"
+      b."businessName"                     AS "buyerBusinessName",
+      b."phone"                            AS "buyerPhone",
+      s."businessName"                     AS "sellerBusinessName",
+      s."phone"                            AS "sellerPhone",
+      (a."paymentInfo" ->> 'option')       AS "paymentOption",
+      (a."paymentInfo" ->> 'instrument')   AS "paymentInstrument"
     FROM "purchaseOrder"."purchaseOrder" a
     JOIN "users"."buyer"  b ON b."id" = a."buyerId"
     JOIN "users"."seller" s ON s."id" = a."sellerId"

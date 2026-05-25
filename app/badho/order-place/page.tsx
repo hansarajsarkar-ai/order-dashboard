@@ -604,6 +604,8 @@ interface PoSummary {
   buyerPhone: string | null;
   sellerBusinessName: string | null;
   sellerPhone: string | null;
+  paymentOption: string | null;
+  paymentInstrument: string | null;
 }
 
 interface PoItem {
@@ -869,26 +871,34 @@ function PoItemsModal({
           </button>
         </div>
 
-        {/* Action bar (DRAFT only) */}
-        {isDraft && (
+        {/* Action bar — always rendered so the payment-mode chip is visible
+            for placed POs too, even when the DRAFT-only controls are hidden. */}
+        {po && (
           <div className="px-6 py-3 border-b border-white/10 flex items-center justify-between gap-3 flex-wrap bg-white/[0.02]">
-            <button
-              onClick={() => setShowAdd((v) => !v)}
-              disabled={busy !== null}
-              className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/30 text-fuchsia-100 text-xs font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
-            >
-              {showAdd ? '× Close add panel' : '+ Add product'}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {isDraft && (
+                <button
+                  onClick={() => setShowAdd((v) => !v)}
+                  disabled={busy !== null}
+                  className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/30 text-fuchsia-100 text-xs font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
+                >
+                  {showAdd ? '× Close add panel' : '+ Add product'}
+                </button>
+              )}
+              <PaymentModeChip option={po.paymentOption} instrument={po.paymentInstrument} />
+            </div>
             <div className="flex items-center gap-2">
               {busy && <span className="text-[11px] text-fuchsia-300 animate-pulse">Saving…</span>}
-              <button
-                onClick={() => setPlaceConfirm(true)}
-                disabled={busy !== null || items.length === 0}
-                className="px-4 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-400/40 text-emerald-100 text-xs font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title={items.length === 0 ? 'Add at least one item before placing' : 'Place this PO as PENDING'}
-              >
-                Place Order →
-              </button>
+              {isDraft && (
+                <button
+                  onClick={() => setPlaceConfirm(true)}
+                  disabled={busy !== null || items.length === 0}
+                  className="px-4 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-400/40 text-emerald-100 text-xs font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title={items.length === 0 ? 'Add at least one item before placing' : 'Place this PO as PENDING'}
+                >
+                  Place Order →
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1055,6 +1065,50 @@ function PoItemsModal({
         </div>
       )}
     </div>
+  );
+}
+
+function PaymentModeChip({ option, instrument }: { option: string | null; instrument: string | null }) {
+  // Color the chip by payment kind so the eye can scan a PO list at a glance:
+  //   COD          → amber (the seller bears collection risk)
+  //   FULLY_PAID   → emerald (already paid, settlement-ready)
+  //   anything else / unknown → purple (visible but neutral)
+  //   null         → dim purple "Not set"
+  const known = (() => {
+    if (!option) return { label: 'Payment: Not set', tint: 'neutral', detail: 'Buyer hasn\'t picked yet — gets set at checkout.' };
+    const labelMap: Record<string, { label: string; tint: 'amber' | 'emerald' | 'purple' }> = {
+      COD:               { label: 'COD',                 tint: 'amber' },
+      FULLY_PAID:        { label: 'Paid in full',        tint: 'emerald' },
+      PARTIAL_ADVANCE:   { label: 'Partial advance',     tint: 'emerald' },
+      FULL_ADVANCE:      { label: 'Full advance',        tint: 'emerald' },
+    };
+    const entry = labelMap[option] ?? { label: option, tint: 'purple' as const };
+    return {
+      ...entry,
+      detail: instrument ? `via ${instrument}` : null,
+    };
+  })();
+
+  const tintClass = {
+    amber:   'bg-amber-500/15 border-amber-400/40 text-amber-100 hover:bg-amber-500/25',
+    emerald: 'bg-emerald-500/15 border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/25',
+    purple:  'bg-purple-500/15 border-purple-400/40 text-purple-100 hover:bg-purple-500/25',
+    neutral: 'bg-white/5 border-white/10 text-purple-300/80 hover:bg-white/10',
+  }[(known as { tint: 'amber' | 'emerald' | 'purple' | 'neutral' }).tint] ?? '';
+
+  return (
+    <button
+      type="button"
+      disabled
+      title={(known as { detail: string | null }).detail ?? `Payment mode: ${option ?? 'not set'}`}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-wider cursor-default transition-colors ${tintClass}`}
+    >
+      <span aria-hidden>💳</span>
+      <span>{(known as { label: string }).label}</span>
+      {(known as { detail: string | null }).detail && (
+        <span className="font-normal opacity-80 normal-case tracking-normal">· {(known as { detail: string }).detail}</span>
+      )}
+    </button>
   );
 }
 

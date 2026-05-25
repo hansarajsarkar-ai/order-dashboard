@@ -420,6 +420,40 @@ export default function BrandPerformanceDashboard() {
   const [drillLoading, setDrillLoading] = useState(false);
   const [drillTruncated, setDrillTruncated] = useState(false);
   const [drillExpanded, setDrillExpanded] = useState<Set<string>>(new Set());
+  const [drillSearch, setDrillSearch] = useState('');
+  const [drillStatusFilter, setDrillStatusFilter] = useState<Set<string>>(new Set());
+  const [drillStateFilter, setDrillStateFilter] = useState<Set<string>>(new Set());
+  const [drillWalletFilter, setDrillWalletFilter] = useState<'all' | 'with' | 'without'>('all');
+  const [drillStatusOpen, setDrillStatusOpen] = useState(false);
+  const [drillStateOpen, setDrillStateOpen] = useState(false);
+  const [drillPage, setDrillPage] = useState(1);
+  const [drillSize, setDrillSize] = useState(50);
+
+  // Drill-down modal for Monthly Breakdown by Order Status — fires on any
+  // numeric cell click (orders / ₹ value / buyers) anywhere in the table.
+  interface MbsDrillItem { label: string | null; qty: number; unitPrice: number | null; amount: number; }
+  interface MbsDrillOrder {
+    poId: string; poNumber: string; pendingAt: string;
+    status: string; deliveryStatus: string | null;
+    orderAmount: number; appliedWalletAmount: number;
+    buyerId: string | null;
+    buyerBusiness: string | null; buyerPhone: string | null; buyerState: string | null; buyerCity: string | null;
+    sellerBusiness: string | null; sellerPhone: string | null;
+    qty: number; itemAmount: number;
+    items: MbsDrillItem[];
+  }
+  interface MbsDrillState {
+    status: string;
+    deliveryStatus: string | null | undefined; // undefined = no filter, null = literal NULL, string = exact match
+    month: number | null;                       // null = all months
+    metric: 'orders' | 'amount' | 'buyers';
+  }
+  const [mbsDrill, setMbsDrill] = useState<MbsDrillState | null>(null);
+  const [mbsDrillRows, setMbsDrillRows] = useState<MbsDrillOrder[] | null>(null);
+  const [mbsDrillSummary, setMbsDrillSummary] = useState<{ orders: number; orderAmount: number; itemAmount: number; qty: number; buyers: number } | null>(null);
+  const [mbsDrillLoading, setMbsDrillLoading] = useState(false);
+  const [mbsDrillTruncated, setMbsDrillTruncated] = useState(false);
+  const [mbsDrillExpanded, setMbsDrillExpanded] = useState<Set<string>>(new Set());
 
   // Chart & Trend tab
   interface TrendPoint {
@@ -700,9 +734,29 @@ export default function BrandPerformanceDashboard() {
     setTopExpanded((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   };
 
-  const openDrill = (state: DrillState) => { setDrill(state); setDrillRows(null); setDrillSummary(null); setDrillExpanded(new Set()); };
+  const openDrill = (state: DrillState) => {
+    setDrill(state); setDrillRows(null); setDrillSummary(null);
+    setDrillExpanded(new Set()); setDrillSearch(''); setDrillStatusFilter(new Set());
+    setDrillStateFilter(new Set()); setDrillWalletFilter('all'); setDrillPage(1);
+  };
   const closeDrill = () => { setDrill(null); setDrillRows(null); setDrillSummary(null); setDrillExpanded(new Set()); };
   const toggleDrillRow = (poId: string) => setDrillExpanded((prev) => { const n = new Set(prev); if (n.has(poId)) n.delete(poId); else n.add(poId); return n; });
+  // Reset to page 1 whenever any filter changes
+  useEffect(() => { setDrillPage(1); }, [drillSearch, drillStatusFilter, drillStateFilter, drillWalletFilter, drillSize]);
+
+  const openMbsDrill = (state: MbsDrillState) => {
+    setMbsDrill(state);
+    setMbsDrillRows(null);
+    setMbsDrillSummary(null);
+    setMbsDrillExpanded(new Set());
+  };
+  const closeMbsDrill = () => {
+    setMbsDrill(null);
+    setMbsDrillRows(null);
+    setMbsDrillSummary(null);
+    setMbsDrillExpanded(new Set());
+  };
+  const toggleMbsDrillRow = (poId: string) => setMbsDrillExpanded((prev) => { const n = new Set(prev); if (n.has(poId)) n.delete(poId); else n.add(poId); return n; });
 
   useEffect(() => {
     if (!drill) return;
@@ -734,6 +788,40 @@ export default function BrandPerformanceDashboard() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drill]);
+
+  useEffect(() => {
+    if (!mbsDrill) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setMbsDrillLoading(true);
+        const params = new URLSearchParams({ year: String(currentYear), status: mbsDrill.status });
+        const { startDate, endDate } = resolveRange();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate)   params.append('endDate',   endDate);
+        if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+        if (mbsDrill.deliveryStatus !== undefined) {
+          params.append('deliveryStatus', mbsDrill.deliveryStatus ?? '__NULL__');
+        }
+        if (mbsDrill.month != null) params.append('month', String(mbsDrill.month));
+        const res = await fetch(`/api/brand-performance/status-month-drill?${params.toString()}`);
+        if (!res.ok) throw new Error('failed');
+        const json = await res.json();
+        if (cancelled) return;
+        setMbsDrillRows(json.data || []);
+        setMbsDrillSummary(json.summary || null);
+        setMbsDrillTruncated(!!json.truncated);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('MBS drill fetch error:', err);
+        setMbsDrillRows([]); setMbsDrillSummary(null); setMbsDrillTruncated(false);
+      } finally {
+        if (!cancelled) setMbsDrillLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mbsDrill]);
 
   const fetchTrend = async () => {
     try {
@@ -1165,25 +1253,39 @@ export default function BrandPerformanceDashboard() {
                                   <td key={`r_${row.status}_${m}_b`} className={t.emptyCell}>—</td>,
                                 ];
                               }
+                              const openCell = (metric: 'orders' | 'amount' | 'buyers') => (e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                openMbsDrill({ status: row.status, deliveryStatus: undefined, month: m, metric });
+                              };
                               return [
                                 <td key={`r_${row.status}_${m}_c`} className={t.dataCell}>
-                                  <div className={t.cellCount}>{c.count.toLocaleString('en-IN')}</div>
+                                  <button type="button" onClick={openCell('orders')} title={`Click to see ${MONTH_NAMES[m - 1] || m} orders for ${row.status}`} className={`${t.cellCount} transition-all duration-150 hover:scale-110 origin-right ${t.isDark ? 'hover:text-fuchsia-300 hover:drop-shadow-[0_0_8px_rgba(232,121,249,0.7)]' : 'hover:text-purple-600'} cursor-pointer`}>
+                                    {c.count.toLocaleString('en-IN')}
+                                  </button>
                                 </td>,
                                 <td key={`r_${row.status}_${m}_a`} className={t.dataCell}>
-                                  <div className={t.cellAmount.replace('text-xs', 'text-sm').replace('mt-0.5', '').replace('font-semibold', 'font-bold')}>
+                                  <button type="button" onClick={openCell('amount')} title={`Click to see ${MONTH_NAMES[m - 1] || m} orders for ${row.status}`} className={`${t.cellAmount.replace('text-xs', 'text-sm').replace('mt-0.5', '').replace('font-semibold', 'font-bold')} transition-all duration-150 hover:scale-110 origin-right ${t.isDark ? 'hover:text-fuchsia-300 hover:drop-shadow-[0_0_8px_rgba(232,121,249,0.7)]' : 'hover:text-purple-600'} cursor-pointer`}>
                                     {formatAmount(c.amount)}
-                                  </div>
+                                  </button>
                                 </td>,
                                 <td key={`r_${row.status}_${m}_b`} className={t.dataCell}>
-                                  <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{c.buyers.toLocaleString('en-IN')}</div>
+                                  <button type="button" onClick={openCell('buyers')} title={`Click to see ${MONTH_NAMES[m - 1] || m} buyers for ${row.status}`} className={`text-sm font-bold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-sky-200 hover:text-sky-100 hover:drop-shadow-[0_0_8px_rgba(56,189,248,0.7)]' : 'text-sky-700 hover:text-sky-500'}`}>
+                                    {c.buyers.toLocaleString('en-IN')}
+                                  </button>
                                 </td>,
                               ];
                             })}
                             <td className={t.totalBody} colSpan={3}>
                               <div className="flex items-baseline justify-end gap-3 whitespace-nowrap">
-                                <div className={t.totalBodyCount}>{row.total.count.toLocaleString('en-IN')}</div>
-                                <div className={t.totalBodyAmount}>{formatAmount(row.total.amount)}</div>
-                                <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{row.total.buyers.toLocaleString('en-IN')} buyers</div>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); openMbsDrill({ status: row.status, deliveryStatus: undefined, month: null, metric: 'orders' }); }} title={`Click to see all ${row.status} orders`} className={`${t.totalBodyCount} transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'hover:text-fuchsia-300 hover:drop-shadow-[0_0_8px_rgba(232,121,249,0.7)]' : 'hover:text-purple-600'}`}>
+                                  {row.total.count.toLocaleString('en-IN')}
+                                </button>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); openMbsDrill({ status: row.status, deliveryStatus: undefined, month: null, metric: 'amount' }); }} title={`Click to see all ${row.status} orders`} className={`${t.totalBodyAmount} transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'hover:text-fuchsia-300 hover:drop-shadow-[0_0_8px_rgba(232,121,249,0.7)]' : 'hover:text-purple-600'}`}>
+                                  {formatAmount(row.total.amount)}
+                                </button>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); openMbsDrill({ status: row.status, deliveryStatus: undefined, month: null, metric: 'buyers' }); }} title={`Click to see all ${row.status} buyers`} className={`text-xs font-bold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-sky-200 hover:text-sky-100 hover:drop-shadow-[0_0_8px_rgba(56,189,248,0.7)]' : 'text-sky-700 hover:text-sky-500'}`}>
+                                  {row.total.buyers.toLocaleString('en-IN')} buyers
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -1203,23 +1305,40 @@ export default function BrandPerformanceDashboard() {
                                     <td key={`d_${row.status}_${ds.deliveryStatus ?? '_'}_${m}_b`} className={t.emptyCell}>—</td>,
                                   ];
                                 }
+                                const openCell = (metric: 'orders' | 'amount' | 'buyers') => (e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  openMbsDrill({ status: row.status, deliveryStatus: ds.deliveryStatus, month: m, metric });
+                                };
+                                const dsLabel = ds.deliveryStatus ?? '(no delivery status)';
                                 return [
                                   <td key={`d_${row.status}_${ds.deliveryStatus ?? '_'}_${m}_c`} className={t.dataCell}>
-                                    <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{c.count.toLocaleString('en-IN')}</div>
+                                    <button type="button" onClick={openCell('orders')} title={`${row.status} · ${dsLabel} · ${MONTH_NAMES[m - 1] || m}`} className={`text-sm font-bold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-purple-100 hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'text-slate-700 hover:text-purple-600'}`}>
+                                      {c.count.toLocaleString('en-IN')}
+                                    </button>
                                   </td>,
                                   <td key={`d_${row.status}_${ds.deliveryStatus ?? '_'}_${m}_a`} className={t.dataCell}>
-                                    <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-purple-300/80' : 'text-slate-500'}`}>{formatAmount(c.amount)}</div>
+                                    <button type="button" onClick={openCell('amount')} title={`${row.status} · ${dsLabel} · ${MONTH_NAMES[m - 1] || m}`} className={`text-xs font-semibold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-purple-300/80 hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'text-slate-500 hover:text-purple-600'}`}>
+                                      {formatAmount(c.amount)}
+                                    </button>
                                   </td>,
                                   <td key={`d_${row.status}_${ds.deliveryStatus ?? '_'}_${m}_b`} className={t.dataCell}>
-                                    <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-300/80' : 'text-sky-600'}`}>{c.buyers.toLocaleString('en-IN')}</div>
+                                    <button type="button" onClick={openCell('buyers')} title={`${row.status} · ${dsLabel} · ${MONTH_NAMES[m - 1] || m}`} className={`text-xs font-semibold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-sky-300/80 hover:text-sky-200 hover:drop-shadow-[0_0_6px_rgba(56,189,248,0.6)]' : 'text-sky-600 hover:text-sky-500'}`}>
+                                      {c.buyers.toLocaleString('en-IN')}
+                                    </button>
                                   </td>,
                                 ];
                               })}
                               <td className={t.totalBody} colSpan={3}>
                                 <div className="flex items-baseline justify-end gap-3 whitespace-nowrap">
-                                  <div className={`text-sm font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{ds.total.count.toLocaleString('en-IN')}</div>
-                                  <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-purple-300/80' : 'text-slate-500'}`}>{formatAmount(ds.total.amount)}</div>
-                                  <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-300/80' : 'text-sky-600'}`}>{ds.total.buyers.toLocaleString('en-IN')}</div>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); openMbsDrill({ status: row.status, deliveryStatus: ds.deliveryStatus, month: null, metric: 'orders' }); }} title={`${row.status} · ${ds.deliveryStatus ?? '(no delivery status)'} · all months`} className={`text-sm font-bold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-purple-100 hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'text-slate-700 hover:text-purple-600'}`}>
+                                    {ds.total.count.toLocaleString('en-IN')}
+                                  </button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); openMbsDrill({ status: row.status, deliveryStatus: ds.deliveryStatus, month: null, metric: 'amount' }); }} title={`${row.status} · ${ds.deliveryStatus ?? '(no delivery status)'} · all months`} className={`text-xs font-semibold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-purple-300/80 hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'text-slate-500 hover:text-purple-600'}`}>
+                                    {formatAmount(ds.total.amount)}
+                                  </button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); openMbsDrill({ status: row.status, deliveryStatus: ds.deliveryStatus, month: null, metric: 'buyers' }); }} title={`${row.status} · ${ds.deliveryStatus ?? '(no delivery status)'} · buyers`} className={`text-xs font-semibold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-sky-300/80 hover:text-sky-200 hover:drop-shadow-[0_0_6px_rgba(56,189,248,0.6)]' : 'text-sky-600 hover:text-sky-500'}`}>
+                                    {ds.total.buyers.toLocaleString('en-IN')}
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -3756,12 +3875,133 @@ export default function BrandPerformanceDashboard() {
                 </div>
                 <button onClick={closeDrill} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>✕ Close</button>
               </div>
+
+              {/* Filter bar — visible once the API has responded */}
+              {drillRows && drillRows.length > 0 && (() => {
+                const allStatuses = Array.from(new Set(drillRows.map((r) => r.status))).sort();
+                const allStates   = Array.from(new Set(drillRows.map((r) => r.buyerState).filter(Boolean) as string[])).sort();
+                return (
+                  <div className={`px-6 py-2 flex items-center gap-2 flex-wrap border-b ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
+                    <span className={t.chipLabel}>Filter</span>
+                    {/* Status picker */}
+                    {allStatuses.length > 1 && (
+                      <div className="relative">
+                        <button type="button" onClick={() => { setDrillStatusOpen((v) => !v); setDrillStateOpen(false); }} className={`min-w-[120px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>
+                          <span className="truncate font-semibold">{drillStatusFilter.size === 0 ? <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>Status</span> : drillStatusFilter.size === 1 ? Array.from(drillStatusFilter)[0] : `${drillStatusFilter.size} statuses`}</span>
+                          <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
+                        </button>
+                        {drillStatusOpen && (
+                          <>
+                            <div className="fixed inset-0 z-[55]" onClick={() => setDrillStatusOpen(false)} />
+                            <div className={`absolute top-full left-0 mt-1 z-[60] w-[220px] max-h-[300px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                              <div className={`overflow-y-auto flex-1 ${t.isDark ? 'bg-slate-950' : 'bg-white'}`}>
+                                {allStatuses.map((name) => {
+                                  const checked = drillStatusFilter.has(name);
+                                  return (
+                                    <label key={name} className={`flex items-center gap-2 px-3 py-2 text-xs border-b cursor-pointer ${t.isDark ? 'border-white/5 hover:bg-white/10' : 'border-slate-100 hover:bg-slate-100'} ${checked ? (t.isDark ? 'bg-fuchsia-500/15' : 'bg-purple-50') : ''}`}>
+                                      <input type="checkbox" checked={checked} onChange={() => setDrillStatusFilter((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; })} className="accent-fuchsia-500 w-3.5 h-3.5" />
+                                      <span className={t.isDark ? 'text-white' : 'text-slate-800'}>{name}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              <div className={`p-2 border-t flex items-center justify-between gap-2 ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                                <button onClick={() => setDrillStatusFilter(new Set())} className={`text-[10px] ${t.isDark ? 'text-rose-300' : 'text-rose-700'}`}>Clear</button>
+                                <button onClick={() => setDrillStatusOpen(false)} className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white">Done</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Buyer state picker */}
+                    {allStates.length > 1 && (
+                      <div className="relative">
+                        <button type="button" onClick={() => { setDrillStateOpen((v) => !v); setDrillStatusOpen(false); }} className={`min-w-[140px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>
+                          <span className="truncate font-semibold">{drillStateFilter.size === 0 ? <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>Buyer state</span> : drillStateFilter.size === 1 ? Array.from(drillStateFilter)[0] : `${drillStateFilter.size} states`}</span>
+                          <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
+                        </button>
+                        {drillStateOpen && (
+                          <>
+                            <div className="fixed inset-0 z-[55]" onClick={() => setDrillStateOpen(false)} />
+                            <div className={`absolute top-full left-0 mt-1 z-[60] w-[260px] max-h-[400px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                              <div className={`overflow-y-auto flex-1 ${t.isDark ? 'bg-slate-950' : 'bg-white'}`}>
+                                {allStates.map((name) => {
+                                  const checked = drillStateFilter.has(name);
+                                  return (
+                                    <label key={name} className={`flex items-center gap-2 px-3 py-2 text-xs border-b cursor-pointer ${t.isDark ? 'border-white/5 hover:bg-white/10' : 'border-slate-100 hover:bg-slate-100'} ${checked ? (t.isDark ? 'bg-fuchsia-500/15' : 'bg-purple-50') : ''}`}>
+                                      <input type="checkbox" checked={checked} onChange={() => setDrillStateFilter((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; })} className="accent-fuchsia-500 w-3.5 h-3.5" />
+                                      <span className={t.isDark ? 'text-white' : 'text-slate-800'}>{name}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              <div className={`p-2 border-t flex items-center justify-between gap-2 ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                                <button onClick={() => setDrillStateFilter(new Set())} className={`text-[10px] ${t.isDark ? 'text-rose-300' : 'text-rose-700'}`}>Clear</button>
+                                <button onClick={() => setDrillStateOpen(false)} className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white">Done</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Wallet toggle */}
+                    <div className={`inline-flex gap-1 p-0.5 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
+                      {(['all', 'with', 'without'] as const).map((w) => {
+                        const active = drillWalletFilter === w;
+                        const label = w === 'all' ? 'All' : w === 'with' ? 'Wallet used' : 'No wallet';
+                        return (
+                          <button key={w} onClick={() => setDrillWalletFilter(w)} className={`px-2.5 py-1 rounded-md text-[10px] font-bold whitespace-nowrap ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}>{label}</button>
+                        );
+                      })}
+                    </div>
+
+                    <input
+                      type="text"
+                      value={drillSearch}
+                      onChange={(e) => setDrillSearch(e.target.value)}
+                      placeholder="Search PO# / buyer / seller / city / phone / item…"
+                      className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'flex-1 min-w-[240px]')}
+                    />
+
+                    {(drillSearch || drillStatusFilter.size > 0 || drillStateFilter.size > 0 || drillWalletFilter !== 'all') && (
+                      <button onClick={() => { setDrillSearch(''); setDrillStatusFilter(new Set()); setDrillStateFilter(new Set()); setDrillWalletFilter('all'); }} className={`px-2 py-1 rounded-md text-[10px] font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>✕ Reset</button>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="overflow-auto flex-1">
                 {drillLoading || !drillRows ? (
                   <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading orders…</div>
                 ) : drillRows.length === 0 ? (
                   <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No orders in this slice</div>
-                ) : (
+                ) : (() => {
+                  // Apply filters
+                  const q = drillSearch.trim().toLowerCase();
+                  const filtered = drillRows.filter((r) => {
+                    if (drillStatusFilter.size > 0 && !drillStatusFilter.has(r.status)) return false;
+                    if (drillStateFilter.size > 0 && !drillStateFilter.has(r.buyerState ?? '')) return false;
+                    if (drillWalletFilter === 'with'    && !(r.appliedWalletAmount > 0)) return false;
+                    if (drillWalletFilter === 'without' &&  (r.appliedWalletAmount > 0)) return false;
+                    if (!q) return true;
+                    return [r.poNumber, r.buyerBusiness, r.sellerBusiness, r.buyerCity, r.buyerState, r.buyerPhone, r.sellerPhone, ...r.items.map((it) => it.label)]
+                      .filter(Boolean)
+                      .some((v) => v!.toLowerCase().includes(q));
+                  });
+                  const totalFiltered = filtered.length;
+                  const pages = Math.max(1, Math.ceil(totalFiltered / drillSize));
+                  const page  = Math.min(drillPage, pages);
+                  const paged = filtered.slice((page - 1) * drillSize, page * drillSize);
+
+                  if (totalFiltered === 0) {
+                    return <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No orders match this filter</div>;
+                  }
+
+                  return (
+                  <>
                   <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 1500 }}>
                     <thead className={`sticky top-0 z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
                       <tr>
@@ -3782,7 +4022,7 @@ export default function BrandPerformanceDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {drillRows.map((r, idx) => {
+                      {paged.map((r, idx) => {
                         const sc = statusColor[r.status] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
                         const d = new Date(r.pendingAt);
                         const isOpen = drillExpanded.has(r.poId);
@@ -3885,10 +4125,271 @@ export default function BrandPerformanceDashboard() {
                       })}
                     </tbody>
                   </table>
-                )}
+                  {/* Pagination footer */}
+                  <div className={`px-6 py-2 border-t flex items-center justify-between gap-3 text-xs flex-wrap ${t.isDark ? 'border-white/10 bg-white/5 text-purple-200' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                    <div>Showing <span className={t.isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'}>{((page - 1) * drillSize + 1).toLocaleString('en-IN')}–{Math.min(page * drillSize, totalFiltered).toLocaleString('en-IN')}</span> of {totalFiltered.toLocaleString('en-IN')} filtered orders{drillRows.length !== totalFiltered ? ` (from ${drillRows.length.toLocaleString('en-IN')} total)` : ''}</div>
+                    <div className="flex items-center gap-2">
+                      <span>Rows / page</span>
+                      <select value={drillSize} onChange={(e) => setDrillSize(parseInt(e.target.value))} className={`px-2 py-1 rounded ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>
+                        {[25, 50, 100, 200, 300].map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <button onClick={() => setDrillPage(1)} disabled={page === 1} className={`px-2 py-1 rounded font-bold ${page === 1 ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>«</button>
+                      <button onClick={() => setDrillPage((p) => Math.max(1, p - 1))} disabled={page === 1} className={`px-2 py-1 rounded font-bold ${page === 1 ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>‹</button>
+                      <span className={t.isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'}>{page} / {pages}</span>
+                      <button onClick={() => setDrillPage((p) => Math.min(pages, p + 1))} disabled={page === pages} className={`px-2 py-1 rounded font-bold ${page === pages ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>›</button>
+                      <button onClick={() => setDrillPage(pages)} disabled={page === pages} className={`px-2 py-1 rounded font-bold ${page === pages ? 'opacity-40' : ''} ${t.isDark ? 'bg-white/10 border border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>»</button>
+                    </div>
+                  </div>
+                  </>
+                  );
+                })()}
               </div>
               {drillTruncated && (
                 <div className={t.footnote}>showing latest 300 orders · narrow the date range to see more</div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {mbsDrill && (() => {
+        const metricLabel = mbsDrill.metric === 'amount' ? '₹ Value' : mbsDrill.metric === 'buyers' ? 'Buyers' : 'Orders';
+        const monthLabel = mbsDrill.month != null ? String(MONTH_NAMES[mbsDrill.month - 1] || mbsDrill.month) : null;
+        const dsLabel = mbsDrill.deliveryStatus === undefined
+          ? null
+          : (mbsDrill.deliveryStatus ?? '(no delivery status)');
+        const brandLabel = mbsBrands.size === 0
+          ? null
+          : mbsBrands.size === 1
+            ? Array.from(mbsBrands)[0]
+            : `${mbsBrands.size} brands`;
+        // Sub-status options (only present in current mbsData) for in-modal switching
+        const dsOptions: Array<string | null> =
+          mbsData?.data.find((r) => r.status === mbsDrill.status)?.deliveryStatuses.map((d) => d.deliveryStatus) ?? [];
+        const monthOptions = mbsData?.months ?? [];
+        const statusOptions = mbsData?.data.map((r) => r.status) ?? [];
+        const statusColor: Record<string, { bg: string; text: string }> = t.isDark
+          ? { DELIVERED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, COMPLETED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, DISPATCHED: { bg: 'bg-sky-500/15', text: 'text-sky-300' }, PENDING: { bg: 'bg-sky-500/15', text: 'text-sky-300' }, ACCEPTED: { bg: 'bg-violet-500/15', text: 'text-violet-300' }, INVOICED: { bg: 'bg-fuchsia-500/15', text: 'text-fuchsia-300' }, REJECTED: { bg: 'bg-rose-500/15', text: 'text-rose-300' }, CANCELLED: { bg: 'bg-amber-500/15', text: 'text-amber-300' }, INPROGRESS: { bg: 'bg-slate-500/15', text: 'text-slate-200' } }
+          : { DELIVERED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, COMPLETED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, DISPATCHED: { bg: 'bg-sky-100', text: 'text-sky-700' }, PENDING: { bg: 'bg-sky-100', text: 'text-sky-700' }, ACCEPTED: { bg: 'bg-violet-100', text: 'text-violet-700' }, INVOICED: { bg: 'bg-fuchsia-100', text: 'text-fuchsia-700' }, REJECTED: { bg: 'bg-rose-100', text: 'text-rose-700' }, CANCELLED: { bg: 'bg-amber-100', text: 'text-amber-700' }, INPROGRESS: { bg: 'bg-slate-100', text: 'text-slate-700' } };
+        const chip = (label: string, value: string, onRemove: (() => void) | null, accent: 'fuchsia' | 'sky' | 'emerald' | 'amber') => {
+          const accentCls = {
+            fuchsia: t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border-purple-200',
+            sky:     t.isDark ? 'bg-sky-500/15 text-sky-200 border-sky-400/30'             : 'bg-sky-50 text-sky-700 border-sky-200',
+            emerald: t.isDark ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            amber:   t.isDark ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'       : 'bg-amber-50 text-amber-700 border-amber-200',
+          }[accent];
+          return (
+            <span key={label} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border ${accentCls}`}>
+              <span className={`text-[9px] uppercase tracking-wider opacity-70`}>{label}</span>
+              <span>{value}</span>
+              {onRemove && (
+                <button type="button" onClick={onRemove} title={`Remove ${label} filter`} className={`ml-0.5 -mr-0.5 px-1 leading-none rounded hover:bg-black/10 ${t.isDark ? 'hover:bg-white/10' : ''}`}>×</button>
+              )}
+            </span>
+          );
+        };
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={closeMbsDrill}>
+            <div className={`absolute inset-0 ${t.isDark ? 'bg-slate-950/80' : 'bg-slate-900/60'} backdrop-blur-sm`} />
+            <div onClick={(e) => e.stopPropagation()} className={`relative z-10 w-[min(98vw,1600px)] max-h-[92vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl ${t.isDark ? 'bg-slate-950 border border-fuchsia-400/30' : 'bg-white border border-slate-200'}`}>
+              <div className={`absolute inset-x-0 top-0 h-px ${t.isDark ? 'bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent' : 'bg-gradient-to-r from-purple-500 via-fuchsia-500 to-indigo-500'}`} />
+
+              {/* Header */}
+              <div className={`px-6 py-4 flex items-start justify-between gap-4 border-b ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={t.sectionTag('details')}>DRILL · {metricLabel.toUpperCase()}</span>
+                    <h3 className={`text-base font-bold truncate ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Order details</h3>
+                  </div>
+                  {mbsDrillSummary && (
+                    <div className={`text-[11px] mt-1 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                      {mbsDrillSummary.orders.toLocaleString('en-IN')} orders · {formatAmount(mbsDrillSummary.orderAmount)} GMV · {mbsDrillSummary.buyers.toLocaleString('en-IN')} unique buyers
+                    </div>
+                  )}
+                </div>
+                <button onClick={closeMbsDrill} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>✕ Close</button>
+              </div>
+
+              {/* Active filters (removable) + quick switchers */}
+              <div className={`px-6 py-3 border-b flex flex-wrap items-center gap-2 ${t.isDark ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-100'}`}>
+                <span className={`text-[10px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>Filters</span>
+                {chip('Status', mbsDrill.status, null, 'fuchsia')}
+                {dsLabel !== null && chip('Delivery', dsLabel, () => setMbsDrill({ ...mbsDrill, deliveryStatus: undefined }), 'emerald')}
+                {monthLabel && chip('Month', monthLabel, () => setMbsDrill({ ...mbsDrill, month: null }), 'sky')}
+                {brandLabel && chip('Brand', brandLabel, () => setMbsBrands(new Set()), 'amber')}
+                {dsLabel === null && monthLabel === null && !brandLabel && (
+                  <span className={`text-[11px] italic ${t.isDark ? 'text-purple-300/50' : 'text-slate-400'}`}>showing every {mbsDrill.status} order in scope</span>
+                )}
+              </div>
+
+              {/* Quick slice switchers — only when there's more than one option */}
+              {(monthOptions.length > 1 || dsOptions.length > 1 || statusOptions.length > 1) && (
+                <div className={`px-6 py-2 border-b flex flex-col gap-2 ${t.isDark ? 'bg-slate-900/20 border-white/5' : 'bg-slate-50/60 border-slate-100'}`}>
+                  {statusOptions.length > 1 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[10px] uppercase tracking-wider font-semibold w-16 shrink-0 ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>Status</span>
+                      {statusOptions.map((s) => {
+                        const active = mbsDrill.status === s;
+                        const sc = statusColor[s] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
+                        return (
+                          <button key={s} type="button" onClick={() => setMbsDrill({ ...mbsDrill, status: s, deliveryStatus: undefined })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${active ? `${sc.bg} ${sc.text} ${t.isDark ? 'border-fuchsia-400/60 ring-1 ring-fuchsia-400/50' : 'border-purple-400 ring-1 ring-purple-300'}` : `${t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}`}>
+                            {s}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {monthOptions.length > 1 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[10px] uppercase tracking-wider font-semibold w-16 shrink-0 ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>Month</span>
+                      <button type="button" onClick={() => setMbsDrill({ ...mbsDrill, month: null })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${mbsDrill.month == null ? (t.isDark ? 'bg-sky-500/20 text-sky-200 border-sky-400/50 ring-1 ring-sky-400/40' : 'bg-sky-100 text-sky-700 border-sky-300 ring-1 ring-sky-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>All</button>
+                      {monthOptions.map((m) => {
+                        const active = mbsDrill.month === m;
+                        return (
+                          <button key={m} type="button" onClick={() => setMbsDrill({ ...mbsDrill, month: m })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${active ? (t.isDark ? 'bg-sky-500/20 text-sky-200 border-sky-400/50 ring-1 ring-sky-400/40' : 'bg-sky-100 text-sky-700 border-sky-300 ring-1 ring-sky-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>
+                            {MONTH_NAMES[m - 1] || m}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {dsOptions.length > 1 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[10px] uppercase tracking-wider font-semibold w-16 shrink-0 ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>Delivery</span>
+                      <button type="button" onClick={() => setMbsDrill({ ...mbsDrill, deliveryStatus: undefined })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${mbsDrill.deliveryStatus === undefined ? (t.isDark ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/50 ring-1 ring-emerald-400/40' : 'bg-emerald-100 text-emerald-700 border-emerald-300 ring-1 ring-emerald-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>All</button>
+                      {dsOptions.map((ds, i) => {
+                        const active = mbsDrill.deliveryStatus === ds;
+                        const label = ds ?? '(none)';
+                        return (
+                          <button key={`${label}_${i}`} type="button" onClick={() => setMbsDrill({ ...mbsDrill, deliveryStatus: ds })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${active ? (t.isDark ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/50 ring-1 ring-emerald-400/40' : 'bg-emerald-100 text-emerald-700 border-emerald-300 ring-1 ring-emerald-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Orders table */}
+              <div className="overflow-auto flex-1">
+                {mbsDrillLoading || !mbsDrillRows ? (
+                  <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading orders…</div>
+                ) : mbsDrillRows.length === 0 ? (
+                  <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No orders in this slice</div>
+                ) : (
+                  <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 1500 }}>
+                    <thead className={`sticky top-0 z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                      <tr>
+                        <th className={`${t.deliveryHeader} text-center w-6`}></th>
+                        <th className={`${t.deliveryHeader} text-left`}>PO #</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Status</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Delivery</th>
+                        <th className={`${t.deliveryHeader} text-right`}>PO ₹</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Marked pending</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Buyer</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Buyer phone</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Seller</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Seller phone</th>
+                        <th className={`${t.deliveryHeader} text-right`}>Wallet ₹</th>
+                        <th className={`${t.deliveryHeader} text-right`}>Units</th>
+                        <th className={`${t.deliveryHeader} text-right`}>Items</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mbsDrillRows.map((r, idx) => {
+                        const sc = statusColor[r.status] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
+                        const d = new Date(r.pendingAt);
+                        const isOpen = mbsDrillExpanded.has(r.poId);
+                        return (
+                          <Fragment key={r.poId}>
+                            <tr
+                              onClick={() => toggleMbsDrillRow(r.poId)}
+                              className={`cursor-pointer ${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover} ${isOpen ? (t.isDark ? 'bg-fuchsia-500/10' : 'bg-purple-50') : ''}`}
+                            >
+                              <td className={t.dataCell.replace('py-3', 'py-1.5').replace('text-right', 'text-center')}>
+                                <span className={`text-[11px] ${t.isDark ? 'text-purple-300' : 'text-slate-400'}`}>{r.items.length > 0 ? (isOpen ? '▾' : '▸') : ''}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-extrabold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>#{r.poNumber}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${sc.bg} ${sc.text} ${t.isDark ? 'border-white/15' : 'border-slate-200'}`}>{r.status}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-[10px] font-semibold ${t.isDark ? 'text-purple-200' : 'text-slate-600'}`}>{r.deliveryStatus ?? '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(r.orderAmount)}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <div className={`text-xs ${t.isDark ? 'text-white' : 'text-slate-800'}`}>{d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</div>
+                                <div className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <div className={`text-xs font-semibold max-w-[200px] truncate ${t.isDark ? 'text-white' : 'text-slate-800'}`} title={r.buyerBusiness ?? ''}>{r.buyerBusiness ?? '—'}</div>
+                                <div className={`text-[10px] truncate ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}</div>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{r.buyerPhone ?? '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-semibold max-w-[200px] truncate inline-block ${t.isDark ? 'text-white' : 'text-slate-800'}`} title={r.sellerBusiness ?? ''}>{r.sellerBusiness ?? '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{r.sellerPhone ?? '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-extrabold tabular-nums ${r.appliedWalletAmount > 0 ? (t.isDark ? 'text-amber-200' : 'text-amber-700') : (t.isDark ? 'text-white/40' : 'text-slate-400')}`}>{r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{r.qty.toLocaleString('en-IN')}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
+                                  {r.items.length === 0 ? '0' : isOpen ? 'Hide' : `${r.items.length} item${r.items.length === 1 ? '' : 's'}`}
+                                </span>
+                              </td>
+                            </tr>
+                            {isOpen && r.items.length > 0 && (
+                              <tr className={`${t.isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
+                                <td colSpan={13} className={`${t.isDark ? 'border-b border-fuchsia-400/20' : 'border-b border-purple-200'} px-6 py-3`}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className={`text-[9px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/60' : 'text-slate-500'}`}>All items ({r.items.length})</div>
+                                    <div className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>Σ {r.qty.toLocaleString('en-IN')} units · {formatAmount(r.itemAmount)}</div>
+                                  </div>
+                                  <table className="w-full text-[11px]">
+                                    <thead>
+                                      <tr className={t.isDark ? 'text-purple-300/70' : 'text-slate-500'}>
+                                        <th className="text-left font-semibold py-1">Item</th>
+                                        <th className="text-right font-semibold py-1 w-24">Unit ₹</th>
+                                        <th className="text-right font-semibold py-1 w-20">Qty</th>
+                                        <th className="text-right font-semibold py-1 w-28">₹</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {r.items.map((it, i) => (
+                                        <tr key={i} className={`${t.isDark ? 'border-t border-white/5 hover:bg-white/5' : 'border-t border-slate-200 hover:bg-white'}`}>
+                                          <td className={`py-1 truncate ${t.isDark ? 'text-white/90' : 'text-slate-800'}`} title={it.label ?? ''}>{it.label ?? '(unnamed)'}</td>
+                                          <td className={`py-1 text-right tabular-nums font-semibold ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`}>{it.unitPrice != null ? `₹${it.unitPrice}` : '—'}</td>
+                                          <td className={`py-1 text-right tabular-nums font-bold ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>×{it.qty.toLocaleString('en-IN')}</td>
+                                          <td className={`py-1 text-right tabular-nums font-extrabold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(it.amount)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              {mbsDrillTruncated && (
+                <div className={t.footnote}>showing latest 300 orders · narrow the slice (status / delivery / month / brand) to see more</div>
               )}
             </div>
           </div>

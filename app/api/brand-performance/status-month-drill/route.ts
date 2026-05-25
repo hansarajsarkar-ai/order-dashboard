@@ -34,14 +34,10 @@ export async function GET(req: NextRequest) {
   const startDate = searchParams.get('startDate');
   const endDate   = searchParams.get('endDate');
   const brand     = searchParams.get('brand');             // comma-separated seller prefixes (multi-select)
-  const status    = searchParams.get('status');            // required — order status (REJECTED, COMPLETED, …)
+  const status    = searchParams.get('status');            // optional — order status (REJECTED, COMPLETED, …). When omitted, every non-DRAFT status is included (used for footer-total drill).
   const delivery  = searchParams.get('deliveryStatus');   // optional — '__NULL__' for null, otherwise exact match
   const monthStr  = searchParams.get('month');             // optional 1-12
   const limit     = Math.min(Math.max(parseInt(searchParams.get('limit') || '300'), 1), 1000);
-
-  if (!status) {
-    return NextResponse.json({ error: 'status is required' }, { status: 400 });
-  }
 
   try {
     const params: (string | number)[] = [];
@@ -66,8 +62,11 @@ export async function GET(req: NextRequest) {
       brandFilter = ` AND TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) = ANY(string_to_array($${params.length}, ','))`;
     }
 
-    params.push(status);
-    const statusFilter = ` AND po."status" = $${params.length}`;
+    let statusFilter = ` AND po."status" != 'DRAFT'`;
+    if (status) {
+      params.push(status);
+      statusFilter = ` AND po."status" = $${params.length}`;
+    }
 
     let deliveryFilter = '';
     if (delivery !== null) {

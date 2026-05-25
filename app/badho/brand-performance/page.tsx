@@ -457,6 +457,7 @@ export default function BrandPerformanceDashboard() {
   const [mbsDrillLoading, setMbsDrillLoading] = useState(false);
   const [mbsDrillTruncated, setMbsDrillTruncated] = useState(false);
   const [mbsDrillExpanded, setMbsDrillExpanded] = useState<Set<string>>(new Set());
+  const [mbsDrillSearch, setMbsDrillSearch] = useState('');
 
   // Drill-down modal for Product × Month table (Product wise tab). Fires on any
   // cell click (orders / ₹ value / buyers). Reuses /brand-product-drill API.
@@ -474,6 +475,7 @@ export default function BrandPerformanceDashboard() {
   const [productDrillLoading, setProductDrillLoading] = useState(false);
   const [productDrillTruncated, setProductDrillTruncated] = useState(false);
   const [productDrillExpanded, setProductDrillExpanded] = useState<Set<string>>(new Set());
+  const [productDrillSearch, setProductDrillSearch] = useState('');
 
   // Chart & Trend tab
   interface TrendPoint {
@@ -769,12 +771,14 @@ export default function BrandPerformanceDashboard() {
     setMbsDrillRows(null);
     setMbsDrillSummary(null);
     setMbsDrillExpanded(new Set());
+    setMbsDrillSearch('');
   };
   const closeMbsDrill = () => {
     setMbsDrill(null);
     setMbsDrillRows(null);
     setMbsDrillSummary(null);
     setMbsDrillExpanded(new Set());
+    setMbsDrillSearch('');
   };
   const toggleMbsDrillRow = (poId: string) => setMbsDrillExpanded((prev) => { const n = new Set(prev); if (n.has(poId)) n.delete(poId); else n.add(poId); return n; });
 
@@ -783,12 +787,14 @@ export default function BrandPerformanceDashboard() {
     setProductDrillRows(null);
     setProductDrillSummary(null);
     setProductDrillExpanded(new Set());
+    setProductDrillSearch('');
   };
   const closeProductDrill = () => {
     setProductDrill(null);
     setProductDrillRows(null);
     setProductDrillSummary(null);
     setProductDrillExpanded(new Set());
+    setProductDrillSearch('');
   };
   const toggleProductDrillRow = (poId: string) => setProductDrillExpanded((prev) => { const n = new Set(prev); if (n.has(poId)) n.delete(poId); else n.add(poId); return n; });
 
@@ -4398,9 +4404,54 @@ export default function BrandPerformanceDashboard() {
                   <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading orders…</div>
                 ) : mbsDrillRows.length === 0 ? (
                   <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No orders in this slice</div>
-                ) : (
+                ) : (() => {
+                  const q = mbsDrillSearch.trim().toLowerCase();
+                  const matches = (r: MbsDrillOrder) => {
+                    if (!q) return true;
+                    const hay = [
+                      r.poNumber,
+                      r.status,
+                      r.deliveryStatus ?? '',
+                      r.buyerBusiness ?? '',
+                      r.buyerPhone ?? '',
+                      r.buyerCity ?? '',
+                      r.buyerState ?? '',
+                      r.sellerBusiness ?? '',
+                      r.sellerPhone ?? '',
+                    ].join(' ').toLowerCase();
+                    return hay.includes(q);
+                  };
+                  const filteredRows = mbsDrillRows.filter(matches);
+                  return (
+                  <>
+                  <div className={`sticky top-0 z-20 px-6 py-2 border-b flex items-center gap-3 flex-wrap ${t.isDark ? 'bg-slate-950/95 backdrop-blur border-white/5' : 'bg-white/95 backdrop-blur border-slate-100'}`}>
+                    <div className={`relative flex-1 min-w-[280px] max-w-[520px]`}>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={mbsDrillSearch}
+                        onChange={(e) => setMbsDrillSearch(e.target.value)}
+                        placeholder="Search PO #, buyer / seller name or phone, city, state…"
+                        className={`w-full pl-7 pr-7 py-1.5 text-xs rounded-lg ${t.isDark ? 'bg-white/10 border border-white/15 text-white placeholder-purple-300/50 focus:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 placeholder-slate-400 focus:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-fuchsia-400/60`}
+                      />
+                      <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-[11px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>⌕</span>
+                      {mbsDrillSearch && (
+                        <button type="button" onClick={() => setMbsDrillSearch('')} className={`absolute right-1.5 top-1/2 -translate-y-1/2 px-1.5 leading-none text-[11px] font-bold rounded ${t.isDark ? 'text-purple-300/70 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}>×</button>
+                      )}
+                    </div>
+                    <span className={`text-[11px] font-semibold ${t.isDark ? 'text-purple-200/80' : 'text-slate-600'}`}>
+                      {q
+                        ? <><span className={t.isDark ? 'text-fuchsia-300' : 'text-purple-700'}>{filteredRows.length.toLocaleString('en-IN')}</span> of {mbsDrillRows.length.toLocaleString('en-IN')} matching</>
+                        : <>{mbsDrillRows.length.toLocaleString('en-IN')} order{mbsDrillRows.length === 1 ? '' : 's'}</>}
+                    </span>
+                  </div>
+                  {filteredRows.length === 0 ? (
+                    <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                      No orders match <span className="font-bold">{mbsDrillSearch}</span>
+                    </div>
+                  ) : (
                   <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 1500 }}>
-                    <thead className={`sticky top-0 z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                    <thead className={`sticky top-[44px] z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
                       <tr>
                         <th className={`${t.deliveryHeader} text-center w-6`}></th>
                         <th className={`${t.deliveryHeader} text-left`}>PO #</th>
@@ -4418,7 +4469,7 @@ export default function BrandPerformanceDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {mbsDrillRows.map((r, idx) => {
+                      {filteredRows.map((r, idx) => {
                         const sc = statusColor[r.status] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
                         const d = new Date(r.pendingAt);
                         const isOpen = mbsDrillExpanded.has(r.poId);
@@ -4507,7 +4558,10 @@ export default function BrandPerformanceDashboard() {
                       })}
                     </tbody>
                   </table>
-                )}
+                  )}
+                  </>
+                  );
+                })()}
               </div>
               {mbsDrillTruncated && (
                 <div className={t.footnote}>showing latest 300 orders · narrow the slice (status / delivery / month / brand) to see more</div>
@@ -4605,9 +4659,53 @@ export default function BrandPerformanceDashboard() {
                   <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading orders…</div>
                 ) : productDrillRows.length === 0 ? (
                   <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No orders in this slice</div>
-                ) : (
+                ) : (() => {
+                  const q = productDrillSearch.trim().toLowerCase();
+                  const matches = (r: DrillOrder) => {
+                    if (!q) return true;
+                    const hay = [
+                      r.poNumber,
+                      r.status,
+                      r.buyerBusiness ?? '',
+                      r.buyerPhone ?? '',
+                      r.buyerCity ?? '',
+                      r.buyerState ?? '',
+                      r.sellerBusiness ?? '',
+                      r.sellerPhone ?? '',
+                    ].join(' ').toLowerCase();
+                    return hay.includes(q);
+                  };
+                  const filteredRows = productDrillRows.filter(matches);
+                  return (
+                  <>
+                  <div className={`sticky top-0 z-20 px-6 py-2 border-b flex items-center gap-3 flex-wrap ${t.isDark ? 'bg-slate-950/95 backdrop-blur border-white/5' : 'bg-white/95 backdrop-blur border-slate-100'}`}>
+                    <div className="relative flex-1 min-w-[280px] max-w-[520px]">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={productDrillSearch}
+                        onChange={(e) => setProductDrillSearch(e.target.value)}
+                        placeholder="Search PO #, buyer / seller name or phone, city, state…"
+                        className={`w-full pl-7 pr-7 py-1.5 text-xs rounded-lg ${t.isDark ? 'bg-white/10 border border-white/15 text-white placeholder-purple-300/50 focus:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 placeholder-slate-400 focus:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-fuchsia-400/60`}
+                      />
+                      <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-[11px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>⌕</span>
+                      {productDrillSearch && (
+                        <button type="button" onClick={() => setProductDrillSearch('')} className={`absolute right-1.5 top-1/2 -translate-y-1/2 px-1.5 leading-none text-[11px] font-bold rounded ${t.isDark ? 'text-purple-300/70 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}>×</button>
+                      )}
+                    </div>
+                    <span className={`text-[11px] font-semibold ${t.isDark ? 'text-purple-200/80' : 'text-slate-600'}`}>
+                      {q
+                        ? <><span className={t.isDark ? 'text-fuchsia-300' : 'text-purple-700'}>{filteredRows.length.toLocaleString('en-IN')}</span> of {productDrillRows.length.toLocaleString('en-IN')} matching</>
+                        : <>{productDrillRows.length.toLocaleString('en-IN')} order{productDrillRows.length === 1 ? '' : 's'}</>}
+                    </span>
+                  </div>
+                  {filteredRows.length === 0 ? (
+                    <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                      No orders match <span className="font-bold">{productDrillSearch}</span>
+                    </div>
+                  ) : (
                   <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 1500 }}>
-                    <thead className={`sticky top-0 z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                    <thead className={`sticky top-[44px] z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
                       <tr>
                         <th className={`${t.deliveryHeader} text-center w-6`}></th>
                         <th className={`${t.deliveryHeader} text-left`}>PO #</th>
@@ -4625,7 +4723,7 @@ export default function BrandPerformanceDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {productDrillRows.map((r, idx) => {
+                      {filteredRows.map((r, idx) => {
                         const sc = statusColor[r.status] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
                         const d = new Date(r.pendingAt);
                         const isOpen = productDrillExpanded.has(r.poId);
@@ -4714,7 +4812,10 @@ export default function BrandPerformanceDashboard() {
                       })}
                     </tbody>
                   </table>
-                )}
+                  )}
+                  </>
+                  );
+                })()}
               </div>
               {productDrillTruncated && (
                 <div className={t.footnote}>showing latest 300 orders · narrow the slice (month / brand) to see more</div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -152,7 +152,21 @@ function stateToApiQuery(s: FilterState): string {
   return qs.toString();
 }
 
-export default function OrderPlaceDashboard() {
+export default function OrderPlaceDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+          <div className="text-purple-200 text-sm">Loading…</div>
+        </div>
+      }
+    >
+      <OrderPlaceDashboard />
+    </Suspense>
+  );
+}
+
+function OrderPlaceDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
 

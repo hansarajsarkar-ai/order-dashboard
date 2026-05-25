@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
         AND po."deliveryNetwork" = 'THIRD_PARTY'
         AND po."deliveryType"    = 'INTERCITY'
         AND po."status"          IN ('DELIVERED', 'COMPLETED')
+        AND poi."status"         != 'DRAFT'
         AND po."markedPendingTime" IS NOT NULL
         ${whereDate}
         ${brandFilter}

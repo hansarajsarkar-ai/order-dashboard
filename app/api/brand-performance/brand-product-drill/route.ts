@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
         FROM "purchaseOrder"."purchaseOrderItem" pi
         WHERE pi."purchaseOrderId" = po."id"
           AND pi."brandSKUId"::text = $${i}
+          AND pi."status" != 'DRAFT'
       )`;
     } else {
       params.push(drillBrand);
@@ -95,6 +96,7 @@ export async function GET(req: NextRequest) {
         JOIN "brands"."brandSKU"   bsx ON bsx."id" = pi."brandSKUId"
         LEFT JOIN "brands"."brand" bra ON bra."id" = bsx."brandId"
         WHERE pi."purchaseOrderId" = po."id"
+          AND pi."status" != 'DRAFT'
           AND (
             LOWER(COALESCE(bra."label", '')) = LOWER($${i})
             OR LOWER(TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1))) = LOWER($${i})
@@ -164,6 +166,7 @@ export async function GET(req: NextRequest) {
         AND po."deliveryNetwork" = 'THIRD_PARTY'
         AND po."deliveryType"    = 'INTERCITY'
         AND po."status"          IN ('DELIVERED', 'COMPLETED')
+        AND poi."status"         != 'DRAFT'
         AND po."markedPendingTime" IS NOT NULL
         ${whereDate}
         ${brandFilter}

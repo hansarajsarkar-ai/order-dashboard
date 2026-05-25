@@ -425,14 +425,6 @@ function OrderPlaceDashboard() {
               <input type="text" value={filters.seller} onChange={(e) => setF('seller', e.target.value)} placeholder="ChukDe" className={inputClass} />
             </div>
             <div>
-              <div className={labelClass}>Min amount (₹)</div>
-              <input type="number" inputMode="decimal" value={filters.minAmount} onChange={(e) => setF('minAmount', e.target.value)} placeholder="0" className={inputClass} />
-            </div>
-            <div>
-              <div className={labelClass}>Max amount (₹)</div>
-              <input type="number" inputMode="decimal" value={filters.maxAmount} onChange={(e) => setF('maxAmount', e.target.value)} placeholder="10000" className={inputClass} />
-            </div>
-            <div>
               <div className={labelClass}>Sort</div>
               <div className="flex gap-1.5">
                 <select value={filters.sortBy} onChange={(e) => setF('sortBy', e.target.value as SortBy)} className={`${inputClass} flex-1`}>

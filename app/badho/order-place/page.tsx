@@ -178,6 +178,7 @@ function OrderPlaceDashboard() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activePo, setActivePo] = useState<string | null>(null);
 
   // Initialize filters from URL once on mount and whenever URL changes via back/forward.
   useEffect(() => {
@@ -497,7 +498,19 @@ function OrderPlaceDashboard() {
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={`${r.poNumber ?? 'po'}-${i}`} className="border-t border-white/5 hover:bg-white/5">
-                    <td className="px-4 py-2.5 font-mono text-fuchsia-100 whitespace-nowrap">{r.poNumber ?? '—'}</td>
+                    <td className="px-4 py-2.5 font-mono whitespace-nowrap">
+                      {r.poNumber != null ? (
+                        <button
+                          onClick={() => setActivePo(String(r.poNumber))}
+                          className="text-fuchsia-100 hover:text-white hover:underline decoration-fuchsia-400/60 underline-offset-4 transition-colors"
+                          title="View items in this PO"
+                        >
+                          {r.poNumber}
+                        </button>
+                      ) : (
+                        <span className="text-fuchsia-100">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-white whitespace-nowrap">{formatAmount(r.amount)}</td>
                     <td className="px-4 py-2.5 text-center">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">
@@ -569,6 +582,198 @@ function OrderPlaceDashboard() {
       <style jsx>{`
         .animation-delay-2000 { animation-delay: 2s; }
       `}</style>
+
+      {activePo && <PoItemsModal poNumber={activePo} onClose={() => setActivePo(null)} />}
+    </div>
+  );
+}
+
+interface PoSummary {
+  poId: string;
+  poNumber: string | number | null;
+  amount: string | null;
+  status: string;
+  created_at: string;
+  buyerBusinessName: string | null;
+  buyerPhone: string | null;
+  sellerBusinessName: string | null;
+  sellerPhone: string | null;
+}
+
+interface PoItem {
+  itemId: string;
+  brandSKUId: string | null;
+  skuLabel: string | null;
+  brandLabel: string | null;
+  size: string | null;
+  quantity: string | null;
+  unitPrice: string | null;
+  amount: string | null;
+  status: string | null;
+}
+
+interface PoItemsResponse {
+  po: PoSummary;
+  items: PoItem[];
+  itemCount: number;
+  totalQuantity: number;
+  totalItemAmount: number;
+}
+
+function PoItemsModal({ poNumber, onClose }: { poNumber: string; onClose: () => void }) {
+  const [data, setData] = useState<PoItemsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setData(null);
+    fetch(`/api/order-place/po-items?poNumber=${encodeURIComponent(poNumber)}`, { cache: 'no-store' })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+        if (!cancelled) setData(json as PoItemsResponse);
+      })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [poNumber]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const po = data?.po;
+  const items = data?.items ?? [];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-h-[90vh] bg-gradient-to-br from-slate-900 via-purple-950/80 to-slate-900 border border-fuchsia-400/30 rounded-2xl shadow-[0_0_60px_rgba(217,70,239,0.25)] overflow-hidden flex flex-col"
+        style={{ maxWidth: '1100px' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-white/10 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-300/80">PO</span>
+              <span className="font-mono text-xl font-bold text-fuchsia-200">{poNumber}</span>
+              {po && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">
+                  {po.status}
+                </span>
+              )}
+            </div>
+            {po && (
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs text-purple-200/90">
+                <div>
+                  <span className="text-purple-400/70">Buyer:</span>{' '}
+                  <span className="text-white font-medium">{po.buyerBusinessName ?? '—'}</span>
+                  {po.buyerPhone && <span className="text-purple-300/70 tabular-nums"> · {po.buyerPhone}</span>}
+                </div>
+                <div>
+                  <span className="text-purple-400/70">Seller:</span>{' '}
+                  <span className="text-white font-medium">{po.sellerBusinessName ?? '—'}</span>
+                  {po.sellerPhone && <span className="text-purple-300/70 tabular-nums"> · {po.sellerPhone}</span>}
+                </div>
+                <div>
+                  <span className="text-purple-400/70">Created:</span>{' '}
+                  <span className="text-purple-100">{formatDate(po.created_at)}</span>
+                </div>
+                <div>
+                  <span className="text-purple-400/70">PO total:</span>{' '}
+                  <span className="text-white font-semibold tabular-nums">{formatAmount(po.amount)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="shrink-0 w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-200 hover:text-white text-lg leading-none flex items-center justify-center"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 min-h-0 overflow-auto">
+          {loading && (
+            <div className="px-6 py-12 text-center text-purple-300/70 text-sm">Loading items…</div>
+          )}
+          {error && !loading && (
+            <div className="px-6 py-6 text-rose-200 text-sm bg-rose-500/10 border-b border-rose-400/30">
+              Failed to load: {error}
+            </div>
+          )}
+          {!loading && !error && items.length === 0 && (
+            <div className="px-6 py-12 text-center text-purple-300/70 text-sm">
+              No items recorded against this PO.
+            </div>
+          )}
+          {!loading && !error && items.length > 0 && (
+            <table className="w-full text-sm">
+              <thead className="bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+                <tr className="text-purple-200 uppercase text-xs">
+                  <th className="px-4 py-3 text-left">#</th>
+                  <th className="px-4 py-3 text-left">Brand</th>
+                  <th className="px-4 py-3 text-left">SKU</th>
+                  <th className="px-4 py-3 text-left">Size</th>
+                  <th className="px-4 py-3 text-right">Qty</th>
+                  <th className="px-4 py-3 text-right">Unit Price</th>
+                  <th className="px-4 py-3 text-right">Amount</th>
+                  <th className="px-4 py-3 text-center">Item Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it, i) => (
+                  <tr key={it.itemId} className="border-t border-white/5 hover:bg-white/5">
+                    <td className="px-4 py-2.5 text-purple-300/70 tabular-nums">{i + 1}</td>
+                    <td className="px-4 py-2.5 text-purple-100">{it.brandLabel ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-white">{it.skuLabel ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-purple-200">{it.size ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-white">{it.quantity ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{formatAmount(it.unitPrice)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-white font-semibold">{formatAmount(it.amount)}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-purple-200 border border-white/10">
+                        {it.status ?? '—'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!loading && !error && data && items.length > 0 && (
+          <div className="px-6 py-3 border-t border-white/10 flex items-center justify-between gap-4 flex-wrap text-xs">
+            <div className="text-purple-200">
+              <span className="font-bold text-white">{data.itemCount}</span>
+              <span className="text-purple-300/70"> items · </span>
+              <span className="font-bold text-white">{data.totalQuantity.toLocaleString('en-IN')}</span>
+              <span className="text-purple-300/70"> qty · sum of line amounts </span>
+              <span className="font-bold text-white">{formatAmount(data.totalItemAmount)}</span>
+            </div>
+            <div className="text-purple-300/60">
+              PO total {formatAmount(data.po.amount)}
+              {Math.abs(Number(data.po.amount ?? 0) - data.totalItemAmount) > 0.5 && (
+                <span className="ml-2 text-amber-300">(differs from line sum)</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

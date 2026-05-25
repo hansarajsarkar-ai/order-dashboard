@@ -4208,6 +4208,7 @@ export default function OrderStatusDashboard() {
                           <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Coupon ₹</th>
                           <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Payment</th>
                           <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">COD ₹</th>
+                          <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Marked pending</th>
                           <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Reached hub</th>
                           <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Latest scan</th>
                           <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Stuck?</th>
@@ -4243,6 +4244,9 @@ export default function OrderStatusDashboard() {
                                 <td className="px-3 py-1.5 border-b border-white/5"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${r.paymentMode ? 'bg-sky-500/15 text-sky-200 border-sky-400/30' : 'bg-white/5 text-white/40 border-white/10'}`}>{r.paymentMode ?? '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className={`text-xs font-bold tabular-nums ${r.codCollect > 0 ? 'text-emerald-200' : 'text-white/40'}`}>{r.codCollect > 0 ? formatAmount(r.codCollect) : '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5">
+                                  <div className="text-[11px] font-semibold text-white whitespace-nowrap" title={r.orderDateTime ?? ''}>{r.orderDateTime ?? '—'}</div>
+                                </td>
+                                <td className="px-3 py-1.5 border-b border-white/5">
                                   <div className="text-[11px] font-semibold text-white truncate max-w-[200px]" title={r.reachedAtDestinationPlace ?? ''}>{r.reachedAtDestinationPlace ?? '—'}</div>
                                   <div className="text-[10px] text-purple-300/70">{r.reachedAtDestinationTime ?? '—'}</div>
                                 </td>
@@ -4274,7 +4278,7 @@ export default function OrderStatusDashboard() {
                               </tr>
                               {isOpen && (
                                 <tr className="bg-white/[0.02]">
-                                  <td colSpan={16} className="px-6 py-4 border-b border-fuchsia-400/20">
+                                  <td colSpan={17} className="px-6 py-4 border-b border-fuchsia-400/20">
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-3">
                                       <div>
                                         <div className="text-[9px] uppercase tracking-wider font-bold text-purple-300/60 mb-1">Order</div>

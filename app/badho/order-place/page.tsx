@@ -829,24 +829,28 @@ function PoItemsModal({
               )}
             </div>
             {po && (
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-lg text-purple-200/90">
-                <div>
-                  <span className="text-purple-400/70">Buyer:</span>{' '}
-                  <span className="text-white font-medium">{po.buyerBusinessName ?? '—'}</span>
-                  {po.buyerPhone && <span className="text-purple-300/70 tabular-nums"> · {po.buyerPhone}</span>}
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-xl text-purple-200/90">
+                <div className="group px-3 py-1.5 -mx-3 rounded-md border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
+                  <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">Buyer:</span>{' '}
+                  <span className="text-white font-medium group-hover:[text-shadow:0_0_10px_rgba(255,255,255,0.35)] transition-all">{po.buyerBusinessName ?? '—'}</span>
+                  {po.buyerPhone && (
+                    <span className="text-purple-300/70 tabular-nums group-hover:text-fuchsia-200 transition-colors"> · {po.buyerPhone}</span>
+                  )}
                 </div>
-                <div>
-                  <span className="text-purple-400/70">Seller:</span>{' '}
-                  <span className="text-white font-medium">{po.sellerBusinessName ?? '—'}</span>
-                  {po.sellerPhone && <span className="text-purple-300/70 tabular-nums"> · {po.sellerPhone}</span>}
+                <div className="group px-3 py-1.5 -mx-3 rounded-md border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
+                  <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">Seller:</span>{' '}
+                  <span className="text-white font-medium group-hover:[text-shadow:0_0_10px_rgba(255,255,255,0.35)] transition-all">{po.sellerBusinessName ?? '—'}</span>
+                  {po.sellerPhone && (
+                    <span className="text-purple-300/70 tabular-nums group-hover:text-fuchsia-200 transition-colors"> · {po.sellerPhone}</span>
+                  )}
                 </div>
-                <div>
-                  <span className="text-purple-400/70">Created:</span>{' '}
-                  <span className="text-purple-100">{formatDate(po.created_at)}</span>
+                <div className="group px-3 py-1.5 -mx-3 rounded-md border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
+                  <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">Created:</span>{' '}
+                  <span className="text-purple-100 group-hover:text-white transition-colors">{formatDate(po.created_at)}</span>
                 </div>
-                <div>
-                  <span className="text-purple-400/70">PO total:</span>{' '}
-                  <span className="text-white font-semibold tabular-nums">{formatAmount(po.amount)}</span>
+                <div className="group px-3 py-1.5 -mx-3 rounded-md border-l-2 border-transparent hover:border-emerald-400 hover:bg-emerald-500/10 transition-all duration-150 cursor-default">
+                  <span className="text-purple-400/70 group-hover:text-emerald-300 transition-colors">PO total:</span>{' '}
+                  <span className="text-white font-semibold tabular-nums group-hover:text-emerald-200 group-hover:[text-shadow:0_0_12px_rgba(110,231,183,0.5)] transition-all">{formatAmount(po.amount)}</span>
                 </div>
               </div>
             )}

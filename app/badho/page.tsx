@@ -99,6 +99,14 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '📞',
     status: 'live',
   },
+  {
+    slug: 'order-place',
+    title: 'Order Place Dashboard',
+    description:
+      'Order placement activity — orders placed by hour / day, placement source (app / web / agent), city and seller splits, and first-order vs repeat.',
+    icon: '🛒',
+    status: 'live',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

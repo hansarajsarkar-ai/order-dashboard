@@ -535,6 +535,60 @@ export default function OrderStatusDashboard() {
   const [rtoListRange, setRtoListRange] = useState<'year' | 'today' | '7d' | 'custom'>('year');
   const [rtoListCustomFrom, setRtoListCustomFrom] = useState('');
   const [rtoListCustomTo, setRtoListCustomTo] = useState('');
+
+  // Destination Hub Tracking (RTO sub-tab "hub") — Delhivery shipments that
+  // have reached the destination hub but haven't moved (or are stuck on
+  // attempts). Filters are entirely client-side for instant facets.
+  interface HubAttempt { time: string | null; remarks: string | null; }
+  interface HubRow {
+    orderDateTime: string | null;
+    itlDateTime: string | null;
+    reachedAtDestinationTime: string | null;
+    reachedAtDestinationPlace: string | null;
+    daysSinceReachedAtDestination: number | null;
+    latestScanTime: string | null;
+    latestScanPlace: string | null;
+    stillInDestinationHub: string | null;
+    poNumber: string;
+    poStatus: string;
+    orderValue: number;
+    couponValue: number;
+    paymentMode: string | null;
+    brandName: string | null;
+    shipmentStatus: string | null;
+    deliveryAttempt: number;
+    attempts: HubAttempt[];
+    awbNumber: string | null;
+    logisticName: string | null;
+    codCollect: number;
+    buyerName: string | null;
+    buyerBusinessName: string | null;
+    buyerPhone: string | null;
+    buyerFullAddress: string | null;
+    buyerLongitude: number | null;
+    buyerLatitude: number | null;
+  }
+  interface HubData {
+    data: HubRow[];
+    count: number;
+    facets: {
+      shipmentStatus: string[];
+      brand: string[];
+      paymentMode: string[];
+      logistic: string[];
+    };
+    timestamp: string;
+  }
+  const [hubData, setHubData] = useState<HubData | null>(null);
+  const [hubLoading, setHubLoading] = useState(false);
+  const [hubSearch, setHubSearch] = useState('');
+  const [hubShipmentFilter, setHubShipmentFilter] = useState<Set<string>>(new Set());
+  const [hubBrandFilter, setHubBrandFilter] = useState<Set<string>>(new Set());
+  const [hubStuckOnly, setHubStuckOnly] = useState(false);
+  const [hubMinDays, setHubMinDays] = useState<number | ''>('');
+  const [hubPage, setHubPage] = useState(1);
+  const [hubSize, setHubSize] = useState(50);
+  const [hubExpanded, setHubExpanded] = useState<Set<string>>(new Set());
   // Trend tab — daily order trend chart
   interface DailyTrendPoint { day: string; ordersCount: number; ordersAmount: number; deliveredCount: number; deliveredAmount: number; }
   const [trendData, setTrendData] = useState<DailyTrendPoint[] | null>(null);
@@ -937,6 +991,72 @@ export default function OrderStatusDashboard() {
   }, [activeTab, rtoSubTab, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
 
   useEffect(() => { setRtoListPage(1); }, [rtoListSearch, rtoListAttemptFilter, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
+
+  // ─── Destination Hub Tracking ────────────────────────────────────────
+  const fetchHub = async () => {
+    try {
+      setHubLoading(true);
+      const res = await fetch('/api/order-destination-hub');
+      if (!res.ok) throw new Error('Failed to fetch hub data');
+      const json: HubData = await res.json();
+      setHubData(json);
+    } catch (err) {
+      console.error('Hub fetch error:', err);
+      setHubData({ data: [], count: 0, facets: { shipmentStatus: [], brand: [], paymentMode: [], logistic: [] }, timestamp: new Date().toISOString() });
+    } finally {
+      setHubLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'rto' || rtoSubTab !== 'hub') return;
+    if (hubData) return; // already loaded
+    fetchHub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, rtoSubTab]);
+
+  useEffect(() => { setHubPage(1); }, [hubSearch, hubShipmentFilter, hubBrandFilter, hubStuckOnly, hubMinDays, hubSize]);
+
+  const filteredHubRows = (() => {
+    if (!hubData) return null;
+    const q = hubSearch.trim().toLowerCase();
+    let out = q
+      ? hubData.data.filter((r) =>
+          (r.poNumber || '').toLowerCase().includes(q) ||
+          (r.buyerName || '').toLowerCase().includes(q) ||
+          (r.buyerPhone || '').toLowerCase().includes(q) ||
+          (r.buyerBusinessName || '').toLowerCase().includes(q) ||
+          (r.buyerFullAddress || '').toLowerCase().includes(q) ||
+          (r.brandName || '').toLowerCase().includes(q) ||
+          (r.shipmentStatus || '').toLowerCase().includes(q) ||
+          (r.awbNumber || '').toLowerCase().includes(q) ||
+          (r.logisticName || '').toLowerCase().includes(q) ||
+          (r.latestScanPlace || '').toLowerCase().includes(q) ||
+          (r.reachedAtDestinationPlace || '').toLowerCase().includes(q) ||
+          (r.paymentMode || '').toLowerCase().includes(q)
+        )
+      : [...hubData.data];
+    if (hubShipmentFilter.size > 0) {
+      out = out.filter((r) => r.shipmentStatus && hubShipmentFilter.has(r.shipmentStatus));
+    }
+    if (hubBrandFilter.size > 0) {
+      out = out.filter((r) => r.brandName && hubBrandFilter.has(r.brandName));
+    }
+    if (hubStuckOnly) {
+      out = out.filter((r) => r.stillInDestinationHub === 'Yes');
+    }
+    if (hubMinDays !== '' && !Number.isNaN(Number(hubMinDays))) {
+      const min = Number(hubMinDays);
+      out = out.filter((r) => r.daysSinceReachedAtDestination != null && r.daysSinceReachedAtDestination >= min);
+    }
+    return out;
+  })();
+
+  const toggleHubExpanded = (poNumber: string) => setHubExpanded((prev) => {
+    const next = new Set(prev);
+    if (next.has(poNumber)) next.delete(poNumber); else next.add(poNumber);
+    return next;
+  });
 
   // Filtered + paged views of the RTO list
   // Always sorted by markedRejectedTime DESC (newest rejection first).
@@ -3915,23 +4035,300 @@ export default function OrderStatusDashboard() {
             </div>
             )}
 
-            {rtoSubTab === 'hub' && (
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-              <div className="px-8 py-6 border-b border-white/10 bg-white/5">
-                <h2 className="text-2xl font-bold text-white">Destination Hub Order Tracking</h2>
-                <p className="text-purple-300 text-sm mt-1">Track RTO orders by their destination hub</p>
-              </div>
-              <div className="px-8 py-16 text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-500/20 border border-purple-400/30 mb-4">
-                  <svg className="w-8 h-8 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
+            {rtoSubTab === 'hub' && (() => {
+              const totalRows = hubData?.data.length ?? 0;
+              const filtered = filteredHubRows ?? [];
+              const pageStart = (hubPage - 1) * hubSize;
+              const pageRows = filtered.slice(pageStart, pageStart + hubSize);
+              const totalPages = Math.max(1, Math.ceil(filtered.length / hubSize));
+              const stuckCount = hubData?.data.filter((r) => r.stillInDestinationHub === 'Yes').length ?? 0;
+              const totalCod = filtered.reduce((s, r) => s + (r.codCollect || 0), 0);
+              const totalGmv = filtered.reduce((s, r) => s + (r.orderValue || 0), 0);
+              const toggleSet = (s: Set<string>, v: string, setter: (n: Set<string>) => void) => {
+                const next = new Set(s);
+                if (next.has(v)) next.delete(v); else next.add(v);
+                setter(next);
+              };
+              return (
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+                <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Destination Hub Order Tracking</h2>
+                    <p className="text-purple-300 text-sm mt-1">Delhivery RTO / OFD / Reached-At-Destination shipments — spot orders stuck at the destination hub.</p>
+                  </div>
+                  {hubData && (
+                    <div className="flex items-center gap-6 text-sm flex-wrap">
+                      <div className="text-right">
+                        <div className="text-purple-300 text-xs uppercase tracking-wider">Total</div>
+                        <div className="text-white font-bold text-lg">{totalRows.toLocaleString('en-IN')}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-amber-300 text-xs uppercase tracking-wider">Stuck at hub</div>
+                        <div className="text-amber-200 font-bold text-lg">{stuckCount.toLocaleString('en-IN')}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-purple-300 text-xs uppercase tracking-wider">Filtered GMV</div>
+                        <div className="text-white font-bold text-lg">{formatAmount(totalGmv)}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-purple-300 text-xs uppercase tracking-wider">Filtered COD</div>
+                        <div className="text-white font-bold text-lg">{formatAmount(totalCod)}</div>
+                      </div>
+                      <button
+                        className={DOWNLOAD_BTN_CLASS}
+                        onClick={() => {
+                          const headers = [
+                            'Order Date & Time', 'ITL Date & Time',
+                            'Reached At Destination Time', 'Reached At Destination Place',
+                            'Days Since Reached At Destination',
+                            'Latest Scan Time', 'Latest Scan Place', 'Still In Destination Hub',
+                            'PO Number', 'PO Status', 'Order Value', 'Coupon Value', 'Payment Mode',
+                            'Brand Name', 'Shipment Status', 'Delivery Attempt',
+                            'Attempt 1 Time', 'Attempt 1 Remarks',
+                            'Attempt 2 Time', 'Attempt 2 Remarks',
+                            'Attempt 3 Time', 'Attempt 3 Remarks',
+                            'Attempt 4 Time', 'Attempt 4 Remarks',
+                            'Attempt 5 Time', 'Attempt 5 Remarks',
+                            'Attempt 6 Time', 'Attempt 6 Remarks',
+                            'AWB Number', 'Logistic Name', 'COD Collect',
+                            'Buyer Name', 'Buyer Business Name', 'Buyer Phone',
+                            'Buyer Full Address', 'Buyer Longitude', 'Buyer Latitude',
+                          ];
+                          const rows: CsvCell[][] = filtered.map((r) => [
+                            r.orderDateTime, r.itlDateTime,
+                            r.reachedAtDestinationTime, r.reachedAtDestinationPlace,
+                            r.daysSinceReachedAtDestination,
+                            r.latestScanTime, r.latestScanPlace, r.stillInDestinationHub,
+                            r.poNumber, r.poStatus, r.orderValue, r.couponValue, r.paymentMode,
+                            r.brandName, r.shipmentStatus, r.deliveryAttempt,
+                            r.attempts[0]?.time, r.attempts[0]?.remarks,
+                            r.attempts[1]?.time, r.attempts[1]?.remarks,
+                            r.attempts[2]?.time, r.attempts[2]?.remarks,
+                            r.attempts[3]?.time, r.attempts[3]?.remarks,
+                            r.attempts[4]?.time, r.attempts[4]?.remarks,
+                            r.attempts[5]?.time, r.attempts[5]?.remarks,
+                            r.awbNumber, r.logisticName, r.codCollect,
+                            r.buyerName, r.buyerBusinessName, r.buyerPhone,
+                            r.buyerFullAddress, r.buyerLongitude, r.buyerLatitude,
+                          ]);
+                          downloadCSV(`destination-hub-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+                        }}
+                      >
+                        ↓ CSV
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <p className="text-white/80 text-base font-semibold">Coming soon</p>
-                <p className="text-white/50 text-sm mt-2 max-w-md mx-auto">This panel will show RTO orders grouped by their destination hub once the data source is connected.</p>
+
+                {/* Filter bar */}
+                <div className="px-6 py-3 border-b border-white/10 bg-white/[0.02] flex flex-col gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="relative flex-1 min-w-[300px] max-w-[520px]">
+                      <input
+                        type="text"
+                        value={hubSearch}
+                        onChange={(e) => setHubSearch(e.target.value)}
+                        placeholder="Search PO #, AWB, buyer / phone, address, hub, brand, courier…"
+                        className="w-full pl-9 pr-9 py-2 text-sm rounded-lg bg-white/10 border border-white/15 text-white placeholder-purple-300/50 focus:bg-white/15 focus:border-fuchsia-400/50 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/30"
+                      />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-300/60">⌕</span>
+                      {hubSearch && (
+                        <button type="button" onClick={() => setHubSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-xs font-bold rounded text-purple-300/70 hover:text-white hover:bg-white/10">×</button>
+                      )}
+                    </div>
+                    <label className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border ${hubStuckOnly ? 'bg-amber-500/20 text-amber-200 border-amber-400/50' : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10'}`}>
+                      <input type="checkbox" checked={hubStuckOnly} onChange={(e) => setHubStuckOnly(e.target.checked)} className="accent-amber-400 w-3.5 h-3.5" />
+                      Stuck at hub only
+                    </label>
+                    <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-white/5 border border-white/10 text-purple-200">
+                      <span className="text-purple-300/70">Min days at hub</span>
+                      <input type="number" min={0} step={0.5} value={hubMinDays} onChange={(e) => setHubMinDays(e.target.value === '' ? '' : Number(e.target.value))} placeholder="—" className="w-16 px-1.5 py-0.5 rounded bg-white/10 border border-white/15 text-white text-xs text-right focus:outline-none focus:ring-1 focus:ring-fuchsia-400/40" />
+                    </div>
+                    <span className="ml-auto text-xs font-semibold text-purple-200/80">
+                      <span className="text-fuchsia-300">{filtered.length.toLocaleString('en-IN')}</span> of {totalRows.toLocaleString('en-IN')} matching
+                    </span>
+                  </div>
+
+                  {hubData && hubData.facets.shipmentStatus.length > 0 && (
+                    <div className="flex items-start gap-2 flex-wrap">
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-purple-300/70 mt-1.5 w-20 shrink-0">Shipment</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {hubData.facets.shipmentStatus.map((s) => {
+                          const active = hubShipmentFilter.has(s);
+                          return (
+                            <button key={s} onClick={() => toggleSet(hubShipmentFilter, s, setHubShipmentFilter)} className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${active ? 'bg-fuchsia-500/25 text-fuchsia-100 border-fuchsia-400/60 ring-1 ring-fuchsia-400/40' : 'bg-white/5 text-purple-200/80 border-white/10 hover:bg-white/10 hover:text-white'}`}>
+                              {s}
+                            </button>
+                          );
+                        })}
+                        {hubShipmentFilter.size > 0 && (
+                          <button onClick={() => setHubShipmentFilter(new Set())} className="px-2 py-1 rounded text-[10px] font-bold bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25">✕ Clear</button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {hubData && hubData.facets.brand.length > 0 && (
+                    <div className="flex items-start gap-2 flex-wrap">
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-purple-300/70 mt-1.5 w-20 shrink-0">Brand</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {hubData.facets.brand.map((b) => {
+                          const active = hubBrandFilter.has(b);
+                          return (
+                            <button key={b} onClick={() => toggleSet(hubBrandFilter, b, setHubBrandFilter)} className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${active ? 'bg-emerald-500/25 text-emerald-100 border-emerald-400/60 ring-1 ring-emerald-400/40' : 'bg-white/5 text-purple-200/80 border-white/10 hover:bg-white/10 hover:text-white'}`}>
+                              {b}
+                            </button>
+                          );
+                        })}
+                        {hubBrandFilter.size > 0 && (
+                          <button onClick={() => setHubBrandFilter(new Set())} className="px-2 py-1 rounded text-[10px] font-bold bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25">✕ Clear</button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Table */}
+                <div className="overflow-auto" style={{ maxHeight: '70vh' }}>
+                  {hubLoading || !hubData ? (
+                    <div className="px-8 py-16 text-center text-sm text-purple-300">Loading destination-hub shipments…</div>
+                  ) : filtered.length === 0 ? (
+                    <div className="px-8 py-16 text-center text-sm text-purple-300">
+                      No shipments match the current filters.
+                    </div>
+                  ) : (
+                    <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 1700 }}>
+                      <thead className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur">
+                        <tr>
+                          <th className="px-3 py-2 text-center w-6 border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider"></th>
+                          <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">PO #</th>
+                          <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Status</th>
+                          <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Brand</th>
+                          <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Shipment</th>
+                          <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Order ₹</th>
+                          <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">COD ₹</th>
+                          <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Reached hub</th>
+                          <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Latest scan</th>
+                          <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Stuck?</th>
+                          <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Attempts</th>
+                          <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Buyer</th>
+                          <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">AWB</th>
+                          <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Logistic</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pageRows.map((r, idx) => {
+                          const isOpen = hubExpanded.has(r.poNumber);
+                          const stuckYes = r.stillInDestinationHub === 'Yes';
+                          const daysClass = r.daysSinceReachedAtDestination == null
+                            ? 'text-purple-300/40'
+                            : r.daysSinceReachedAtDestination >= 5
+                              ? 'text-rose-300 font-extrabold'
+                              : r.daysSinceReachedAtDestination >= 2
+                                ? 'text-amber-200 font-bold'
+                                : 'text-emerald-300';
+                          return (
+                            <Fragment key={r.poNumber}>
+                              <tr onClick={() => toggleHubExpanded(r.poNumber)} className={`cursor-pointer ${idx % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'} hover:bg-white/10 transition-colors ${isOpen ? 'bg-fuchsia-500/10' : ''}`}>
+                                <td className="px-3 py-1.5 text-center border-b border-white/5">
+                                  <span className="text-[11px] text-purple-300">{isOpen ? '▾' : '▸'}</span>
+                                </td>
+                                <td className="px-3 py-1.5 border-b border-white/5"><span className="text-xs font-extrabold tabular-nums text-fuchsia-200">#{r.poNumber}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/15 bg-white/10 text-white">{r.poStatus}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5"><span className="text-xs font-semibold text-purple-100">{r.brandName ?? '—'}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-400/30 bg-amber-500/15 text-amber-200">{r.shipmentStatus ?? '—'}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className="text-xs font-extrabold tabular-nums text-white">{formatAmount(r.orderValue)}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className={`text-xs font-bold tabular-nums ${r.codCollect > 0 ? 'text-emerald-200' : 'text-white/40'}`}>{r.codCollect > 0 ? formatAmount(r.codCollect) : '—'}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5">
+                                  <div className="text-[11px] font-semibold text-white truncate max-w-[200px]" title={r.reachedAtDestinationPlace ?? ''}>{r.reachedAtDestinationPlace ?? '—'}</div>
+                                  <div className="text-[10px] text-purple-300/70">{r.reachedAtDestinationTime ?? '—'}</div>
+                                </td>
+                                <td className="px-3 py-1.5 border-b border-white/5">
+                                  <div className="text-[11px] font-semibold text-white truncate max-w-[200px]" title={r.latestScanPlace ?? ''}>{r.latestScanPlace ?? '—'}</div>
+                                  <div className="text-[10px] text-purple-300/70">{r.latestScanTime ?? '—'}</div>
+                                </td>
+                                <td className="px-3 py-1.5 border-b border-white/5 text-right">
+                                  {r.stillInDestinationHub == null ? (
+                                    <span className="text-[10px] text-purple-300/40">—</span>
+                                  ) : (
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${stuckYes ? 'bg-amber-500/20 text-amber-200 border-amber-400/40' : 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30'}`}>{r.stillInDestinationHub}</span>
+                                      {r.daysSinceReachedAtDestination != null && (
+                                        <span className={`text-[10px] tabular-nums ${daysClass}`}>{r.daysSinceReachedAtDestination.toFixed(2)}d</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-3 py-1.5 border-b border-white/5 text-right">
+                                  <span className={`text-xs font-extrabold tabular-nums ${r.deliveryAttempt >= 3 ? 'text-rose-200' : r.deliveryAttempt >= 1 ? 'text-amber-200' : 'text-purple-200/60'}`}>{r.deliveryAttempt}</span>
+                                </td>
+                                <td className="px-3 py-1.5 border-b border-white/5">
+                                  <div className="text-[11px] font-semibold text-white truncate max-w-[160px]" title={r.buyerBusinessName ?? r.buyerName ?? ''}>{r.buyerBusinessName ?? r.buyerName ?? '—'}</div>
+                                  <div className="text-[10px] text-sky-300/80 tabular-nums">{r.buyerPhone ?? '—'}</div>
+                                </td>
+                                <td className="px-3 py-1.5 border-b border-white/5"><span className="text-[11px] font-semibold tabular-nums text-sky-200">{r.awbNumber ?? '—'}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5"><span className="text-[10px] text-purple-200/80">{r.logisticName ?? '—'}</span></td>
+                              </tr>
+                              {isOpen && (
+                                <tr className="bg-white/[0.02]">
+                                  <td colSpan={14} className="px-6 py-4 border-b border-fuchsia-400/20">
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-3">
+                                      <div>
+                                        <div className="text-[9px] uppercase tracking-wider font-bold text-purple-300/60 mb-1">Order</div>
+                                        <div className="text-[11px] text-white">Marked pending: <span className="text-purple-200">{r.orderDateTime ?? '—'}</span></div>
+                                        <div className="text-[11px] text-white">ITL created: <span className="text-purple-200">{r.itlDateTime ?? '—'}</span></div>
+                                        <div className="text-[11px] text-white">Payment: <span className="text-purple-200">{r.paymentMode ?? '—'}</span></div>
+                                        <div className="text-[11px] text-white">Coupon: <span className="text-purple-200">{r.couponValue > 0 ? formatAmount(r.couponValue) : '—'}</span></div>
+                                      </div>
+                                      <div className="lg:col-span-2">
+                                        <div className="text-[9px] uppercase tracking-wider font-bold text-purple-300/60 mb-1">Buyer</div>
+                                        <div className="text-[11px] text-white">{r.buyerName ?? '—'} {r.buyerBusinessName ? <span className="text-purple-200">· {r.buyerBusinessName}</span> : null}</div>
+                                        <div className="text-[11px] text-purple-200">{r.buyerFullAddress ?? '—'}</div>
+                                        <div className="text-[10px] text-purple-300/70">{r.buyerLatitude != null && r.buyerLongitude != null ? `${r.buyerLatitude}, ${r.buyerLongitude}` : '—'}</div>
+                                      </div>
+                                    </div>
+                                    <div className="text-[9px] uppercase tracking-wider font-bold text-purple-300/60 mb-1">Delivery attempts ({r.deliveryAttempt})</div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                      {r.attempts.map((a, i) => (
+                                        a.time || a.remarks ? (
+                                          <div key={i} className="rounded-md border border-white/10 bg-white/5 px-2 py-1.5">
+                                            <div className="text-[9px] uppercase tracking-wider font-bold text-fuchsia-300/70">Attempt {i + 1}</div>
+                                            <div className="text-[10px] text-purple-200">{a.time ?? '—'}</div>
+                                            <div className="text-[11px] text-white truncate" title={a.remarks ?? ''}>{a.remarks ?? '—'}</div>
+                                          </div>
+                                        ) : null
+                                      ))}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* Pagination */}
+                {hubData && filtered.length > 0 && (
+                  <div className="px-6 py-3 border-t border-white/10 bg-white/[0.02] flex items-center justify-between flex-wrap gap-3 text-xs">
+                    <div className="text-purple-200/80">
+                      Showing <span className="text-white font-bold">{Math.min(pageStart + 1, filtered.length)}</span>–<span className="text-white font-bold">{Math.min(pageStart + hubSize, filtered.length)}</span> of <span className="text-white font-bold">{filtered.length.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-purple-300/70">Rows:</label>
+                      <select value={hubSize} onChange={(e) => setHubSize(Number(e.target.value))} className="bg-white/10 border border-white/15 text-white text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-fuchsia-400/40">
+                        {[25, 50, 100, 200].map((n) => <option key={n} value={n} className="bg-slate-900">{n}</option>)}
+                      </select>
+                      <button disabled={hubPage <= 1} onClick={() => setHubPage((p) => Math.max(1, p - 1))} className="px-2 py-1 rounded bg-white/5 border border-white/10 text-purple-200 disabled:opacity-30 hover:bg-white/10">‹ Prev</button>
+                      <span className="text-purple-200 tabular-nums">Page <span className="text-white font-bold">{hubPage}</span> / {totalPages}</span>
+                      <button disabled={hubPage >= totalPages} onClick={() => setHubPage((p) => Math.min(totalPages, p + 1))} className="px-2 py-1 rounded bg-white/5 border border-white/10 text-purple-200 disabled:opacity-30 hover:bg-white/10">Next ›</button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-            )}
+              );
+            })()}
           </div>
         )}
 

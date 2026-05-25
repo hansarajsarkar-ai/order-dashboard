@@ -746,6 +746,44 @@ function PoItemsModal({
     });
   };
 
+  // Bulk add — calls POST sequentially so each item's response updates the
+  // PO totals live (instead of one batch refresh at the end). Per-item
+  // failures are collected and shown together at the end; successful items
+  // are NOT rolled back.
+  const addProductsBulk = async (
+    list: Array<{ sku: SkuOption; quantity: number }>,
+    onItemDone?: (sku: SkuOption, ok: boolean) => void,
+  ) => {
+    if (list.length === 0) return;
+    setMutationError(null);
+    const failed: string[] = [];
+    for (let i = 0; i < list.length; i++) {
+      const { sku, quantity } = list[i];
+      setBusy(`bulk-add ${i + 1}/${list.length} — ${sku.skuLabel ?? sku.sellerBrandSKUId}`);
+      try {
+        const res = await fetch('/api/order-place/po-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ poNumber, sellerBrandSKUId: sku.sellerBrandSKUId, quantity }),
+          cache: 'no-store',
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+        setData(json as PoItemsResponse);
+        onChanged?.();
+        onItemDone?.(sku, true);
+      } catch (e) {
+        failed.push(`${sku.skuLabel ?? sku.sellerBrandSKUId}: ${e instanceof Error ? e.message : String(e)}`);
+        onItemDone?.(sku, false);
+      }
+    }
+    setBusy(null);
+    setQtyDraft({});
+    if (failed.length > 0) {
+      setMutationError(`${failed.length} of ${list.length} item(s) failed — ${failed.join(' · ')}`);
+    }
+  };
+
   const placeOrder = async () => {
     setBusy('place');
     setMutationError(null);
@@ -854,7 +892,7 @@ function PoItemsModal({
         )}
 
         {isDraft && showAdd && (
-          <AddProductPanel poNumber={poNumber} busy={busy} onAdd={addProduct} />
+          <AddProductPanel poNumber={poNumber} busy={busy} onAdd={addProduct} onAddBulk={addProductsBulk} />
         )}
 
         {/* Body */}
@@ -1013,16 +1051,25 @@ function AddProductPanel({
   poNumber,
   busy,
   onAdd,
+  onAddBulk,
 }: {
   poNumber: string;
   busy: string | null;
   onAdd: (sku: SkuOption, qty: number) => void;
+  onAddBulk: (
+    list: Array<{ sku: SkuOption; quantity: number }>,
+    onItemDone?: (sku: SkuOption, ok: boolean) => void,
+  ) => Promise<void> | void;
 }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<SkuOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [qtyById, setQtyById] = useState<Record<string, string>>({});
+  // Selection state — keyed by sellerBrandSKUId. Persists across search
+  // changes so the user can refine the list, tick boxes, refine again,
+  // then bulk-add at the end.
+  const [selected, setSelected] = useState<Record<string, true>>({});
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -1041,26 +1088,111 @@ function AddProductPanel({
     return () => clearTimeout(t);
   }, [poNumber, q]);
 
+  const visibleIds = results.map((s) => s.sellerBrandSKUId);
+  const selectedCount = Object.keys(selected).length;
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected[id]);
+  const someVisibleSelected = visibleIds.some((id) => selected[id]);
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (next[id]) delete next[id]; else next[id] = true;
+      return next;
+    });
+  };
+
+  const toggleAllVisible = () => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (allVisibleSelected) {
+        for (const id of visibleIds) delete next[id];
+      } else {
+        for (const id of visibleIds) next[id] = true;
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelected({});
+
+  const bulkAdd = async () => {
+    // Resolve the selected ids back to their full SkuOption + chosen qty.
+    // Use defaults for any item the user didn't override.
+    const ids = Object.keys(selected);
+    const byId = new Map(results.map((s) => [s.sellerBrandSKUId, s]));
+    const list = ids
+      .map((id) => {
+        const sku = byId.get(id);
+        if (!sku) return null;
+        const defaultQty = sku.slabMinQuantity ?? 1;
+        const qty = Number(qtyById[id] ?? String(defaultQty));
+        if (!Number.isInteger(qty) || qty < 1) return null;
+        return { sku, quantity: qty };
+      })
+      .filter((x): x is { sku: SkuOption; quantity: number } => x !== null);
+    if (list.length === 0) return;
+    await onAddBulk(list, (sku, ok) => {
+      if (ok) {
+        // Remove successfully-added items from the selection so the user
+        // sees progress and doesn't accidentally re-add them.
+        setSelected((prev) => {
+          const next = { ...prev };
+          delete next[sku.sellerBrandSKUId];
+          return next;
+        });
+      }
+    });
+  };
+
   return (
     <div className="px-6 py-3 border-b border-white/10 bg-white/[0.03]">
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
         <input
           type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search the seller's SKUs by brand or product…"
-          className="flex-1 px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder-purple-300/50 focus:bg-white/10 focus:border-fuchsia-400/50 focus:outline-none"
+          placeholder="Search SKUs by brand or product, or scroll the list…"
+          className="flex-1 min-w-[260px] px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder-purple-300/50 focus:bg-white/10 focus:border-fuchsia-400/50 focus:outline-none"
           autoFocus
         />
         {loading && <span className="text-[11px] text-purple-300/70">Searching…</span>}
+        <div className="flex items-center gap-2">
+          {selectedCount > 0 && (
+            <button
+              onClick={clearSelection}
+              disabled={busy !== null}
+              className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white/5 text-purple-200 border border-white/10 hover:bg-white/10 disabled:opacity-50"
+            >
+              Clear ({selectedCount})
+            </button>
+          )}
+          <button
+            onClick={bulkAdd}
+            disabled={busy !== null || selectedCount === 0}
+            className="px-3 py-1.5 rounded-md bg-fuchsia-500/30 hover:bg-fuchsia-500/50 border border-fuchsia-400/50 text-fuchsia-50 text-xs font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {busy && busy.startsWith('bulk-add') ? busy : `+ Add ${selectedCount || ''} selected`}
+          </button>
+        </div>
       </div>
       {error && (
         <div className="text-rose-200 text-xs mb-2">Failed to load SKUs: {error}</div>
       )}
-      <div className="max-h-[320px] overflow-auto rounded-lg border border-white/10">
+      <div className="max-h-[420px] overflow-auto rounded-lg border border-white/10">
         <table className="w-full text-sm">
           <thead className="bg-slate-900/80 sticky top-0 z-10">
             <tr className="text-purple-200 uppercase text-[10px]">
+              <th className="px-3 py-2 text-center w-8">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  ref={(el) => { if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected; }}
+                  onChange={toggleAllVisible}
+                  disabled={busy !== null || visibleIds.length === 0}
+                  className="accent-fuchsia-500 cursor-pointer disabled:cursor-not-allowed"
+                  title={allVisibleSelected ? 'Unselect all visible' : 'Select all visible'}
+                />
+              </th>
               <th className="px-3 py-2 text-left">Brand</th>
               <th className="px-3 py-2 text-left">SKU</th>
               <th className="px-3 py-2 text-left">Size</th>
@@ -1068,7 +1200,7 @@ function AddProductPanel({
               <th className="px-3 py-2 text-right">Unit (hint)</th>
               <th className="px-3 py-2 text-right">MRP</th>
               <th className="px-3 py-2 text-right">Qty</th>
-              <th className="px-3 py-2 text-center">Add</th>
+              <th className="px-3 py-2 text-center">Add now</th>
             </tr>
           </thead>
           <tbody>
@@ -1078,13 +1210,26 @@ function AddProductPanel({
               const defaultQty = s.slabMinQuantity ?? 1;
               const qty = qtyById[s.sellerBrandSKUId] ?? String(defaultQty);
               const adding = busy === `add-${s.sellerBrandSKUId}`;
+              const isSelected = !!selected[s.sellerBrandSKUId];
               const slabLabel = s.slabMinQuantity != null
                 ? (s.slabMaxQuantity != null
                     ? `${s.slabMinQuantity}–${s.slabMaxQuantity - 1}`
                     : `${s.slabMinQuantity}+`)
                 : '—';
               return (
-                <tr key={s.sellerBrandSKUId} className={`border-t border-white/5 hover:bg-white/5 ${adding ? 'opacity-50' : ''}`}>
+                <tr
+                  key={s.sellerBrandSKUId}
+                  className={`border-t border-white/5 hover:bg-white/5 ${adding ? 'opacity-50' : ''} ${isSelected ? 'bg-fuchsia-500/10' : ''}`}
+                >
+                  <td className="px-3 py-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleOne(s.sellerBrandSKUId)}
+                      disabled={busy !== null}
+                      className="accent-fuchsia-500 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                  </td>
                   <td className="px-3 py-2 text-purple-100">{s.brandLabel ?? '—'}</td>
                   <td className="px-3 py-2 text-white">{s.skuLabel ?? '—'}</td>
                   <td className="px-3 py-2 text-purple-200">{s.size ?? '—'}</td>
@@ -1110,6 +1255,7 @@ function AddProductPanel({
                       }}
                       disabled={busy !== null}
                       className="px-2.5 py-1 rounded-md bg-fuchsia-500/25 hover:bg-fuchsia-500/45 border border-fuchsia-400/40 text-fuchsia-100 text-[10px] font-bold uppercase disabled:opacity-50"
+                      title="Add this one item right now"
                     >
                       {adding ? '…' : s.alreadyInPo ? 'Add again' : 'Add'}
                     </button>
@@ -1118,7 +1264,7 @@ function AddProductPanel({
               );
             })}
             {!loading && results.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-6 text-center text-purple-300/60 text-xs">
+              <tr><td colSpan={9} className="px-3 py-6 text-center text-purple-300/60 text-xs">
                 {q ? `No SKUs match "${q}" for this seller.` : 'No SKUs found for this seller.'}
               </td></tr>
             )}
@@ -1126,7 +1272,7 @@ function AddProductPanel({
         </table>
       </div>
       <p className="text-[10px] text-purple-300/60 mt-2">
-        Note: Unit price shown is a hint — the actual price is computed by Badho&apos;s pricing engine on insert.
+        Tick rows and press <span className="text-fuchsia-300 font-semibold">Add N selected</span> to add many at once, or use <span className="text-fuchsia-300 font-semibold">Add</span> on a single row. PO total updates after each item. Unit price is a hint — Badho&apos;s pricing engine sets the actual value on insert.
       </p>
     </div>
   );

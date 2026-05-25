@@ -26,6 +26,7 @@ interface PoItemRow {
   skuLabel: string | null;
   brandLabel: string | null;
   size: string | null;
+  imageUrl: string | null;
   quantity: string | null;
   unitPrice: string | null;
   amount: string | null;
@@ -372,6 +373,19 @@ async function loadPoAndItems(poNumber: string) {
       bs."label"                                         AS "skuLabel",
       bra."label"                                        AS "brandLabel",
       (bs."brandSKUDataJSON" ->> 'size')                 AS "size",
+      -- Pick the first non-null product image. brandSKU.assets is a jsonb
+      -- with named slots (front/top/icon/…); we prefer the marketing-y views.
+      COALESCE(
+        NULLIF(bs."assets" ->> 'front',     ''),
+        NULLIF(bs."assets" ->> 'top',       ''),
+        NULLIF(bs."assets" ->> 'icon',      ''),
+        NULLIF(bs."assets" ->> 'top_left',  ''),
+        NULLIF(bs."assets" ->> 'top_right', ''),
+        NULLIF(bs."assets" ->> 'left',      ''),
+        NULLIF(bs."assets" ->> 'right',     ''),
+        NULLIF(bs."assets" ->> 'back',      ''),
+        NULLIF(bs."assets" ->> 'bottom',    '')
+      )                                                  AS "imageUrl",
       poi."quantity"::text                               AS "quantity",
       poi."unitPrice"::text                              AS "unitPrice",
       poi."amount"::text                                 AS "amount",

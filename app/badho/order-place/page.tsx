@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -586,6 +587,64 @@ function OrderPlaceDashboard() {
   );
 }
 
+// 40×40 product thumbnail. On hover, shows a 256px preview using a portal
+// so it isn't clipped by the modal body's overflow:auto. Position is
+// computed from the thumbnail's bounding rect and flips left/up to stay
+// on-screen near table edges.
+function ProductThumb({ src, alt }: { src: string | null; alt: string }) {
+  const ref = useRef<HTMLImageElement | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  if (!src) {
+    return (
+      <div className="w-10 h-10 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-purple-300/40 text-[10px]">
+        —
+      </div>
+    );
+  }
+
+  const PREVIEW = 272; // 256 image + 8 padding on each side
+  const onEnter = () => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = r.right + 8;
+    if (left + PREVIEW > vw - 8) left = r.left - PREVIEW - 8;
+    let top = r.top + r.height / 2 - PREVIEW / 2;
+    if (top < 8) top = 8;
+    if (top + PREVIEW > vh - 8) top = vh - PREVIEW - 8;
+    setPos({ top, left });
+  };
+  const onLeave = () => setPos(null);
+
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={ref}
+        src={src}
+        alt={alt}
+        onMouseEnter={onEnter}
+        onMouseLeave={onLeave}
+        className="w-10 h-10 rounded-md object-cover border border-white/10 bg-white/5 cursor-zoom-in"
+      />
+      {pos &&
+        createPortal(
+          <div
+            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+            className="pointer-events-none p-2 rounded-lg bg-slate-900/95 border border-white/15 shadow-2xl"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt={alt} className="w-64 h-64 object-contain rounded-md bg-white/5" />
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
 interface PoSummary {
   poId: string;
   poNumber: string | number | null;
@@ -606,6 +665,7 @@ interface PoItem {
   skuLabel: string | null;
   brandLabel: string | null;
   size: string | null;
+  imageUrl: string | null;
   quantity: string | null;
   unitPrice: string | null;
   amount: string | null;
@@ -936,6 +996,7 @@ function PoItemsModal({
               <thead className="bg-slate-900/80 backdrop-blur sticky top-0 z-10">
                 <tr className="text-purple-200 uppercase text-xs">
                   <th className="px-4 py-3 text-left">#</th>
+                  <th className="px-4 py-3 text-left">Image</th>
                   <th className="px-4 py-3 text-left">Brand</th>
                   <th className="px-4 py-3 text-left">SKU</th>
                   <th className="px-4 py-3 text-left">Size</th>
@@ -955,6 +1016,7 @@ function PoItemsModal({
                   return (
                     <tr key={it.itemId} className={`border-t border-white/5 hover:bg-white/5 ${rowBusy ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-2.5 text-purple-300/70 tabular-nums">{i + 1}</td>
+                      <td className="px-4 py-2.5"><ProductThumb src={it.imageUrl} alt={it.skuLabel ?? 'product'} /></td>
                       <td className="px-4 py-2.5 text-purple-100">{it.brandLabel ?? '—'}</td>
                       <td className="px-4 py-2.5 text-white">{it.skuLabel ?? '—'}</td>
                       <td className="px-4 py-2.5 text-purple-200">{it.size ?? '—'}</td>

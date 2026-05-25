@@ -133,6 +133,7 @@ export async function GET(req: NextRequest) {
         AND po."deliveryType"    = 'INTERCITY'
         AND po."status"          != 'DRAFT'
         AND (poi."status" IS NULL OR poi."status" != 'DRAFT')
+        AND (poi."comboBrandSKUPOItemId" IS NULL)
         AND po."markedPendingTime" IS NOT NULL
         ${whereDate}
         ${brandFilter}

@@ -1067,16 +1067,30 @@ function PoItemsModal({
             </div>
             <div className="flex items-center gap-2">
               {busy && <span className="text-[11px] text-fuchsia-300 animate-pulse">Saving…</span>}
-              {isDraft && (
-                <button
-                  onClick={() => setPlaceConfirm(true)}
-                  disabled={busy !== null || items.length === 0}
-                  className="px-4 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-400/40 text-emerald-100 text-xs font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  title={items.length === 0 ? 'Add at least one item before placing' : 'Place this PO as PENDING'}
-                >
-                  Place Order →
-                </button>
-              )}
+              {isDraft && (() => {
+                const ready = busy === null && items.length > 0;
+                return (
+                  <button
+                    onClick={() => setPlaceConfirm(true)}
+                    disabled={!ready}
+                    className={`place-order-cta group relative overflow-hidden rounded-xl px-6 py-2.5 text-sm font-extrabold uppercase tracking-wider text-white border border-emerald-300/60 shadow-lg shadow-emerald-500/30 transition-all duration-200
+                      ${ready
+                        ? 'bg-gradient-to-r from-emerald-500 via-green-400 to-emerald-500 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] hover:shadow-xl hover:shadow-emerald-400/50 active:scale-[0.98] is-ready'
+                        : 'bg-emerald-900/40 border-emerald-700/40 text-emerald-300/40 cursor-not-allowed shadow-none'}
+                    `}
+                    title={items.length === 0 ? 'Add at least one item before placing' : 'Place this PO as PENDING'}
+                  >
+                    {/* Shine sweep — moves left-to-right on hover only */}
+                    {ready && (
+                      <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                    )}
+                    <span className="relative inline-flex items-center gap-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
+                      <span>Place Order</span>
+                      <span className="text-base leading-none transition-transform group-hover:translate-x-1">→</span>
+                    </span>
+                  </button>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -1244,6 +1258,30 @@ function PoItemsModal({
           </div>
         </div>
       )}
+
+      {/* Local keyframes for the Place Order CTA. The glow-pulse runs only
+          while the button is .is-ready (i.e. items > 0 and idle) so the
+          page isn't noisy when nothing can be placed yet. */}
+      <style jsx>{`
+        .place-order-cta.is-ready {
+          animation: place-order-glow 2.4s ease-in-out infinite;
+        }
+        .place-order-cta.is-ready:hover {
+          animation-play-state: paused;
+        }
+        @keyframes place-order-glow {
+          0%, 100% {
+            box-shadow:
+              0 8px 18px -6px rgba(16, 185, 129, 0.45),
+              0 0 0 0 rgba(16, 185, 129, 0.55);
+          }
+          50% {
+            box-shadow:
+              0 10px 22px -4px rgba(16, 185, 129, 0.65),
+              0 0 0 8px rgba(16, 185, 129, 0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

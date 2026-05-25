@@ -819,17 +819,17 @@ function PoItemsModal({
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/10 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-300/80">PO</span>
-              <span className="font-mono text-xl font-bold text-fuchsia-200">{poNumber}</span>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-semibold uppercase tracking-wider text-purple-300/80">PO</span>
+              <span className="font-mono text-3xl font-bold text-fuchsia-200">{poNumber}</span>
               {po && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">
+                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">
                   {po.status}
                 </span>
               )}
             </div>
             {po && (
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs text-purple-200/90">
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1.5 text-base text-purple-200/90">
                 <div>
                   <span className="text-purple-400/70">Buyer:</span>{' '}
                   <span className="text-white font-medium">{po.buyerBusinessName ?? '—'}</span>

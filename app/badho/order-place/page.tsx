@@ -498,11 +498,11 @@ function OrderPlaceDashboard() {
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={`${r.poNumber ?? 'po'}-${i}`} className="border-t border-white/5 hover:bg-white/5">
-                    <td className="px-4 py-2.5 font-mono whitespace-nowrap">
+                    <td className="group px-4 py-2.5 font-mono whitespace-nowrap transition-colors duration-150 hover:bg-fuchsia-500/15">
                       {r.poNumber != null ? (
                         <button
                           onClick={() => setActivePo(String(r.poNumber))}
-                          className="text-fuchsia-100 hover:text-white hover:underline decoration-fuchsia-400/60 underline-offset-4 transition-colors"
+                          className="text-fuchsia-100 group-hover:text-fuchsia-400 hover:text-fuchsia-300 group-hover:[text-shadow:0_0_12px_rgba(232,121,249,0.55)] hover:underline decoration-fuchsia-400/80 underline-offset-4 transition-all duration-150"
                           title="View items in this PO"
                         >
                           {r.poNumber}

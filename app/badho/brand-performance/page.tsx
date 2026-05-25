@@ -447,6 +447,9 @@ export default function BrandPerformanceDashboard() {
     deliveryStatus: string | null | undefined; // undefined = no filter, null = literal NULL, string = exact match
     month: number | null;                       // null = all months
     metric: 'orders' | 'amount' | 'buyers';
+    // When set, overrides the global mbsBrands filter (used by Pivot row clicks to scope to a single brand).
+    // undefined = inherit global filter, '' = explicit all-brands (clears global filter for this drill).
+    brandOverride?: string;
   }
   const [mbsDrill, setMbsDrill] = useState<MbsDrillState | null>(null);
   const [mbsDrillRows, setMbsDrillRows] = useState<MbsDrillOrder[] | null>(null);
@@ -454,6 +457,23 @@ export default function BrandPerformanceDashboard() {
   const [mbsDrillLoading, setMbsDrillLoading] = useState(false);
   const [mbsDrillTruncated, setMbsDrillTruncated] = useState(false);
   const [mbsDrillExpanded, setMbsDrillExpanded] = useState<Set<string>>(new Set());
+
+  // Drill-down modal for Product × Month table (Product wise tab). Fires on any
+  // cell click (orders / ₹ value / buyers). Reuses /brand-product-drill API.
+  interface ProductDrillState {
+    skuId: string;
+    skuLabel: string;
+    brandName: string | null;
+    size: string | null;
+    month: number | null;
+    metric: 'orders' | 'amount' | 'buyers';
+  }
+  const [productDrill, setProductDrill] = useState<ProductDrillState | null>(null);
+  const [productDrillRows, setProductDrillRows] = useState<DrillOrder[] | null>(null);
+  const [productDrillSummary, setProductDrillSummary] = useState<{ orders: number; orderAmount: number; itemAmount: number; qty: number; buyers: number } | null>(null);
+  const [productDrillLoading, setProductDrillLoading] = useState(false);
+  const [productDrillTruncated, setProductDrillTruncated] = useState(false);
+  const [productDrillExpanded, setProductDrillExpanded] = useState<Set<string>>(new Set());
 
   // Chart & Trend tab
   interface TrendPoint {
@@ -758,6 +778,20 @@ export default function BrandPerformanceDashboard() {
   };
   const toggleMbsDrillRow = (poId: string) => setMbsDrillExpanded((prev) => { const n = new Set(prev); if (n.has(poId)) n.delete(poId); else n.add(poId); return n; });
 
+  const openProductDrill = (state: ProductDrillState) => {
+    setProductDrill(state);
+    setProductDrillRows(null);
+    setProductDrillSummary(null);
+    setProductDrillExpanded(new Set());
+  };
+  const closeProductDrill = () => {
+    setProductDrill(null);
+    setProductDrillRows(null);
+    setProductDrillSummary(null);
+    setProductDrillExpanded(new Set());
+  };
+  const toggleProductDrillRow = (poId: string) => setProductDrillExpanded((prev) => { const n = new Set(prev); if (n.has(poId)) n.delete(poId); else n.add(poId); return n; });
+
   useEffect(() => {
     if (!drill) return;
     let cancelled = false;
@@ -799,7 +833,12 @@ export default function BrandPerformanceDashboard() {
         const { startDate, endDate } = resolveRange();
         if (startDate) params.append('startDate', startDate);
         if (endDate)   params.append('endDate',   endDate);
-        if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+        // brandOverride wins over global filter; empty string explicitly means "all brands"
+        if (mbsDrill.brandOverride !== undefined) {
+          if (mbsDrill.brandOverride !== '') params.append('brand', mbsDrill.brandOverride);
+        } else if (mbsBrands.size > 0) {
+          params.append('brand', Array.from(mbsBrands).join(','));
+        }
         if (mbsDrill.deliveryStatus !== undefined) {
           params.append('deliveryStatus', mbsDrill.deliveryStatus ?? '__NULL__');
         }
@@ -822,6 +861,41 @@ export default function BrandPerformanceDashboard() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mbsDrill]);
+
+  useEffect(() => {
+    if (!productDrill) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setProductDrillLoading(true);
+        const params = new URLSearchParams({
+          year: String(currentYear),
+          drillBrand: productDrill.brandName ?? '',
+          drillSku: productDrill.skuId,
+        });
+        const { startDate, endDate } = resolveRange();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate)   params.append('endDate',   endDate);
+        if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+        if (productDrill.month != null) params.append('month', String(productDrill.month));
+        const res = await fetch(`/api/brand-performance/brand-product-drill?${params.toString()}`);
+        if (!res.ok) throw new Error('failed');
+        const json = await res.json();
+        if (cancelled) return;
+        setProductDrillRows(json.data || []);
+        setProductDrillSummary(json.summary || null);
+        setProductDrillTruncated(!!json.truncated);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Product drill fetch error:', err);
+        setProductDrillRows([]); setProductDrillSummary(null); setProductDrillTruncated(false);
+      } finally {
+        if (!cancelled) setProductDrillLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productDrill]);
 
   const fetchTrend = async () => {
     try {
@@ -1827,59 +1901,85 @@ export default function BrandPerformanceDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleBrands.map((br, idx) => (
-                    <tr key={br.brandName} className={`${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
-                      <td className={t.brandCell}>
-                        <div className="flex items-center gap-3">
-                          <span className={t.brandRowNum}>{idx + 1}</span>
-                          <span className={t.brandAccent} />
-                          <span className={t.brandName}>{br.brandName}</span>
-                        </div>
-                      </td>
-                      {pivotData.months.flatMap((m) => pivotData.statusColumns.flatMap((sc) => {
-                        if (!expandedStatuses.has(sc.status)) {
-                          const cell = brandMonthStatusCell(br, m, sc.status);
-                          if (!cell || cell.count === 0) {
-                            return [<td key={`c_${br.brandName}_${m}_${sc.status}`} className={t.emptyCell}>—</td>];
+                  {visibleBrands.map((br, idx) => {
+                    const brandCellCompact = t.brandCell.replace('py-3', 'py-1');
+                    const dataCellCompact = t.dataCell.replace('py-3', 'py-1');
+                    const emptyCellCompact = t.emptyCell.replace('py-3', 'py-1').replace('text-base', 'text-xs');
+                    const totalBodyCompact = t.totalBody.replace('py-3', 'py-1');
+                    const cellCountCompact = t.cellCount.replace('text-base', 'text-xs');
+                    const totalBodyCountCompact = t.totalBodyCount.replace('text-base', 'text-xs');
+                    const totalBodyAmountCompact = t.totalBodyAmount.replace('text-xs', 'text-[10px]');
+                    const cellAmountCompact = t.cellAmount.replace('text-xs', 'text-[10px]').replace('mt-0.5', '');
+                    const openCell = (status: string, dStatus: string | null | undefined, month: number | null, metric: 'orders' | 'amount') =>
+                      openMbsDrill({ status, deliveryStatus: dStatus, month, metric, brandOverride: br.brandName });
+                    return (
+                      <tr key={br.brandName} className={`${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
+                        <td className={brandCellCompact}>
+                          <div className="flex items-center gap-2">
+                            <span className={t.brandRowNum}>{idx + 1}</span>
+                            <span className={t.brandAccent} />
+                            <span className={`${t.brandName} text-xs`}>{br.brandName}</span>
+                          </div>
+                        </td>
+                        {pivotData.months.flatMap((m) => pivotData.statusColumns.flatMap((sc) => {
+                          if (!expandedStatuses.has(sc.status)) {
+                            const cell = brandMonthStatusCell(br, m, sc.status);
+                            if (!cell || cell.count === 0) {
+                              return [<td key={`c_${br.brandName}_${m}_${sc.status}`} className={emptyCellCompact}>—</td>];
+                            }
+                            const tip = `${br.brandName} · ${MONTH_NAMES[m - 1] || m} · ${sc.status}`;
+                            return [
+                              <td key={`c_${br.brandName}_${m}_${sc.status}`} className={dataCellCompact}>
+                                <button type="button" onClick={() => openCell(sc.status, undefined, m, 'orders')} title={`${tip} · orders`} className={`${cellCountCompact} transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'hover:text-purple-600'}`}>
+                                  {cell.count.toLocaleString('en-IN')}
+                                </button>
+                                <button type="button" onClick={() => openCell(sc.status, undefined, m, 'amount')} title={`${tip} · ₹ value`} className={`block w-full text-right ${cellAmountCompact} transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'hover:text-purple-600'}`}>
+                                  {formatAmount(cell.amount)}
+                                </button>
+                              </td>,
+                            ];
                           }
-                          return [
-                            <td key={`c_${br.brandName}_${m}_${sc.status}`} className={t.dataCell}>
-                              <div className={t.cellCount}>{cell.count.toLocaleString('en-IN')}</div>
-                              <div className={t.cellAmount}>{formatAmount(cell.amount)}</div>
-                            </td>,
-                          ];
-                        }
-                        return sc.deliveryStatuses.map((ds, dIdx) => {
-                          const dKey = ds.deliveryStatus ?? '__NULL__';
-                          const cell = brandMonthStatusDeliveryCell(br, m, sc.status, dKey);
-                          if (!cell || cell.count === 0) {
-                            return (<td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={t.emptyCell}>—</td>);
-                          }
-                          return (
-                            <td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={t.dataCell}>
-                              <div className={t.cellCount}>{cell.count.toLocaleString('en-IN')}</div>
-                              <div className={t.cellAmount}>{formatAmount(cell.amount)}</div>
-                            </td>
-                          );
-                        });
-                      }))}
-                      <td className={t.totalBody}>
-                        <div className={t.totalBodyCount}>{br.total.count.toLocaleString('en-IN')}</div>
-                        <div className={t.totalBodyAmount}>{formatAmount(br.total.amount)}</div>
-                      </td>
-                    </tr>
-                  ))}
+                          return sc.deliveryStatuses.map((ds, dIdx) => {
+                            const dKey = ds.deliveryStatus ?? '__NULL__';
+                            const cell = brandMonthStatusDeliveryCell(br, m, sc.status, dKey);
+                            if (!cell || cell.count === 0) {
+                              return (<td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={emptyCellCompact}>—</td>);
+                            }
+                            const dsLabel = ds.deliveryStatus ?? '(no delivery status)';
+                            const tip = `${br.brandName} · ${MONTH_NAMES[m - 1] || m} · ${sc.status} · ${dsLabel}`;
+                            return (
+                              <td key={`c_${br.brandName}_${m}_${sc.status}_${dKey}_${dIdx}`} className={dataCellCompact}>
+                                <button type="button" onClick={() => openCell(sc.status, ds.deliveryStatus, m, 'orders')} title={`${tip} · orders`} className={`${cellCountCompact} transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'hover:text-purple-600'}`}>
+                                  {cell.count.toLocaleString('en-IN')}
+                                </button>
+                                <button type="button" onClick={() => openCell(sc.status, ds.deliveryStatus, m, 'amount')} title={`${tip} · ₹ value`} className={`block w-full text-right ${cellAmountCompact} transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'hover:text-purple-600'}`}>
+                                  {formatAmount(cell.amount)}
+                                </button>
+                              </td>
+                            );
+                          });
+                        }))}
+                        <td className={totalBodyCompact}>
+                          {/* Brand totals span all statuses — drill on Total picks REJECTED as a starting status (most common); user can switch via the in-modal Status switcher. */}
+                          <button type="button" onClick={() => openMbsDrill({ status: (pivotData.statusColumns[0]?.status ?? 'REJECTED'), deliveryStatus: undefined, month: null, metric: 'orders', brandOverride: br.brandName })} title={`${br.brandName} · all months · drill`} className={`${totalBodyCountCompact} transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'hover:text-purple-600'}`}>
+                            {br.total.count.toLocaleString('en-IN')}
+                          </button>
+                          <div className={totalBodyAmountCompact}>{formatAmount(br.total.amount)}</div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 <tfoot className={t.footRow}>
                   <tr>
-                    <td className={t.footLabel}>Total</td>
+                    <td className={t.footLabel.replace('py-3', 'py-1')}>Total</td>
                     {pivotData.months.flatMap((m) => pivotData.statusColumns.flatMap((sc) => {
                       if (!expandedStatuses.has(sc.status)) {
                         const v = pivotData.monthStatusTotals[`${m}__${sc.status}`] ?? { count: 0, amount: 0 };
                         return [
-                          <td key={`t_${m}_${sc.status}`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right whitespace-nowrap`}>
-                            <div className={t.cellCount}>{v.count.toLocaleString('en-IN')}</div>
-                            <div className={t.cellAmount}>{formatAmount(v.amount)}</div>
+                          <td key={`t_${m}_${sc.status}`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1 text-right whitespace-nowrap`}>
+                            <div className={t.cellCount.replace('text-base', 'text-xs')}>{v.count.toLocaleString('en-IN')}</div>
+                            <div className={t.cellAmount.replace('text-xs', 'text-[10px]').replace('mt-0.5', '')}>{formatAmount(v.amount)}</div>
                           </td>,
                         ];
                       }
@@ -1887,16 +1987,16 @@ export default function BrandPerformanceDashboard() {
                         const dKey = ds.deliveryStatus ?? '__NULL__';
                         const v = pivotData.monthStatusDeliveryTotals[`${m}__${sc.status}__${dKey}`] ?? { count: 0, amount: 0 };
                         return (
-                          <td key={`t_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-3 text-right whitespace-nowrap`}>
-                            <div className={t.cellCount}>{v.count.toLocaleString('en-IN')}</div>
-                            <div className={t.cellAmount}>{formatAmount(v.amount)}</div>
+                          <td key={`t_${m}_${sc.status}_${dKey}_${dIdx}`} className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1 text-right whitespace-nowrap`}>
+                            <div className={t.cellCount.replace('text-base', 'text-xs')}>{v.count.toLocaleString('en-IN')}</div>
+                            <div className={t.cellAmount.replace('text-xs', 'text-[10px]').replace('mt-0.5', '')}>{formatAmount(v.amount)}</div>
                           </td>
                         );
                       });
                     }))}
-                    <td className={t.totalFoot}>
-                      <div className={t.totalFootCount}>{pivotData.grand.count.toLocaleString('en-IN')}</div>
-                      <div className={t.totalFootAmount}>{formatAmount(pivotData.grand.amount)}</div>
+                    <td className={t.totalFoot.replace('py-3', 'py-1')}>
+                      <div className={t.totalFootCount.replace('text-lg', 'text-sm')}>{pivotData.grand.count.toLocaleString('en-IN')}</div>
+                      <div className={t.totalFootAmount.replace('text-sm', 'text-[11px]').replace('mt-0.5', '')}>{formatAmount(pivotData.grand.amount)}</div>
                     </td>
                   </tr>
                 </tfoot>
@@ -2153,25 +2253,38 @@ export default function BrandPerformanceDashboard() {
                               <td key={`pr_${p.skuId}_${m}_b`} className={emptyCellCompact}>—</td>,
                             ];
                           }
+                          const openCell = (metric: 'orders' | 'amount' | 'buyers') => () =>
+                            openProductDrill({ skuId: p.skuId, skuLabel: p.skuLabel, brandName: p.brandName, size: p.size, month: m, metric });
+                          const tip = `${p.skuLabel}${p.brandName ? ` · ${p.brandName}` : ''} · ${MONTH_NAMES[m - 1] || m}`;
                           return [
                             <td key={`pr_${p.skuId}_${m}_c`} className={dataCellCompact}>
-                              <div className={`text-sm font-extrabold tabular-nums leading-tight ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{c.count.toLocaleString('en-IN')}</div>
+                              <button type="button" onClick={openCell('orders')} title={`${tip} · orders`} className={`text-sm font-extrabold tabular-nums leading-tight transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-white hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'text-slate-900 hover:text-purple-600'}`}>
+                                {c.count.toLocaleString('en-IN')}
+                              </button>
                             </td>,
                             <td key={`pr_${p.skuId}_${m}_a`} className={dataCellCompact}>
-                              <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-purple-200' : 'text-slate-700'}`}>
+                              <button type="button" onClick={openCell('amount')} title={`${tip} · ₹ value`} className={`text-xs font-bold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-purple-200 hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'text-slate-700 hover:text-purple-600'}`}>
                                 {formatAmount(c.amount)}
-                              </div>
+                              </button>
                             </td>,
                             <td key={`pr_${p.skuId}_${m}_b`} className={dataCellCompact}>
-                              <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{c.buyers.toLocaleString('en-IN')}</div>
+                              <button type="button" onClick={openCell('buyers')} title={`${tip} · buyers`} className={`text-xs font-bold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-sky-200 hover:text-sky-100 hover:drop-shadow-[0_0_6px_rgba(56,189,248,0.6)]' : 'text-sky-700 hover:text-sky-500'}`}>
+                                {c.buyers.toLocaleString('en-IN')}
+                              </button>
                             </td>,
                           ];
                         })}
                         <td className={totalBodyCompact} colSpan={3}>
                           <div className="flex items-baseline justify-end gap-2 whitespace-nowrap">
-                            <div className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-purple-900'}`}>{p.total.count.toLocaleString('en-IN')}</div>
-                            <div className={`text-[11px] font-semibold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{formatAmount(p.total.amount)}</div>
-                            <div className={`text-[11px] font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{p.total.buyers.toLocaleString('en-IN')}b</div>
+                            <button type="button" onClick={() => openProductDrill({ skuId: p.skuId, skuLabel: p.skuLabel, brandName: p.brandName, size: p.size, month: null, metric: 'orders' })} title={`${p.skuLabel} · all months · orders`} className={`text-sm font-extrabold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-white hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'text-purple-900 hover:text-purple-600'}`}>
+                              {p.total.count.toLocaleString('en-IN')}
+                            </button>
+                            <button type="button" onClick={() => openProductDrill({ skuId: p.skuId, skuLabel: p.skuLabel, brandName: p.brandName, size: p.size, month: null, metric: 'amount' })} title={`${p.skuLabel} · all months · ₹ value`} className={`text-[11px] font-semibold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-fuchsia-200 hover:text-fuchsia-100 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'text-purple-700 hover:text-purple-500'}`}>
+                              {formatAmount(p.total.amount)}
+                            </button>
+                            <button type="button" onClick={() => openProductDrill({ skuId: p.skuId, skuLabel: p.skuLabel, brandName: p.brandName, size: p.size, month: null, metric: 'buyers' })} title={`${p.skuLabel} · all months · buyers`} className={`text-[11px] font-bold tabular-nums transition-all duration-150 hover:scale-110 origin-right cursor-pointer ${t.isDark ? 'text-sky-200 hover:text-sky-100 hover:drop-shadow-[0_0_6px_rgba(56,189,248,0.6)]' : 'text-sky-700 hover:text-sky-500'}`}>
+                              {p.total.buyers.toLocaleString('en-IN')}b
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -4158,11 +4271,15 @@ export default function BrandPerformanceDashboard() {
         const dsLabel = mbsDrill.deliveryStatus === undefined
           ? null
           : (mbsDrill.deliveryStatus ?? '(no delivery status)');
-        const brandLabel = mbsBrands.size === 0
+        // Override pins to a single brand-row click (Pivot tab). Falls back to global mbsBrands filter when cleared.
+        const brandOverrideLabel = mbsDrill.brandOverride && mbsDrill.brandOverride !== '' ? mbsDrill.brandOverride : null;
+        const brandLabel = brandOverrideLabel
           ? null
-          : mbsBrands.size === 1
-            ? Array.from(mbsBrands)[0]
-            : `${mbsBrands.size} brands`;
+          : mbsBrands.size === 0
+            ? null
+            : mbsBrands.size === 1
+              ? Array.from(mbsBrands)[0]
+              : `${mbsBrands.size} brands`;
         // Sub-status options (only present in current mbsData) for in-modal switching
         const dsOptions: Array<string | null> =
           mbsData?.data.find((r) => r.status === mbsDrill.status)?.deliveryStatuses.map((d) => d.deliveryStatus) ?? [];
@@ -4216,8 +4333,9 @@ export default function BrandPerformanceDashboard() {
                 {chip('Status', mbsDrill.status, null, 'fuchsia')}
                 {dsLabel !== null && chip('Delivery', dsLabel, () => setMbsDrill({ ...mbsDrill, deliveryStatus: undefined }), 'emerald')}
                 {monthLabel && chip('Month', monthLabel, () => setMbsDrill({ ...mbsDrill, month: null }), 'sky')}
+                {brandOverrideLabel && chip('Brand', brandOverrideLabel, () => setMbsDrill({ ...mbsDrill, brandOverride: undefined }), 'amber')}
                 {brandLabel && chip('Brand', brandLabel, () => setMbsBrands(new Set()), 'amber')}
-                {dsLabel === null && monthLabel === null && !brandLabel && (
+                {dsLabel === null && monthLabel === null && !brandLabel && !brandOverrideLabel && (
                   <span className={`text-[11px] italic ${t.isDark ? 'text-purple-300/50' : 'text-slate-400'}`}>showing every {mbsDrill.status} order in scope</span>
                 )}
               </div>
@@ -4390,6 +4508,213 @@ export default function BrandPerformanceDashboard() {
               </div>
               {mbsDrillTruncated && (
                 <div className={t.footnote}>showing latest 300 orders · narrow the slice (status / delivery / month / brand) to see more</div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {productDrill && (() => {
+        const metricLabel = productDrill.metric === 'amount' ? '₹ Value' : productDrill.metric === 'buyers' ? 'Buyers' : 'Orders';
+        const monthLabel = productDrill.month != null ? String(MONTH_NAMES[productDrill.month - 1] || productDrill.month) : null;
+        const brandLabel = mbsBrands.size === 0
+          ? null
+          : mbsBrands.size === 1
+            ? Array.from(mbsBrands)[0]
+            : `${mbsBrands.size} brands`;
+        const monthOptions = productData?.months ?? [];
+        const statusColor: Record<string, { bg: string; text: string }> = t.isDark
+          ? { DELIVERED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, COMPLETED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' } }
+          : { DELIVERED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, COMPLETED: { bg: 'bg-emerald-100', text: 'text-emerald-700' } };
+        const chip = (label: string, value: string, onRemove: (() => void) | null, accent: 'fuchsia' | 'sky' | 'emerald' | 'amber') => {
+          const accentCls = {
+            fuchsia: t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border-purple-200',
+            sky:     t.isDark ? 'bg-sky-500/15 text-sky-200 border-sky-400/30'             : 'bg-sky-50 text-sky-700 border-sky-200',
+            emerald: t.isDark ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            amber:   t.isDark ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'       : 'bg-amber-50 text-amber-700 border-amber-200',
+          }[accent];
+          return (
+            <span key={label} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border ${accentCls}`}>
+              <span className="text-[9px] uppercase tracking-wider opacity-70">{label}</span>
+              <span className="truncate max-w-[260px]">{value}</span>
+              {onRemove && (
+                <button type="button" onClick={onRemove} title={`Remove ${label} filter`} className={`ml-0.5 -mr-0.5 px-1 leading-none rounded ${t.isDark ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}>×</button>
+              )}
+            </span>
+          );
+        };
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={closeProductDrill}>
+            <div className={`absolute inset-0 ${t.isDark ? 'bg-slate-950/80' : 'bg-slate-900/60'} backdrop-blur-sm`} />
+            <div onClick={(e) => e.stopPropagation()} className={`relative z-10 w-[min(98vw,1600px)] max-h-[92vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl ${t.isDark ? 'bg-slate-950 border border-fuchsia-400/30' : 'bg-white border border-slate-200'}`}>
+              <div className={`absolute inset-x-0 top-0 h-px ${t.isDark ? 'bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent' : 'bg-gradient-to-r from-purple-500 via-fuchsia-500 to-indigo-500'}`} />
+
+              {/* Header */}
+              <div className={`px-6 py-4 flex items-start justify-between gap-4 border-b ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={t.sectionTag('details')}>DRILL · {metricLabel.toUpperCase()}</span>
+                    <h3 className={`text-base font-bold truncate ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{productDrill.skuLabel}</h3>
+                    {productDrill.size && (
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${t.isDark ? 'bg-white/10 text-purple-200 border-white/15' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{productDrill.size}</span>
+                    )}
+                  </div>
+                  {productDrillSummary && (
+                    <div className={`text-[11px] mt-1 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                      {productDrillSummary.orders.toLocaleString('en-IN')} orders · {formatAmount(productDrillSummary.orderAmount)} GMV · {productDrillSummary.buyers.toLocaleString('en-IN')} unique buyers · {productDrillSummary.qty.toLocaleString('en-IN')} units of this SKU · {formatAmount(productDrillSummary.itemAmount)} item value
+                    </div>
+                  )}
+                </div>
+                <button onClick={closeProductDrill} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>✕ Close</button>
+              </div>
+
+              {/* Active filters (removable) */}
+              <div className={`px-6 py-3 border-b flex flex-wrap items-center gap-2 ${t.isDark ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-100'}`}>
+                <span className={`text-[10px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>Filters</span>
+                {chip('Product', productDrill.skuLabel, null, 'fuchsia')}
+                {productDrill.brandName && chip('Brand of SKU', productDrill.brandName, null, 'emerald')}
+                {monthLabel && chip('Month', monthLabel, () => setProductDrill({ ...productDrill, month: null }), 'sky')}
+                {brandLabel && chip('Brand filter', brandLabel, () => setMbsBrands(new Set()), 'amber')}
+                {!monthLabel && !brandLabel && (
+                  <span className={`text-[11px] italic ${t.isDark ? 'text-purple-300/50' : 'text-slate-400'}`}>showing every delivered/completed order with this SKU in scope</span>
+                )}
+              </div>
+
+              {/* Quick month switcher */}
+              {monthOptions.length > 1 && (
+                <div className={`px-6 py-2 border-b flex items-center gap-1.5 flex-wrap ${t.isDark ? 'bg-slate-900/20 border-white/5' : 'bg-slate-50/60 border-slate-100'}`}>
+                  <span className={`text-[10px] uppercase tracking-wider font-semibold w-16 shrink-0 ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>Month</span>
+                  <button type="button" onClick={() => setProductDrill({ ...productDrill, month: null })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${productDrill.month == null ? (t.isDark ? 'bg-sky-500/20 text-sky-200 border-sky-400/50 ring-1 ring-sky-400/40' : 'bg-sky-100 text-sky-700 border-sky-300 ring-1 ring-sky-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>All</button>
+                  {monthOptions.map((m) => {
+                    const active = productDrill.month === m;
+                    return (
+                      <button key={m} type="button" onClick={() => setProductDrill({ ...productDrill, month: m })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${active ? (t.isDark ? 'bg-sky-500/20 text-sky-200 border-sky-400/50 ring-1 ring-sky-400/40' : 'bg-sky-100 text-sky-700 border-sky-300 ring-1 ring-sky-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>
+                        {MONTH_NAMES[m - 1] || m}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Orders table */}
+              <div className="overflow-auto flex-1">
+                {productDrillLoading || !productDrillRows ? (
+                  <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading orders…</div>
+                ) : productDrillRows.length === 0 ? (
+                  <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No orders in this slice</div>
+                ) : (
+                  <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 1500 }}>
+                    <thead className={`sticky top-0 z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                      <tr>
+                        <th className={`${t.deliveryHeader} text-center w-6`}></th>
+                        <th className={`${t.deliveryHeader} text-left`}>PO #</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Status</th>
+                        <th className={`${t.deliveryHeader} text-right`}>PO ₹</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Marked pending</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Buyer</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Buyer phone</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Seller</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Seller phone</th>
+                        <th className={`${t.deliveryHeader} text-right`}>Wallet ₹</th>
+                        <th className={`${t.deliveryHeader} text-right`}>Units</th>
+                        <th className={`${t.deliveryHeader} text-right`}>SKU ₹</th>
+                        <th className={`${t.deliveryHeader} text-right`}>Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {productDrillRows.map((r, idx) => {
+                        const sc = statusColor[r.status] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
+                        const d = new Date(r.pendingAt);
+                        const isOpen = productDrillExpanded.has(r.poId);
+                        return (
+                          <Fragment key={r.poId}>
+                            <tr
+                              onClick={() => toggleProductDrillRow(r.poId)}
+                              className={`cursor-pointer ${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover} ${isOpen ? (t.isDark ? 'bg-fuchsia-500/10' : 'bg-purple-50') : ''}`}
+                            >
+                              <td className={t.dataCell.replace('py-3', 'py-1.5').replace('text-right', 'text-center')}>
+                                <span className={`text-[11px] ${t.isDark ? 'text-purple-300' : 'text-slate-400'}`}>{r.items.length > 0 ? (isOpen ? '▾' : '▸') : ''}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-extrabold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>#{r.poNumber}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${sc.bg} ${sc.text} ${t.isDark ? 'border-white/15' : 'border-slate-200'}`}>{r.status}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(r.orderAmount)}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <div className={`text-xs ${t.isDark ? 'text-white' : 'text-slate-800'}`}>{d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</div>
+                                <div className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <div className={`text-xs font-semibold max-w-[200px] truncate ${t.isDark ? 'text-white' : 'text-slate-800'}`} title={r.buyerBusiness ?? ''}>{r.buyerBusiness ?? '—'}</div>
+                                <div className={`text-[10px] truncate ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}</div>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{r.buyerPhone ?? '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-semibold max-w-[200px] truncate inline-block ${t.isDark ? 'text-white' : 'text-slate-800'}`} title={r.sellerBusiness ?? ''}>{r.sellerBusiness ?? '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{r.sellerPhone ?? '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-extrabold tabular-nums ${r.appliedWalletAmount > 0 ? (t.isDark ? 'text-amber-200' : 'text-amber-700') : (t.isDark ? 'text-white/40' : 'text-slate-400')}`}>{r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{r.qty.toLocaleString('en-IN')}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{formatAmount(r.itemAmount)}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
+                                  {r.items.length === 0 ? '0' : isOpen ? 'Hide' : 'Show'}
+                                </span>
+                              </td>
+                            </tr>
+                            {isOpen && r.items.length > 0 && (
+                              <tr className={`${t.isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
+                                <td colSpan={13} className={`${t.isDark ? 'border-b border-fuchsia-400/20' : 'border-b border-purple-200'} px-6 py-3`}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className={`text-[9px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/60' : 'text-slate-500'}`}>This SKU only · unit · qty · ₹</div>
+                                    <div className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>Σ {r.qty.toLocaleString('en-IN')} units · {formatAmount(r.itemAmount)}</div>
+                                  </div>
+                                  <table className="w-full text-[11px]">
+                                    <thead>
+                                      <tr className={t.isDark ? 'text-purple-300/70' : 'text-slate-500'}>
+                                        <th className="text-left font-semibold py-1">Item</th>
+                                        <th className="text-right font-semibold py-1 w-24">Unit ₹</th>
+                                        <th className="text-right font-semibold py-1 w-20">Qty</th>
+                                        <th className="text-right font-semibold py-1 w-28">₹</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {r.items.map((it, i) => (
+                                        <tr key={i} className={`${t.isDark ? 'border-t border-white/5 hover:bg-white/5' : 'border-t border-slate-200 hover:bg-white'}`}>
+                                          <td className={`py-1 truncate ${t.isDark ? 'text-white/90' : 'text-slate-800'}`} title={it.label ?? ''}>{it.label ?? '(unnamed)'}</td>
+                                          <td className={`py-1 text-right tabular-nums font-semibold ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`}>{it.unitPrice != null ? `₹${it.unitPrice}` : '—'}</td>
+                                          <td className={`py-1 text-right tabular-nums font-bold ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>×{it.qty.toLocaleString('en-IN')}</td>
+                                          <td className={`py-1 text-right tabular-nums font-extrabold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(it.amount)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              {productDrillTruncated && (
+                <div className={t.footnote}>showing latest 300 orders · narrow the slice (month / brand) to see more</div>
               )}
             </div>
           </div>

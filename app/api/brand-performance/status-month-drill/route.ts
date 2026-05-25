@@ -3,17 +3,19 @@ import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-// Order-level drill-down for a brand or a specific brand-SKU on the
-// Brand × Product tab. Hits when a user clicks a metric (Orders / ₹ Value /
-// Buyers / Qty sold) on either a brand row or its expanded SKU row.
+// Order-level drill-down for a single (status × deliveryStatus × month × brand)
+// slice on the Monthly Breakdown by Order Status table. Wired to clicks on the
+// Orders / ₹ Value / Buyers numbers in the Dashboard tab.
 
 interface Row {
   po_id: string;
   po_number: string;
   marked_pending_time: string;
   status: string;
+  delivery_status: string | null;
   amount: string;
   applied_wallet_amount: string | null;
+  buyer_id: string | null;
   buyer_business: string | null;
   buyer_phone: string | null;
   buyer_state: string | null;
@@ -31,14 +33,14 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
   const startDate = searchParams.get('startDate');
   const endDate   = searchParams.get('endDate');
-  const brand     = searchParams.get('brand');         // brand prefix to filter the page
-  const drillBrand = searchParams.get('drillBrand');   // brand whose row was clicked (label)
-  const drillSku  = searchParams.get('drillSku');      // optional sku id
-  const monthStr  = searchParams.get('month');         // optional 1-12, narrows to a single month
+  const brand     = searchParams.get('brand');             // comma-separated seller prefixes (multi-select)
+  const status    = searchParams.get('status');            // required — order status (REJECTED, COMPLETED, …)
+  const delivery  = searchParams.get('deliveryStatus');   // optional — '__NULL__' for null, otherwise exact match
+  const monthStr  = searchParams.get('month');             // optional 1-12
   const limit     = Math.min(Math.max(parseInt(searchParams.get('limit') || '300'), 1), 1000);
 
-  if (!drillBrand) {
-    return NextResponse.json({ error: 'drillBrand is required' }, { status: 400 });
+  if (!status) {
+    return NextResponse.json({ error: 'status is required' }, { status: 400 });
   }
 
   try {
@@ -64,64 +66,27 @@ export async function GET(req: NextRequest) {
       brandFilter = ` AND TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) = ANY(string_to_array($${params.length}, ','))`;
     }
 
-    let monthFilter = '';
-    if (monthStr) {
-      const m = parseInt(monthStr);
-      if (!Number.isNaN(m) && m >= 1 && m <= 12) {
-        params.push(m);
-        monthFilter = ` AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
+    params.push(status);
+    const statusFilter = ` AND po."status" = $${params.length}`;
+
+    let deliveryFilter = '';
+    if (delivery !== null) {
+      if (delivery === '__NULL__' || delivery === '') {
+        deliveryFilter = ` AND po."deliveryStatus" IS NULL`;
+      } else {
+        params.push(delivery);
+        deliveryFilter = ` AND po."deliveryStatus" = $${params.length}`;
       }
     }
 
-    // Filter orders to those that have ≥1 item of the target brand (or specific SKU).
-    // We match the brand via brand.label (case-insensitive) since the seller's
-    // businessName prefix can be in a different casing than the brand label.
-    let drillFilter = '';
-    if (drillSku) {
-      params.push(drillSku);
-      const i = params.length;
-      drillFilter = ` AND EXISTS (
-        SELECT 1
-        FROM "purchaseOrder"."purchaseOrderItem" pi
-        WHERE pi."purchaseOrderId" = po."id"
-          AND pi."brandSKUId"::text = $${i}
-      )`;
-    } else {
-      params.push(drillBrand);
-      const i = params.length;
-      drillFilter = ` AND EXISTS (
-        SELECT 1
-        FROM "purchaseOrder"."purchaseOrderItem" pi
-        JOIN "brands"."brandSKU"   bsx ON bsx."id" = pi."brandSKUId"
-        LEFT JOIN "brands"."brand" bra ON bra."id" = bsx."brandId"
-        WHERE pi."purchaseOrderId" = po."id"
-          AND (
-            LOWER(COALESCE(bra."label", '')) = LOWER($${i})
-            OR LOWER(TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1))) = LOWER($${i})
-          )
-      )`;
+    let monthFilter = '';
+    if (monthStr) {
+      const month = parseInt(monthStr);
+      if (!Number.isNaN(month) && month >= 1 && month <= 12) {
+        params.push(month);
+        monthFilter = ` AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
+      }
     }
-
-    // SUM filter: only count items matching the SKU (if SKU drill) or brand (if brand drill).
-    let skuSumFilter = '';
-    if (drillSku) {
-      skuSumFilter = ` FILTER (WHERE poi."brandSKUId"::text = $${params.length})`;
-    } else {
-      skuSumFilter = ` FILTER (
-        WHERE LOWER(COALESCE(bs."label", '')) <> ''
-          AND (
-            LOWER(COALESCE(bra2."label", '')) = LOWER($${params.length})
-            OR LOWER(TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1))) = LOWER($${params.length})
-          )
-      )`;
-    }
-
-    // Items array: when drilling by SKU, only that SKU; when drilling by brand,
-    // only items of that brand (so unrelated SKUs in the same PO aren't listed).
-    const itemsAggFilter = drillSku
-      ? `FILTER (WHERE poi."brandSKUId"::text = $${params.length})`
-      : `FILTER (WHERE LOWER(COALESCE(bra2."label", '')) = LOWER($${params.length})
-                   OR LOWER(TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1))) = LOWER($${params.length}))`;
 
     const sql = `
       SELECT
@@ -129,31 +94,35 @@ export async function GET(req: NextRequest) {
         po."poNumber"::text                                 AS po_number,
         po."markedPendingTime"                              AS marked_pending_time,
         po."status"                                         AS status,
+        po."deliveryStatus"                                 AS delivery_status,
         po."amount"::text                                   AS amount,
         po."appliedWalletAmount"::text                      AS applied_wallet_amount,
+        po."buyerId"::text                                  AS buyer_id,
         bu."businessName"                                   AS buyer_business,
         bu."phone"                                          AS buyer_phone,
         bu."state"                                          AS buyer_state,
         bu."city"                                           AS buyer_city,
         s."businessName"                                    AS seller_business,
         s."phone"                                           AS seller_phone,
-        COALESCE(SUM(poi."quantity")${skuSumFilter}, 0)::text  AS qty,
-        COALESCE(SUM(poi."amount")${skuSumFilter}, 0)::text    AS item_amount,
-        JSONB_AGG(
-          JSONB_BUILD_OBJECT(
-            'label',     bs."label",
-            'qty',       poi."quantity"::text,
-            'unitPrice', poi."unitPrice"::text,
-            'amount',    poi."amount"::text
-          )
-          ORDER BY poi."amount" DESC NULLS LAST
-        ) ${itemsAggFilter}                                 AS items
+        COALESCE(SUM(poi."quantity"), 0)::text              AS qty,
+        COALESCE(SUM(poi."amount"), 0)::text                AS item_amount,
+        COALESCE(
+          JSONB_AGG(
+            JSONB_BUILD_OBJECT(
+              'label',     bs."label",
+              'qty',       poi."quantity"::text,
+              'unitPrice', poi."unitPrice"::text,
+              'amount',    poi."amount"::text
+            )
+            ORDER BY poi."amount" DESC NULLS LAST
+          ) FILTER (WHERE poi."id" IS NOT NULL),
+          '[]'::jsonb
+        )                                                   AS items
       FROM "purchaseOrder"."purchaseOrder" po
-      JOIN "purchaseOrder"."purchaseOrderItem" poi ON poi."purchaseOrderId" = po."id"
-      JOIN "brands"."brandSKU"                 bs   ON bs."id"  = poi."brandSKUId"
-      LEFT JOIN "brands"."brand"               bra2 ON bra2."id" = bs."brandId"
+      LEFT JOIN "purchaseOrder"."purchaseOrderItem" poi ON poi."purchaseOrderId" = po."id"
+      LEFT JOIN "brands"."brandSKU"                 bs  ON bs."id"  = poi."brandSKUId"
       JOIN "users"."buyer"  bu ON bu."id" = po."buyerId"
-      JOIN "users"."seller" s  ON s."id" = po."sellerId"
+      JOIN "users"."seller" s  ON s."id"  = po."sellerId"
       WHERE po."isTest"          = FALSE
         AND po."isFalseOrder"    = FALSE
         AND bu."isTest"          = FALSE
@@ -163,14 +132,17 @@ export async function GET(req: NextRequest) {
         AND s."isD2RBrandSeller" = TRUE
         AND po."deliveryNetwork" = 'THIRD_PARTY'
         AND po."deliveryType"    = 'INTERCITY'
-        AND po."status"          IN ('DELIVERED', 'COMPLETED')
+        AND po."status"          != 'DRAFT'
         AND po."markedPendingTime" IS NOT NULL
         ${whereDate}
         ${brandFilter}
+        ${statusFilter}
+        ${deliveryFilter}
         ${monthFilter}
-        ${drillFilter}
-      GROUP BY po."id", po."poNumber", po."markedPendingTime", po."status", po."amount", po."appliedWalletAmount",
-               bu."businessName", bu."phone", bu."state", bu."city", s."businessName", s."phone"
+      GROUP BY po."id", po."poNumber", po."markedPendingTime", po."status", po."deliveryStatus",
+               po."amount", po."appliedWalletAmount", po."buyerId",
+               bu."businessName", bu."phone", bu."state", bu."city",
+               s."businessName", s."phone"
       ORDER BY po."markedPendingTime" DESC
       LIMIT ${limit};
     `;
@@ -181,8 +153,10 @@ export async function GET(req: NextRequest) {
       poNumber: r.po_number,
       pendingAt: r.marked_pending_time,
       status: r.status,
+      deliveryStatus: r.delivery_status,
       orderAmount: parseFloat(r.amount),
       appliedWalletAmount: r.applied_wallet_amount != null ? parseFloat(r.applied_wallet_amount) : 0,
+      buyerId: r.buyer_id,
       buyerBusiness: r.buyer_business,
       buyerPhone: r.buyer_phone,
       buyerState: r.buyer_state,
@@ -204,14 +178,18 @@ export async function GET(req: NextRequest) {
       orderAmount: data.reduce((s, d) => s + d.orderAmount, 0),
       itemAmount: data.reduce((s, d) => s + d.itemAmount, 0),
       qty: data.reduce((s, d) => s + d.qty, 0),
-      buyers: new Set(data.map((d) => d.buyerBusiness ?? '').filter(Boolean)).size,
+      buyers: new Set(data.map((d) => d.buyerId ?? '').filter(Boolean)).size,
     };
 
     return NextResponse.json({
       data,
       summary,
-      drillBrand,
-      drillSku: drillSku || null,
+      filters: {
+        status,
+        deliveryStatus: delivery,
+        month: monthStr ? parseInt(monthStr) : null,
+        brand: brand || null,
+      },
       limit,
       truncated: data.length >= limit,
       timestamp: new Date().toISOString(),

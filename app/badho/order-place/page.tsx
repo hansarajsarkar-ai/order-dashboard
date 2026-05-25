@@ -583,7 +583,13 @@ function OrderPlaceDashboard() {
         .animation-delay-2000 { animation-delay: 2s; }
       `}</style>
 
-      {activePo && <PoItemsModal poNumber={activePo} onClose={() => setActivePo(null)} />}
+      {activePo && (
+        <PoItemsModal
+          poNumber={activePo}
+          onClose={() => setActivePo(null)}
+          onChanged={() => fetchData(filters)}
+        />
+      )}
     </div>
   );
 }
@@ -620,26 +626,58 @@ interface PoItemsResponse {
   totalItemAmount: number;
 }
 
-function PoItemsModal({ poNumber, onClose }: { poNumber: string; onClose: () => void }) {
+interface SkuOption {
+  sellerBrandSKUId: string;
+  brandSKUId: string;
+  brandLabel: string | null;
+  skuLabel: string | null;
+  size: string | null;
+  slabMinQuantity: number | null;
+  slabMaxQuantity: number | null;
+  slabHint: string | null;
+  unitPriceHint: string | null;
+  mrp: string | null;
+  alreadyInPo: boolean;
+}
+
+function PoItemsModal({
+  poNumber,
+  onClose,
+  onChanged,
+}: {
+  poNumber: string;
+  onClose: () => void;
+  onChanged?: () => void;
+}) {
   const [data, setData] = useState<PoItemsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  // Mutation state — surfaces errors from POST/PATCH/DELETE/place-order calls
+  // without trashing the loaded item list.
+  const [busy, setBusy] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [placeConfirm, setPlaceConfirm] = useState(false);
+  const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({});
+
+  const refetch = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setData(null);
-    fetch(`/api/order-place/po-items?poNumber=${encodeURIComponent(poNumber)}`, { cache: 'no-store' })
-      .then(async (res) => {
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-        if (!cancelled) setData(json as PoItemsResponse);
-      })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    try {
+      const res = await fetch(`/api/order-place/po-items?poNumber=${encodeURIComponent(poNumber)}`, { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      setData(json as PoItemsResponse);
+      setQtyDraft({});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
   }, [poNumber]);
+
+  useEffect(() => { refetch(); }, [refetch]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -649,6 +687,86 @@ function PoItemsModal({ poNumber, onClose }: { poNumber: string; onClose: () => 
 
   const po = data?.po;
   const items = data?.items ?? [];
+  const isDraft = po?.status === 'DRAFT';
+
+  async function mutate(label: string, opts: { url: string; method: string; body?: unknown }) {
+    setBusy(label);
+    setMutationError(null);
+    try {
+      const res = await fetch(opts.url, {
+        method: opts.method,
+        headers: opts.body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        cache: 'no-store',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      setData(json as PoItemsResponse);
+      setQtyDraft({});
+      onChanged?.();
+    } catch (e) {
+      setMutationError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const saveQty = (it: PoItem) => {
+    const draft = qtyDraft[it.itemId];
+    if (draft === undefined) return;
+    const q = Number(draft);
+    if (!Number.isInteger(q) || q < 1) {
+      setMutationError('Quantity must be a positive integer');
+      return;
+    }
+    if (q === Number(it.quantity)) {
+      setQtyDraft((prev) => { const n = { ...prev }; delete n[it.itemId]; return n; });
+      return;
+    }
+    void mutate(`qty-${it.itemId}`, {
+      url: '/api/order-place/po-items',
+      method: 'PATCH',
+      body: { itemId: it.itemId, quantity: q },
+    });
+  };
+
+  const removeItem = (it: PoItem) => {
+    if (!window.confirm(`Remove ${it.skuLabel ?? 'this item'} from the PO?`)) return;
+    void mutate(`del-${it.itemId}`, {
+      url: `/api/order-place/po-items?itemId=${encodeURIComponent(it.itemId)}`,
+      method: 'DELETE',
+    });
+  };
+
+  const addProduct = (sku: SkuOption, quantity: number) => {
+    void mutate(`add-${sku.sellerBrandSKUId}`, {
+      url: '/api/order-place/po-items',
+      method: 'POST',
+      body: { poNumber, sellerBrandSKUId: sku.sellerBrandSKUId, quantity },
+    });
+  };
+
+  const placeOrder = async () => {
+    setBusy('place');
+    setMutationError(null);
+    try {
+      const res = await fetch('/api/order-place/place-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ poNumber }),
+        cache: 'no-store',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      onChanged?.();
+      onClose();
+    } catch (e) {
+      setMutationError(e instanceof Error ? e.message : String(e));
+      setPlaceConfirm(false);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <div
@@ -704,6 +822,41 @@ function PoItemsModal({ poNumber, onClose }: { poNumber: string; onClose: () => 
           </button>
         </div>
 
+        {/* Action bar (DRAFT only) */}
+        {isDraft && (
+          <div className="px-6 py-3 border-b border-white/10 flex items-center justify-between gap-3 flex-wrap bg-white/[0.02]">
+            <button
+              onClick={() => setShowAdd((v) => !v)}
+              disabled={busy !== null}
+              className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/30 text-fuchsia-100 text-xs font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
+            >
+              {showAdd ? '× Close add panel' : '+ Add product'}
+            </button>
+            <div className="flex items-center gap-2">
+              {busy && <span className="text-[11px] text-fuchsia-300 animate-pulse">Saving…</span>}
+              <button
+                onClick={() => setPlaceConfirm(true)}
+                disabled={busy !== null || items.length === 0}
+                className="px-4 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-400/40 text-emerald-100 text-xs font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title={items.length === 0 ? 'Add at least one item before placing' : 'Place this PO as PENDING'}
+              >
+                Place Order →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mutationError && (
+          <div className="px-6 py-2 text-rose-200 text-xs bg-rose-500/10 border-b border-rose-400/30 flex items-center justify-between gap-3">
+            <span>⚠ {mutationError}</span>
+            <button onClick={() => setMutationError(null)} className="text-rose-200/70 hover:text-white">×</button>
+          </div>
+        )}
+
+        {isDraft && showAdd && (
+          <AddProductPanel poNumber={poNumber} busy={busy} onAdd={addProduct} />
+        )}
+
         {/* Body */}
         <div className="flex-1 min-h-0 overflow-auto">
           {loading && (
@@ -716,7 +869,7 @@ function PoItemsModal({ poNumber, onClose }: { poNumber: string; onClose: () => 
           )}
           {!loading && !error && items.length === 0 && (
             <div className="px-6 py-12 text-center text-purple-300/70 text-sm">
-              No items recorded against this PO.
+              {isDraft ? 'No items yet — use “+ Add product” to start the order.' : 'No items recorded against this PO.'}
             </div>
           )}
           {!loading && !error && items.length > 0 && (
@@ -731,25 +884,68 @@ function PoItemsModal({ poNumber, onClose }: { poNumber: string; onClose: () => 
                   <th className="px-4 py-3 text-right">Unit Price</th>
                   <th className="px-4 py-3 text-right">Amount</th>
                   <th className="px-4 py-3 text-center">Item Status</th>
+                  {isDraft && <th className="px-4 py-3 text-center">Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {items.map((it, i) => (
-                  <tr key={it.itemId} className="border-t border-white/5 hover:bg-white/5">
-                    <td className="px-4 py-2.5 text-purple-300/70 tabular-nums">{i + 1}</td>
-                    <td className="px-4 py-2.5 text-purple-100">{it.brandLabel ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-white">{it.skuLabel ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-purple-200">{it.size ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-white">{it.quantity ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{formatAmount(it.unitPrice)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-white font-semibold">{formatAmount(it.amount)}</td>
-                    <td className="px-4 py-2.5 text-center">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-purple-200 border border-white/10">
-                        {it.status ?? '—'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {items.map((it, i) => {
+                  const draftQty = qtyDraft[it.itemId];
+                  const showSaveBtn = draftQty !== undefined && draftQty !== String(it.quantity);
+                  const rowBusy = busy === `qty-${it.itemId}` || busy === `del-${it.itemId}`;
+                  return (
+                    <tr key={it.itemId} className={`border-t border-white/5 hover:bg-white/5 ${rowBusy ? 'opacity-50' : ''}`}>
+                      <td className="px-4 py-2.5 text-purple-300/70 tabular-nums">{i + 1}</td>
+                      <td className="px-4 py-2.5 text-purple-100">{it.brandLabel ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-white">{it.skuLabel ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-purple-200">{it.size ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-white">
+                        {isDraft ? (
+                          <div className="inline-flex items-center gap-1 justify-end">
+                            <input
+                              type="number"
+                              min={1}
+                              value={draftQty ?? String(it.quantity ?? '')}
+                              onChange={(e) => setQtyDraft((prev) => ({ ...prev, [it.itemId]: e.target.value }))}
+                              onKeyDown={(e) => { if (e.key === 'Enter') saveQty(it); }}
+                              disabled={busy !== null}
+                              className="w-20 px-2 py-1 rounded-md bg-white/5 border border-white/10 text-white text-sm text-right tabular-nums focus:outline-none focus:border-fuchsia-400/50"
+                            />
+                            {showSaveBtn && (
+                              <button
+                                onClick={() => saveQty(it)}
+                                disabled={busy !== null}
+                                className="px-2 py-1 rounded-md bg-fuchsia-500/30 border border-fuchsia-400/40 text-fuchsia-100 text-[10px] font-bold uppercase hover:bg-fuchsia-500/50 disabled:opacity-50"
+                              >
+                                Save
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          it.quantity ?? '—'
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{formatAmount(it.unitPrice)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-white font-semibold">{formatAmount(it.amount)}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-purple-200 border border-white/10">
+                          {it.status ?? '—'}
+                        </span>
+                      </td>
+                      {isDraft && (
+                        <td className="px-4 py-2.5 text-center">
+                          <button
+                            onClick={() => removeItem(it)}
+                            disabled={busy !== null}
+                            className="px-2 py-1 rounded-md bg-rose-500/15 hover:bg-rose-500/30 border border-rose-400/30 text-rose-200 text-[10px] font-bold uppercase disabled:opacity-50"
+                            title="Remove item"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -774,6 +970,164 @@ function PoItemsModal({ poNumber, onClose }: { poNumber: string; onClose: () => 
           </div>
         )}
       </div>
+
+      {/* Place-order confirm dialog */}
+      {placeConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80" onClick={() => !busy && setPlaceConfirm(false)}>
+          <div className="w-full max-w-md bg-gradient-to-br from-slate-900 to-purple-950 border border-emerald-400/40 rounded-2xl p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-2">Place PO {poNumber}?</h3>
+            <p className="text-sm text-purple-200 mb-4">
+              This will set status to <span className="font-bold text-emerald-300">PENDING</span> and stamp{' '}
+              <code className="text-purple-100">markedPendingTime</code> = now. Downstream Badho systems (notifications, settlement readiness, third-party delivery) will treat this as a placed order.
+            </p>
+            {data && (
+              <div className="text-xs text-purple-300/80 mb-5 space-y-0.5">
+                <div>{data.itemCount} items · qty {data.totalQuantity.toLocaleString('en-IN')}</div>
+                <div>Total {formatAmount(data.totalItemAmount)}</div>
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setPlaceConfirm(false)}
+                disabled={busy !== null}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 text-sm disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={placeOrder}
+                disabled={busy !== null}
+                className="px-4 py-1.5 rounded-lg bg-emerald-500/30 hover:bg-emerald-500/50 border border-emerald-400/50 text-emerald-50 text-sm font-bold disabled:opacity-50"
+              >
+                {busy === 'place' ? 'Placing…' : 'Confirm — place order'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddProductPanel({
+  poNumber,
+  busy,
+  onAdd,
+}: {
+  poNumber: string;
+  busy: string | null;
+  onAdd: (sku: SkuOption, qty: number) => void;
+}) {
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState<SkuOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [qtyById, setQtyById] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setLoading(true);
+      setError(null);
+      const url = `/api/order-place/seller-skus?poNumber=${encodeURIComponent(poNumber)}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+      fetch(url, { cache: 'no-store' })
+        .then(async (res) => {
+          const json = await res.json();
+          if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+          setResults((json.rows as SkuOption[]) ?? []);
+        })
+        .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+        .finally(() => setLoading(false));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [poNumber, q]);
+
+  return (
+    <div className="px-6 py-3 border-b border-white/10 bg-white/[0.03]">
+      <div className="flex items-center gap-3 mb-3">
+        <input
+          type="text"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search the seller's SKUs by brand or product…"
+          className="flex-1 px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder-purple-300/50 focus:bg-white/10 focus:border-fuchsia-400/50 focus:outline-none"
+          autoFocus
+        />
+        {loading && <span className="text-[11px] text-purple-300/70">Searching…</span>}
+      </div>
+      {error && (
+        <div className="text-rose-200 text-xs mb-2">Failed to load SKUs: {error}</div>
+      )}
+      <div className="max-h-[320px] overflow-auto rounded-lg border border-white/10">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-900/80 sticky top-0 z-10">
+            <tr className="text-purple-200 uppercase text-[10px]">
+              <th className="px-3 py-2 text-left">Brand</th>
+              <th className="px-3 py-2 text-left">SKU</th>
+              <th className="px-3 py-2 text-left">Size</th>
+              <th className="px-3 py-2 text-left" title="Quantity range supported by this SKU's slab. Pick a qty inside this range or the add will be rejected.">Slab</th>
+              <th className="px-3 py-2 text-right">Unit (hint)</th>
+              <th className="px-3 py-2 text-right">MRP</th>
+              <th className="px-3 py-2 text-right">Qty</th>
+              <th className="px-3 py-2 text-center">Add</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((s) => {
+              // Default qty = slab minimum, so the trigger's @> check always
+              // passes on the first try.
+              const defaultQty = s.slabMinQuantity ?? 1;
+              const qty = qtyById[s.sellerBrandSKUId] ?? String(defaultQty);
+              const adding = busy === `add-${s.sellerBrandSKUId}`;
+              const slabLabel = s.slabMinQuantity != null
+                ? (s.slabMaxQuantity != null
+                    ? `${s.slabMinQuantity}–${s.slabMaxQuantity - 1}`
+                    : `${s.slabMinQuantity}+`)
+                : '—';
+              return (
+                <tr key={s.sellerBrandSKUId} className={`border-t border-white/5 hover:bg-white/5 ${adding ? 'opacity-50' : ''}`}>
+                  <td className="px-3 py-2 text-purple-100">{s.brandLabel ?? '—'}</td>
+                  <td className="px-3 py-2 text-white">{s.skuLabel ?? '—'}</td>
+                  <td className="px-3 py-2 text-purple-200">{s.size ?? '—'}</td>
+                  <td className="px-3 py-2 text-purple-300/80 text-[11px] tabular-nums">{slabLabel}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-purple-200">{formatAmount(s.unitPriceHint)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-purple-200">{formatAmount(s.mrp)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <input
+                      type="number"
+                      min={1}
+                      value={qty}
+                      onChange={(e) => setQtyById((prev) => ({ ...prev, [s.sellerBrandSKUId]: e.target.value }))}
+                      disabled={busy !== null}
+                      className="w-16 px-2 py-1 rounded-md bg-white/5 border border-white/10 text-white text-sm text-right tabular-nums focus:outline-none focus:border-fuchsia-400/50"
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <button
+                      onClick={() => {
+                        const n = Number(qty);
+                        if (!Number.isInteger(n) || n < 1) return;
+                        onAdd(s, n);
+                      }}
+                      disabled={busy !== null}
+                      className="px-2.5 py-1 rounded-md bg-fuchsia-500/25 hover:bg-fuchsia-500/45 border border-fuchsia-400/40 text-fuchsia-100 text-[10px] font-bold uppercase disabled:opacity-50"
+                    >
+                      {adding ? '…' : s.alreadyInPo ? 'Add again' : 'Add'}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {!loading && results.length === 0 && (
+              <tr><td colSpan={8} className="px-3 py-6 text-center text-purple-300/60 text-xs">
+                {q ? `No SKUs match "${q}" for this seller.` : 'No SKUs found for this seller.'}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-purple-300/60 mt-2">
+        Note: Unit price shown is a hint — the actual price is computed by Badho&apos;s pricing engine on insert.
+      </p>
     </div>
   );
 }

@@ -91,6 +91,14 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '🪜',
     status: 'coming-soon',
   },
+  {
+    slug: 'calling-team',
+    title: 'Calling Team Dashboard',
+    description:
+      'Calling team activity and outcomes — calls made, connect rate, talk time, conversions per agent, and daily / weekly productivity trends.',
+    icon: '📞',
+    status: 'live',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

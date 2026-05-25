@@ -656,8 +656,8 @@ function PoItemsModal({ poNumber, onClose }: { poNumber: string; onClose: () => 
       onClick={onClose}
     >
       <div
-        className="w-full max-h-[90vh] bg-gradient-to-br from-slate-900 via-purple-950/80 to-slate-900 border border-fuchsia-400/30 rounded-2xl shadow-[0_0_60px_rgba(217,70,239,0.25)] overflow-hidden flex flex-col"
-        style={{ maxWidth: '1100px' }}
+        className="bg-gradient-to-br from-slate-900 via-purple-950/80 to-slate-900 border border-fuchsia-400/30 rounded-2xl shadow-[0_0_60px_rgba(217,70,239,0.25)] overflow-hidden flex flex-col"
+        style={{ width: 'min(2200px, 96vw)', height: 'min(1400px, 95vh)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -26,7 +26,10 @@ interface PoItemRow {
   skuLabel: string | null;
   brandLabel: string | null;
   size: string | null;
-  imageUrl: string | null;
+  // Distinct non-empty image URLs from brandSKU.assets, in a preferred
+  // angle order (front/top first). Duplicates removed because many SKUs
+  // store front===icon. Empty array when no images are set.
+  images: string[];
   quantity: string | null;
   unitPrice: string | null;
   amount: string | null;
@@ -373,19 +376,23 @@ async function loadPoAndItems(poNumber: string) {
       bs."label"                                         AS "skuLabel",
       bra."label"                                        AS "brandLabel",
       (bs."brandSKUDataJSON" ->> 'size')                 AS "size",
-      -- Pick the first non-null product image. brandSKU.assets is a jsonb
-      -- with named slots (front/top/icon/…); we prefer the marketing-y views.
-      COALESCE(
-        NULLIF(bs."assets" ->> 'front',     ''),
-        NULLIF(bs."assets" ->> 'top',       ''),
-        NULLIF(bs."assets" ->> 'icon',      ''),
-        NULLIF(bs."assets" ->> 'top_left',  ''),
-        NULLIF(bs."assets" ->> 'top_right', ''),
-        NULLIF(bs."assets" ->> 'left',      ''),
-        NULLIF(bs."assets" ->> 'right',     ''),
-        NULLIF(bs."assets" ->> 'back',      ''),
-        NULLIF(bs."assets" ->> 'bottom',    '')
-      )                                                  AS "imageUrl",
+      -- All distinct non-empty product images from brandSKU.assets, in
+      -- a preferred angle order (front/top first). Many SKUs store
+      -- front===icon so we dedupe by URL while keeping the angle
+      -- priority — DISTINCT ON (url) ordered by ord keeps the lowest-
+      -- ord row per URL, then the outer query restores angle order.
+      COALESCE((
+        SELECT array_agg(url ORDER BY ord)
+        FROM (
+          SELECT DISTINCT ON (url) url, ord
+          FROM unnest(
+            ARRAY['front','top','icon','top_left','top_right','left','right','back','bottom']
+          ) WITH ORDINALITY AS k(angle, ord)
+          CROSS JOIN LATERAL (SELECT NULLIF(bs."assets" ->> k.angle, '') AS url) u
+          WHERE url IS NOT NULL
+          ORDER BY url, ord
+        ) deduped
+      ), ARRAY[]::text[])                                AS "images",
       poi."quantity"::text                               AS "quantity",
       poi."unitPrice"::text                              AS "unitPrice",
       poi."amount"::text                                 AS "amount",

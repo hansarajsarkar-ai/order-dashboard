@@ -600,15 +600,19 @@ function OrderPlaceDashboard() {
   );
 }
 
-// 40×40 product thumbnail. On hover, shows a 256px preview using a portal
-// so it isn't clipped by the modal body's overflow:auto. Position is
-// computed from the thumbnail's bounding rect and flips left/up to stay
-// on-screen near table edges.
-function ProductThumb({ src, alt }: { src: string | null; alt: string }) {
+// 40×40 product thumbnail. On hover, shows a 256px carousel of every
+// available product image (from brandSKU.assets). Rendered through a
+// portal so the popup isn't clipped by the modal body's overflow:auto;
+// position is computed from the thumbnail's bounding rect and flipped
+// left/up to stay on-screen near table edges. The popup itself accepts
+// pointer events so the user can click prev/next without losing hover.
+function ProductThumb({ images, alt }: { images: string[]; alt: string }) {
   const ref = useRef<HTMLImageElement | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [idx, setIdx] = useState(0);
+  const hideTimer = useRef<number | null>(null);
 
-  if (!src) {
+  if (!images || images.length === 0) {
     return (
       <div className="w-10 h-10 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-purple-300/40 text-[10px]">
         —
@@ -616,8 +620,8 @@ function ProductThumb({ src, alt }: { src: string | null; alt: string }) {
     );
   }
 
-  const PREVIEW = 272; // 256 image + 8 padding on each side
-  const onEnter = () => {
+  const PREVIEW = 304; // ~288 image+nav + padding
+  const openAt = () => {
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
@@ -629,28 +633,83 @@ function ProductThumb({ src, alt }: { src: string | null; alt: string }) {
     if (top < 8) top = 8;
     if (top + PREVIEW > vh - 8) top = vh - PREVIEW - 8;
     setPos({ top, left });
+    setIdx(0);
   };
-  const onLeave = () => setPos(null);
+  const cancelHide = () => {
+    if (hideTimer.current != null) {
+      window.clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  };
+  const scheduleHide = () => {
+    cancelHide();
+    // Small delay lets the cursor traverse the gap between thumb and popup.
+    hideTimer.current = window.setTimeout(() => setPos(null), 120);
+  };
+  const prev = (e: React.MouseEvent) => { e.stopPropagation(); setIdx((i) => (i - 1 + images.length) % images.length); };
+  const next = (e: React.MouseEvent) => { e.stopPropagation(); setIdx((i) => (i + 1) % images.length); };
 
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         ref={ref}
-        src={src}
+        src={images[0]}
         alt={alt}
-        onMouseEnter={onEnter}
-        onMouseLeave={onLeave}
+        onMouseEnter={() => { cancelHide(); openAt(); }}
+        onMouseLeave={scheduleHide}
         className="w-10 h-10 rounded-md object-cover border border-white/10 bg-white/5 cursor-zoom-in"
       />
       {pos &&
         createPortal(
           <div
             style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-            className="pointer-events-none p-2 rounded-lg bg-slate-900/95 border border-white/15 shadow-2xl"
+            onMouseEnter={cancelHide}
+            onMouseLeave={scheduleHide}
+            className="p-2 rounded-lg bg-slate-900/95 border border-white/15 shadow-2xl"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt={alt} className="w-64 h-64 object-contain rounded-md bg-white/5" />
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={images[idx]}
+                alt={alt}
+                className="w-72 h-72 object-contain rounded-md bg-white/5"
+              />
+              {images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={prev}
+                    aria-label="Previous image"
+                    className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white text-sm border border-white/20 flex items-center justify-center"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={next}
+                    aria-label="Next image"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white text-sm border border-white/20 flex items-center justify-center"
+                  >
+                    ›
+                  </button>
+                  <div className="absolute bottom-1 left-0 right-0 flex items-center justify-center gap-1">
+                    {images.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setIdx(i); }}
+                        aria-label={`Show image ${i + 1}`}
+                        className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-4 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'}`}
+                      />
+                    ))}
+                  </div>
+                  <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] tabular-nums border border-white/15">
+                    {idx + 1}/{images.length}
+                  </div>
+                </>
+              )}
+            </div>
           </div>,
           document.body,
         )}
@@ -678,7 +737,7 @@ interface PoItem {
   skuLabel: string | null;
   brandLabel: string | null;
   size: string | null;
-  imageUrl: string | null;
+  images: string[];
   quantity: string | null;
   unitPrice: string | null;
   amount: string | null;
@@ -1029,7 +1088,7 @@ function PoItemsModal({
                   return (
                     <tr key={it.itemId} className={`border-t border-white/5 hover:bg-white/5 ${rowBusy ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-2.5 text-purple-300/70 tabular-nums">{i + 1}</td>
-                      <td className="px-4 py-2.5"><ProductThumb src={it.imageUrl} alt={it.skuLabel ?? 'product'} /></td>
+                      <td className="px-4 py-2.5"><ProductThumb images={it.images ?? []} alt={it.skuLabel ?? 'product'} /></td>
                       <td className="px-4 py-2.5 text-purple-100">{it.brandLabel ?? '—'}</td>
                       <td className="px-4 py-2.5 text-white">{it.skuLabel ?? '—'}</td>
                       <td className="px-4 py-2.5 text-purple-200">{it.size ?? '—'}</td>

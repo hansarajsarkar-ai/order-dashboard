@@ -124,6 +124,14 @@ export async function GET(_req: NextRequest) {
         ORDER BY d."created_at" DESC
         LIMIT 1
       ) di_latest ON TRUE
+      -- Destination-hub arrival
+      -- Destination-hub location is identified by two CONDITIONS + a CHECK that overrides:
+      --   Condition 1: latest scan with activity = "Shipment Received at Facility"
+      --                (prefer one whose status is REACHED AT DESTINATION)
+      --   Condition 2: latest scan with status = REACHED AT DESTINATION (any activity)
+      --   Check (3):   if a first OUT FOR DELIVERY scan is present, OVERRIDE with its location
+      --                (OFD always dispatches from the actual destination hub)
+      -- Then return the EARLIEST scan at that location as the arrival event.
       LEFT JOIN LATERAL (
         SELECT ts AS reached_at_destination_ts,
                TO_CHAR(ts, 'DD Mon YYYY HH12:MI AM') AS reached_at_destination_time,
@@ -140,15 +148,7 @@ export async function GET(_req: NextRequest) {
         ) AS scans
         WHERE loc = (
           SELECT COALESCE(
-            (SELECT s->>'location'
-             FROM jsonb_array_elements(
-               CASE WHEN jsonb_typeof(di."latestLogDetails"::jsonb -> 'scans') = 'array'
-                    THEN di."latestLogDetails"::jsonb -> 'scans'
-                    ELSE '[]'::jsonb END
-             ) AS s
-             WHERE UPPER(TRIM(s->>'status')) = 'REACHED AT DESTINATION'
-                OR LOWER(s->>'activity') LIKE '%reached at destination%'
-             ORDER BY (s->>'date')::timestamp DESC LIMIT 1),
+            -- CHECK / OVERRIDE: First OUT FOR DELIVERY scan's location (authoritative when present)
             (SELECT s->>'location'
              FROM jsonb_array_elements(
                CASE WHEN jsonb_typeof(di."latestLogDetails"::jsonb -> 'scans') = 'array'
@@ -157,7 +157,29 @@ export async function GET(_req: NextRequest) {
              ) AS s
              WHERE UPPER(TRIM(s->>'status')) = 'OUT FOR DELIVERY'
                 OR LOWER(s->>'activity') LIKE '%out for delivery%'
-             ORDER BY (s->>'date')::timestamp ASC LIMIT 1)
+             ORDER BY (s->>'date')::timestamp ASC LIMIT 1),
+            -- CONDITION 1: "Shipment Received at Facility" (prefer REACHED AT DESTINATION status)
+            (SELECT s->>'location'
+             FROM jsonb_array_elements(
+               CASE WHEN jsonb_typeof(di."latestLogDetails"::jsonb -> 'scans') = 'array'
+                    THEN di."latestLogDetails"::jsonb -> 'scans'
+                    ELSE '[]'::jsonb END
+             ) AS s
+             WHERE LOWER(TRIM(s->>'activity')) = 'shipment received at facility'
+             ORDER BY
+               CASE WHEN UPPER(TRIM(s->>'status')) = 'REACHED AT DESTINATION' THEN 0 ELSE 1 END,
+               (s->>'date')::timestamp DESC
+             LIMIT 1),
+            -- CONDITION 2: latest scan with status = REACHED AT DESTINATION
+            (SELECT s->>'location'
+             FROM jsonb_array_elements(
+               CASE WHEN jsonb_typeof(di."latestLogDetails"::jsonb -> 'scans') = 'array'
+                    THEN di."latestLogDetails"::jsonb -> 'scans'
+                    ELSE '[]'::jsonb END
+             ) AS s
+             WHERE UPPER(TRIM(s->>'status')) = 'REACHED AT DESTINATION'
+                OR LOWER(s->>'activity') LIKE '%reached at destination%'
+             ORDER BY (s->>'date')::timestamp DESC LIMIT 1)
           )
         )
         ORDER BY ts ASC

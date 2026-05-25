@@ -25,6 +25,11 @@ interface PoItemRow {
   unitPrice: string | null;
   amount: string | null;
   status: string | null;
+  // Margin (%) from the slab that matches the item's quantity. The same
+  // value the BEFORE INSERT trigger uses to derive unitPrice from
+  // consumerSellingPrice. Null if no matching slab is found (shouldn't
+  // happen for items the trigger accepted, but the schema allows it).
+  margin: string | null;
 }
 
 // Audit constants — distinguish dashboard-driven writes from buyer/seller/app
@@ -363,10 +368,16 @@ async function loadPoAndItems(poNumber: string) {
       poi."quantity"::text                               AS "quantity",
       poi."unitPrice"::text                              AS "unitPrice",
       poi."amount"::text                                 AS "amount",
-      poi."status"                                       AS "status"
+      poi."status"                                       AS "status",
+      pos."margin"::text                                 AS "margin"
     FROM "purchaseOrder"."purchaseOrderItem" poi
     LEFT JOIN "brands"."brandSKU" bs  ON bs."id"  = poi."brandSKUId"
     LEFT JOIN "brands"."brand"    bra ON bra."id" = bs."brandId"
+    -- Slab is matched by both purchaseOrderTermId AND quantity range
+    -- (same logic the BEFORE INSERT trigger uses to compute unitPrice).
+    LEFT JOIN "purchaseOrderTerms"."purchaseOrderTermSlab" pos
+      ON pos."purchaseOrderTermId" = poi."purchaseOrderTermId"
+     AND pos."quantitySlab" @> poi."quantity"
     WHERE poi."purchaseOrderId" = $1
     ORDER BY poi."amount"::numeric DESC NULLS LAST, poi."id";
   `, [po.poId]);

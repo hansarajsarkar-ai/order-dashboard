@@ -419,6 +419,7 @@ export default function BrandPerformanceDashboard() {
   const [drillSummary, setDrillSummary] = useState<{ orders: number; orderAmount: number; itemAmount: number; qty: number; buyers: number } | null>(null);
   const [drillLoading, setDrillLoading] = useState(false);
   const [drillTruncated, setDrillTruncated] = useState(false);
+  const [drillExpanded, setDrillExpanded] = useState<Set<string>>(new Set());
 
   // Chart & Trend tab
   interface TrendPoint {
@@ -699,8 +700,9 @@ export default function BrandPerformanceDashboard() {
     setTopExpanded((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   };
 
-  const openDrill = (state: DrillState) => { setDrill(state); setDrillRows(null); setDrillSummary(null); };
-  const closeDrill = () => { setDrill(null); setDrillRows(null); setDrillSummary(null); };
+  const openDrill = (state: DrillState) => { setDrill(state); setDrillRows(null); setDrillSummary(null); setDrillExpanded(new Set()); };
+  const closeDrill = () => { setDrill(null); setDrillRows(null); setDrillSummary(null); setDrillExpanded(new Set()); };
+  const toggleDrillRow = (poId: string) => setDrillExpanded((prev) => { const n = new Set(prev); if (n.has(poId)) n.delete(poId); else n.add(poId); return n; });
 
   useEffect(() => {
     if (!drill) return;
@@ -3770,10 +3772,15 @@ export default function BrandPerformanceDashboard() {
                       const Value: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
                         <div className={`text-xs font-semibold ${t.isDark ? 'text-white' : 'text-slate-800'} ${className ?? ''}`}>{children}</div>
                       );
+                      const isOpen = drillExpanded.has(r.poId);
                       return (
                         <div key={r.poId} className={`rounded-xl border overflow-hidden ${t.isDark ? 'bg-white/5 border-white/10 hover:border-fuchsia-400/40' : 'bg-white border-slate-200 hover:border-purple-300 shadow-sm'} transition-colors`}>
-                          {/* Top row: PO # · status · pending time · brand · amount · wallet */}
-                          <div className={`px-4 py-2 flex items-center gap-3 flex-wrap border-b ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                          {/* Top row — always visible. Click anywhere on it (or the chevron) to toggle details. */}
+                          <button
+                            onClick={() => toggleDrillRow(r.poId)}
+                            className={`w-full px-4 py-2 flex items-center gap-3 flex-wrap text-left ${isOpen ? `border-b ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}` : ''} ${t.isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'} transition-colors`}
+                          >
+                            <span className={`inline-block w-3 text-center text-[11px] ${t.isDark ? 'text-purple-300' : 'text-slate-400'}`}>{isOpen ? '▾' : '▸'}</span>
                             <span className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>#{r.poNumber}</span>
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${sc.bg} ${sc.text} ${t.isDark ? 'border-white/15' : 'border-slate-200'}`}>{r.status}</span>
                             <span className={`text-[11px] ${t.isDark ? 'text-purple-300/80' : 'text-slate-500'}`}>{d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · {d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -3787,48 +3794,54 @@ export default function BrandPerformanceDashboard() {
                                 <div className={`text-[9px] uppercase tracking-wider font-bold ${t.isDark ? 'text-amber-300/80' : 'text-amber-700'}`}>Wallet applied</div>
                                 <div className={`text-base font-extrabold tabular-nums ${r.appliedWalletAmount > 0 ? (t.isDark ? 'text-amber-200' : 'text-amber-700') : (t.isDark ? 'text-white/40' : 'text-slate-400')}`}>{r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : '—'}</div>
                               </div>
+                              <span className={`text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
+                                {isOpen ? 'Hide details' : 'Show details'}
+                              </span>
                             </div>
-                          </div>
+                          </button>
 
-                          {/* Buyer + Seller two-column block */}
-                          <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 px-4 py-3 border-b ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
-                            <div>
-                              <Label>Buyer</Label>
-                              <Value className="truncate" >{r.buyerBusiness ?? '—'}</Value>
-                              <div className={`text-[11px] mt-0.5 flex items-center gap-2 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                                {r.buyerPhone && <span className={t.isDark ? 'text-sky-200 font-semibold' : 'text-sky-700 font-semibold'}>📞 {r.buyerPhone}</span>}
-                                <span>{[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}</span>
-                              </div>
-                            </div>
-                            <div>
-                              <Label>Seller</Label>
-                              <Value className="truncate">{r.sellerBusiness ?? '—'}</Value>
-                              <div className={`text-[11px] mt-0.5 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                                {r.sellerPhone && <span className={t.isDark ? 'text-sky-200 font-semibold' : 'text-sky-700 font-semibold'}>📞 {r.sellerPhone}</span>}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Items list */}
-                          {r.items.length > 0 && (
-                            <div className="px-4 py-2">
-                              <div className="flex items-center justify-between mb-1">
-                                <Label>{drill.sku ? 'Item' : `Items (${r.items.length})`} · unit · qty · ₹</Label>
-                                <div className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                                  Σ {r.qty.toLocaleString('en-IN')} units · {formatAmount(r.itemAmount)}
+                          {/* Collapsible details: Buyer · Seller · Items */}
+                          {isOpen && (
+                            <>
+                              <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 px-4 py-3 border-b ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                                <div>
+                                  <Label>Buyer</Label>
+                                  <Value className="truncate">{r.buyerBusiness ?? '—'}</Value>
+                                  <div className={`text-[11px] mt-0.5 flex items-center gap-2 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                                    {r.buyerPhone && <span className={t.isDark ? 'text-sky-200 font-semibold' : 'text-sky-700 font-semibold'}>📞 {r.buyerPhone}</span>}
+                                    <span>{[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}</span>
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label>Seller</Label>
+                                  <Value className="truncate">{r.sellerBusiness ?? '—'}</Value>
+                                  <div className={`text-[11px] mt-0.5 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                                    {r.sellerPhone && <span className={t.isDark ? 'text-sky-200 font-semibold' : 'text-sky-700 font-semibold'}>📞 {r.sellerPhone}</span>}
+                                  </div>
                                 </div>
                               </div>
-                              <div className="flex flex-col gap-0.5">
-                                {r.items.map((it, i) => (
-                                  <div key={i} className={`flex items-center gap-3 px-2 py-1 rounded text-[11px] ${t.isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
-                                    <span className={`flex-1 truncate ${t.isDark ? 'text-white/90' : 'text-slate-800'}`} title={it.label ?? ''}>{it.label ?? '(unnamed)'}</span>
-                                    <span className={`tabular-nums font-semibold w-16 text-right ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`}>{it.unitPrice != null ? `₹${it.unitPrice}` : '—'}</span>
-                                    <span className={`tabular-nums font-bold w-12 text-right ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>×{it.qty.toLocaleString('en-IN')}</span>
-                                    <span className={`tabular-nums font-extrabold w-20 text-right ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(it.amount)}</span>
+
+                              {r.items.length > 0 && (
+                                <div className="px-4 py-2">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <Label>{drill.sku ? 'Item' : `Items (${r.items.length})`} · unit · qty · ₹</Label>
+                                    <div className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                                      Σ {r.qty.toLocaleString('en-IN')} units · {formatAmount(r.itemAmount)}
+                                    </div>
                                   </div>
-                                ))}
-                              </div>
-                            </div>
+                                  <div className="flex flex-col gap-0.5">
+                                    {r.items.map((it, i) => (
+                                      <div key={i} className={`flex items-center gap-3 px-2 py-1 rounded text-[11px] ${t.isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
+                                        <span className={`flex-1 truncate ${t.isDark ? 'text-white/90' : 'text-slate-800'}`} title={it.label ?? ''}>{it.label ?? '(unnamed)'}</span>
+                                        <span className={`tabular-nums font-semibold w-16 text-right ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`}>{it.unitPrice != null ? `₹${it.unitPrice}` : '—'}</span>
+                                        <span className={`tabular-nums font-bold w-12 text-right ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>×{it.qty.toLocaleString('en-IN')}</span>
+                                        <span className={`tabular-nums font-extrabold w-20 text-right ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(it.amount)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       );

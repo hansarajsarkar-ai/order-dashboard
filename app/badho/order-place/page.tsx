@@ -149,7 +149,7 @@ export default function OrderPlaceDashboard() {
               Order Place Dashboard
             </h1>
             <p className="text-purple-200/80 text-sm mt-1">
-              D2R brand-seller purchase orders still in <span className="font-semibold text-fuchsia-300">DRAFT</span> this year.
+              D2R brand-seller purchase orders still in <span className="font-semibold text-fuchsia-300">DRAFT</span> — last 30 days.
             </p>
           </div>
           <button

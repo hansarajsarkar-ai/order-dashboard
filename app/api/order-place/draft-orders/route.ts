@@ -33,7 +33,7 @@ export async function GET() {
       JOIN "users"."seller" s ON s."id" = a."sellerId"
       WHERE s."isD2RBrandSeller" = TRUE
         AND a."status" = 'DRAFT'
-        AND EXTRACT(YEAR FROM a."created_at") = EXTRACT(YEAR FROM CURRENT_DATE)
+        AND a."created_at"::date >= CURRENT_DATE - 30
       ORDER BY a."created_at" DESC
       LIMIT ${MAX_ROWS + 1};
     `;

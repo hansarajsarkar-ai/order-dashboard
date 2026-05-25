@@ -1259,26 +1259,49 @@ function PoItemsModal({
         </div>
       )}
 
-      {/* Local keyframes for the Place Order CTA. The glow-pulse runs only
-          while the button is .is-ready (i.e. items > 0 and idle) so the
-          page isn't noisy when nothing can be placed yet. */}
+      {/* Local keyframes for the Place Order CTA. Two stacked animations
+          while .is-ready (items > 0 and idle):
+            - blink: brightness + opacity dip so the button visibly winks
+            - ping:  expanding emerald halo that fades out, telegraphing
+                     "tap me" without being epileptic
+          Both pause on hover so the shine sweep + scale take over. */}
       <style jsx>{`
         .place-order-cta.is-ready {
-          animation: place-order-glow 2.4s ease-in-out infinite;
+          animation:
+            place-order-blink 1.2s ease-in-out infinite,
+            place-order-ping  1.6s ease-out    infinite;
         }
         .place-order-cta.is-ready:hover {
-          animation-play-state: paused;
+          animation-play-state: paused, paused;
         }
-        @keyframes place-order-glow {
+        @keyframes place-order-blink {
           0%, 100% {
-            box-shadow:
-              0 8px 18px -6px rgba(16, 185, 129, 0.45),
-              0 0 0 0 rgba(16, 185, 129, 0.55);
+            filter: brightness(1);
+            opacity: 1;
           }
           50% {
+            filter: brightness(1.25);
+            opacity: 0.82;
+          }
+        }
+        @keyframes place-order-ping {
+          0% {
             box-shadow:
-              0 10px 22px -4px rgba(16, 185, 129, 0.65),
-              0 0 0 8px rgba(16, 185, 129, 0);
+              0 8px 18px -6px rgba(16, 185, 129, 0.5),
+              0 0 0 0   rgba(52, 211, 153, 0.7),
+              0 0 0 0   rgba(52, 211, 153, 0.45);
+          }
+          70% {
+            box-shadow:
+              0 8px 18px -6px rgba(16, 185, 129, 0.5),
+              0 0 0 12px rgba(52, 211, 153, 0),
+              0 0 0 24px rgba(52, 211, 153, 0);
+          }
+          100% {
+            box-shadow:
+              0 8px 18px -6px rgba(16, 185, 129, 0.5),
+              0 0 0 0   rgba(52, 211, 153, 0),
+              0 0 0 0   rgba(52, 211, 153, 0);
           }
         }
       `}</style>

@@ -90,6 +90,7 @@ export default function BadhoIndex() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [employeeName, setEmployeeName] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -153,9 +154,65 @@ export default function BadhoIndex() {
           </div>
         </div>
 
+        {/* Search bar */}
+        <div className="mb-6 flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[260px] max-w-[480px]">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search dashboards by name or description…"
+              className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 text-white placeholder-purple-300/50 focus:bg-white/10 focus:border-fuchsia-400/50 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/30 transition-all"
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-300/60 text-sm">⌕</span>
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-xs font-bold rounded text-purple-300/70 hover:text-white hover:bg-white/10"
+                title="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {search && (() => {
+            const q = search.trim().toLowerCase();
+            const n = DASHBOARDS.filter((d) =>
+              d.title.toLowerCase().includes(q) ||
+              d.description.toLowerCase().includes(q) ||
+              d.slug.toLowerCase().includes(q)
+            ).length;
+            return (
+              <span className="text-xs font-semibold text-purple-200/80">
+                <span className="text-fuchsia-300">{n}</span> of {DASHBOARDS.length} matching
+              </span>
+            );
+          })()}
+        </div>
+
         {/* Dashboard grid */}
+        {(() => {
+          const q = search.trim().toLowerCase();
+          const filtered = q
+            ? DASHBOARDS.filter((d) =>
+                d.title.toLowerCase().includes(q) ||
+                d.description.toLowerCase().includes(q) ||
+                d.slug.toLowerCase().includes(q)
+              )
+            : DASHBOARDS;
+          if (filtered.length === 0) {
+            return (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur-xl p-10 text-center">
+                <div className="text-4xl mb-3 opacity-60">⌕</div>
+                <div className="text-purple-100 font-semibold mb-1">No dashboards match &ldquo;{search}&rdquo;</div>
+                <div className="text-purple-300/70 text-xs">Try a different keyword, or <button onClick={() => setSearch('')} className="underline hover:text-fuchsia-300">clear the search</button>.</div>
+              </div>
+            );
+          }
+          return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {DASHBOARDS.map((d) => {
+          {filtered.map((d) => {
             const isLive = d.status === 'live';
             const cardClass = isLive
               ? 'bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)] hover:-translate-y-1 cursor-pointer'
@@ -193,6 +250,8 @@ export default function BadhoIndex() {
             );
           })}
         </div>
+          );
+        })()}
 
         <div className="mt-12 text-center text-purple-300/50 text-xs">
           Want to add a new dashboard? Drop a route at <code className="text-purple-200">app/badho/&lt;slug&gt;/page.tsx</code> and add it to the list.

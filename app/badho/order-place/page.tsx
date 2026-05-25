@@ -885,7 +885,17 @@ function PoItemsModal({
                   {showAdd ? '× Close add panel' : '+ Add product'}
                 </button>
               )}
-              <PaymentModeChip option={po.paymentOption} instrument={po.paymentInstrument} />
+              <PaymentModeChip
+                option={po.paymentOption}
+                instrument={po.paymentInstrument}
+                editable={isDraft}
+                busy={busy === 'pay-cod'}
+                onSetCOD={() => mutate('pay-cod', {
+                  url: '/api/order-place/payment-info',
+                  method: 'POST',
+                  body: { poNumber, option: 'COD' },
+                })}
+              />
             </div>
             <div className="flex items-center gap-2">
               {busy && <span className="text-[11px] text-fuchsia-300 animate-pulse">Saving…</span>}
@@ -1068,47 +1078,76 @@ function PoItemsModal({
   );
 }
 
-function PaymentModeChip({ option, instrument }: { option: string | null; instrument: string | null }) {
+function PaymentModeChip({
+  option,
+  instrument,
+  editable,
+  busy,
+  onSetCOD,
+}: {
+  option: string | null;
+  instrument: string | null;
+  // On DRAFT POs the chip becomes clickable to assign COD. For PENDING and
+  // other statuses it stays informational.
+  editable?: boolean;
+  busy?: boolean;
+  onSetCOD?: () => void;
+}) {
   // Color the chip by payment kind so the eye can scan a PO list at a glance:
-  //   COD          → amber (the seller bears collection risk)
-  //   FULLY_PAID   → emerald (already paid, settlement-ready)
-  //   anything else / unknown → purple (visible but neutral)
-  //   null         → dim purple "Not set"
-  const known = (() => {
-    if (!option) return { label: 'Payment: Not set', tint: 'neutral', detail: 'Buyer hasn\'t picked yet — gets set at checkout.' };
-    const labelMap: Record<string, { label: string; tint: 'amber' | 'emerald' | 'purple' }> = {
-      COD:               { label: 'COD',                 tint: 'amber' },
-      FULLY_PAID:        { label: 'Paid in full',        tint: 'emerald' },
-      PARTIAL_ADVANCE:   { label: 'Partial advance',     tint: 'emerald' },
-      FULL_ADVANCE:      { label: 'Full advance',        tint: 'emerald' },
+  //   COD                      → amber (seller bears collection risk)
+  //   FULLY_PAID / *_ADVANCE   → emerald (already paid)
+  //   anything else / unknown  → purple
+  //   null (DRAFT, not picked) → dim
+  const styled = (() => {
+    if (!option) return { label: 'Payment: Not set', tint: 'neutral' as const, detail: null as string | null };
+    const map: Record<string, { label: string; tint: 'amber' | 'emerald' | 'purple' }> = {
+      COD:             { label: 'COD',             tint: 'amber'   },
+      FULLY_PAID:      { label: 'Paid in full',    tint: 'emerald' },
+      PARTIAL_ADVANCE: { label: 'Partial advance', tint: 'emerald' },
+      FULL_ADVANCE:    { label: 'Full advance',    tint: 'emerald' },
     };
-    const entry = labelMap[option] ?? { label: option, tint: 'purple' as const };
-    return {
-      ...entry,
-      detail: instrument ? `via ${instrument}` : null,
-    };
+    const entry = map[option] ?? { label: option, tint: 'purple' as const };
+    return { ...entry, detail: instrument ? `via ${instrument}` : null };
   })();
 
-  const tintClass = {
-    amber:   'bg-amber-500/15 border-amber-400/40 text-amber-100 hover:bg-amber-500/25',
-    emerald: 'bg-emerald-500/15 border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/25',
-    purple:  'bg-purple-500/15 border-purple-400/40 text-purple-100 hover:bg-purple-500/25',
-    neutral: 'bg-white/5 border-white/10 text-purple-300/80 hover:bg-white/10',
-  }[(known as { tint: 'amber' | 'emerald' | 'purple' | 'neutral' }).tint] ?? '';
+  const isCOD = option === 'COD';
+  // On DRAFT, show a primary "Set COD" CTA when not yet set, plus a
+  // dim secondary chip if already COD (to communicate confirmation).
+  const showSetCOD = !!editable && !isCOD;
+
+  const tintClass: Record<typeof styled.tint, string> = {
+    amber:   'bg-amber-500/15 border-amber-400/40 text-amber-100',
+    emerald: 'bg-emerald-500/15 border-emerald-400/40 text-emerald-100',
+    purple:  'bg-purple-500/15 border-purple-400/40 text-purple-100',
+    neutral: 'bg-white/5 border-white/10 text-purple-300/80',
+  };
 
   return (
-    <button
-      type="button"
-      disabled
-      title={(known as { detail: string | null }).detail ?? `Payment mode: ${option ?? 'not set'}`}
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-wider cursor-default transition-colors ${tintClass}`}
-    >
-      <span aria-hidden>💳</span>
-      <span>{(known as { label: string }).label}</span>
-      {(known as { detail: string | null }).detail && (
-        <span className="font-normal opacity-80 normal-case tracking-normal">· {(known as { detail: string }).detail}</span>
+    <div className="inline-flex items-center gap-2 flex-wrap">
+      <button
+        type="button"
+        disabled
+        title={styled.detail ?? `Payment mode: ${option ?? 'not set'}`}
+        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-wider cursor-default transition-colors ${tintClass[styled.tint]}`}
+      >
+        <span aria-hidden>💳</span>
+        <span>{styled.label}</span>
+        {styled.detail && (
+          <span className="font-normal opacity-80 normal-case tracking-normal">· {styled.detail}</span>
+        )}
+      </button>
+      {showSetCOD && (
+        <button
+          type="button"
+          onClick={onSetCOD}
+          disabled={busy}
+          className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 border border-amber-400/40 text-amber-100 text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Set payment mode to COD"
+        >
+          {busy ? 'Setting…' : '+ Set COD'}
+        </button>
       )}
-    </button>
+    </div>
   );
 }
 

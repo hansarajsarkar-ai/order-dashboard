@@ -600,15 +600,15 @@ function OrderPlaceDashboard() {
   );
 }
 
-// 40×40 product thumbnail. On hover, shows a 256px carousel of every
-// available product image (from brandSKU.assets). Rendered through a
-// portal so the popup isn't clipped by the modal body's overflow:auto;
-// position is computed from the thumbnail's bounding rect and flipped
-// left/up to stay on-screen near table edges. The popup itself accepts
-// pointer events so the user can click prev/next without losing hover.
+// 48×48 product thumbnail. On hover, shows a frosted-glass card with a
+// 480px square image, the SKU label, an angle counter, and (when
+// applicable) nav arrows + dots. Renders through a portal so the modal
+// body's overflow:auto doesn't clip it; position is computed from the
+// thumbnail's rect and flipped left/up to stay on-screen near edges.
+// On small viewports the card downscales to fit while staying square.
 function ProductThumb({ images, alt }: { images: string[]; alt: string }) {
   const ref = useRef<HTMLImageElement | null>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; size: number } | null>(null);
   const [idx, setIdx] = useState(0);
   const hideTimer = useRef<number | null>(null);
 
@@ -625,25 +625,40 @@ function ProductThumb({ images, alt }: { images: string[]; alt: string }) {
 
   if (!images || images.length === 0) {
     return (
-      <div className="w-10 h-10 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-purple-300/40 text-[10px]">
+      <div className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-purple-300/40 text-[10px]">
         —
       </div>
     );
   }
 
-  const PREVIEW = 304; // ~288 image+nav + padding
+  // Card geometry. The image is square and as large as the viewport
+  // allows; the card adds ~80px of chrome (padding + label row).
+  const IMG_PREFERRED = 480;
+  const CHROME = 80;
+  const MARGIN = 16;
   const openAt = () => {
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    let left = r.right + 8;
-    if (left + PREVIEW > vw - 8) left = r.left - PREVIEW - 8;
-    let top = r.top + r.height / 2 - PREVIEW / 2;
-    if (top < 8) top = 8;
-    if (top + PREVIEW > vh - 8) top = vh - PREVIEW - 8;
-    setPos({ top, left });
+    // Largest square image that fits given side gutters around the thumb
+    // and top/bottom viewport padding.
+    const widthRoom = Math.max(r.left, vw - r.right) - MARGIN - 24;
+    const heightRoom = vh - CHROME - 2 * MARGIN;
+    const imgSize = Math.max(
+      240,
+      Math.min(IMG_PREFERRED, Math.floor(widthRoom), Math.floor(heightRoom)),
+    );
+    const cardW = imgSize + 24;
+    const cardH = imgSize + CHROME;
+    let left = r.right + 12;
+    if (left + cardW > vw - MARGIN) left = r.left - cardW - 12;
+    if (left < MARGIN) left = MARGIN;
+    let top = r.top + r.height / 2 - cardH / 2;
+    if (top < MARGIN) top = MARGIN;
+    if (top + cardH > vh - MARGIN) top = vh - cardH - MARGIN;
+    setPos({ top, left, size: imgSize });
     setIdx(0);
   };
   const cancelHide = () => {
@@ -669,57 +684,73 @@ function ProductThumb({ images, alt }: { images: string[]; alt: string }) {
         alt={alt}
         onMouseEnter={() => { cancelHide(); openAt(); }}
         onMouseLeave={scheduleHide}
-        className="w-10 h-10 rounded-md object-cover border border-white/10 bg-white/5 cursor-zoom-in"
+        className="w-12 h-12 rounded-lg object-cover border border-white/15 bg-white/5 cursor-zoom-in shadow-md shadow-black/30 hover:border-fuchsia-400/50 transition-colors"
       />
       {pos &&
         createPortal(
           <div
-            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+            style={{
+              position: 'fixed',
+              top: pos.top,
+              left: pos.left,
+              zIndex: 9999,
+              width: pos.size + 24,
+            }}
             onMouseEnter={cancelHide}
             onMouseLeave={scheduleHide}
-            className="p-2 rounded-lg bg-slate-900/95 border border-white/15 shadow-2xl"
+            className="rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-white/15 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] ring-1 ring-fuchsia-400/10"
           >
-            <div className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={images[idx]}
-                alt={alt}
-                className="w-72 h-72 object-contain rounded-md bg-white/5"
-              />
-              {images.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={prev}
-                    aria-label="Previous image"
-                    className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white text-sm border border-white/20 flex items-center justify-center"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    onClick={next}
-                    aria-label="Next image"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white text-sm border border-white/20 flex items-center justify-center"
-                  >
-                    ›
-                  </button>
-                  <div className="absolute bottom-1 left-0 right-0 flex items-center justify-center gap-1">
+            <div className="p-3">
+              <div className="relative" style={{ width: pos.size, height: pos.size }}>
+                <div
+                  className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/[0.06] to-fuchsia-500/[0.04]"
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={images[idx]}
+                  alt={alt}
+                  className="relative w-full h-full object-contain rounded-xl"
+                />
+                {images.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={prev}
+                      aria-label="Previous image"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/55 hover:bg-black/80 text-white text-xl leading-none border border-white/20 backdrop-blur-md flex items-center justify-center shadow-lg transition-colors"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      onClick={next}
+                      aria-label="Next image"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/55 hover:bg-black/80 text-white text-xl leading-none border border-white/20 backdrop-blur-md flex items-center justify-center shadow-lg transition-colors"
+                    >
+                      ›
+                    </button>
+                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/65 text-white text-[11px] tabular-nums border border-white/15 font-medium">
+                      {idx + 1} / {images.length}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="mt-2.5 flex items-start justify-between gap-3 px-1">
+                <p className="text-[12px] leading-snug text-white/90 line-clamp-2 flex-1" title={alt}>{alt}</p>
+                {images.length > 1 && (
+                  <div className="flex items-center gap-1 pt-0.5 shrink-0">
                     {images.map((_, i) => (
                       <button
                         key={i}
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setIdx(i); }}
                         aria-label={`Show image ${i + 1}`}
-                        className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-4 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'}`}
+                        className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-5 bg-fuchsia-300' : 'w-1.5 bg-white/30 hover:bg-white/60'}`}
                       />
                     ))}
                   </div>
-                  <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] tabular-nums border border-white/15">
-                    {idx + 1}/{images.length}
-                  </div>
-                </>
-              )}
+                )}
+              </div>
             </div>
           </div>,
           document.body,

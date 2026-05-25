@@ -399,6 +399,23 @@ export default function BrandPerformanceDashboard() {
   const [topSearch, setTopSearch] = useState('');
   const [topExpanded, setTopExpanded] = useState<Set<string>>(new Set());
 
+  // Drill-down modal — fires when user clicks a metric cell on Brand × Product
+  interface DrillOrder {
+    poId: string; poNumber: string; pendingAt: string; status: string; orderAmount: number;
+    buyerBusiness: string | null; buyerState: string | null; buyerCity: string | null;
+    sellerBusiness: string | null; qty: number; itemAmount: number;
+  }
+  interface DrillState {
+    brand: string;
+    sku?: { id: string; label: string };
+    metric: 'orders' | 'amount' | 'buyers' | 'qty';
+  }
+  const [drill, setDrill] = useState<DrillState | null>(null);
+  const [drillRows, setDrillRows] = useState<DrillOrder[] | null>(null);
+  const [drillSummary, setDrillSummary] = useState<{ orders: number; orderAmount: number; itemAmount: number; qty: number; buyers: number } | null>(null);
+  const [drillLoading, setDrillLoading] = useState(false);
+  const [drillTruncated, setDrillTruncated] = useState(false);
+
   // Chart & Trend tab
   interface TrendPoint {
     bucket: string;
@@ -677,6 +694,40 @@ export default function BrandPerformanceDashboard() {
   const toggleTopBrand = (key: string) => {
     setTopExpanded((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   };
+
+  const openDrill = (state: DrillState) => { setDrill(state); setDrillRows(null); setDrillSummary(null); };
+  const closeDrill = () => { setDrill(null); setDrillRows(null); setDrillSummary(null); };
+
+  useEffect(() => {
+    if (!drill) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setDrillLoading(true);
+        const params = new URLSearchParams({ year: String(currentYear), drillBrand: drill.brand });
+        const { startDate, endDate } = resolveRange();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate)   params.append('endDate',   endDate);
+        if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+        if (drill.sku) params.append('drillSku', drill.sku.id);
+        const res = await fetch(`/api/brand-performance/brand-product-drill?${params.toString()}`);
+        if (!res.ok) throw new Error('failed');
+        const json = await res.json();
+        if (cancelled) return;
+        setDrillRows(json.data || []);
+        setDrillSummary(json.summary || null);
+        setDrillTruncated(!!json.truncated);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Drill fetch error:', err);
+        setDrillRows([]); setDrillSummary(null); setDrillTruncated(false);
+      } finally {
+        if (!cancelled) setDrillLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drill]);
 
   const fetchTrend = async () => {
     try {
@@ -2314,16 +2365,16 @@ export default function BrandPerformanceDashboard() {
                             <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{br.products.length}</div>
                           </td>
                           <td className={dataCellCompact}>
-                            <div className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{br.total.count.toLocaleString('en-IN')}</div>
+                            <button onClick={(e) => { e.stopPropagation(); openDrill({ brand: br.brandLabel, metric: 'orders' }); }} className={`text-sm font-extrabold tabular-nums transition-all duration-150 hover:scale-125 origin-right inline-block ${t.isDark ? 'text-white hover:text-fuchsia-300 hover:drop-shadow-[0_0_8px_rgba(232,121,249,0.7)]' : 'text-slate-900 hover:text-purple-600'}`} title="Click to see orders">{br.total.count.toLocaleString('en-IN')}</button>
                           </td>
                           <td className={dataCellCompact}>
-                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(br.total.amount)}</div>
+                            <button onClick={(e) => { e.stopPropagation(); openDrill({ brand: br.brandLabel, metric: 'amount' }); }} className={`text-xs font-bold tabular-nums transition-all duration-150 hover:scale-125 origin-right inline-block ${t.isDark ? 'text-white hover:text-fuchsia-300 hover:drop-shadow-[0_0_8px_rgba(232,121,249,0.7)]' : 'text-slate-900 hover:text-purple-600'}`} title="Click to see orders">{formatAmount(br.total.amount)}</button>
                           </td>
                           <td className={dataCellCompact}>
-                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{br.total.buyers.toLocaleString('en-IN')}</div>
+                            <button onClick={(e) => { e.stopPropagation(); openDrill({ brand: br.brandLabel, metric: 'buyers' }); }} className={`text-xs font-bold tabular-nums transition-all duration-150 hover:scale-125 origin-right inline-block ${t.isDark ? 'text-sky-200 hover:text-sky-100 hover:drop-shadow-[0_0_8px_rgba(56,189,248,0.7)]' : 'text-sky-700 hover:text-sky-500'}`} title="Click to see buyers">{br.total.buyers.toLocaleString('en-IN')}</button>
                           </td>
                           <td className={dataCellCompact}>
-                            <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{fmtQty(br.total.quantity)}</div>
+                            <button onClick={(e) => { e.stopPropagation(); openDrill({ brand: br.brandLabel, metric: 'qty' }); }} className={`text-xs font-bold tabular-nums transition-all duration-150 hover:scale-125 origin-right inline-block ${t.isDark ? 'text-emerald-200 hover:text-emerald-100 hover:drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]' : 'text-emerald-700 hover:text-emerald-500'}`} title="Click to see orders">{fmtQty(br.total.quantity)}</button>
                           </td>
                           <td className={dataCellCompact}>
                             <div className="flex items-center justify-end gap-2">
@@ -2352,16 +2403,16 @@ export default function BrandPerformanceDashboard() {
                             </td>
                             <td className={dataCellCompact}>—</td>
                             <td className={dataCellCompact}>
-                              <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{p.total.count.toLocaleString('en-IN')}</div>
+                              <button onClick={(e) => { e.stopPropagation(); openDrill({ brand: br.brandLabel, sku: { id: p.skuId, label: p.skuLabel }, metric: 'orders' }); }} className={`text-xs font-bold tabular-nums transition-all duration-150 hover:scale-125 origin-right inline-block ${t.isDark ? 'text-purple-100 hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'text-slate-700 hover:text-purple-600'}`} title="Click to see orders">{p.total.count.toLocaleString('en-IN')}</button>
                             </td>
                             <td className={dataCellCompact}>
-                              <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-purple-200' : 'text-slate-700'}`}>{formatAmount(p.total.amount)}</div>
+                              <button onClick={(e) => { e.stopPropagation(); openDrill({ brand: br.brandLabel, sku: { id: p.skuId, label: p.skuLabel }, metric: 'amount' }); }} className={`text-xs font-semibold tabular-nums transition-all duration-150 hover:scale-125 origin-right inline-block ${t.isDark ? 'text-purple-200 hover:text-fuchsia-300 hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]' : 'text-slate-700 hover:text-purple-600'}`} title="Click to see orders">{formatAmount(p.total.amount)}</button>
                             </td>
                             <td className={dataCellCompact}>
-                              <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-300/80' : 'text-sky-600'}`}>{p.total.buyers.toLocaleString('en-IN')}</div>
+                              <button onClick={(e) => { e.stopPropagation(); openDrill({ brand: br.brandLabel, sku: { id: p.skuId, label: p.skuLabel }, metric: 'buyers' }); }} className={`text-xs font-semibold tabular-nums transition-all duration-150 hover:scale-125 origin-right inline-block ${t.isDark ? 'text-sky-300/80 hover:text-sky-200 hover:drop-shadow-[0_0_6px_rgba(56,189,248,0.6)]' : 'text-sky-600 hover:text-sky-500'}`} title="Click to see buyers">{p.total.buyers.toLocaleString('en-IN')}</button>
                             </td>
                             <td className={dataCellCompact}>
-                              <div className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-emerald-300/80' : 'text-emerald-600'}`}>{fmtQty(p.total.quantity)}</div>
+                              <button onClick={(e) => { e.stopPropagation(); openDrill({ brand: br.brandLabel, sku: { id: p.skuId, label: p.skuLabel }, metric: 'qty' }); }} className={`text-xs font-semibold tabular-nums transition-all duration-150 hover:scale-125 origin-right inline-block ${t.isDark ? 'text-emerald-300/80 hover:text-emerald-200 hover:drop-shadow-[0_0_6px_rgba(16,185,129,0.6)]' : 'text-emerald-600 hover:text-emerald-500'}`} title="Click to see orders">{fmtQty(p.total.quantity)}</button>
                             </td>
                             <td className={dataCellCompact}>
                               {(() => {
@@ -3673,6 +3724,93 @@ export default function BrandPerformanceDashboard() {
         })()}
 
       </div>
+
+      {drill && (() => {
+        const title = drill.sku ? `${drill.brand} · ${drill.sku.label}` : drill.brand;
+        const metricLabel = drill.metric === 'amount' ? '₹ value' : drill.metric === 'buyers' ? 'Buyers' : drill.metric === 'qty' ? 'Qty sold' : 'Orders';
+        const statusColor: Record<string, { bg: string; text: string }> = t.isDark
+          ? { DELIVERED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, COMPLETED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, DISPATCHED: { bg: 'bg-sky-500/15', text: 'text-sky-300' }, PENDING: { bg: 'bg-sky-500/15', text: 'text-sky-300' }, ACCEPTED: { bg: 'bg-violet-500/15', text: 'text-violet-300' }, INVOICED: { bg: 'bg-fuchsia-500/15', text: 'text-fuchsia-300' } }
+          : { DELIVERED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, COMPLETED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, DISPATCHED: { bg: 'bg-sky-100', text: 'text-sky-700' }, PENDING: { bg: 'bg-sky-100', text: 'text-sky-700' }, ACCEPTED: { bg: 'bg-violet-100', text: 'text-violet-700' }, INVOICED: { bg: 'bg-fuchsia-100', text: 'text-fuchsia-700' } };
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={closeDrill}>
+            <div className={`absolute inset-0 ${t.isDark ? 'bg-slate-950/80' : 'bg-slate-900/60'} backdrop-blur-sm`} />
+            <div onClick={(e) => e.stopPropagation()} className={`relative z-10 w-[min(95vw,1100px)] max-h-[90vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl ${t.isDark ? 'bg-slate-950 border border-fuchsia-400/30' : 'bg-white border border-slate-200'}`}>
+              <div className={`absolute inset-x-0 top-0 h-px ${t.isDark ? 'bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent' : 'bg-gradient-to-r from-purple-500 via-fuchsia-500 to-indigo-500'}`} />
+              <div className={`px-6 py-4 flex items-start justify-between gap-4 border-b ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={t.sectionTag('details')}>DRILL · {metricLabel.toUpperCase()}</span>
+                    <h3 className={`text-base font-bold truncate ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{title}</h3>
+                  </div>
+                  {drillSummary && (
+                    <div className={`text-[11px] mt-1 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                      {drillSummary.orders.toLocaleString('en-IN')} orders · {formatAmount(drillSummary.orderAmount)} order GMV · {drillSummary.buyers.toLocaleString('en-IN')} buyers · {drillSummary.qty.toLocaleString('en-IN')} units{drill.sku ? ` of this SKU · ${formatAmount(drillSummary.itemAmount)} item value` : ''}
+                    </div>
+                  )}
+                </div>
+                <button onClick={closeDrill} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>✕ Close</button>
+              </div>
+              <div className="overflow-auto flex-1">
+                {drillLoading || !drillRows ? (
+                  <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading orders…</div>
+                ) : drillRows.length === 0 ? (
+                  <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No orders in this slice</div>
+                ) : (
+                  <table className="w-full text-sm border-separate border-spacing-0">
+                    <thead className={`sticky top-0 z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                      <tr>
+                        <th className={`${t.brandCell} text-left text-[10px] font-semibold uppercase tracking-wider ${t.isDark ? 'text-purple-200' : 'text-slate-500'}`}>PO #</th>
+                        <th className={`${t.deliveryHeader} text-left`}>When</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Status</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Buyer</th>
+                        <th className={`${t.deliveryHeader} text-right`}>Order ₹</th>
+                        <th className={`${t.deliveryHeader} text-right`}>{drill.sku ? 'SKU qty' : 'Total qty'}</th>
+                        <th className={`${t.deliveryHeader} text-right`}>{drill.sku ? 'SKU ₹' : 'Item ₹'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {drillRows.map((r, idx) => {
+                        const sc = statusColor[r.status] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
+                        const d = new Date(r.pendingAt);
+                        return (
+                          <tr key={r.poId} className={`${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover}`}>
+                            <td className={t.brandCell.replace('py-3', 'py-1.5')}>
+                              <span className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>#{r.poNumber}</span>
+                            </td>
+                            <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                              <div className={`text-xs ${t.isDark ? 'text-white' : 'text-slate-800'}`}>{d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</div>
+                              <div className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+                            </td>
+                            <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${sc.bg} ${sc.text} ${t.isDark ? 'border-white/15' : 'border-slate-200'}`}>{r.status}</span>
+                            </td>
+                            <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                              <div className={`text-xs font-semibold truncate max-w-[260px] ${t.isDark ? 'text-white' : 'text-slate-800'}`} title={r.buyerBusiness ?? ''}>{r.buyerBusiness ?? '—'}</div>
+                              <div className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}</div>
+                            </td>
+                            <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                              <span className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(r.orderAmount)}</span>
+                            </td>
+                            <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                              <span className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{r.qty.toLocaleString('en-IN')}</span>
+                            </td>
+                            <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                              <span className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`}>{formatAmount(r.itemAmount)}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              {drillTruncated && (
+                <div className={t.footnote}>showing latest 300 orders · narrow the date range to see more</div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       <style jsx>{`
         .animation-delay-2000 { animation-delay: 2s; }

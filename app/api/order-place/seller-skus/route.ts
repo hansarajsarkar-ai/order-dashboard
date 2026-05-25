@@ -53,6 +53,27 @@ export async function GET(req: NextRequest) {
         WHERE "poNumber"::text = $1
         LIMIT 1
       ),
+      live_brands AS (
+        -- User's canonical "live brand" gate. Without this, the SKU picker
+        -- exposes brands the seller has mapped but isn't actively delivering
+        -- (inactive mapping or empty fulfilmentZone), which would let the
+        -- caller add items that the rest of Badho would later reject.
+        SELECT b."brandId"
+        FROM "users"."seller" a
+        JOIN "users"."seller_brand" b ON b."sellerId" = a."id"
+        WHERE a."id"                = (SELECT "sellerId" FROM po)
+          AND a."isD2RBrandSeller"  = TRUE
+          AND a."isActive"          = TRUE
+          AND a."deliveryType"      = 'INTERCITY'
+          AND a."deliveryNetwork"   = 'THIRD_PARTY'
+          AND a."pickupAddressName" IS NOT NULL
+          AND a."isTest"            = FALSE
+          AND a."businessName"      NOT ILIKE '%test%'
+          AND a."businessName"      NOT ILIKE '%milko%'
+          AND b."isActive"          = TRUE
+          AND b."fulfilmentZone"    IS NOT NULL
+          AND b."fulfilmentZone"::text != '[]'
+      ),
       first_slab AS (
         -- One slab per seller_brandSKU. We deliberately pick the slab with
         -- the LOWEST quantity range so the UI's default qty (= range start)
@@ -72,6 +93,7 @@ export async function GET(req: NextRequest) {
         JOIN "purchaseOrderTerms"."purchaseOrderTermSlab" pos
           ON pos."purchaseOrderTermId" = sb."purchaseOrderTermId"
         WHERE sb."sellerId" = (SELECT "sellerId" FROM po)
+          AND sb."brandId" IN (SELECT "brandId" FROM live_brands)
           AND pos."isArchived" IS NOT TRUE
         ORDER BY sb."id", lower(pos."quantitySlab") ASC NULLS LAST
       )

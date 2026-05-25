@@ -3756,97 +3756,128 @@ export default function BrandPerformanceDashboard() {
                 </div>
                 <button onClick={closeDrill} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>✕ Close</button>
               </div>
-              <div className="overflow-auto flex-1 p-4">
+              <div className="overflow-auto flex-1">
                 {drillLoading || !drillRows ? (
                   <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading orders…</div>
                 ) : drillRows.length === 0 ? (
                   <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No orders in this slice</div>
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {drillRows.map((r) => {
-                      const sc = statusColor[r.status] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
-                      const d = new Date(r.pendingAt);
-                      const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-                        <div className={`text-[9px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/60' : 'text-slate-500'}`}>{children}</div>
-                      );
-                      const Value: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-                        <div className={`text-xs font-semibold ${t.isDark ? 'text-white' : 'text-slate-800'} ${className ?? ''}`}>{children}</div>
-                      );
-                      const isOpen = drillExpanded.has(r.poId);
-                      return (
-                        <div key={r.poId} className={`rounded-xl border overflow-hidden ${t.isDark ? 'bg-white/5 border-white/10 hover:border-fuchsia-400/40' : 'bg-white border-slate-200 hover:border-purple-300 shadow-sm'} transition-colors`}>
-                          {/* Top row — always visible. Click anywhere on it (or the chevron) to toggle details. */}
-                          <button
-                            onClick={() => toggleDrillRow(r.poId)}
-                            className={`w-full px-4 py-2 flex items-center gap-3 flex-wrap text-left ${isOpen ? `border-b ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}` : ''} ${t.isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'} transition-colors`}
-                          >
-                            <span className={`inline-block w-3 text-center text-[11px] ${t.isDark ? 'text-purple-300' : 'text-slate-400'}`}>{isOpen ? '▾' : '▸'}</span>
-                            <span className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>#{r.poNumber}</span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${sc.bg} ${sc.text} ${t.isDark ? 'border-white/15' : 'border-slate-200'}`}>{r.status}</span>
-                            <span className={`text-[11px] ${t.isDark ? 'text-purple-300/80' : 'text-slate-500'}`}>{d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · {d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/40' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>{drill.brand}</span>
-                            <div className="ml-auto flex items-center gap-4">
-                              <div className="text-right">
-                                <div className={`text-[9px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/60' : 'text-slate-500'}`}>PO amount</div>
-                                <div className={`text-base font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(r.orderAmount)}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className={`text-[9px] uppercase tracking-wider font-bold ${t.isDark ? 'text-amber-300/80' : 'text-amber-700'}`}>Wallet applied</div>
-                                <div className={`text-base font-extrabold tabular-nums ${r.appliedWalletAmount > 0 ? (t.isDark ? 'text-amber-200' : 'text-amber-700') : (t.isDark ? 'text-white/40' : 'text-slate-400')}`}>{r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : '—'}</div>
-                              </div>
-                              <span className={`text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
-                                {isOpen ? 'Hide details' : 'Show details'}
-                              </span>
-                            </div>
-                          </button>
-
-                          {/* Collapsible details: Buyer · Seller · Items */}
-                          {isOpen && (
-                            <>
-                              <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 px-4 py-3 border-b ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
-                                <div>
-                                  <Label>Buyer</Label>
-                                  <Value className="truncate">{r.buyerBusiness ?? '—'}</Value>
-                                  <div className={`text-[11px] mt-0.5 flex items-center gap-2 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                                    {r.buyerPhone && <span className={t.isDark ? 'text-sky-200 font-semibold' : 'text-sky-700 font-semibold'}>📞 {r.buyerPhone}</span>}
-                                    <span>{[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}</span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <Label>Seller</Label>
-                                  <Value className="truncate">{r.sellerBusiness ?? '—'}</Value>
-                                  <div className={`text-[11px] mt-0.5 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                                    {r.sellerPhone && <span className={t.isDark ? 'text-sky-200 font-semibold' : 'text-sky-700 font-semibold'}>📞 {r.sellerPhone}</span>}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {r.items.length > 0 && (
-                                <div className="px-4 py-2">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <Label>{drill.sku ? 'Item' : `Items (${r.items.length})`} · unit · qty · ₹</Label>
-                                    <div className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                                      Σ {r.qty.toLocaleString('en-IN')} units · {formatAmount(r.itemAmount)}
+                  <table className="w-full text-sm border-separate border-spacing-0">
+                    <thead className={`sticky top-0 z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
+                      <tr>
+                        <th className={`${t.deliveryHeader} text-center w-6`}></th>
+                        <th className={`${t.deliveryHeader} text-left`}>PO #</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Status</th>
+                        <th className={`${t.deliveryHeader} text-left`}>When</th>
+                        <th className={`${t.deliveryHeader} text-left`}>Brand</th>
+                        <th className={`${t.deliveryHeader} text-right`}>PO ₹</th>
+                        <th className={`${t.deliveryHeader} text-right`}>Wallet ₹</th>
+                        <th className={`${t.deliveryHeader} text-right`}>Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {drillRows.map((r, idx) => {
+                        const sc = statusColor[r.status] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
+                        const d = new Date(r.pendingAt);
+                        const isOpen = drillExpanded.has(r.poId);
+                        const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+                          <div className={`text-[9px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/60' : 'text-slate-500'}`}>{children}</div>
+                        );
+                        const Value: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+                          <div className={`text-xs font-semibold ${t.isDark ? 'text-white' : 'text-slate-800'} ${className ?? ''}`}>{children}</div>
+                        );
+                        return (
+                          <Fragment key={r.poId}>
+                            <tr
+                              onClick={() => toggleDrillRow(r.poId)}
+                              className={`cursor-pointer ${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover} ${isOpen ? (t.isDark ? 'bg-fuchsia-500/10' : 'bg-purple-50') : ''}`}
+                            >
+                              <td className={t.dataCell.replace('py-3', 'py-1.5').replace('text-right', 'text-center')}>
+                                <span className={`text-[11px] ${t.isDark ? 'text-purple-300' : 'text-slate-400'}`}>{isOpen ? '▾' : '▸'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-extrabold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>#{r.poNumber}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${sc.bg} ${sc.text} ${t.isDark ? 'border-white/15' : 'border-slate-200'}`}>{r.status}</span>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <div className={`text-xs ${t.isDark ? 'text-white' : 'text-slate-800'}`}>{d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</div>
+                                <div className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+                              </td>
+                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
+                                <span className={`text-[11px] font-semibold ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>{drill.brand}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(r.orderAmount)}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-xs font-extrabold tabular-nums ${r.appliedWalletAmount > 0 ? (t.isDark ? 'text-amber-200' : 'text-amber-700') : (t.isDark ? 'text-white/40' : 'text-slate-400')}`}>{r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : '—'}</span>
+                              </td>
+                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
+                                <span className={`text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
+                                  {isOpen ? 'Hide' : 'Show'}
+                                </span>
+                              </td>
+                            </tr>
+                            {isOpen && (
+                              <tr className={`${t.isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
+                                <td colSpan={8} className={`${t.isDark ? 'border-b border-fuchsia-400/20' : 'border-b border-purple-200'} px-6 py-3`}>
+                                  <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 pb-3 border-b ${t.isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                                    <div>
+                                      <Label>Buyer · businessName + phone</Label>
+                                      <Value className="truncate">{r.buyerBusiness ?? '—'}</Value>
+                                      <div className={`text-[11px] mt-0.5 flex items-center gap-2 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                                        {r.buyerPhone && <span className={t.isDark ? 'text-sky-200 font-semibold' : 'text-sky-700 font-semibold'}>📞 {r.buyerPhone}</span>}
+                                        <span>{[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}</span>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <Label>Seller · businessName + phone</Label>
+                                      <Value className="truncate">{r.sellerBusiness ?? '—'}</Value>
+                                      <div className={`text-[11px] mt-0.5 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                                        {r.sellerPhone && <span className={t.isDark ? 'text-sky-200 font-semibold' : 'text-sky-700 font-semibold'}>📞 {r.sellerPhone}</span>}
+                                      </div>
                                     </div>
                                   </div>
-                                  <div className="flex flex-col gap-0.5">
-                                    {r.items.map((it, i) => (
-                                      <div key={i} className={`flex items-center gap-3 px-2 py-1 rounded text-[11px] ${t.isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
-                                        <span className={`flex-1 truncate ${t.isDark ? 'text-white/90' : 'text-slate-800'}`} title={it.label ?? ''}>{it.label ?? '(unnamed)'}</span>
-                                        <span className={`tabular-nums font-semibold w-16 text-right ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`}>{it.unitPrice != null ? `₹${it.unitPrice}` : '—'}</span>
-                                        <span className={`tabular-nums font-bold w-12 text-right ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>×{it.qty.toLocaleString('en-IN')}</span>
-                                        <span className={`tabular-nums font-extrabold w-20 text-right ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(it.amount)}</span>
+                                  {r.items.length > 0 && (
+                                    <div className="pt-3">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <Label>{drill.sku ? 'Item' : `Items (${r.items.length})`} · unit · qty · ₹</Label>
+                                        <div className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                                          Σ {r.qty.toLocaleString('en-IN')} units · {formatAmount(r.itemAmount)}
+                                        </div>
                                       </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                                      <table className="w-full text-[11px]">
+                                        <thead>
+                                          <tr className={t.isDark ? 'text-purple-300/70' : 'text-slate-500'}>
+                                            <th className="text-left font-semibold py-1">Item</th>
+                                            <th className="text-right font-semibold py-1 w-20">Unit ₹</th>
+                                            <th className="text-right font-semibold py-1 w-16">Qty</th>
+                                            <th className="text-right font-semibold py-1 w-24">₹</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {r.items.map((it, i) => (
+                                            <tr key={i} className={`${t.isDark ? 'border-t border-white/5 hover:bg-white/5' : 'border-t border-slate-200 hover:bg-white'}`}>
+                                              <td className={`py-1 truncate ${t.isDark ? 'text-white/90' : 'text-slate-800'}`} title={it.label ?? ''}>{it.label ?? '(unnamed)'}</td>
+                                              <td className={`py-1 text-right tabular-nums font-semibold ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`}>{it.unitPrice != null ? `₹${it.unitPrice}` : '—'}</td>
+                                              <td className={`py-1 text-right tabular-nums font-bold ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>×{it.qty.toLocaleString('en-IN')}</td>
+                                              <td className={`py-1 text-right tabular-nums font-extrabold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(it.amount)}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 )}
               </div>
               {drillTruncated && (

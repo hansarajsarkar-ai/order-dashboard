@@ -4276,39 +4276,9 @@ export default function BrandPerformanceDashboard() {
 
       {mbsDrill && (() => {
         const metricLabel = mbsDrill.metric === 'amount' ? '₹ Value' : mbsDrill.metric === 'buyers' ? 'Buyers' : 'Orders';
-        const monthLabel = mbsDrill.month != null ? String(MONTH_NAMES[mbsDrill.month - 1] || mbsDrill.month) : null;
-        const dsLabel = mbsDrill.deliveryStatus === undefined
-          ? null
-          : (mbsDrill.deliveryStatus ?? '(no delivery status)');
-        // Override pins to a single brand-row click (Pivot tab). Falls back to global mbsBrands filter when cleared.
-        const brandOverrideLabel = mbsDrill.brandOverride && mbsDrill.brandOverride !== '' ? mbsDrill.brandOverride : null;
-        const brandLabel = brandOverrideLabel
-          ? null
-          : mbsBrands.size === 0
-            ? null
-            : mbsBrands.size === 1
-              ? Array.from(mbsBrands)[0]
-              : `${mbsBrands.size} brands`;
         const statusColor: Record<string, { bg: string; text: string }> = t.isDark
           ? { DELIVERED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, COMPLETED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, DISPATCHED: { bg: 'bg-sky-500/15', text: 'text-sky-300' }, PENDING: { bg: 'bg-sky-500/15', text: 'text-sky-300' }, ACCEPTED: { bg: 'bg-violet-500/15', text: 'text-violet-300' }, INVOICED: { bg: 'bg-fuchsia-500/15', text: 'text-fuchsia-300' }, REJECTED: { bg: 'bg-rose-500/15', text: 'text-rose-300' }, CANCELLED: { bg: 'bg-amber-500/15', text: 'text-amber-300' }, INPROGRESS: { bg: 'bg-slate-500/15', text: 'text-slate-200' } }
           : { DELIVERED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, COMPLETED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, DISPATCHED: { bg: 'bg-sky-100', text: 'text-sky-700' }, PENDING: { bg: 'bg-sky-100', text: 'text-sky-700' }, ACCEPTED: { bg: 'bg-violet-100', text: 'text-violet-700' }, INVOICED: { bg: 'bg-fuchsia-100', text: 'text-fuchsia-700' }, REJECTED: { bg: 'bg-rose-100', text: 'text-rose-700' }, CANCELLED: { bg: 'bg-amber-100', text: 'text-amber-700' }, INPROGRESS: { bg: 'bg-slate-100', text: 'text-slate-700' } };
-        const chip = (label: string, value: string, onRemove: (() => void) | null, accent: 'fuchsia' | 'sky' | 'emerald' | 'amber') => {
-          const accentCls = {
-            fuchsia: t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border-purple-200',
-            sky:     t.isDark ? 'bg-sky-500/15 text-sky-200 border-sky-400/30'             : 'bg-sky-50 text-sky-700 border-sky-200',
-            emerald: t.isDark ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            amber:   t.isDark ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'       : 'bg-amber-50 text-amber-700 border-amber-200',
-          }[accent];
-          return (
-            <span key={label} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border ${accentCls}`}>
-              <span className={`text-[9px] uppercase tracking-wider opacity-70`}>{label}</span>
-              <span>{value}</span>
-              {onRemove && (
-                <button type="button" onClick={onRemove} title={`Remove ${label} filter`} className={`ml-0.5 -mr-0.5 px-1 leading-none rounded hover:bg-black/10 ${t.isDark ? 'hover:bg-white/10' : ''}`}>×</button>
-              )}
-            </span>
-          );
-        };
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={closeMbsDrill}>
             <div className={`absolute inset-0 ${t.isDark ? 'bg-slate-950/80' : 'bg-slate-900/60'} backdrop-blur-sm`} />
@@ -4329,19 +4299,6 @@ export default function BrandPerformanceDashboard() {
                   )}
                 </div>
                 <button onClick={closeMbsDrill} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>✕ Close</button>
-              </div>
-
-              {/* Active filters (removable) + quick switchers */}
-              <div className={`px-6 py-3 border-b flex flex-wrap items-center gap-2 ${t.isDark ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-100'}`}>
-                <span className={`text-[10px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>Filters</span>
-                {chip('Status', mbsDrill.status ?? 'All statuses', mbsDrill.status ? () => setMbsDrill({ ...mbsDrill, status: null, deliveryStatus: undefined }) : null, 'fuchsia')}
-                {dsLabel !== null && chip('Delivery', dsLabel, () => setMbsDrill({ ...mbsDrill, deliveryStatus: undefined }), 'emerald')}
-                {monthLabel && chip('Month', monthLabel, () => setMbsDrill({ ...mbsDrill, month: null }), 'sky')}
-                {brandOverrideLabel && chip('Brand', brandOverrideLabel, () => setMbsDrill({ ...mbsDrill, brandOverride: undefined }), 'amber')}
-                {brandLabel && chip('Brand', brandLabel, () => setMbsBrands(new Set()), 'amber')}
-                {dsLabel === null && monthLabel === null && !brandLabel && !brandOverrideLabel && (
-                  <span className={`text-[11px] italic ${t.isDark ? 'text-purple-300/50' : 'text-slate-400'}`}>showing every {mbsDrill.status ?? 'order'} in scope</span>
-                )}
               </div>
 
               {/* Orders table */}
@@ -4519,32 +4476,9 @@ export default function BrandPerformanceDashboard() {
 
       {productDrill && (() => {
         const metricLabel = productDrill.metric === 'amount' ? '₹ Value' : productDrill.metric === 'buyers' ? 'Buyers' : 'Orders';
-        const monthLabel = productDrill.month != null ? String(MONTH_NAMES[productDrill.month - 1] || productDrill.month) : null;
-        const brandLabel = mbsBrands.size === 0
-          ? null
-          : mbsBrands.size === 1
-            ? Array.from(mbsBrands)[0]
-            : `${mbsBrands.size} brands`;
         const statusColor: Record<string, { bg: string; text: string }> = t.isDark
           ? { DELIVERED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, COMPLETED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' } }
           : { DELIVERED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, COMPLETED: { bg: 'bg-emerald-100', text: 'text-emerald-700' } };
-        const chip = (label: string, value: string, onRemove: (() => void) | null, accent: 'fuchsia' | 'sky' | 'emerald' | 'amber') => {
-          const accentCls = {
-            fuchsia: t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border-purple-200',
-            sky:     t.isDark ? 'bg-sky-500/15 text-sky-200 border-sky-400/30'             : 'bg-sky-50 text-sky-700 border-sky-200',
-            emerald: t.isDark ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            amber:   t.isDark ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'       : 'bg-amber-50 text-amber-700 border-amber-200',
-          }[accent];
-          return (
-            <span key={label} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border ${accentCls}`}>
-              <span className="text-[9px] uppercase tracking-wider opacity-70">{label}</span>
-              <span className="truncate max-w-[260px]">{value}</span>
-              {onRemove && (
-                <button type="button" onClick={onRemove} title={`Remove ${label} filter`} className={`ml-0.5 -mr-0.5 px-1 leading-none rounded ${t.isDark ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}>×</button>
-              )}
-            </span>
-          );
-        };
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={closeProductDrill}>
             <div className={`absolute inset-0 ${t.isDark ? 'bg-slate-950/80' : 'bg-slate-900/60'} backdrop-blur-sm`} />
@@ -4568,18 +4502,6 @@ export default function BrandPerformanceDashboard() {
                   )}
                 </div>
                 <button onClick={closeProductDrill} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>✕ Close</button>
-              </div>
-
-              {/* Active filters (removable) */}
-              <div className={`px-6 py-3 border-b flex flex-wrap items-center gap-2 ${t.isDark ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-100'}`}>
-                <span className={`text-[10px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>Filters</span>
-                {chip('Product', productDrill.skuLabel, null, 'fuchsia')}
-                {productDrill.brandName && chip('Brand of SKU', productDrill.brandName, null, 'emerald')}
-                {monthLabel && chip('Month', monthLabel, () => setProductDrill({ ...productDrill, month: null }), 'sky')}
-                {brandLabel && chip('Brand filter', brandLabel, () => setMbsBrands(new Set()), 'amber')}
-                {!monthLabel && !brandLabel && (
-                  <span className={`text-[11px] italic ${t.isDark ? 'text-purple-300/50' : 'text-slate-400'}`}>showing every delivered/completed order with this SKU in scope</span>
-                )}
               </div>
 
               {/* Orders table */}

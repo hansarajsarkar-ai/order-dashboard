@@ -4289,11 +4289,6 @@ export default function BrandPerformanceDashboard() {
             : mbsBrands.size === 1
               ? Array.from(mbsBrands)[0]
               : `${mbsBrands.size} brands`;
-        // Sub-status options (only present in current mbsData) for in-modal switching
-        const dsOptions: Array<string | null> =
-          mbsData?.data.find((r) => r.status === mbsDrill.status)?.deliveryStatuses.map((d) => d.deliveryStatus) ?? [];
-        const monthOptions = mbsData?.months ?? [];
-        const statusOptions = mbsData?.data.map((r) => r.status) ?? [];
         const statusColor: Record<string, { bg: string; text: string }> = t.isDark
           ? { DELIVERED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, COMPLETED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, DISPATCHED: { bg: 'bg-sky-500/15', text: 'text-sky-300' }, PENDING: { bg: 'bg-sky-500/15', text: 'text-sky-300' }, ACCEPTED: { bg: 'bg-violet-500/15', text: 'text-violet-300' }, INVOICED: { bg: 'bg-fuchsia-500/15', text: 'text-fuchsia-300' }, REJECTED: { bg: 'bg-rose-500/15', text: 'text-rose-300' }, CANCELLED: { bg: 'bg-amber-500/15', text: 'text-amber-300' }, INPROGRESS: { bg: 'bg-slate-500/15', text: 'text-slate-200' } }
           : { DELIVERED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, COMPLETED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, DISPATCHED: { bg: 'bg-sky-100', text: 'text-sky-700' }, PENDING: { bg: 'bg-sky-100', text: 'text-sky-700' }, ACCEPTED: { bg: 'bg-violet-100', text: 'text-violet-700' }, INVOICED: { bg: 'bg-fuchsia-100', text: 'text-fuchsia-700' }, REJECTED: { bg: 'bg-rose-100', text: 'text-rose-700' }, CANCELLED: { bg: 'bg-amber-100', text: 'text-amber-700' }, INPROGRESS: { bg: 'bg-slate-100', text: 'text-slate-700' } };
@@ -4348,55 +4343,6 @@ export default function BrandPerformanceDashboard() {
                   <span className={`text-[11px] italic ${t.isDark ? 'text-purple-300/50' : 'text-slate-400'}`}>showing every {mbsDrill.status ?? 'order'} in scope</span>
                 )}
               </div>
-
-              {/* Quick slice switchers — only when there's more than one option */}
-              {(monthOptions.length > 1 || dsOptions.length > 1 || statusOptions.length > 1) && (
-                <div className={`px-6 py-2 border-b flex flex-col gap-2 ${t.isDark ? 'bg-slate-900/20 border-white/5' : 'bg-slate-50/60 border-slate-100'}`}>
-                  {statusOptions.length > 1 && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`text-[10px] uppercase tracking-wider font-semibold w-16 shrink-0 ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>Status</span>
-                      {statusOptions.map((s) => {
-                        const active = mbsDrill.status === s;
-                        const sc = statusColor[s] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
-                        return (
-                          <button key={s} type="button" onClick={() => setMbsDrill({ ...mbsDrill, status: s, deliveryStatus: undefined })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${active ? `${sc.bg} ${sc.text} ${t.isDark ? 'border-fuchsia-400/60 ring-1 ring-fuchsia-400/50' : 'border-purple-400 ring-1 ring-purple-300'}` : `${t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}`}>
-                            {s}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {monthOptions.length > 1 && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`text-[10px] uppercase tracking-wider font-semibold w-16 shrink-0 ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>Month</span>
-                      <button type="button" onClick={() => setMbsDrill({ ...mbsDrill, month: null })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${mbsDrill.month == null ? (t.isDark ? 'bg-sky-500/20 text-sky-200 border-sky-400/50 ring-1 ring-sky-400/40' : 'bg-sky-100 text-sky-700 border-sky-300 ring-1 ring-sky-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>All</button>
-                      {monthOptions.map((m) => {
-                        const active = mbsDrill.month === m;
-                        return (
-                          <button key={m} type="button" onClick={() => setMbsDrill({ ...mbsDrill, month: m })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${active ? (t.isDark ? 'bg-sky-500/20 text-sky-200 border-sky-400/50 ring-1 ring-sky-400/40' : 'bg-sky-100 text-sky-700 border-sky-300 ring-1 ring-sky-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>
-                            {MONTH_NAMES[m - 1] || m}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {dsOptions.length > 1 && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`text-[10px] uppercase tracking-wider font-semibold w-16 shrink-0 ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>Delivery</span>
-                      <button type="button" onClick={() => setMbsDrill({ ...mbsDrill, deliveryStatus: undefined })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${mbsDrill.deliveryStatus === undefined ? (t.isDark ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/50 ring-1 ring-emerald-400/40' : 'bg-emerald-100 text-emerald-700 border-emerald-300 ring-1 ring-emerald-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>All</button>
-                      {dsOptions.map((ds, i) => {
-                        const active = mbsDrill.deliveryStatus === ds;
-                        const label = ds ?? '(none)';
-                        return (
-                          <button key={`${label}_${i}`} type="button" onClick={() => setMbsDrill({ ...mbsDrill, deliveryStatus: ds })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${active ? (t.isDark ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/50 ring-1 ring-emerald-400/40' : 'bg-emerald-100 text-emerald-700 border-emerald-300 ring-1 ring-emerald-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* Orders table */}
               <div className="overflow-auto flex-1">
@@ -4579,7 +4525,6 @@ export default function BrandPerformanceDashboard() {
           : mbsBrands.size === 1
             ? Array.from(mbsBrands)[0]
             : `${mbsBrands.size} brands`;
-        const monthOptions = productData?.months ?? [];
         const statusColor: Record<string, { bg: string; text: string }> = t.isDark
           ? { DELIVERED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, COMPLETED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' } }
           : { DELIVERED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, COMPLETED: { bg: 'bg-emerald-100', text: 'text-emerald-700' } };
@@ -4636,22 +4581,6 @@ export default function BrandPerformanceDashboard() {
                   <span className={`text-[11px] italic ${t.isDark ? 'text-purple-300/50' : 'text-slate-400'}`}>showing every delivered/completed order with this SKU in scope</span>
                 )}
               </div>
-
-              {/* Quick month switcher */}
-              {monthOptions.length > 1 && (
-                <div className={`px-6 py-2 border-b flex items-center gap-1.5 flex-wrap ${t.isDark ? 'bg-slate-900/20 border-white/5' : 'bg-slate-50/60 border-slate-100'}`}>
-                  <span className={`text-[10px] uppercase tracking-wider font-semibold w-16 shrink-0 ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>Month</span>
-                  <button type="button" onClick={() => setProductDrill({ ...productDrill, month: null })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${productDrill.month == null ? (t.isDark ? 'bg-sky-500/20 text-sky-200 border-sky-400/50 ring-1 ring-sky-400/40' : 'bg-sky-100 text-sky-700 border-sky-300 ring-1 ring-sky-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>All</button>
-                  {monthOptions.map((m) => {
-                    const active = productDrill.month === m;
-                    return (
-                      <button key={m} type="button" onClick={() => setProductDrill({ ...productDrill, month: m })} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${active ? (t.isDark ? 'bg-sky-500/20 text-sky-200 border-sky-400/50 ring-1 ring-sky-400/40' : 'bg-sky-100 text-sky-700 border-sky-300 ring-1 ring-sky-200') : (t.isDark ? 'bg-transparent border-white/10 text-purple-300/70 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700')}`}>
-                        {MONTH_NAMES[m - 1] || m}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
 
               {/* Orders table */}
               <div className="overflow-auto flex-1">

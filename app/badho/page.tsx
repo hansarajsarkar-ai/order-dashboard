@@ -83,6 +83,14 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '🚀',
     status: 'coming-soon',
   },
+  {
+    slug: 'drop-funnel',
+    title: 'Drop Funnel',
+    description:
+      'Buyer drop-off funnel across app open → product view → cart → checkout → order placed, with stage-wise conversion and drop-off rates.',
+    icon: '🪜',
+    status: 'coming-soon',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

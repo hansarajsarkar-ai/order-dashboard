@@ -415,7 +415,20 @@ function OrderPlaceDashboard() {
             </div>
             <div>
               <div className={labelClass}>PO Number</div>
-              <input type="text" value={filters.poNumber} onChange={(e) => setF('poNumber', e.target.value)} placeholder="e.g. 145119" className={inputClass} />
+              <input
+                type="text"
+                value={filters.poNumber}
+                onChange={(e) => setF('poNumber', e.target.value)}
+                onKeyDown={(e) => {
+                  // Quick-open: digits-only + Enter pops the modal for that
+                  // PO directly, skipping the list refresh entirely.
+                  if (e.key === 'Enter' && /^\d+$/.test(filters.poNumber)) {
+                    setActivePo(filters.poNumber);
+                  }
+                }}
+                placeholder="e.g. 1452323 — press Enter to open"
+                className={inputClass}
+              />
             </div>
             <div>
               <div className={labelClass}>Buyer (name / phone)</div>

@@ -988,44 +988,44 @@ function PoItemsModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-white/10 flex items-start justify-between gap-4">
+        <div className="px-6 py-2.5 border-b border-white/10 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-base font-semibold uppercase tracking-wider text-purple-300/80">PO</span>
-              <span className="font-mono text-4xl font-bold text-fuchsia-200">{poNumber}</span>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-300/80">PO</span>
+              <span className="font-mono text-xl font-bold text-fuchsia-200">{poNumber}</span>
               {po && (
-                <span className="px-3 py-1 rounded-full text-sm font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">
                   {po.status}
                 </span>
               )}
             </div>
             {po && (
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-xl text-purple-200/90">
-                <div className="group px-3 py-1.5 -mx-3 rounded-md border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
+              <div className="mt-1.5 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-0.5 text-xs text-purple-200/90">
+                <div className="group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
                   <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">Buyer:</span>{' '}
                   <span className="text-white font-medium group-hover:[text-shadow:0_0_10px_rgba(255,255,255,0.35)] transition-all">{po.buyerBusinessName ?? '—'}</span>
                   {po.buyerPhone && (
                     <span className="text-purple-300/70 tabular-nums group-hover:text-fuchsia-200 transition-colors"> · {po.buyerPhone}</span>
                   )}
                 </div>
-                <div className="group px-3 py-1.5 -mx-3 rounded-md border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
+                <div className="group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
                   <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">Seller:</span>{' '}
                   <span className="text-white font-medium group-hover:[text-shadow:0_0_10px_rgba(255,255,255,0.35)] transition-all">{po.sellerBusinessName ?? '—'}</span>
                   {po.sellerPhone && (
                     <span className="text-purple-300/70 tabular-nums group-hover:text-fuchsia-200 transition-colors"> · {po.sellerPhone}</span>
                   )}
                 </div>
-                <div className="group px-3 py-1.5 -mx-3 rounded-md border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
+                <div className="group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
                   <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">Created:</span>{' '}
                   <span className="text-purple-100 group-hover:text-white transition-colors">{formatDate(po.created_at)}</span>
                 </div>
-                <div className="group px-3 py-1.5 -mx-3 rounded-md border-l-2 border-transparent hover:border-emerald-400 hover:bg-emerald-500/10 transition-all duration-150 cursor-default">
+                <div className="group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-emerald-400 hover:bg-emerald-500/10 transition-all duration-150 cursor-default">
                   <span className="text-purple-400/70 group-hover:text-emerald-300 transition-colors">PO total:</span>{' '}
                   <span className="text-white font-semibold tabular-nums group-hover:text-emerald-200 group-hover:[text-shadow:0_0_12px_rgba(110,231,183,0.5)] transition-all">{formatAmount(po.amount)}</span>
                 </div>
-                <div className="md:col-span-2 group px-3 py-1.5 -mx-3 rounded-md border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
+                <div className="md:col-span-2 group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
                   <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">PO ID:</span>{' '}
-                  <span className="font-mono text-sm md:text-base text-purple-100 group-hover:text-white select-all break-all">{po.poId}</span>
+                  <span className="font-mono text-[11px] text-purple-100 group-hover:text-white select-all break-all">{po.poId}</span>
                 </div>
               </div>
             )}

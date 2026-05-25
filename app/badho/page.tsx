@@ -75,6 +75,22 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '📈',
     status: 'live',
   },
+  {
+    slug: 'margin-and-profit',
+    title: 'Margin and Profit',
+    description:
+      'Track gross margin, net profit, and contribution by seller, brand, and SKU — with trend lines and period-over-period comparison.',
+    icon: '💹',
+    status: 'coming-soon',
+  },
+  {
+    slug: 'margin-and-growth',
+    title: 'Margin and Growth',
+    description:
+      'Margin movement and growth signals — period-over-period GMV growth, repeat-buyer rate, AOV trend, and margin delta by brand / SKU.',
+    icon: '🚀',
+    status: 'coming-soon',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

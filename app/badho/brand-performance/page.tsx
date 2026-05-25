@@ -387,6 +387,10 @@ export default function BrandPerformanceDashboard() {
   interface TopSellersData {
     brands: TsBrand[];
     grand: TsCell;
+    // Order-level distinct totals — match Chart & Trend (one row per
+    // purchaseOrder, GMV uses po."amount"). Use these in the footer so the
+    // dashboard's two tabs reconcile cleanly.
+    distinct: { orders: number; buyers: number; amount: number };
     brandCount: number;
     productCount: number;
     sort: 'orders' | 'amount' | 'quantity';
@@ -2690,14 +2694,14 @@ export default function BrandPerformanceDashboard() {
                     <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
                       <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-purple-100' : 'text-slate-700'}`}>{topData.productCount.toLocaleString('en-IN')}</div>
                     </td>
-                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
-                      <div className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{topData.grand.count.toLocaleString('en-IN')}</div>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`} title="Distinct purchase orders — matches Chart & Trend">
+                      <div className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{topData.distinct.orders.toLocaleString('en-IN')}</div>
                     </td>
-                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
-                      <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(topData.grand.amount)}</div>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`} title="Sum of purchaseOrder.amount (order-header total) — matches Chart & Trend">
+                      <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(topData.distinct.amount)}</div>
                     </td>
-                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
-                      <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{topData.grand.buyers.toLocaleString('en-IN')}</div>
+                    <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`} title="Distinct buyers — matches Chart & Trend">
+                      <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{topData.distinct.buyers.toLocaleString('en-IN')}</div>
                     </td>
                     <td className={`border-t border-r ${t.isDark ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-slate-100'} px-3 py-1.5 text-right`}>
                       <div className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{fmtQty(topData.grand.quantity)}</div>
@@ -2712,7 +2716,7 @@ export default function BrandPerformanceDashboard() {
           </div>
           {topData && (
             <div className={t.footnote}>
-              {visibleBrandsTs.length} of {topData.brandCount} brand{topData.brandCount === 1 ? '' : 's'} · {topData.productCount.toLocaleString('en-IN')} SKUs · ★ marks the top SKU within each brand. Orders / buyers are summed across SKUs — an order with multiple SKUs from one brand counts once per SKU.
+              {visibleBrandsTs.length} of {topData.brandCount} brand{topData.brandCount === 1 ? '' : 's'} · {topData.productCount.toLocaleString('en-IN')} SKUs · ★ marks the top SKU within each brand. Per-row Orders / Buyers / ₹ Value are per-SKU attribution (an order with N SKUs from one brand contributes N to that brand). Footer TOTAL shows distinct orders / buyers and order-header GMV (sum of po.amount) — these tie back to the Chart & Trend cards.
             </div>
           )}
         </div>

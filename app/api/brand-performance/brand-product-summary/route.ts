@@ -91,7 +91,47 @@ export async function GET(req: NextRequest) {
         ${brandFilter}
       GROUP BY bra."label", bra."id", bs."id", bs."label", (bs."brandSKUDataJSON" ->> 'size');
     `;
-    const rows = await query<Row>(sql, params);
+
+    // Distinct order-level totals — these tie back to the Chart & Trend cards
+    // ("Delivered Orders", "Delivered GMV") since they count each purchaseOrder
+    // once and sum po."amount" (the order-header total the buyer owes), instead
+    // of summing per-SKU line items which double-count orders with multiple SKUs
+    // and ignore order-level discounts.
+    const distinctSql = `
+      WITH qualifying_orders AS (
+        SELECT DISTINCT po."id", po."amount"::numeric AS amt, po."buyerId"
+        FROM "purchaseOrder"."purchaseOrder" po
+        JOIN "purchaseOrder"."purchaseOrderItem" poi ON poi."purchaseOrderId" = po."id"
+        JOIN "brands"."brandSKU"                  bs  ON bs."id"  = poi."brandSKUId"
+        JOIN "users"."buyer"                      b   ON b."id"   = po."buyerId"
+        JOIN "users"."seller"                     s   ON s."id"   = po."sellerId"
+        WHERE po."isTest"          = FALSE
+          AND po."isFalseOrder"    = FALSE
+          AND b."isTest"           = FALSE
+          AND b."businessName" NOT ILIKE '%test%'
+          AND s."isTest"           = FALSE
+          AND s."businessName" NOT ILIKE '%test%'
+          AND s."isD2RBrandSeller" = TRUE
+          AND po."deliveryNetwork" = 'THIRD_PARTY'
+          AND po."deliveryType"    = 'INTERCITY'
+          AND po."status"          IN ('DELIVERED', 'COMPLETED')
+          AND poi."status"         != 'DRAFT'
+          AND po."markedPendingTime" IS NOT NULL
+          ${whereDate}
+          ${brandFilter}
+      )
+      SELECT
+        COUNT(*)::text                          AS distinct_orders,
+        COUNT(DISTINCT "buyerId")::text         AS distinct_buyers,
+        COALESCE(SUM(amt), 0)::text             AS po_amount_total
+      FROM qualifying_orders;
+    `;
+
+    const [rows, distinctRows] = await Promise.all([
+      query<Row>(sql, params),
+      query<{ distinct_orders: string; distinct_buyers: string; po_amount_total: string }>(distinctSql, params),
+    ]);
+    const distinct = distinctRows[0] ?? { distinct_orders: '0', distinct_buyers: '0', po_amount_total: '0' };
 
     type Cell = { count: number; amount: number; buyers: number; quantity: number };
     interface SkuRow {
@@ -160,6 +200,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       brands,
       grand,
+      // Distinct order-level totals — tie back to Chart & Trend cards. Use these
+      // in any footer / KPI display where the column-sum overcount would mislead.
+      distinct: {
+        orders: parseInt(distinct.distinct_orders),
+        buyers: parseInt(distinct.distinct_buyers),
+        amount: parseFloat(distinct.po_amount_total),
+      },
       brandCount: brands.length,
       productCount,
       sort,

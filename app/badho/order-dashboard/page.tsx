@@ -494,8 +494,8 @@ export default function OrderStatusDashboard() {
   const [funnelRange, setFunnelRange] = useState<'all' | 'year' | '12mo' | '30d' | '7d' | 'today' | 'custom'>('year');
   const [funnelCustomFrom, setFunnelCustomFrom] = useState('');
   const [funnelCustomTo, setFunnelCustomTo] = useState('');
-  // RTO sub-tabs (Dashboard / Details)
-  const [rtoSubTab, setRtoSubTab] = useState<'dashboard' | 'details'>('dashboard');
+  // RTO sub-tabs (Dashboard / Details / Destination Hub Tracking)
+  const [rtoSubTab, setRtoSubTab] = useState<'dashboard' | 'details' | 'hub'>('dashboard');
   interface RtoOrderRow {
     orderDate: string | null;
     itlDate: string | null;
@@ -3042,8 +3042,9 @@ export default function OrderStatusDashboard() {
           <div className="space-y-8">
             {/* RTO sub-tab navigation */}
             <div className="flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl w-fit">
-              {(['dashboard', 'details'] as const).map((sub) => {
+              {(['dashboard', 'details', 'hub'] as const).map((sub) => {
                 const active = rtoSubTab === sub;
+                const label = sub === 'dashboard' ? 'Dashboard' : sub === 'details' ? 'Details' : 'Destination Hub Tracking';
                 return (
                   <button
                     key={sub}
@@ -3054,7 +3055,7 @@ export default function OrderStatusDashboard() {
                         : 'text-purple-200 hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    {sub === 'dashboard' ? 'Dashboard' : 'Details'}
+                    {label}
                   </button>
                 );
               })}
@@ -3911,6 +3912,24 @@ export default function OrderStatusDashboard() {
                   </div>
                 </div>
               )}
+            </div>
+            )}
+
+            {rtoSubTab === 'hub' && (
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+              <div className="px-8 py-6 border-b border-white/10 bg-white/5">
+                <h2 className="text-2xl font-bold text-white">Destination Hub Order Tracking</h2>
+                <p className="text-purple-300 text-sm mt-1">Track RTO orders by their destination hub</p>
+              </div>
+              <div className="px-8 py-16 text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-500/20 border border-purple-400/30 mb-4">
+                  <svg className="w-8 h-8 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <p className="text-white/80 text-base font-semibold">Coming soon</p>
+                <p className="text-white/50 text-sm mt-2 max-w-md mx-auto">This panel will show RTO orders grouped by their destination hub once the data source is connected.</p>
+              </div>
             </div>
             )}
           </div>

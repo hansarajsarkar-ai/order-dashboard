@@ -1400,11 +1400,15 @@ function AddProductPanel({
   const [results, setResults] = useState<SkuOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [qtyById, setQtyById] = useState<Record<string, string>>({});
   // Selection state — keyed by sellerBrandSKUId. Persists across search
   // changes so the user can refine the list, tick boxes, refine again,
   // then bulk-add at the end.
   const [selected, setSelected] = useState<Record<string, true>>({});
+  // Pending row-add: clicking Add on a row opens this dialog so the user
+  // confirms the quantity before the actual mutation fires. Bulk-add
+  // doesn't go through here — it uses each SKU's slab minimum.
+  const [pendingSku, setPendingSku] = useState<SkuOption | null>(null);
+  const [pendingQty, setPendingQty] = useState<string>('1');
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -1451,16 +1455,16 @@ function AddProductPanel({
   const clearSelection = () => setSelected({});
 
   const bulkAdd = async () => {
-    // Resolve the selected ids back to their full SkuOption + chosen qty.
-    // Use defaults for any item the user didn't override.
+    // Resolve the selected ids back to their full SkuOption + slab-min qty.
+    // Bulk-add doesn't go through the quantity dialog; each row uses its
+    // own slabMinQuantity, which is always inside the trigger's @> check.
     const ids = Object.keys(selected);
     const byId = new Map(results.map((s) => [s.sellerBrandSKUId, s]));
     const list = ids
       .map((id) => {
         const sku = byId.get(id);
         if (!sku) return null;
-        const defaultQty = sku.slabMinQuantity ?? 1;
-        const qty = Number(qtyById[id] ?? String(defaultQty));
+        const qty = sku.slabMinQuantity ?? 1;
         if (!Number.isInteger(qty) || qty < 1) return null;
         return { sku, quantity: qty };
       })
@@ -1535,16 +1539,11 @@ function AddProductPanel({
               <th className="px-3 py-2 text-right" title="Indicative unit price from the lowest qty slab. The PO trigger may recompute this from consumerSellingPrice × (1 − margin/100) on insert.">Unit Price</th>
               <th className="px-3 py-2 text-right" title="Slab margin (%) used by the PO trigger to derive unitPrice.">Margin</th>
               <th className="px-3 py-2 text-right">MRP</th>
-              <th className="px-3 py-2 text-right">Qty</th>
               <th className="px-3 py-2 text-center">Add now</th>
             </tr>
           </thead>
           <tbody>
             {results.map((s) => {
-              // Default qty = slab minimum, so the trigger's @> check always
-              // passes on the first try.
-              const defaultQty = s.slabMinQuantity ?? 1;
-              const qty = qtyById[s.sellerBrandSKUId] ?? String(defaultQty);
               const adding = busy === `add-${s.sellerBrandSKUId}`;
               const isSelected = !!selected[s.sellerBrandSKUId];
               return (
@@ -1568,26 +1567,15 @@ function AddProductPanel({
                   <td className="px-3 py-2 text-right tabular-nums text-purple-100">{formatAmount(s.unitPriceHint)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-emerald-200">{s.marginHint != null ? `${Number(s.marginHint).toFixed(2)}%` : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-purple-200">{formatAmount(s.mrp)}</td>
-                  <td className="px-3 py-2 text-right">
-                    <input
-                      type="number"
-                      min={1}
-                      value={qty}
-                      onChange={(e) => setQtyById((prev) => ({ ...prev, [s.sellerBrandSKUId]: e.target.value }))}
-                      disabled={busy !== null}
-                      className="w-16 px-2 py-1 rounded-md bg-white/5 border border-white/10 text-white text-sm text-right tabular-nums focus:outline-none focus:border-fuchsia-400/50"
-                    />
-                  </td>
                   <td className="px-3 py-2 text-center">
                     <button
                       onClick={() => {
-                        const n = Number(qty);
-                        if (!Number.isInteger(n) || n < 1) return;
-                        onAdd(s, n);
+                        setPendingSku(s);
+                        setPendingQty(String(s.slabMinQuantity ?? 1));
                       }}
                       disabled={busy !== null}
                       className="px-2.5 py-1 rounded-md bg-fuchsia-500/25 hover:bg-fuchsia-500/45 border border-fuchsia-400/40 text-fuchsia-100 text-[10px] font-bold uppercase disabled:opacity-50"
-                      title="Add this one item right now"
+                      title="Set quantity and add"
                     >
                       {adding ? '…' : s.alreadyInPo ? 'Add again' : 'Add'}
                     </button>
@@ -1596,7 +1584,7 @@ function AddProductPanel({
               );
             })}
             {!loading && results.length === 0 && (
-              <tr><td colSpan={10} className="px-3 py-6 text-center text-purple-300/60 text-xs">
+              <tr><td colSpan={9} className="px-3 py-6 text-center text-purple-300/60 text-xs">
                 {q ? `No SKUs match "${q}" for this seller.` : 'No SKUs found for this seller.'}
               </td></tr>
             )}
@@ -1604,8 +1592,113 @@ function AddProductPanel({
         </table>
       </div>
       <p className="text-[10px] text-purple-300/60 mt-2">
-        Tick rows and press <span className="text-fuchsia-300 font-semibold">Add N selected</span> to add many at once, or use <span className="text-fuchsia-300 font-semibold">Add</span> on a single row. PO total updates after each item. Unit price is a hint — Badho&apos;s pricing engine sets the actual value on insert.
+        Tick rows and press <span className="text-fuchsia-300 font-semibold">Add N selected</span> to add many at once (each at its slab minimum), or use <span className="text-fuchsia-300 font-semibold">Add</span> on a single row to pick a quantity first. PO total updates after each item. Unit price is a hint — Badho&apos;s pricing engine sets the actual value on insert.
       </p>
+
+      {/* Quantity dialog — opens when the user clicks Add on a row. The
+          input pre-fills with the slab minimum (always a valid value for
+          the trigger's @> check) and shows the slab range so the user
+          knows what's accepted. Confirm fires the same onAdd path the
+          inline button used to use. */}
+      {pendingSku && (() => {
+        const sku = pendingSku;
+        const minQ = sku.slabMinQuantity ?? 1;
+        // slabMaxQuantity is the exclusive upper bound of the int4range,
+        // so the highest accepted qty is maxQ-1 (mirrors the trigger).
+        const maxQ = sku.slabMaxQuantity != null ? sku.slabMaxQuantity - 1 : null;
+        const slabLabel = maxQ != null ? `${minQ}–${maxQ}` : `${minQ}+`;
+        const n = Number(pendingQty);
+        const validNumber = Number.isInteger(n) && n >= 1;
+        const inSlab = validNumber && (n >= minQ) && (maxQ == null || n <= maxQ);
+        const close = () => { setPendingSku(null); };
+        const submit = () => {
+          if (!validNumber) return;
+          onAdd(sku, n);
+          close();
+        };
+        return (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80"
+            onClick={() => busy === null && close()}
+          >
+            <div
+              className="w-full max-w-sm bg-gradient-to-br from-slate-900 to-purple-950 border border-fuchsia-400/40 rounded-2xl p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3 mb-3">
+                <ProductThumb images={sku.images ?? []} alt={sku.skuLabel ?? 'product'} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] uppercase tracking-wider text-purple-300/70">{sku.brandLabel ?? '—'}</div>
+                  <div className="text-sm font-semibold text-white line-clamp-2 leading-snug">{sku.skuLabel ?? '—'}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mb-4 text-[11px]">
+                <div className="rounded-md bg-white/5 border border-white/10 px-2 py-1.5">
+                  <div className="text-purple-400/70 text-[10px] uppercase tracking-wider">Unit</div>
+                  <div className="text-purple-100 font-semibold tabular-nums">{formatAmount(sku.unitPriceHint)}</div>
+                </div>
+                <div className="rounded-md bg-white/5 border border-white/10 px-2 py-1.5">
+                  <div className="text-purple-400/70 text-[10px] uppercase tracking-wider">Margin</div>
+                  <div className="text-emerald-200 font-semibold tabular-nums">{sku.marginHint != null ? `${Number(sku.marginHint).toFixed(2)}%` : '—'}</div>
+                </div>
+                <div className="rounded-md bg-white/5 border border-white/10 px-2 py-1.5">
+                  <div className="text-purple-400/70 text-[10px] uppercase tracking-wider">MRP</div>
+                  <div className="text-purple-100 font-semibold tabular-nums">{formatAmount(sku.mrp)}</div>
+                </div>
+              </div>
+              <label className="block text-[11px] uppercase tracking-wider text-purple-300/80 mb-1.5">Quantity</label>
+              <div className="flex items-center gap-2 mb-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPendingQty((q) => String(Math.max(1, (Number(q) || 1) - 1)))}
+                  disabled={busy !== null}
+                  className="w-9 h-9 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-white text-lg leading-none flex items-center justify-center disabled:opacity-40"
+                  aria-label="Decrease quantity"
+                >−</button>
+                <input
+                  type="number"
+                  min={1}
+                  autoFocus
+                  value={pendingQty}
+                  onChange={(e) => setPendingQty(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') close(); }}
+                  disabled={busy !== null}
+                  className="flex-1 px-3 py-2 rounded-md bg-white/5 border border-white/15 text-white text-base text-center tabular-nums focus:outline-none focus:border-fuchsia-400/60"
+                />
+                <button
+                  type="button"
+                  onClick={() => setPendingQty((q) => String((Number(q) || 0) + 1))}
+                  disabled={busy !== null}
+                  className="w-9 h-9 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-white text-lg leading-none flex items-center justify-center disabled:opacity-40"
+                  aria-label="Increase quantity"
+                >+</button>
+              </div>
+              <div className="text-[10px] text-purple-300/70 mb-4">
+                Slab range: <span className="text-purple-100 font-semibold tabular-nums">{slabLabel}</span>
+                {validNumber && !inSlab && (
+                  <span className="ml-2 text-amber-300">⚠ outside slab — Badho may reject this qty</span>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={close}
+                  disabled={busy !== null}
+                  className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 text-xs disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submit}
+                  disabled={busy !== null || !validNumber}
+                  className="px-4 py-1.5 rounded-md bg-fuchsia-500/30 hover:bg-fuchsia-500/50 border border-fuchsia-400/50 text-fuchsia-50 text-xs font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Add to PO
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -852,6 +852,10 @@ function PoItemsModal({
                   <span className="text-purple-400/70 group-hover:text-emerald-300 transition-colors">PO total:</span>{' '}
                   <span className="text-white font-semibold tabular-nums group-hover:text-emerald-200 group-hover:[text-shadow:0_0_12px_rgba(110,231,183,0.5)] transition-all">{formatAmount(po.amount)}</span>
                 </div>
+                <div className="md:col-span-2 group px-3 py-1.5 -mx-3 rounded-md border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
+                  <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">PO ID:</span>{' '}
+                  <span className="font-mono text-sm md:text-base text-purple-100 group-hover:text-white select-all break-all">{po.poId}</span>
+                </div>
               </div>
             )}
           </div>

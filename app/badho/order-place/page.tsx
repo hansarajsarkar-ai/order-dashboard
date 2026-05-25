@@ -1042,13 +1042,13 @@ function PoItemsModal({
         {/* Action bar — always rendered so the payment-mode chip is visible
             for placed POs too, even when the DRAFT-only controls are hidden. */}
         {po && (
-          <div className="px-6 py-3 border-b border-white/10 flex items-center justify-between gap-3 flex-wrap bg-white/[0.02]">
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="px-6 py-1.5 border-b border-white/10 flex items-center justify-between gap-2 flex-wrap bg-white/[0.02]">
+            <div className="flex items-center gap-1.5 flex-wrap">
               {isDraft && (
                 <button
                   onClick={() => setShowAdd((v) => !v)}
                   disabled={busy !== null}
-                  className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/30 text-fuchsia-100 text-xs font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
+                  className="px-2.5 py-1 rounded-md bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/30 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
                 >
                   {showAdd ? '× Close add panel' : '+ Add product'}
                 </button>
@@ -1065,17 +1065,17 @@ function PoItemsModal({
                 })}
               />
             </div>
-            <div className="flex items-center gap-2">
-              {busy && <span className="text-[11px] text-fuchsia-300 animate-pulse">Saving…</span>}
+            <div className="flex items-center gap-1.5">
+              {busy && <span className="text-[10px] text-fuchsia-300 animate-pulse">Saving…</span>}
               {isDraft && (() => {
                 const ready = busy === null && items.length > 0;
                 return (
                   <button
                     onClick={() => setPlaceConfirm(true)}
                     disabled={!ready}
-                    className={`place-order-cta group relative overflow-hidden rounded-xl px-6 py-2.5 text-sm font-extrabold uppercase tracking-wider border transition-all duration-200
+                    className={`place-order-cta group relative overflow-hidden rounded-lg px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-wider border transition-all duration-200
                       ${ready
-                        ? 'is-ready text-emerald-950 border-emerald-200 bg-gradient-to-r from-emerald-200 via-lime-200 to-emerald-200 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] active:scale-[0.98] shadow-lg shadow-emerald-300/40 hover:shadow-xl hover:shadow-emerald-300/60'
+                        ? 'is-ready text-emerald-950 border-emerald-200 bg-gradient-to-r from-emerald-200 via-lime-200 to-emerald-200 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] active:scale-[0.98] shadow-md shadow-emerald-300/40 hover:shadow-lg hover:shadow-emerald-300/60'
                         : 'bg-emerald-900/30 border-emerald-700/40 text-emerald-300/40 cursor-not-allowed shadow-none'}
                     `}
                     title={items.length === 0 ? 'Add at least one item before placing' : 'Place this PO as PENDING'}
@@ -1084,9 +1084,9 @@ function PoItemsModal({
                     {ready && (
                       <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/70 to-transparent" />
                     )}
-                    <span className="relative inline-flex items-center gap-2">
+                    <span className="relative inline-flex items-center gap-1.5">
                       <span>Place Order</span>
-                      <span className="text-base leading-none transition-transform group-hover:translate-x-1">→</span>
+                      <span className="text-sm leading-none transition-transform group-hover:translate-x-1">→</span>
                     </span>
                   </button>
                 );
@@ -1354,12 +1354,12 @@ function PaymentModeChip({
   };
 
   return (
-    <div className="inline-flex items-center gap-2 flex-wrap">
+    <div className="inline-flex items-center gap-1.5 flex-wrap">
       <button
         type="button"
         disabled
         title={styled.detail ?? `Payment mode: ${option ?? 'not set'}`}
-        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-wider cursor-default transition-colors ${tintClass[styled.tint]}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-bold uppercase tracking-wider cursor-default transition-colors ${tintClass[styled.tint]}`}
       >
         <span aria-hidden>💳</span>
         <span>{styled.label}</span>
@@ -1372,7 +1372,7 @@ function PaymentModeChip({
           type="button"
           onClick={onSetCOD}
           disabled={busy}
-          className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 border border-amber-400/40 text-amber-100 text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-2.5 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500/40 border border-amber-400/40 text-amber-100 text-[11px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Set payment mode to COD"
         >
           {busy ? 'Setting…' : '+ Set COD'}

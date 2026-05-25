@@ -13,12 +13,16 @@ interface Row {
   marked_pending_time: string;
   status: string;
   amount: string;
+  applied_wallet_amount: string | null;
   buyer_business: string | null;
+  buyer_phone: string | null;
   buyer_state: string | null;
   buyer_city: string | null;
   seller_business: string | null;
+  seller_phone: string | null;
   qty: string | null;
   item_amount: string | null;
+  items: Array<{ label: string | null; qty: string; unitPrice: string | null; amount: string }> | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -102,6 +106,13 @@ export async function GET(req: NextRequest) {
       )`;
     }
 
+    // Items array: when drilling by SKU, only that SKU; when drilling by brand,
+    // only items of that brand (so unrelated SKUs in the same PO aren't listed).
+    const itemsAggFilter = drillSku
+      ? `FILTER (WHERE poi."brandSKUId"::text = $${params.length})`
+      : `FILTER (WHERE LOWER(COALESCE(bra2."label", '')) = LOWER($${params.length})
+                   OR LOWER(TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1))) = LOWER($${params.length}))`;
+
     const sql = `
       SELECT
         po."id"::text                                       AS po_id,
@@ -109,12 +120,24 @@ export async function GET(req: NextRequest) {
         po."markedPendingTime"                              AS marked_pending_time,
         po."status"                                         AS status,
         po."amount"::text                                   AS amount,
+        po."appliedWalletAmount"::text                      AS applied_wallet_amount,
         bu."businessName"                                   AS buyer_business,
+        bu."phone"                                          AS buyer_phone,
         bu."state"                                          AS buyer_state,
         bu."city"                                           AS buyer_city,
         s."businessName"                                    AS seller_business,
+        s."phone"                                           AS seller_phone,
         COALESCE(SUM(poi."quantity")${skuSumFilter}, 0)::text  AS qty,
-        COALESCE(SUM(poi."amount")${skuSumFilter}, 0)::text    AS item_amount
+        COALESCE(SUM(poi."amount")${skuSumFilter}, 0)::text    AS item_amount,
+        JSONB_AGG(
+          JSONB_BUILD_OBJECT(
+            'label',     bs."label",
+            'qty',       poi."quantity"::text,
+            'unitPrice', poi."unitPrice"::text,
+            'amount',    poi."amount"::text
+          )
+          ORDER BY poi."amount" DESC NULLS LAST
+        ) ${itemsAggFilter}                                 AS items
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "purchaseOrder"."purchaseOrderItem" poi ON poi."purchaseOrderId" = po."id"
       JOIN "brands"."brandSKU"                 bs   ON bs."id"  = poi."brandSKUId"
@@ -135,8 +158,8 @@ export async function GET(req: NextRequest) {
         ${whereDate}
         ${brandFilter}
         ${drillFilter}
-      GROUP BY po."id", po."poNumber", po."markedPendingTime", po."status", po."amount",
-               bu."businessName", bu."state", bu."city", s."businessName"
+      GROUP BY po."id", po."poNumber", po."markedPendingTime", po."status", po."amount", po."appliedWalletAmount",
+               bu."businessName", bu."phone", bu."state", bu."city", s."businessName", s."phone"
       ORDER BY po."markedPendingTime" DESC
       LIMIT ${limit};
     `;
@@ -148,12 +171,21 @@ export async function GET(req: NextRequest) {
       pendingAt: r.marked_pending_time,
       status: r.status,
       orderAmount: parseFloat(r.amount),
+      appliedWalletAmount: r.applied_wallet_amount != null ? parseFloat(r.applied_wallet_amount) : 0,
       buyerBusiness: r.buyer_business,
+      buyerPhone: r.buyer_phone,
       buyerState: r.buyer_state,
       buyerCity: r.buyer_city,
       sellerBusiness: r.seller_business,
+      sellerPhone: r.seller_phone,
       qty: r.qty != null ? parseFloat(r.qty) : 0,
       itemAmount: r.item_amount != null ? parseFloat(r.item_amount) : 0,
+      items: (r.items || []).map((it) => ({
+        label: it.label,
+        qty: it.qty != null ? parseFloat(it.qty) : 0,
+        unitPrice: it.unitPrice != null ? parseFloat(it.unitPrice) : null,
+        amount: it.amount != null ? parseFloat(it.amount) : 0,
+      })),
     }));
 
     const summary = {

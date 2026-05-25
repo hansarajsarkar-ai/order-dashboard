@@ -584,6 +584,7 @@ export default function OrderStatusDashboard() {
   const [hubSearch, setHubSearch] = useState('');
   const [hubShipmentFilter, setHubShipmentFilter] = useState<Set<string>>(new Set());
   const [hubBrandFilter, setHubBrandFilter] = useState<Set<string>>(new Set());
+  const [hubAttemptFilter, setHubAttemptFilter] = useState<Set<string>>(new Set());
   const [hubStuckOnly, setHubStuckOnly] = useState(false);
   const [hubMinDays, setHubMinDays] = useState<number | ''>('');
   const [hubPage, setHubPage] = useState(1);
@@ -1015,7 +1016,7 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, rtoSubTab]);
 
-  useEffect(() => { setHubPage(1); }, [hubSearch, hubShipmentFilter, hubBrandFilter, hubStuckOnly, hubMinDays, hubSize]);
+  useEffect(() => { setHubPage(1); }, [hubSearch, hubShipmentFilter, hubBrandFilter, hubAttemptFilter, hubStuckOnly, hubMinDays, hubSize]);
 
   const filteredHubRows = (() => {
     if (!hubData) return null;
@@ -1041,6 +1042,15 @@ export default function OrderStatusDashboard() {
     }
     if (hubBrandFilter.size > 0) {
       out = out.filter((r) => r.brandName && hubBrandFilter.has(r.brandName));
+    }
+    if (hubAttemptFilter.size > 0) {
+      out = out.filter((r) => {
+        const a = r.deliveryAttempt || 0;
+        for (const opt of hubAttemptFilter) {
+          if (opt === '5+' ? a >= 5 : a === Number(opt)) return true;
+        }
+        return false;
+      });
     }
     if (hubStuckOnly) {
       out = out.filter((r) => r.stillInDestinationHub === 'Yes');
@@ -4185,6 +4195,31 @@ export default function OrderStatusDashboard() {
                       </div>
                     </div>
                   )}
+                  <div className="flex items-start gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-purple-300/70 mt-1.5 w-20 shrink-0">Attempts</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(['0', '1', '2', '3', '4', '5+'] as const).map((opt) => {
+                        const active = hubAttemptFilter.has(opt);
+                        const count = hubData?.data.filter((r) => {
+                          const a = r.deliveryAttempt || 0;
+                          return opt === '5+' ? a >= 5 : a === Number(opt);
+                        }).length ?? 0;
+                        const accent = opt === '0'
+                          ? 'bg-slate-500/15 text-slate-200 border-slate-400/30'
+                          : opt === '1' || opt === '2'
+                            ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'
+                            : 'bg-rose-500/15 text-rose-200 border-rose-400/30';
+                        return (
+                          <button key={opt} onClick={() => toggleSet(hubAttemptFilter, opt, setHubAttemptFilter)} className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${active ? `${accent} ring-1 ring-fuchsia-400/40 brightness-125` : 'bg-white/5 text-purple-200/80 border-white/10 hover:bg-white/10 hover:text-white'}`}>
+                            {opt} <span className="opacity-60 tabular-nums">({count})</span>
+                          </button>
+                        );
+                      })}
+                      {hubAttemptFilter.size > 0 && (
+                        <button onClick={() => setHubAttemptFilter(new Set())} className="px-2 py-1 rounded text-[10px] font-bold bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25">✕ Clear</button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Table */}

@@ -806,6 +806,7 @@ interface SkuOption {
   slabMaxQuantity: number | null;
   slabHint: string | null;
   unitPriceHint: string | null;
+  marginHint: string | null;
   mrp: string | null;
   alreadyInPo: boolean;
 }
@@ -1470,8 +1471,8 @@ function AddProductPanel({
               <th className="px-3 py-2 text-left">Brand</th>
               <th className="px-3 py-2 text-left">SKU</th>
               <th className="px-3 py-2 text-left">Size</th>
-              <th className="px-3 py-2 text-left" title="Quantity range supported by this SKU's slab. Pick a qty inside this range or the add will be rejected.">Slab</th>
-              <th className="px-3 py-2 text-right">Unit (hint)</th>
+              <th className="px-3 py-2 text-right" title="Indicative unit price from the lowest qty slab. The PO trigger may recompute this from consumerSellingPrice × (1 − margin/100) on insert.">Unit Price</th>
+              <th className="px-3 py-2 text-right" title="Slab margin (%) used by the PO trigger to derive unitPrice.">Margin</th>
               <th className="px-3 py-2 text-right">MRP</th>
               <th className="px-3 py-2 text-right">Qty</th>
               <th className="px-3 py-2 text-center">Add now</th>
@@ -1485,11 +1486,6 @@ function AddProductPanel({
               const qty = qtyById[s.sellerBrandSKUId] ?? String(defaultQty);
               const adding = busy === `add-${s.sellerBrandSKUId}`;
               const isSelected = !!selected[s.sellerBrandSKUId];
-              const slabLabel = s.slabMinQuantity != null
-                ? (s.slabMaxQuantity != null
-                    ? `${s.slabMinQuantity}–${s.slabMaxQuantity - 1}`
-                    : `${s.slabMinQuantity}+`)
-                : '—';
               return (
                 <tr
                   key={s.sellerBrandSKUId}
@@ -1508,8 +1504,8 @@ function AddProductPanel({
                   <td className="px-3 py-2 text-purple-100">{s.brandLabel ?? '—'}</td>
                   <td className="px-3 py-2 text-white">{s.skuLabel ?? '—'}</td>
                   <td className="px-3 py-2 text-purple-200">{s.size ?? '—'}</td>
-                  <td className="px-3 py-2 text-purple-300/80 text-[11px] tabular-nums">{slabLabel}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-purple-200">{formatAmount(s.unitPriceHint)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-purple-100">{formatAmount(s.unitPriceHint)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-emerald-200">{s.marginHint != null ? `${Number(s.marginHint).toFixed(2)}%` : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-purple-200">{formatAmount(s.mrp)}</td>
                   <td className="px-3 py-2 text-right">
                     <input

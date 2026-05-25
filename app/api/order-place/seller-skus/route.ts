@@ -30,6 +30,9 @@ interface SkuRow {
   // Indicative unitPrice from MIN(slab.unitPrice) — informational only;
   // the trigger may override at insert time using margin pricing.
   unitPriceHint: string | null;
+  // Slab margin (%) from the same first-slab pick. The PO-item trigger
+  // uses this same margin to derive unitPrice from consumerSellingPrice.
+  marginHint: string | null;
   mrp: string | null;
   alreadyInPo: boolean;
 }
@@ -88,6 +91,7 @@ export async function GET(req: NextRequest) {
           sb."brandId",
           sb."purchaseOrderTermId",
           pos."unitPrice"                  AS unit_price,
+          pos."margin"                     AS slab_margin,
           pos."quantitySlab"               AS quantity_slab,
           pos."increment"                  AS slab_increment,
           lower(pos."quantitySlab")        AS slab_lower,
@@ -124,6 +128,7 @@ export async function GET(req: NextRequest) {
         fs.slab_increment                                  AS "slabIncrement",
         fs.quantity_slab::text                             AS "slabHint",
         fs.unit_price::text                                AS "unitPriceHint",
+        fs.slab_margin::text                               AS "marginHint",
         bs."consumerSellingPrice"::text                    AS "mrp",
         EXISTS (
           SELECT 1

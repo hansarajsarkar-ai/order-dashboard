@@ -61,6 +61,7 @@ interface Summary {
   avgRefundAmount: number;
   avgRefundProcessingHours: number | null;
   avgHoursTillRefund: number | null;
+  medianRefundProcessingHours: number | null;
 }
 interface Bucket {
   bucketStart: string;
@@ -681,9 +682,10 @@ export default function RefundOrderAmountDashboard() {
 
         {tab === 'overview' && (
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
               <MiniStat label="Avg Refund / Order" value={s ? formatAmount(s.avgRefundAmount) : '—'} hint="per completed refund" />
               <MiniStat label="Avg Settlement Time" value={formatHours(s?.avgRefundProcessingHours ?? null)} hint="how long the bank takes" />
+              <MiniStat label="Median Settlement Time" value={formatHours(s?.medianRefundProcessingHours ?? null)} hint="50th percentile, less skewed by outliers" />
               <MiniStat label="Avg Customer Wait Time" value={formatHours(s?.avgHoursTillRefund ?? null)} hint="rejected → refund in buyer's account" />
               <MiniStat
                 label="Unrefunded Orders"

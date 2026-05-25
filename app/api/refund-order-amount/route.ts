@@ -26,6 +26,7 @@ interface Summary {
   avgRefundAmount: number;
   avgRefundProcessingHours: number | null;
   avgHoursTillRefund: number | null;
+  medianRefundProcessingHours: number | null;
 }
 
 interface SellerSummary {
@@ -155,7 +156,9 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(refund_amount), 0)                                   AS total_refunded_amount,
           COALESCE(SUM(order_paid_amount) FILTER (WHERE refund_amount IS NULL), 0) AS pending_refund_amount,
           AVG(refund_processing_hours) FILTER (WHERE refund_processing_hours IS NOT NULL) AS avg_refund_time_hours,
-          AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_time_till_refund_hours
+          AVG(hours_till_refund)       FILTER (WHERE hours_till_refund IS NOT NULL)       AS avg_time_till_refund_hours,
+          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY refund_processing_hours)
+            FILTER (WHERE refund_processing_hours IS NOT NULL)                            AS median_refund_time_hours
         FROM source
       ),
       /* All-time summary — same join as source but WITHOUT the year predicate.
@@ -178,7 +181,11 @@ export async function GET(req: NextRequest) {
             - COALESCE(a."markedRejectedTime", a."markedCancelledTime"))) / 3600)
             FILTER (WHERE pfc_agg.latest_completed_time IS NOT NULL
                       AND COALESCE(a."markedRejectedTime", a."markedCancelledTime") IS NOT NULL)
-                                                                            AS avg_time_till_refund_hours
+                                                                            AS avg_time_till_refund_hours,
+          PERCENTILE_CONT(0.5) WITHIN GROUP (
+            ORDER BY EXTRACT(EPOCH FROM (pfc_agg.latest_completed_time - pfc_agg.latest_initiated_time)) / 3600
+          ) FILTER (WHERE pfc_agg.latest_initiated_time IS NOT NULL
+                      AND pfc_agg.latest_completed_time IS NOT NULL)        AS median_refund_time_hours
         FROM "purchaseOrder"."purchaseOrder" a
         JOIN "users"."buyer"  b   ON b."id" = a."buyerId"
         JOIN "users"."seller" s   ON s."id" = a."sellerId"
@@ -265,7 +272,8 @@ export async function GET(req: NextRequest) {
             'refundRate',                 CASE WHEN total_orders > 0 THEN ROUND((refunded_orders::numeric / total_orders) * 100, 2) ELSE 0 END,
             'avgRefundAmount',            CASE WHEN refunded_orders > 0 THEN total_refunded_amount / refunded_orders ELSE 0 END,
             'avgRefundProcessingHours',   avg_refund_time_hours,
-            'avgHoursTillRefund',         avg_time_till_refund_hours
+            'avgHoursTillRefund',         avg_time_till_refund_hours,
+            'medianRefundProcessingHours', median_refund_time_hours
           )
           FROM summary_agg
         ),
@@ -279,7 +287,8 @@ export async function GET(req: NextRequest) {
             'refundRate',                 CASE WHEN total_orders > 0 THEN ROUND((refunded_orders::numeric / total_orders) * 100, 2) ELSE 0 END,
             'avgRefundAmount',            CASE WHEN refunded_orders > 0 THEN total_refunded_amount / refunded_orders ELSE 0 END,
             'avgRefundProcessingHours',   avg_refund_time_hours,
-            'avgHoursTillRefund',         avg_time_till_refund_hours
+            'avgHoursTillRefund',         avg_time_till_refund_hours,
+            'medianRefundProcessingHours', median_refund_time_hours
           )
           FROM all_time_summary_agg
         ),
@@ -333,6 +342,7 @@ export async function GET(req: NextRequest) {
         totalOrders: 0, totalPaidAmount: 0, refundedOrders: 0, totalRefundedAmount: 0,
         pendingRefundAmount: 0, refundRate: 0, avgRefundAmount: 0,
         avgRefundProcessingHours: null, avgHoursTillRefund: null,
+        medianRefundProcessingHours: null,
       };
       return NextResponse.json({
         summary: emptySummary,

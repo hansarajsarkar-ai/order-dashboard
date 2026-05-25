@@ -76,14 +76,6 @@ const DASHBOARDS: DashboardEntry[] = [
     status: 'live',
   },
   {
-    slug: 'margin-and-profit',
-    title: 'Margin and Profit',
-    description:
-      'Track gross margin, net profit, and contribution by seller, brand, and SKU — with trend lines and period-over-period comparison.',
-    icon: '💹',
-    status: 'coming-soon',
-  },
-  {
     slug: 'margin-and-growth',
     title: 'Margin and Growth',
     description:

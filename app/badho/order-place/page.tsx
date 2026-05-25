@@ -1073,18 +1073,18 @@ function PoItemsModal({
                   <button
                     onClick={() => setPlaceConfirm(true)}
                     disabled={!ready}
-                    className={`place-order-cta group relative overflow-hidden rounded-xl px-6 py-2.5 text-sm font-extrabold uppercase tracking-wider text-white border border-emerald-300/60 shadow-lg shadow-emerald-500/30 transition-all duration-200
+                    className={`place-order-cta group relative overflow-hidden rounded-xl px-6 py-2.5 text-sm font-extrabold uppercase tracking-wider border transition-all duration-200
                       ${ready
-                        ? 'bg-gradient-to-r from-emerald-500 via-green-400 to-emerald-500 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] hover:shadow-xl hover:shadow-emerald-400/50 active:scale-[0.98] is-ready'
-                        : 'bg-emerald-900/40 border-emerald-700/40 text-emerald-300/40 cursor-not-allowed shadow-none'}
+                        ? 'is-ready text-emerald-950 border-emerald-200 bg-gradient-to-r from-emerald-200 via-lime-200 to-emerald-200 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] active:scale-[0.98] shadow-lg shadow-emerald-300/40 hover:shadow-xl hover:shadow-emerald-300/60'
+                        : 'bg-emerald-900/30 border-emerald-700/40 text-emerald-300/40 cursor-not-allowed shadow-none'}
                     `}
                     title={items.length === 0 ? 'Add at least one item before placing' : 'Place this PO as PENDING'}
                   >
                     {/* Shine sweep — moves left-to-right on hover only */}
                     {ready && (
-                      <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                      <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/70 to-transparent" />
                     )}
-                    <span className="relative inline-flex items-center gap-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
+                    <span className="relative inline-flex items-center gap-2">
                       <span>Place Order</span>
                       <span className="text-base leading-none transition-transform group-hover:translate-x-1">→</span>
                     </span>

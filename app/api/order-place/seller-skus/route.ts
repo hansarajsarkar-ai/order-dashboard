@@ -17,6 +17,9 @@ interface SkuRow {
   brandLabel: string | null;
   skuLabel: string | null;
   size: string | null;
+  // Distinct non-empty product images from brandSKU.assets in
+  // preferred angle order (front/top first). Empty when unset.
+  images: string[];
   // Slab metadata: range bounds (lower inclusive, upper exclusive) come from
   // the PostgreSQL int4range column `quantitySlab`. Surfaced as ints so the
   // client can constrain its qty input.
@@ -104,6 +107,18 @@ export async function GET(req: NextRequest) {
         bra."label"                                        AS "brandLabel",
         bs."label"                                         AS "skuLabel",
         (bs."brandSKUDataJSON" ->> 'size')                 AS "size",
+        COALESCE((
+          SELECT array_agg(url ORDER BY ord)
+          FROM (
+            SELECT DISTINCT ON (url) url, ord
+            FROM unnest(
+              ARRAY['front','top','icon','top_left','top_right','left','right','back','bottom']
+            ) WITH ORDINALITY AS k(angle, ord)
+            CROSS JOIN LATERAL (SELECT NULLIF(bs."assets" ->> k.angle, '') AS url) u
+            WHERE url IS NOT NULL
+            ORDER BY url, ord
+          ) deduped
+        ), ARRAY[]::text[])                                AS "images",
         fs.slab_lower                                      AS "slabMinQuantity",
         fs.slab_upper                                      AS "slabMaxQuantity",
         fs.slab_increment                                  AS "slabIncrement",

@@ -612,6 +612,17 @@ function ProductThumb({ images, alt }: { images: string[]; alt: string }) {
   const [idx, setIdx] = useState(0);
   const hideTimer = useRef<number | null>(null);
 
+  // Auto-advance the carousel every 2s while the popup is open and the
+  // SKU has more than one image. Pauses when the popup is closed; resets
+  // to slide 0 on each open via openAt() below.
+  useEffect(() => {
+    if (!pos || images.length <= 1) return;
+    const t = window.setInterval(() => {
+      setIdx((i) => (i + 1) % images.length);
+    }, 2000);
+    return () => window.clearInterval(t);
+  }, [pos, images.length]);
+
   if (!images || images.length === 0) {
     return (
       <div className="w-10 h-10 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-purple-300/40 text-[10px]">
@@ -759,6 +770,7 @@ interface SkuOption {
   brandLabel: string | null;
   skuLabel: string | null;
   size: string | null;
+  images: string[];
   slabMinQuantity: number | null;
   slabMaxQuantity: number | null;
   slabHint: string | null;
@@ -1423,6 +1435,7 @@ function AddProductPanel({
                   title={allVisibleSelected ? 'Unselect all visible' : 'Select all visible'}
                 />
               </th>
+              <th className="px-3 py-2 text-left">Image</th>
               <th className="px-3 py-2 text-left">Brand</th>
               <th className="px-3 py-2 text-left">SKU</th>
               <th className="px-3 py-2 text-left">Size</th>
@@ -1460,6 +1473,7 @@ function AddProductPanel({
                       className="accent-fuchsia-500 cursor-pointer disabled:cursor-not-allowed"
                     />
                   </td>
+                  <td className="px-3 py-2"><ProductThumb images={s.images ?? []} alt={s.skuLabel ?? 'product'} /></td>
                   <td className="px-3 py-2 text-purple-100">{s.brandLabel ?? '—'}</td>
                   <td className="px-3 py-2 text-white">{s.skuLabel ?? '—'}</td>
                   <td className="px-3 py-2 text-purple-200">{s.size ?? '—'}</td>
@@ -1494,7 +1508,7 @@ function AddProductPanel({
               );
             })}
             {!loading && results.length === 0 && (
-              <tr><td colSpan={9} className="px-3 py-6 text-center text-purple-300/60 text-xs">
+              <tr><td colSpan={10} className="px-3 py-6 text-center text-purple-300/60 text-xs">
                 {q ? `No SKUs match "${q}" for this seller.` : 'No SKUs found for this seller.'}
               </td></tr>
             )}

@@ -180,6 +180,7 @@ function OrderPlaceDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activePo, setActivePo] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   // Initialize filters from URL once on mount and whenever URL changes via back/forward.
   useEffect(() => {
@@ -337,13 +338,21 @@ function OrderPlaceDashboard() {
               D2R brand-seller purchase orders still in <span className="font-semibold text-fuchsia-300">DRAFT</span> over the last <span className="font-semibold text-fuchsia-300">30 days</span>.
             </p>
           </div>
-          <button
-            onClick={() => fetchData(filters)}
-            disabled={loading}
-            className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/30 text-fuchsia-100 text-xs font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
-          >
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCreate(true)}
+              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-400 via-lime-300 to-emerald-400 bg-[length:200%_100%] hover:bg-[position:100%_0] border border-emerald-200 text-emerald-950 text-xs font-extrabold uppercase tracking-wider shadow-md shadow-emerald-300/40 hover:shadow-lg hover:shadow-emerald-300/60 transition-all"
+            >
+              + Create new PO
+            </button>
+            <button
+              onClick={() => fetchData(filters)}
+              disabled={loading}
+              className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/30 text-fuchsia-100 text-xs font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
+            >
+              {loading ? 'Loading…' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         {/* Filter bar — date window is hard-coded to the last 30 days
@@ -546,6 +555,19 @@ function OrderPlaceDashboard() {
           poNumber={activePo}
           onClose={() => setActivePo(null)}
           onChanged={() => fetchData(filters)}
+        />
+      )}
+
+      {showCreate && (
+        <CreatePoDialog
+          onClose={() => setShowCreate(false)}
+          onCreated={(poNumber) => {
+            setShowCreate(false);
+            // Open the freshly-created DRAFT in the existing modal so the
+            // user lands straight on the add-products + place-order flow.
+            setActivePo(poNumber);
+            fetchData(filters);
+          }}
         />
       )}
     </div>
@@ -849,6 +871,232 @@ function PackagingChip({
           document.body,
         )}
     </>
+  );
+}
+
+// Create-PO dialog — pick a buyer (by phone) and a live D2R seller (by
+// business name typeahead), then POST /api/order-place/create-po. On
+// success the parent opens the new DRAFT in the existing PoItemsModal so
+// the rest of the flow (add products / set qty / place) is reused
+// untouched.
+interface BuyerLookupResult {
+  id: string;
+  businessName: string | null;
+  phone: string | null;
+  city: string | null;
+  district: string | null;
+  state: string | null;
+  pincode: string | null;
+}
+interface SellerSearchRow {
+  id: string;
+  businessName: string | null;
+  phone: string | null;
+  city: string | null;
+  state: string | null;
+  brandLabel: string | null;
+}
+
+function CreatePoDialog({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (poNumber: string) => void;
+}) {
+  const [phone, setPhone] = useState('');
+  const [buyer, setBuyer] = useState<BuyerLookupResult | null>(null);
+  const [buyerErr, setBuyerErr] = useState<string | null>(null);
+  const [buyerLoading, setBuyerLoading] = useState(false);
+
+  const [sellerQ, setSellerQ] = useState('');
+  const [sellerResults, setSellerResults] = useState<SellerSearchRow[]>([]);
+  const [sellerLoading, setSellerLoading] = useState(false);
+  const [sellerErr, setSellerErr] = useState<string | null>(null);
+  const [seller, setSeller] = useState<SellerSearchRow | null>(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [createErr, setCreateErr] = useState<string | null>(null);
+
+  // Buyer lookup — debounced on phone input. 10-digit gate matches the API.
+  useEffect(() => {
+    setBuyer(null);
+    setBuyerErr(null);
+    if (!/^\d{10}$/.test(phone)) return;
+    const t = setTimeout(() => {
+      setBuyerLoading(true);
+      fetch(`/api/order-place/buyer-lookup?phone=${encodeURIComponent(phone)}`, { cache: 'no-store' })
+        .then(async (res) => {
+          const j = await res.json();
+          if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+          if (!j.buyer) setBuyerErr('No buyer found for this phone');
+          else setBuyer(j.buyer);
+        })
+        .catch((e) => setBuyerErr(e instanceof Error ? e.message : String(e)))
+        .finally(() => setBuyerLoading(false));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [phone]);
+
+  // Seller typeahead — debounced. Empty query returns the first 30 live
+  // sellers alphabetically so the picker is useful even on first paint.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSellerLoading(true);
+      setSellerErr(null);
+      fetch(`/api/order-place/seller-search?q=${encodeURIComponent(sellerQ)}`, { cache: 'no-store' })
+        .then(async (res) => {
+          const j = await res.json();
+          if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+          setSellerResults((j.rows as SellerSearchRow[]) ?? []);
+        })
+        .catch((e) => setSellerErr(e instanceof Error ? e.message : String(e)))
+        .finally(() => setSellerLoading(false));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [sellerQ]);
+
+  const canSubmit = !!buyer && !!seller && !submitting;
+
+  const submit = async () => {
+    if (!buyer || !seller) return;
+    setSubmitting(true);
+    setCreateErr(null);
+    try {
+      const res = await fetch('/api/order-place/create-po', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ buyerId: buyer.id, sellerId: seller.id }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+      onCreated(String(j.poNumber));
+    } catch (e) {
+      setCreateErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80"
+      onClick={() => !submitting && onClose()}
+    >
+      <div
+        className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-gradient-to-br from-slate-900 to-purple-950 border border-emerald-400/40 rounded-2xl p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-base font-bold text-white">Create new PO</h3>
+            <p className="text-[11px] text-purple-300/70 mt-0.5">Pick a buyer and a live D2R seller. The order opens as a DRAFT so you can add products and set quantities before placing it.</p>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            className="shrink-0 w-7 h-7 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-purple-200 hover:text-white text-base leading-none flex items-center justify-center disabled:opacity-50"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Buyer */}
+        <label className="block text-[11px] uppercase tracking-wider text-purple-300/80 mb-1.5">Buyer phone</label>
+        <input
+          type="tel"
+          value={phone}
+          autoFocus
+          onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+          placeholder="10-digit mobile, e.g. 9305129200"
+          className="w-full px-3 py-2 rounded-md bg-white/5 border border-white/15 text-white text-sm tabular-nums focus:outline-none focus:border-fuchsia-400/60"
+        />
+        <div className="min-h-[48px] mt-1.5">
+          {buyerLoading && <div className="text-[11px] text-purple-300/70">Looking up…</div>}
+          {!buyerLoading && buyerErr && <div className="text-[11px] text-rose-300">{buyerErr}</div>}
+          {!buyerLoading && buyer && (
+            <div className="rounded-md bg-emerald-500/10 border border-emerald-400/30 px-2.5 py-1.5">
+              <div className="text-sm text-white font-semibold">{buyer.businessName ?? '—'}</div>
+              <div className="text-[11px] text-purple-200/80">
+                {[buyer.city, buyer.district, buyer.state, buyer.pincode].filter(Boolean).join(' · ') || '—'}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Seller */}
+        <label className="block text-[11px] uppercase tracking-wider text-purple-300/80 mb-1.5 mt-3">Seller</label>
+        <input
+          type="text"
+          value={sellerQ}
+          onChange={(e) => { setSellerQ(e.target.value); setSeller(null); }}
+          placeholder="Search by business name…"
+          className="w-full px-3 py-2 rounded-md bg-white/5 border border-white/15 text-white text-sm focus:outline-none focus:border-fuchsia-400/60"
+        />
+        {seller ? (
+          <div className="mt-2 rounded-md bg-emerald-500/10 border border-emerald-400/30 px-2.5 py-1.5 flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-sm text-white font-semibold truncate">{seller.businessName ?? '—'}</div>
+              <div className="text-[11px] text-purple-200/80 truncate">
+                {seller.brandLabel ? `Brand: ${seller.brandLabel} · ` : ''}{[seller.city, seller.state].filter(Boolean).join(' · ') || '—'}
+              </div>
+            </div>
+            <button
+              onClick={() => setSeller(null)}
+              className="text-[10px] text-purple-300 hover:text-white shrink-0 underline underline-offset-2"
+            >
+              change
+            </button>
+          </div>
+        ) : (
+          <div className="mt-2 max-h-56 overflow-y-auto rounded-md border border-white/10 bg-white/[0.02]">
+            {sellerLoading && <div className="px-3 py-2 text-[11px] text-purple-300/70">Searching…</div>}
+            {!sellerLoading && sellerErr && <div className="px-3 py-2 text-[11px] text-rose-300">{sellerErr}</div>}
+            {!sellerLoading && !sellerErr && sellerResults.length === 0 && (
+              <div className="px-3 py-3 text-[11px] text-purple-300/60 text-center">
+                {sellerQ ? `No live sellers match "${sellerQ}".` : 'No live sellers available.'}
+              </div>
+            )}
+            {!sellerLoading && sellerResults.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setSeller(s)}
+                className="w-full text-left px-3 py-1.5 hover:bg-white/5 border-t border-white/5 first:border-t-0 transition-colors"
+              >
+                <div className="text-sm text-white truncate">{s.businessName ?? '—'}</div>
+                <div className="text-[11px] text-purple-300/70 truncate">
+                  {s.brandLabel ? `${s.brandLabel} · ` : ''}{[s.city, s.state].filter(Boolean).join(' · ') || '—'}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {createErr && (
+          <div className="mt-3 px-3 py-2 rounded-md bg-rose-500/10 border border-rose-400/30 text-rose-200 text-[11px]">
+            ⚠ {createErr}
+          </div>
+        )}
+
+        <div className="flex items-center justify-end gap-2 mt-5">
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 text-xs disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!canSubmit}
+            className="px-4 py-1.5 rounded-md bg-gradient-to-r from-emerald-400 via-lime-300 to-emerald-400 border border-emerald-200 text-emerald-950 text-xs font-extrabold uppercase tracking-wider shadow-md shadow-emerald-300/40 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {submitting ? 'Creating…' : 'Create draft PO →'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

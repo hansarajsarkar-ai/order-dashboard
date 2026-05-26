@@ -904,6 +904,7 @@ function CreatePoDialog({
   onClose: () => void;
   onCreated: (poNumber: string) => void;
 }) {
+  const router = useRouter();
   const [phone, setPhone] = useState('');
   // `buyerMatch` is the latest successful lookup result; `buyer` is the
   // value the user actually confirmed via the Select button. Submit only
@@ -967,13 +968,34 @@ function CreatePoDialog({
 
   const canSubmit = !!buyer && !!seller && !submitting;
 
+  // Clear the auth keys the dashboard set on login and bounce to /login.
+  // Used both when no token is present and when the server reports 401
+  // (typically: jwt expired).
+  const forceLogin = (reason: string) => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('employeeId');
+        localStorage.removeItem('employeeName');
+        localStorage.removeItem('employeeEmail');
+      } catch {}
+    }
+    setCreateErr(`${reason} — redirecting to login…`);
+    // Small delay so the redirect message is actually visible before the
+    // route change wipes the dialog.
+    setTimeout(() => router.push('/login'), 600);
+  };
+
   const submit = async () => {
     if (!buyer || !seller) return;
     setSubmitting(true);
     setCreateErr(null);
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-      if (!token) throw new Error('Not signed in — please log in again.');
+      if (!token) {
+        forceLogin('Not signed in');
+        return;
+      }
       const res = await fetch('/api/order-place/create-po', {
         method: 'POST',
         headers: {
@@ -985,6 +1007,12 @@ function CreatePoDialog({
         body: JSON.stringify({ buyerId: buyer.id, sellerId: seller.id }),
       });
       const j = await res.json();
+      if (res.status === 401) {
+        // Expired / tampered / missing — only path forward is a fresh
+        // login so the localStorage token rotates.
+        forceLogin('Session expired');
+        return;
+      }
       if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
       onCreated(String(j.poNumber));
     } catch (e) {

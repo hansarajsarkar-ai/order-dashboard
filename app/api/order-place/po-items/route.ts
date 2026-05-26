@@ -39,6 +39,9 @@ interface PoItemRow {
   // consumerSellingPrice. Null if no matching slab is found (shouldn't
   // happen for items the trigger accepted, but the schema allows it).
   margin: string | null;
+  // brandSKU.consumerSellingPrice — surfaced so the UI can show
+  // MRP × margin% as the displayed unit price (matches the picker).
+  mrp: string | null;
   // Packaging metadata sourced from the line's seller_brandSKU. The UI
   // uses these to gate the qty cell: CASE rows can only be edited via
   // stepper buttons that change by moq units per click; UNIT rows keep
@@ -405,6 +408,7 @@ async function loadPoAndItems(poNumber: string) {
       poi."amount"::text                                 AS "amount",
       poi."status"                                       AS "status",
       pos."margin"::text                                 AS "margin",
+      bs."consumerSellingPrice"::text                    AS "mrp",
       sb."packagingType"                                 AS "packagingType",
       sb."minimumOrderableQuantity"                      AS "minimumOrderableQuantity",
       sb."noOfUnitsPerCase"                              AS "noOfUnitsPerCase"

@@ -1133,6 +1133,7 @@ interface PoItem {
   amount: string | null;
   status: string | null;
   margin: string | null;
+  mrp: string | null;
   packagingType: 'CASE' | 'UNIT' | null;
   minimumOrderableQuantity: number | null;
   noOfUnitsPerCase: number | null;
@@ -1580,7 +1581,20 @@ function PoItemsModal({
                           it.quantity ?? '—'
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{formatAmount(it.unitPrice)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">
+                        {(() => {
+                          // Calculated unit price = MRP × margin% (matches
+                          // the picker). The DB's poi.unitPrice is what
+                          // the trigger computed (= MRP × (1 − margin)),
+                          // so we deliberately ignore it here and recompute
+                          // from MRP + margin for the display.
+                          const mrp = Number(it.mrp);
+                          const m = Number(it.margin);
+                          if (!Number.isFinite(mrp) || !Number.isFinite(m) || it.mrp == null || it.margin == null) return '—';
+                          const v = (mrp * m) / 100;
+                          return `₹${v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                        })()}
+                      </td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-white font-semibold">{formatAmount(it.amount)}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-emerald-200">{it.margin != null ? `${Number(it.margin).toFixed(2)}%` : '—'}</td>
                       <td className="px-4 py-2.5 text-center">

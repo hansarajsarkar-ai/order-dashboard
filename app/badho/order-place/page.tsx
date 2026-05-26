@@ -760,6 +760,9 @@ interface SkuOption {
   unitPriceHint: string | null;
   marginHint: string | null;
   mrp: string | null;
+  packagingType: 'CASE' | 'UNIT' | null;
+  minimumOrderableQuantity: number | null;
+  noOfUnitsPerCase: number | null;
   alreadyInPo: boolean;
 }
 
@@ -1523,7 +1526,14 @@ function AddProductPanel({
                     <button
                       onClick={() => {
                         setPendingSku(s);
-                        setPendingQty(String(s.slabMinQuantity ?? 1));
+                        // For CASE SKUs the dialog tracks cases (always
+                        // start at 1 case); for UNIT it tracks raw units
+                        // and starts at the slab minimum.
+                        setPendingQty(
+                          s.packagingType === 'CASE'
+                            ? '1'
+                            : String(s.slabMinQuantity ?? 1),
+                        );
                       }}
                       disabled={busy !== null}
                       className="px-2.5 py-1 rounded-md bg-fuchsia-500/25 hover:bg-fuchsia-500/45 border border-fuchsia-400/40 text-fuchsia-100 text-[10px] font-bold uppercase disabled:opacity-50"
@@ -1547,27 +1557,40 @@ function AddProductPanel({
         Tick rows and press <span className="text-fuchsia-300 font-semibold">Add N selected</span> to add many at once (each at its slab minimum), or use <span className="text-fuchsia-300 font-semibold">Add</span> on a single row to pick a quantity first. PO total updates after each item. Unit price is a hint — Badho&apos;s pricing engine sets the actual value on insert.
       </p>
 
-      {/* Quantity dialog — opens when the user clicks Add on a row. The
-          input pre-fills with the slab minimum (always a valid value for
-          the trigger's @> check) and shows the slab range so the user
-          knows what's accepted. Confirm fires the same onAdd path the
-          inline button used to use. */}
+      {/* Quantity dialog — opens when the user clicks Add on a row.
+          Two flavours driven by sb.packagingType:
+            - CASE: input is readonly, only +/− steppers. Each click is
+                    one *case*; we send `cases × minimumOrderableQuantity`
+                    units to the PO. UI labels stay in cases so the user
+                    isn't confused by suddenly-large numbers.
+            - UNIT (default): free-form qty input that maps 1:1 to units.
+          Both paths honour the slab range and warn if the resulting unit
+          count would fall outside it. */}
       {pendingSku && (() => {
         const sku = pendingSku;
+        const isCase = sku.packagingType === 'CASE';
+        const moq = sku.minimumOrderableQuantity && sku.minimumOrderableQuantity > 0
+          ? sku.minimumOrderableQuantity
+          : 1;
         const minQ = sku.slabMinQuantity ?? 1;
         // slabMaxQuantity is the exclusive upper bound of the int4range,
         // so the highest accepted qty is maxQ-1 (mirrors the trigger).
         const maxQ = sku.slabMaxQuantity != null ? sku.slabMaxQuantity - 1 : null;
         const slabLabel = maxQ != null ? `${minQ}–${maxQ}` : `${minQ}+`;
-        const n = Number(pendingQty);
-        const validNumber = Number.isInteger(n) && n >= 1;
-        const inSlab = validNumber && (n >= minQ) && (maxQ == null || n <= maxQ);
+        const raw = Number(pendingQty);
+        const validNumber = Number.isInteger(raw) && raw >= 1;
+        // For CASE the visible number is cases; the actual qty written to
+        // purchaseOrderItem is cases × moq.
+        const units = validNumber ? (isCase ? raw * moq : raw) : 0;
+        const inSlab = validNumber && (units >= minQ) && (maxQ == null || units <= maxQ);
         const close = () => { setPendingSku(null); };
         const submit = () => {
           if (!validNumber) return;
-          onAdd(sku, n);
+          onAdd(sku, units);
           close();
         };
+        const dec = () => setPendingQty((q) => String(Math.max(1, (Number(q) || 1) - 1)));
+        const inc = () => setPendingQty((q) => String((Number(q) || 0) + 1));
         return (
           <div
             className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80"
@@ -1580,7 +1603,12 @@ function AddProductPanel({
               <div className="flex items-start gap-3 mb-3">
                 <ProductThumb images={sku.images ?? []} alt={sku.skuLabel ?? 'product'} />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[10px] uppercase tracking-wider text-purple-300/70">{sku.brandLabel ?? '—'}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-purple-300/70 flex items-center gap-1.5">
+                    <span>{sku.brandLabel ?? '—'}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider border ${isCase ? 'bg-amber-500/20 text-amber-200 border-amber-400/40' : 'bg-sky-500/20 text-sky-200 border-sky-400/40'}`}>
+                      {isCase ? `CASE · ${moq}/case` : 'UNIT'}
+                    </span>
+                  </div>
                   <div className="text-sm font-semibold text-white line-clamp-2 leading-snug">{sku.skuLabel ?? '—'}</div>
                 </div>
               </div>
@@ -1598,38 +1626,60 @@ function AddProductPanel({
                   <div className="text-purple-100 font-semibold tabular-nums">{formatAmount(sku.mrp)}</div>
                 </div>
               </div>
-              <label className="block text-[11px] uppercase tracking-wider text-purple-300/80 mb-1.5">Quantity</label>
+              <label className="block text-[11px] uppercase tracking-wider text-purple-300/80 mb-1.5">
+                {isCase ? 'Cases' : 'Quantity'}
+              </label>
               <div className="flex items-center gap-2 mb-1.5">
                 <button
                   type="button"
-                  onClick={() => setPendingQty((q) => String(Math.max(1, (Number(q) || 1) - 1)))}
-                  disabled={busy !== null}
-                  className="w-9 h-9 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-white text-lg leading-none flex items-center justify-center disabled:opacity-40"
-                  aria-label="Decrease quantity"
+                  onClick={dec}
+                  disabled={busy !== null || raw <= 1}
+                  className="w-10 h-10 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xl leading-none flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label={isCase ? 'Remove one case' : 'Decrease quantity'}
                 >−</button>
-                <input
-                  type="number"
-                  min={1}
-                  autoFocus
-                  value={pendingQty}
-                  onChange={(e) => setPendingQty(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') close(); }}
-                  disabled={busy !== null}
-                  className="flex-1 px-3 py-2 rounded-md bg-white/5 border border-white/15 text-white text-base text-center tabular-nums focus:outline-none focus:border-fuchsia-400/60"
-                />
+                {isCase ? (
+                  // Readonly display so users can't drift off the case grid.
+                  // Stepper buttons are the only way to change the value.
+                  <div
+                    className="flex-1 px-3 py-2 rounded-md bg-white/[0.03] border border-white/15 text-white text-base text-center tabular-nums font-semibold select-none"
+                    aria-live="polite"
+                    aria-label={`${raw} cases (${units} units)`}
+                  >
+                    {raw}
+                  </div>
+                ) : (
+                  <input
+                    type="number"
+                    min={1}
+                    autoFocus
+                    value={pendingQty}
+                    onChange={(e) => setPendingQty(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') close(); }}
+                    disabled={busy !== null}
+                    className="flex-1 px-3 py-2 rounded-md bg-white/5 border border-white/15 text-white text-base text-center tabular-nums focus:outline-none focus:border-fuchsia-400/60"
+                  />
+                )}
                 <button
                   type="button"
-                  onClick={() => setPendingQty((q) => String((Number(q) || 0) + 1))}
+                  onClick={inc}
                   disabled={busy !== null}
-                  className="w-9 h-9 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-white text-lg leading-none flex items-center justify-center disabled:opacity-40"
-                  aria-label="Increase quantity"
+                  className="w-10 h-10 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xl leading-none flex items-center justify-center disabled:opacity-40"
+                  aria-label={isCase ? 'Add one case' : 'Increase quantity'}
                 >+</button>
               </div>
-              <div className="text-[10px] text-purple-300/70 mb-4">
-                Slab range: <span className="text-purple-100 font-semibold tabular-nums">{slabLabel}</span>
-                {validNumber && !inSlab && (
-                  <span className="ml-2 text-amber-300">⚠ outside slab — Badho may reject this qty</span>
+              <div className="text-[10px] text-purple-300/70 mb-4 space-y-0.5">
+                {isCase && (
+                  <div>
+                    1 case = <span className="text-purple-100 font-semibold tabular-nums">{moq}</span> units · sending{' '}
+                    <span className="text-fuchsia-200 font-semibold tabular-nums">{units}</span> units to the PO
+                  </div>
                 )}
+                <div>
+                  Slab range: <span className="text-purple-100 font-semibold tabular-nums">{slabLabel}</span> units
+                  {validNumber && !inSlab && (
+                    <span className="ml-2 text-amber-300">⚠ outside slab — Badho may reject this qty</span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-end gap-2">
                 <button
@@ -1644,7 +1694,7 @@ function AddProductPanel({
                   disabled={busy !== null || !validNumber}
                   className="px-4 py-1.5 rounded-md bg-fuchsia-500/30 hover:bg-fuchsia-500/50 border border-fuchsia-400/50 text-fuchsia-50 text-xs font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Add to PO
+                  {isCase ? `Add ${raw} case${raw > 1 ? 's' : ''}` : 'Add to PO'}
                 </button>
               </div>
             </div>

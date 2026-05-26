@@ -34,6 +34,12 @@ interface SkuRow {
   // uses this same margin to derive unitPrice from consumerSellingPrice.
   marginHint: string | null;
   mrp: string | null;
+  // Packaging metadata from seller_brandSKU. CASE → the qty dialog only
+  // exposes +/− steppers and each click adds one full case
+  // (= minimumOrderableQuantity units). UNIT → free-form quantity input.
+  packagingType: 'CASE' | 'UNIT' | null;
+  minimumOrderableQuantity: number | null;
+  noOfUnitsPerCase: number | null;
   alreadyInPo: boolean;
 }
 
@@ -90,6 +96,9 @@ export async function GET(req: NextRequest) {
           sb."brandSKUId",
           sb."brandId",
           sb."purchaseOrderTermId",
+          sb."packagingType"               AS packaging_type,
+          sb."minimumOrderableQuantity"    AS min_orderable_qty,
+          sb."noOfUnitsPerCase"            AS units_per_case,
           pos."unitPrice"                  AS unit_price,
           pos."margin"                     AS slab_margin,
           pos."quantitySlab"               AS quantity_slab,
@@ -130,6 +139,9 @@ export async function GET(req: NextRequest) {
         fs.unit_price::text                                AS "unitPriceHint",
         fs.slab_margin::text                               AS "marginHint",
         bs."consumerSellingPrice"::text                    AS "mrp",
+        fs.packaging_type                                  AS "packagingType",
+        fs.min_orderable_qty                               AS "minimumOrderableQuantity",
+        fs.units_per_case                                  AS "noOfUnitsPerCase",
         EXISTS (
           SELECT 1
           FROM "purchaseOrder"."purchaseOrderItem" poi

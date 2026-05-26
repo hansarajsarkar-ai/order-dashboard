@@ -1466,65 +1466,39 @@ function PoItemsModal({
                   <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">Created:</span>{' '}
                   <span className="text-purple-100 group-hover:text-white transition-colors">{formatDate(po.created_at)}</span>
                 </div>
-                {/* Paired financial heroes — PO total on the left (emerald,
-                    so the eye anchors the spend the user is committing to)
-                    and the buyer wallet on the right (cyan, the credit
-                    they can spend it from). Both share the same tile
-                    geometry so the comparison is instant. */}
+                {/* PO total hero — stays in the inner grid alongside
+                    Buyer / Seller / Created so the spend lives with the
+                    rest of the PO summary. The Wallet hero is docked to
+                    the modal's right corner (rendered outside this grid)
+                    so it reads as the buyer's standing balance rather
+                    than another order detail. */}
                 {(() => {
                   const total = Number(po.amount ?? 0);
-                  const wallet = po.buyerWalletAmount != null ? Number(po.buyerWalletAmount) : null;
-                  const hasFunds = wallet != null && wallet > 0;
                   const totalIsPositive = total > 0;
                   return (
-                    <>
-                      <div
-                        className={`po-total-tile relative overflow-hidden rounded-lg px-3 py-2 border ${
-                          totalIsPositive
-                            ? 'po-total-tile-active border-emerald-300/50 bg-gradient-to-r from-emerald-500/15 via-lime-500/10 to-emerald-500/15'
-                            : 'border-white/10 bg-white/[0.03]'
-                        }`}
-                        title="Sum of line amounts on this PO (purchaseOrder.amount)"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-lg leading-none" aria-hidden>🧾</span>
-                            <div className="leading-tight">
-                              <div className="text-[10px] uppercase tracking-wider text-emerald-200/80 font-semibold">PO total</div>
-                              <div className="text-[10px] text-purple-300/60">Order amount to place</div>
-                            </div>
-                          </div>
-                          <div className={`tabular-nums font-extrabold text-lg ${totalIsPositive ? 'text-emerald-100 drop-shadow-[0_0_12px_rgba(110,231,183,0.5)]' : 'text-purple-300/50'}`}>
-                            {totalIsPositive
-                              ? `₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              : '—'}
+                    <div
+                      className={`md:col-span-2 po-total-tile relative overflow-hidden rounded-lg px-3 py-2 border ${
+                        totalIsPositive
+                          ? 'po-total-tile-active border-emerald-300/50 bg-gradient-to-r from-emerald-500/15 via-lime-500/10 to-emerald-500/15'
+                          : 'border-white/10 bg-white/[0.03]'
+                      }`}
+                      title="Sum of line amounts on this PO (purchaseOrder.amount)"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-lg leading-none" aria-hidden>🧾</span>
+                          <div className="leading-tight">
+                            <div className="text-[10px] uppercase tracking-wider text-emerald-200/80 font-semibold">PO total</div>
+                            <div className="text-[10px] text-purple-300/60">Order amount to place</div>
                           </div>
                         </div>
-                      </div>
-                      <div
-                        className={`wallet-tile relative overflow-hidden rounded-lg px-3 py-2 border ${
-                          hasFunds
-                            ? 'wallet-tile-active border-cyan-300/50 bg-gradient-to-r from-cyan-500/15 via-emerald-500/10 to-cyan-500/15'
-                            : 'border-white/10 bg-white/[0.03]'
-                        }`}
-                        title="Buyer's available wallet balance (analytics.realTimeBuyerWalletBalances)"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-lg leading-none" aria-hidden>💳</span>
-                            <div className="leading-tight">
-                              <div className="text-[10px] uppercase tracking-wider text-cyan-200/80 font-semibold">Wallet balance</div>
-                              <div className="text-[10px] text-purple-300/60">Available to apply on this PO</div>
-                            </div>
-                          </div>
-                          <div className={`tabular-nums font-extrabold text-lg ${hasFunds ? 'text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.45)]' : 'text-purple-300/50'}`}>
-                            {wallet != null
-                              ? `₹${wallet.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              : '—'}
-                          </div>
+                        <div className={`tabular-nums font-extrabold text-lg ${totalIsPositive ? 'text-emerald-100 drop-shadow-[0_0_12px_rgba(110,231,183,0.5)]' : 'text-purple-300/50'}`}>
+                          {totalIsPositive
+                            ? `₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '—'}
                         </div>
                       </div>
-                    </>
+                    </div>
                   );
                 })()}
                 <div className="md:col-span-2 group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
@@ -1534,13 +1508,48 @@ function PoItemsModal({
               </div>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-200 hover:text-white text-lg leading-none flex items-center justify-center"
-            aria-label="Close"
-          >
-            ×
-          </button>
+          {/* Right rail — close button on top, wallet hero docked below
+              so the buyer's standing balance sits in the modal's top-
+              right corner where it doesn't compete with the per-PO data
+              but stays immediately scannable. */}
+          <div className="shrink-0 flex flex-col items-end gap-2 w-full max-w-[260px] md:max-w-[280px]">
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-200 hover:text-white text-lg leading-none flex items-center justify-center"
+              aria-label="Close"
+            >
+              ×
+            </button>
+            {po && (() => {
+              const wallet = po.buyerWalletAmount != null ? Number(po.buyerWalletAmount) : null;
+              const hasFunds = wallet != null && wallet > 0;
+              return (
+                <div
+                  className={`wallet-tile w-full relative overflow-hidden rounded-lg px-3 py-2 border ${
+                    hasFunds
+                      ? 'wallet-tile-active border-cyan-300/50 bg-gradient-to-r from-cyan-500/15 via-emerald-500/10 to-cyan-500/15'
+                      : 'border-white/10 bg-white/[0.03]'
+                  }`}
+                  title="Buyer's available wallet balance (analytics.realTimeBuyerWalletBalances)"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-lg leading-none" aria-hidden>💳</span>
+                      <div className="leading-tight">
+                        <div className="text-[10px] uppercase tracking-wider text-cyan-200/80 font-semibold">Wallet balance</div>
+                        <div className="text-[10px] text-purple-300/60">Available to apply on this PO</div>
+                      </div>
+                    </div>
+                    <div className={`tabular-nums font-extrabold text-lg ${hasFunds ? 'text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.45)]' : 'text-purple-300/50'}`}>
+                      {wallet != null
+                        ? `₹${wallet.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : '—'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
         </div>
 
         {/* Action bar — always rendered so the payment-mode chip is visible

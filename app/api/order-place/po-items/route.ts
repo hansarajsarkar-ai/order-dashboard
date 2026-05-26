@@ -25,6 +25,16 @@ interface PoSummaryRow {
   // buyer's spendable wallet balance from analytics.realTimeBuyerWalletBalances.
   // null if the buyer has no row in that table (e.g. brand-new buyer).
   buyerWalletAmount: string | null;
+  // Payment breakdown — what the buyer's app/checkout has applied on
+  // the PO so far. All default to 0 / null on a freshly-created DRAFT.
+  // The dashboard surfaces these read-only so the confirm dialog can
+  // render an accurate "amount payable" line.
+  appliedWalletAmount: string | null;
+  appliedOfferDiscount: string | null;
+  appliedVolumeDiscountAmount: string | null;
+  discount: string | null;
+  totalDiscount: string | null;
+  codHandlingCharge: string | null;
 }
 
 interface PoItemRow {
@@ -378,7 +388,13 @@ async function loadPoAndItems(poNumber: string) {
       (a."paymentInfo" ->> 'option')       AS "paymentOption",
       (a."paymentInfo" ->> 'instrument')   AS "paymentInstrument",
       s."minimumOrderValue"::text          AS "sellerMov",
-      bw."availableWalletBalance"::text    AS "buyerWalletAmount"
+      bw."availableWalletBalance"::text    AS "buyerWalletAmount",
+      a."appliedWalletAmount"::text        AS "appliedWalletAmount",
+      a."appliedOfferDiscount"::text       AS "appliedOfferDiscount",
+      a."appliedVolumeDiscountAmount"::text AS "appliedVolumeDiscountAmount",
+      a."discount"::text                   AS "discount",
+      a."totalDiscount"::text              AS "totalDiscount",
+      a."codHandlingCharge"::text          AS "codHandlingCharge"
     FROM "purchaseOrder"."purchaseOrder" a
     JOIN "users"."buyer"  b ON b."id" = a."buyerId"
     JOIN "users"."seller" s ON s."id" = a."sellerId"

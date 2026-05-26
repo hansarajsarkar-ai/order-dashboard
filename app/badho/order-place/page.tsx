@@ -1211,6 +1211,12 @@ interface PoSummary {
   paymentInstrument: string | null;
   sellerMov: string | null;
   buyerWalletAmount: string | null;
+  appliedWalletAmount: string | null;
+  appliedOfferDiscount: string | null;
+  appliedVolumeDiscountAmount: string | null;
+  discount: string | null;
+  totalDiscount: string | null;
+  codHandlingCharge: string | null;
 }
 
 interface PoItem {
@@ -1828,40 +1834,116 @@ function PoItemsModal({
         )}
       </div>
 
-      {/* Place-order confirm dialog */}
-      {placeConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80" onClick={() => !busy && setPlaceConfirm(false)}>
-          <div className="w-full max-w-md bg-gradient-to-br from-slate-900 to-purple-950 border border-emerald-400/40 rounded-2xl p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-2">Place PO {poNumber}?</h3>
-            <p className="text-sm text-purple-200 mb-4">
-              This will set status to <span className="font-bold text-emerald-300">PENDING</span> and stamp{' '}
-              <code className="text-purple-100">markedPendingTime</code> = now. Downstream Badho systems (notifications, settlement readiness, third-party delivery) will treat this as a placed order.
-            </p>
-            {data && (
-              <div className="text-xs text-purple-300/80 mb-5 space-y-0.5">
-                <div>{data.itemCount} items · qty {data.totalQuantity.toLocaleString('en-IN')}</div>
-                <div>Total {formatAmount(data.totalItemAmount)}</div>
+      {/* Place-order confirm dialog — full checkout-style breakdown.
+          Reads payment fields off the PO summary so the line-by-line
+          math the user is committing to is unambiguous before the
+          PENDING flip. */}
+      {placeConfirm && (() => {
+        const num = (v: string | number | null | undefined): number => {
+          if (v === null || v === undefined || v === '') return 0;
+          const n = typeof v === 'number' ? v : Number(v);
+          return Number.isFinite(n) ? n : 0;
+        };
+        const fmt = (n: number) =>
+          `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        const subtotal      = data?.totalItemAmount ?? num(po?.amount ?? null);
+        const offerDiscount = num(po?.appliedOfferDiscount);
+        const volumeDiscount = num(po?.appliedVolumeDiscountAmount);
+        const totalDiscount = num(po?.totalDiscount) || (offerDiscount + volumeDiscount);
+        const walletApplied = num(po?.appliedWalletAmount);
+        const codFee        = po?.paymentOption === 'COD' ? num(po?.codHandlingCharge) : 0;
+        const walletAvail   = po?.buyerWalletAmount != null ? num(po.buyerWalletAmount) : null;
+        const payable       = Math.max(0, subtotal - totalDiscount - walletApplied + codFee);
+        const walletInfoOnly = walletApplied === 0 && walletAvail != null && walletAvail > 0;
+
+        return (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
+            onClick={() => !busy && setPlaceConfirm(false)}
+          >
+            <div
+              className="w-full max-w-md bg-gradient-to-br from-slate-900 to-purple-950 border border-emerald-400/40 rounded-2xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 pt-5 pb-3 border-b border-white/5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="text-base font-bold text-white">Place PO {poNumber}</h3>
+                  {data && (
+                    <span className="text-[10px] uppercase tracking-wider text-purple-300/70">
+                      {data.itemCount} items · qty {data.totalQuantity.toLocaleString('en-IN')}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-purple-300/70 mt-1">
+                  Status flips to <span className="font-bold text-emerald-300">PENDING</span> and{' '}
+                  <code className="text-purple-100">markedPendingTime</code> = now.
+                </p>
               </div>
-            )}
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setPlaceConfirm(false)}
-                disabled={busy !== null}
-                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 text-sm disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={placeOrder}
-                disabled={busy !== null}
-                className="px-4 py-1.5 rounded-lg bg-emerald-500/30 hover:bg-emerald-500/50 border border-emerald-400/50 text-emerald-50 text-sm font-bold disabled:opacity-50"
-              >
-                {busy === 'place' ? 'Placing…' : 'Confirm — place order'}
-              </button>
+
+              {/* Breakdown */}
+              <div className="px-5 py-4 space-y-2 text-sm">
+                <Row label="Items subtotal" value={fmt(subtotal)} />
+                {totalDiscount > 0 && (
+                  <Row
+                    label={offerDiscount > 0 && volumeDiscount > 0 ? 'Coupon + volume discount' : offerDiscount > 0 ? 'Coupon discount' : 'Discount'}
+                    value={`− ${fmt(totalDiscount)}`}
+                    tone="discount"
+                  />
+                )}
+                {walletApplied > 0 && (
+                  <Row label="Wallet applied" value={`− ${fmt(walletApplied)}`} tone="discount" />
+                )}
+                {walletInfoOnly && (
+                  <div className="flex items-center justify-between gap-3 px-2.5 py-1.5 rounded-md bg-cyan-500/10 border border-cyan-400/30 text-[11px]">
+                    <span className="text-cyan-200/90">💳 Wallet available — not auto-applied</span>
+                    <span className="tabular-nums text-cyan-100 font-semibold">{fmt(walletAvail!)}</span>
+                  </div>
+                )}
+                {codFee > 0 && <Row label="COD handling fee" value={`+ ${fmt(codFee)}`} tone="surcharge" />}
+                <div className="border-t border-white/10 my-1" />
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] uppercase tracking-wider text-emerald-200/80 font-semibold">Amount to pay</span>
+                  <span className="tabular-nums font-extrabold text-emerald-100 text-xl drop-shadow-[0_0_12px_rgba(110,231,183,0.4)]">{fmt(payable)}</span>
+                </div>
+                {po?.paymentOption && (
+                  <div className="text-[10px] text-purple-300/60 text-right">
+                    via <span className="text-purple-100 font-semibold">{po.paymentOption}</span>
+                    {po.paymentInstrument ? ` · ${po.paymentInstrument}` : ''}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer CTA */}
+              <div className="px-5 pb-5 pt-1 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setPlaceConfirm(false)}
+                  disabled={busy !== null}
+                  className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 text-xs disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={placeOrder}
+                  disabled={busy !== null}
+                  className="confirm-place-cta group relative overflow-hidden rounded-lg px-5 py-2 text-[12px] font-extrabold uppercase tracking-wider border border-emerald-200 text-emerald-950 bg-gradient-to-r from-emerald-200 via-lime-200 to-emerald-200 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] active:scale-[0.98] shadow-md shadow-emerald-300/40 hover:shadow-lg hover:shadow-emerald-300/60 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+                  <span className="relative inline-flex items-center gap-2">
+                    {busy === 'place' ? 'Placing…' : (
+                      <>
+                        <span>Confirm &amp; place</span>
+                        <span className="tabular-nums">{fmt(payable)}</span>
+                        <span className="text-base leading-none transition-transform group-hover:translate-x-1">→</span>
+                      </>
+                    )}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Local keyframes for the Place Order CTA. Two stacked animations
           while .is-ready (items > 0 and idle):
@@ -1945,6 +2027,32 @@ function PoItemsModal({
           }
         }
       `}</style>
+    </div>
+  );
+}
+
+// Single line in the place-order confirm dialog's price breakdown.
+// `tone` colours the value: discount (emerald-leaning) for subtractions,
+// surcharge (amber) for additions like COD fee, default purple for plain.
+function Row({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  tone?: 'default' | 'discount' | 'surcharge';
+}) {
+  const valueClass =
+    tone === 'discount'
+      ? 'text-emerald-200'
+      : tone === 'surcharge'
+        ? 'text-amber-200'
+        : 'text-white';
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-purple-300/80">{label}</span>
+      <span className={`tabular-nums font-semibold ${valueClass}`}>{value}</span>
     </div>
   );
 }

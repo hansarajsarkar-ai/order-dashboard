@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
+import { requireAuth, resolveActiveEmployee, AuthError } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,9 +13,26 @@ export const dynamic = 'force-dynamic';
 //
 // We re-validate the seller against the live-D2R-brand gate here, not
 // just trust the client, so a stale UI can't slip a non-D2R seller
-// through. Buyer is validated as a real, non-test row.
+// through. Buyer is validated as a real, non-test row. The caller's
+// email is read off the JWT and looked up in employeeBase.employee so
+// we can stamp createdById (and modifiedById) with the actual dashboard
+// user — that flows downstream into PO history + ownership reports.
 
 export async function POST(req: NextRequest) {
+  // Auth first: any thrown AuthError becomes a 401/403 with the message
+  // we set, so callers can show a sensible error in the create dialog.
+  let employeeId: string;
+  let employeeEmail: string;
+  try {
+    const claims = requireAuth(req);
+    const emp = await resolveActiveEmployee(claims.email);
+    employeeId = emp.employeeId;
+    employeeEmail = emp.email;
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -77,20 +95,25 @@ export async function POST(req: NextRequest) {
     }
 
     // The trigger fills city/state/district/employee/lat/lng/deliveryType
-    // etc. from the buyer/seller rows; status defaults to DRAFT.
+    // etc. from the buyer/seller rows; status defaults to DRAFT. We also
+    // stamp createdById + modifiedById with the dashboard user's
+    // employeeId so the PO carries provenance through to history rows.
     const inserted = await client.query<{ poNumber: string; id: string }>(
       `
       INSERT INTO "purchaseOrder"."purchaseOrder" (
-        "buyerId", "sellerId", "createdBy", "modifiedByRole"
-      ) VALUES ($1, $2, 'dashboard', 'dashboard')
+        "buyerId", "sellerId",
+        "createdBy", "createdById",
+        "modifiedById", "modifiedByRole"
+      ) VALUES ($1, $2, 'dashboard', $3, $3, 'dashboard')
       RETURNING "poNumber"::text AS "poNumber", "id"::text AS id;
       `,
-      [buyerId, sellerId],
+      [buyerId, sellerId, employeeId],
     );
 
     return NextResponse.json({
-      poNumber: inserted.rows[0].poNumber,
-      poId:     inserted.rows[0].id,
+      poNumber:  inserted.rows[0].poNumber,
+      poId:      inserted.rows[0].id,
+      createdBy: { employeeId, email: employeeEmail },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err) || 'Unknown error';

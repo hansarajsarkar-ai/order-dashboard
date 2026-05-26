@@ -963,9 +963,16 @@ function CreatePoDialog({
     setSubmitting(true);
     setCreateErr(null);
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+      if (!token) throw new Error('Not signed in — please log in again.');
       const res = await fetch('/api/order-place/create-po', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // The server uses this to look up the caller in
+          // employeeBase.employee and stamp createdById on the PO.
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({ buyerId: buyer.id, sellerId: seller.id }),
       });
       const j = await res.json();

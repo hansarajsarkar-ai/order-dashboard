@@ -1943,7 +1943,7 @@ function AddProductPanel({
               <th className="px-3 py-2 text-left">SKU</th>
               <th className="px-3 py-2 text-right" title="seller_brandSKU.noOfUnitsPerCase — pieces per shipping case. For UNIT packaging this is usually 1.">Units/Case</th>
               <th className="px-3 py-2 text-right" title="seller_brandSKU.minimumOrderableQuantity — smallest qty the seller will accept on an order line. For CASE packaging this equals one full case.">MOQ</th>
-              <th className="px-3 py-2 text-right" title="Indicative unit price from the lowest qty slab. The PO trigger may recompute this from consumerSellingPrice × (1 − margin/100) on insert.">Unit Price</th>
+              <th className="px-3 py-2 text-right" title="MRP × margin% (e.g. ₹5 at 36% → ₹1.80).">Unit Price</th>
               <th className="px-3 py-2 text-right" title="Slab margin (%) used by the PO trigger to derive unitPrice.">Margin</th>
               <th className="px-3 py-2 text-right">MRP</th>
             </tr>
@@ -1997,7 +1997,21 @@ function AddProductPanel({
                     />
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-purple-200">{s.minimumOrderableQuantity ?? '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-purple-100">{formatAmount(s.unitPriceHint)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-purple-100">
+                    {(() => {
+                      // Calculated unit price = MRP × margin% (per the
+                      // user's spec: ₹5 at 36% → ₹1.80). This is not the
+                      // value the PO trigger writes — the actual unitPrice
+                      // is consumerSellingPrice × (1 − margin/100) — so
+                      // this column is a quick "what does the margin buy
+                      // me" reference for the picker, separate from the
+                      // line's true price in the PO items table.
+                      const mrp = Number(s.mrp);
+                      const m = Number(s.marginHint);
+                      if (!Number.isFinite(mrp) || !Number.isFinite(m) || s.mrp == null || s.marginHint == null) return '—';
+                      return formatAmount((mrp * m) / 100);
+                    })()}
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums text-emerald-200">{s.marginHint != null ? `${Number(s.marginHint).toFixed(2)}%` : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-purple-200">{formatAmount(s.mrp)}</td>
                 </tr>

@@ -2006,10 +2006,14 @@ function AddProductPanel({
                       // this column is a quick "what does the margin buy
                       // me" reference for the picker, separate from the
                       // line's true price in the PO items table.
+                      //
+                      // Local formatter — the shared INR helper uses
+                      // maximumFractionDigits:0 which rounded ₹1.80 to ₹2.
                       const mrp = Number(s.mrp);
                       const m = Number(s.marginHint);
                       if (!Number.isFinite(mrp) || !Number.isFinite(m) || s.mrp == null || s.marginHint == null) return '—';
-                      return formatAmount((mrp * m) / 100);
+                      const v = (mrp * m) / 100;
+                      return `₹${v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                     })()}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-emerald-200">{s.marginHint != null ? `${Number(s.marginHint).toFixed(2)}%` : '—'}</td>

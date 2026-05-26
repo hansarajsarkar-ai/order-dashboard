@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       status: string;
       itemCount: string;
       totalAmount: string;
+      sellerMov: string | null;
     }>(`
       SELECT
         po."id"::text                                                    AS "poId",
@@ -39,10 +40,12 @@ export async function POST(req: NextRequest) {
            WHERE "purchaseOrderId" = po."id")                            AS "itemCount",
         (SELECT COALESCE(SUM("amount"::numeric), 0)::text
            FROM "purchaseOrder"."purchaseOrderItem"
-           WHERE "purchaseOrderId" = po."id")                            AS "totalAmount"
+           WHERE "purchaseOrderId" = po."id")                            AS "totalAmount",
+        s."minimumOrderValue"::text                                      AS "sellerMov"
       FROM "purchaseOrder"."purchaseOrder" po
+      JOIN "users"."seller" s ON s."id" = po."sellerId"
       WHERE po."poNumber"::text = $1
-      FOR UPDATE
+      FOR UPDATE OF po
       LIMIT 1;
     `, [poNumber]);
 
@@ -58,6 +61,23 @@ export async function POST(req: NextRequest) {
     if (Number(po.itemCount) === 0) {
       await client.query('ROLLBACK');
       return NextResponse.json({ error: 'cannot place an empty PO — add at least one item first' }, { status: 422 });
+    }
+
+    // MOV gate. seller.minimumOrderValue is the smallest PO total the
+    // seller will accept; NULL means no floor. The client also blocks
+    // placement when shortfall > 0, but we re-check here so a stale UI
+    // can't slip a sub-MOV order through.
+    const totalNum = Number(po.totalAmount);
+    const movNum   = po.sellerMov != null ? Number(po.sellerMov) : 0;
+    if (movNum > 0 && totalNum < movNum) {
+      await client.query('ROLLBACK');
+      const shortfall = movNum - totalNum;
+      return NextResponse.json({
+        error: `Order total ₹${totalNum.toFixed(2)} is below the seller's minimum order value (₹${movNum.toFixed(2)}). Add ₹${shortfall.toFixed(2)} more before placing.`,
+        sellerMov: po.sellerMov,
+        totalAmount: po.totalAmount,
+        shortfall: shortfall.toFixed(2),
+      }, { status: 422 });
     }
 
     const upd = await client.query<{

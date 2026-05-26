@@ -18,6 +18,10 @@ interface PoSummaryRow {
   // DRAFT POs usually have NULL paymentInfo — buyer picks at checkout.
   paymentOption: string | null;
   paymentInstrument: string | null;
+  // seller.minimumOrderValue at the time of the read. The UI gates
+  // Place Order behind sum(line.amount) >= sellerMov; the server
+  // re-checks the same condition in place-order.
+  sellerMov: string | null;
 }
 
 interface PoItemRow {
@@ -369,7 +373,8 @@ async function loadPoAndItems(poNumber: string) {
       s."businessName"                     AS "sellerBusinessName",
       s."phone"                            AS "sellerPhone",
       (a."paymentInfo" ->> 'option')       AS "paymentOption",
-      (a."paymentInfo" ->> 'instrument')   AS "paymentInstrument"
+      (a."paymentInfo" ->> 'instrument')   AS "paymentInstrument",
+      s."minimumOrderValue"::text          AS "sellerMov"
     FROM "purchaseOrder"."purchaseOrder" a
     JOIN "users"."buyer"  b ON b."id" = a."buyerId"
     JOIN "users"."seller" s ON s."id" = a."sellerId"

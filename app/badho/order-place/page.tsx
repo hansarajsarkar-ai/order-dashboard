@@ -1119,6 +1119,7 @@ interface PoSummary {
   sellerPhone: string | null;
   paymentOption: string | null;
   paymentInstrument: string | null;
+  sellerMov: string | null;
 }
 
 interface PoItem {
@@ -1423,27 +1424,52 @@ function PoItemsModal({
             <div className="flex items-center gap-1.5">
               {busy && <span className="text-[10px] text-fuchsia-300 animate-pulse">Saving…</span>}
               {isDraft && (() => {
-                const ready = busy === null && items.length > 0;
+                // MOV gate. NULL/0 means the seller has no floor and any
+                // total is acceptable; otherwise the line-sum must reach
+                // sellerMov. Same condition the server enforces.
+                const mov = po?.sellerMov != null ? Number(po.sellerMov) : 0;
+                const total = data?.totalItemAmount ?? 0;
+                const shortfall = mov > 0 ? Math.max(0, mov - total) : 0;
+                const movMet = mov === 0 || shortfall === 0;
+                const ready = busy === null && items.length > 0 && movMet;
+                const blockedReason = items.length === 0
+                  ? 'Add at least one item before placing'
+                  : !movMet
+                    ? `Add ₹${shortfall.toFixed(2)} more to meet ₹${mov.toFixed(2)} MOV`
+                    : 'Place this PO as PENDING';
                 return (
-                  <button
-                    onClick={() => setPlaceConfirm(true)}
-                    disabled={!ready}
-                    className={`place-order-cta group relative overflow-hidden rounded-lg px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-wider border transition-all duration-200
-                      ${ready
-                        ? 'is-ready text-emerald-950 border-emerald-200 bg-gradient-to-r from-emerald-200 via-lime-200 to-emerald-200 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] active:scale-[0.98] shadow-md shadow-emerald-300/40 hover:shadow-lg hover:shadow-emerald-300/60'
-                        : 'bg-emerald-900/30 border-emerald-700/40 text-emerald-300/40 cursor-not-allowed shadow-none'}
-                    `}
-                    title={items.length === 0 ? 'Add at least one item before placing' : 'Place this PO as PENDING'}
-                  >
-                    {/* Shine sweep — moves left-to-right on hover only */}
-                    {ready && (
-                      <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+                  <>
+                    {!movMet && items.length > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-400/40 text-amber-100 text-[10px] font-bold uppercase tracking-wider"
+                        title={`Seller's minimum order value is ₹${mov.toFixed(2)}; current total ₹${total.toFixed(2)}`}
+                      >
+                        <span aria-hidden>⚠</span>
+                        <span>
+                          Add <span className="text-white">₹{shortfall.toFixed(2)}</span> more to meet MOV
+                        </span>
+                      </span>
                     )}
-                    <span className="relative inline-flex items-center gap-1.5">
-                      <span>Place Order</span>
-                      <span className="text-sm leading-none transition-transform group-hover:translate-x-1">→</span>
-                    </span>
-                  </button>
+                    <button
+                      onClick={() => setPlaceConfirm(true)}
+                      disabled={!ready}
+                      className={`place-order-cta group relative overflow-hidden rounded-lg px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-wider border transition-all duration-200
+                        ${ready
+                          ? 'is-ready text-emerald-950 border-emerald-200 bg-gradient-to-r from-emerald-200 via-lime-200 to-emerald-200 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] active:scale-[0.98] shadow-md shadow-emerald-300/40 hover:shadow-lg hover:shadow-emerald-300/60'
+                          : 'bg-emerald-900/30 border-emerald-700/40 text-emerald-300/40 cursor-not-allowed shadow-none'}
+                      `}
+                      title={blockedReason}
+                    >
+                      {/* Shine sweep — moves left-to-right on hover only */}
+                      {ready && (
+                        <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+                      )}
+                      <span className="relative inline-flex items-center gap-1.5">
+                        <span>Place Order</span>
+                        <span className="text-sm leading-none transition-transform group-hover:translate-x-1">→</span>
+                      </span>
+                    </button>
+                  </>
                 );
               })()}
             </div>

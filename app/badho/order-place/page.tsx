@@ -1615,6 +1615,7 @@ function PoItemsModal({
                   <th className="px-4 py-3 text-right">Unit Price</th>
                   <th className="px-4 py-3 text-right">Amount</th>
                   <th className="px-4 py-3 text-right" title="Slab margin (%) the trigger used to compute unitPrice from consumerSellingPrice">Margin</th>
+                  <th className="px-4 py-3 text-right" title="brandSKU.consumerSellingPrice — the MRP printed on the pack.">MRP</th>
                   <th className="px-4 py-3 text-center">Item Status</th>
                   {isDraft && <th className="px-4 py-3 text-center">Actions</th>}
                 </tr>
@@ -1713,6 +1714,7 @@ function PoItemsModal({
                       </td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-white font-semibold">{formatAmount(it.amount)}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-emerald-200">{it.margin != null ? `${Number(it.margin).toFixed(2)}%` : '—'}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{formatAmount(it.mrp)}</td>
                       <td className="px-4 py-2.5 text-center">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-purple-200 border border-white/10">
                           {it.status ?? '—'}

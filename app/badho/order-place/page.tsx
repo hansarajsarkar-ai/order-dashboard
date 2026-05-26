@@ -1408,14 +1408,21 @@ function PoItemsModal({
     }
   };
 
-  const placeOrder = async () => {
+  const placeOrder = async (opts?: { applyWalletAmount?: number }) => {
     setBusy('place');
     setMutationError(null);
     try {
       const res = await fetch('/api/order-place/place-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ poNumber }),
+        body: JSON.stringify({
+          poNumber,
+          // Only send when the user actually opted in — the API treats
+          // omitted/0 as "leave appliedWalletAmount alone".
+          ...(opts?.applyWalletAmount && opts.applyWalletAmount > 0
+            ? { applyWalletAmount: opts.applyWalletAmount }
+            : {}),
+        }),
         cache: 'no-store',
       });
       const json = await res.json();
@@ -1834,116 +1841,18 @@ function PoItemsModal({
         )}
       </div>
 
-      {/* Place-order confirm dialog — full checkout-style breakdown.
-          Reads payment fields off the PO summary so the line-by-line
-          math the user is committing to is unambiguous before the
-          PENDING flip. */}
-      {placeConfirm && (() => {
-        const num = (v: string | number | null | undefined): number => {
-          if (v === null || v === undefined || v === '') return 0;
-          const n = typeof v === 'number' ? v : Number(v);
-          return Number.isFinite(n) ? n : 0;
-        };
-        const fmt = (n: number) =>
-          `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-        const subtotal      = data?.totalItemAmount ?? num(po?.amount ?? null);
-        const offerDiscount = num(po?.appliedOfferDiscount);
-        const volumeDiscount = num(po?.appliedVolumeDiscountAmount);
-        const totalDiscount = num(po?.totalDiscount) || (offerDiscount + volumeDiscount);
-        const walletApplied = num(po?.appliedWalletAmount);
-        const codFee        = po?.paymentOption === 'COD' ? num(po?.codHandlingCharge) : 0;
-        const walletAvail   = po?.buyerWalletAmount != null ? num(po.buyerWalletAmount) : null;
-        const payable       = Math.max(0, subtotal - totalDiscount - walletApplied + codFee);
-        const walletInfoOnly = walletApplied === 0 && walletAvail != null && walletAvail > 0;
-
-        return (
-          <div
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
-            onClick={() => !busy && setPlaceConfirm(false)}
-          >
-            <div
-              className="w-full max-w-md bg-gradient-to-br from-slate-900 to-purple-950 border border-emerald-400/40 rounded-2xl shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="px-5 pt-5 pb-3 border-b border-white/5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="text-base font-bold text-white">Place PO {poNumber}</h3>
-                  {data && (
-                    <span className="text-[10px] uppercase tracking-wider text-purple-300/70">
-                      {data.itemCount} items · qty {data.totalQuantity.toLocaleString('en-IN')}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-purple-300/70 mt-1">
-                  Status flips to <span className="font-bold text-emerald-300">PENDING</span> and{' '}
-                  <code className="text-purple-100">markedPendingTime</code> = now.
-                </p>
-              </div>
-
-              {/* Breakdown */}
-              <div className="px-5 py-4 space-y-2 text-sm">
-                <Row label="Items subtotal" value={fmt(subtotal)} />
-                {totalDiscount > 0 && (
-                  <Row
-                    label={offerDiscount > 0 && volumeDiscount > 0 ? 'Coupon + volume discount' : offerDiscount > 0 ? 'Coupon discount' : 'Discount'}
-                    value={`− ${fmt(totalDiscount)}`}
-                    tone="discount"
-                  />
-                )}
-                {walletApplied > 0 && (
-                  <Row label="Wallet applied" value={`− ${fmt(walletApplied)}`} tone="discount" />
-                )}
-                {walletInfoOnly && (
-                  <div className="flex items-center justify-between gap-3 px-2.5 py-1.5 rounded-md bg-cyan-500/10 border border-cyan-400/30 text-[11px]">
-                    <span className="text-cyan-200/90">💳 Wallet available — not auto-applied</span>
-                    <span className="tabular-nums text-cyan-100 font-semibold">{fmt(walletAvail!)}</span>
-                  </div>
-                )}
-                {codFee > 0 && <Row label="COD handling fee" value={`+ ${fmt(codFee)}`} tone="surcharge" />}
-                <div className="border-t border-white/10 my-1" />
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] uppercase tracking-wider text-emerald-200/80 font-semibold">Amount to pay</span>
-                  <span className="tabular-nums font-extrabold text-emerald-100 text-xl drop-shadow-[0_0_12px_rgba(110,231,183,0.4)]">{fmt(payable)}</span>
-                </div>
-                {po?.paymentOption && (
-                  <div className="text-[10px] text-purple-300/60 text-right">
-                    via <span className="text-purple-100 font-semibold">{po.paymentOption}</span>
-                    {po.paymentInstrument ? ` · ${po.paymentInstrument}` : ''}
-                  </div>
-                )}
-              </div>
-
-              {/* Footer CTA */}
-              <div className="px-5 pb-5 pt-1 flex items-center justify-end gap-2">
-                <button
-                  onClick={() => setPlaceConfirm(false)}
-                  disabled={busy !== null}
-                  className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 text-xs disabled:opacity-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={placeOrder}
-                  disabled={busy !== null}
-                  className="confirm-place-cta group relative overflow-hidden rounded-lg px-5 py-2 text-[12px] font-extrabold uppercase tracking-wider border border-emerald-200 text-emerald-950 bg-gradient-to-r from-emerald-200 via-lime-200 to-emerald-200 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] active:scale-[0.98] shadow-md shadow-emerald-300/40 hover:shadow-lg hover:shadow-emerald-300/60 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/70 to-transparent" />
-                  <span className="relative inline-flex items-center gap-2">
-                    {busy === 'place' ? 'Placing…' : (
-                      <>
-                        <span>Confirm &amp; place</span>
-                        <span className="tabular-nums">{fmt(payable)}</span>
-                        <span className="text-base leading-none transition-transform group-hover:translate-x-1">→</span>
-                      </>
-                    )}
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {placeConfirm && (
+        <PlaceOrderConfirm
+          poNumber={poNumber}
+          po={po}
+          itemCount={data?.itemCount ?? 0}
+          totalQuantity={data?.totalQuantity ?? 0}
+          subtotalServer={data?.totalItemAmount ?? null}
+          busy={busy}
+          onCancel={() => setPlaceConfirm(false)}
+          onConfirm={(walletApplied) => placeOrder({ applyWalletAmount: walletApplied })}
+        />
+      )}
 
       {/* Local keyframes for the Place Order CTA. Two stacked animations
           while .is-ready (items > 0 and idle):
@@ -2027,6 +1936,189 @@ function PoItemsModal({
           }
         }
       `}</style>
+    </div>
+  );
+}
+
+// Checkout-style place-order confirm dialog. Reads off the PO summary
+// and supports an opt-in wallet-apply toggle (Blinkit/Zepto pattern) —
+// the toggle pre-fills with min(walletAvail, subtotal) and the final
+// "amount to pay" recomputes live as it flips. On confirm, the applied
+// amount is forwarded to /api/order-place/place-order, which writes
+// purchaseOrder.appliedWalletAmount before flipping the status to
+// PENDING (the BEFORE UPDATE trigger handles "DRAFT only" + one-wallet-
+// per-buyer policy).
+function PlaceOrderConfirm({
+  poNumber,
+  po,
+  itemCount,
+  totalQuantity,
+  subtotalServer,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  poNumber: string;
+  po: PoSummary | null;
+  itemCount: number;
+  totalQuantity: number;
+  subtotalServer: number | null;
+  busy: string | null;
+  onCancel: () => void;
+  onConfirm: (walletApplied: number) => void;
+}) {
+  const num = (v: string | number | null | undefined): number => {
+    if (v === null || v === undefined || v === '') return 0;
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const fmt = (n: number) =>
+    `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const subtotal       = subtotalServer ?? num(po?.amount ?? null);
+  const offerDiscount  = num(po?.appliedOfferDiscount);
+  const volumeDiscount = num(po?.appliedVolumeDiscountAmount);
+  const totalDiscount  = num(po?.totalDiscount) || (offerDiscount + volumeDiscount);
+  const codFee         = po?.paymentOption === 'COD' ? num(po?.codHandlingCharge) : 0;
+  const walletAvail    = po?.buyerWalletAmount != null ? num(po.buyerWalletAmount) : 0;
+  const walletPreApplied = num(po?.appliedWalletAmount);
+  const walletCap      = Math.max(0, Math.min(walletAvail, Math.max(0, subtotal - totalDiscount)));
+  const canUseWallet   = walletCap > 0;
+
+  // Start ON if the buyer's app already applied wallet (preserve their
+  // choice); otherwise default OFF so the user must opt in.
+  const [useWallet, setUseWallet] = useState<boolean>(walletPreApplied > 0);
+  const walletApplied  = useWallet ? walletCap : 0;
+  const payable        = Math.max(0, subtotal - totalDiscount - walletApplied + codFee);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
+      onClick={() => !busy && onCancel()}
+    >
+      <div
+        className="w-full max-w-xl bg-gradient-to-br from-slate-900 to-purple-950 border border-emerald-400/40 rounded-2xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 pt-5 pb-3 border-b border-white/5">
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <h3 className="text-lg font-bold text-white">Place PO {poNumber}</h3>
+            <span className="text-[10px] uppercase tracking-wider text-purple-300/70">
+              {itemCount} items · qty {totalQuantity.toLocaleString('en-IN')}
+            </span>
+          </div>
+          <p className="text-[11px] text-purple-300/70 mt-1">
+            Status flips to <span className="font-bold text-emerald-300">PENDING</span> and{' '}
+            <code className="text-purple-100">markedPendingTime</code> = now.
+          </p>
+        </div>
+
+        {/* Bill details */}
+        <div className="px-6 py-4">
+          <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold mb-2">Bill details</div>
+          <div className="space-y-2 text-sm">
+            <Row label="Items subtotal" value={fmt(subtotal)} />
+            {totalDiscount > 0 && (
+              <Row
+                label={offerDiscount > 0 && volumeDiscount > 0 ? 'Coupon + volume discount' : offerDiscount > 0 ? 'Coupon discount' : 'Discount'}
+                value={`− ${fmt(totalDiscount)}`}
+                tone="discount"
+              />
+            )}
+
+            {/* Wallet toggle row — Blinkit/Zepto-style. Always rendered
+                so the user knows the wallet exists; disabled when there
+                is nothing to apply. Captures both "available" and
+                "applied" in one row. */}
+            <div className={`mt-2 rounded-lg border ${useWallet && canUseWallet ? 'border-cyan-300/50 bg-gradient-to-r from-cyan-500/10 to-emerald-500/10' : 'border-white/10 bg-white/[0.03]'} px-3 py-2 transition-colors`}>
+              <label className={`flex items-center justify-between gap-3 ${canUseWallet ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="text-base leading-none" aria-hidden>💳</span>
+                  <span className="leading-tight">
+                    <span className="block text-sm text-white font-semibold">Use wallet balance</span>
+                    <span className="block text-[10px] text-purple-300/70">
+                      Available <span className="text-cyan-100 font-semibold tabular-nums">{fmt(walletAvail)}</span>
+                      {canUseWallet && useWallet && (
+                        <> · applying <span className="text-emerald-200 font-semibold tabular-nums">{fmt(walletApplied)}</span></>
+                      )}
+                      {canUseWallet && walletCap < walletAvail && (
+                        <> · capped at order total</>
+                      )}
+                    </span>
+                  </span>
+                </span>
+                {/* Toggle switch */}
+                <span
+                  role="switch"
+                  aria-checked={useWallet && canUseWallet}
+                  onClick={(e) => { e.preventDefault(); if (canUseWallet) setUseWallet((v) => !v); }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+                    useWallet && canUseWallet
+                      ? 'bg-gradient-to-r from-cyan-400 to-emerald-400'
+                      : 'bg-white/10 border border-white/15'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${useWallet && canUseWallet ? 'translate-x-[1.375rem]' : 'translate-x-0.5'}`}
+                  />
+                </span>
+                {/* Hidden checkbox for a11y/form semantics */}
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={useWallet && canUseWallet}
+                  disabled={!canUseWallet || busy !== null}
+                  onChange={(e) => setUseWallet(e.target.checked)}
+                />
+              </label>
+            </div>
+
+            {walletApplied > 0 && (
+              <Row label="Wallet applied" value={`− ${fmt(walletApplied)}`} tone="discount" />
+            )}
+            {codFee > 0 && <Row label="COD handling fee" value={`+ ${fmt(codFee)}`} tone="surcharge" />}
+
+            <div className="border-t border-white/10 my-2" />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/80 font-semibold">To pay</span>
+              <span className="tabular-nums font-extrabold text-emerald-100 text-2xl drop-shadow-[0_0_16px_rgba(110,231,183,0.5)]">{fmt(payable)}</span>
+            </div>
+            {po?.paymentOption && (
+              <div className="text-[10px] text-purple-300/60 text-right">
+                via <span className="text-purple-100 font-semibold">{po.paymentOption}</span>
+                {po.paymentInstrument ? ` · ${po.paymentInstrument}` : ''}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer CTA */}
+        <div className="px-6 pb-5 pt-1 flex items-center justify-end gap-2">
+          <button
+            onClick={onCancel}
+            disabled={busy !== null}
+            className="px-3.5 py-2 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-purple-100 text-xs disabled:opacity-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(walletApplied)}
+            disabled={busy !== null}
+            className="confirm-place-cta group relative overflow-hidden rounded-lg px-5 py-2.5 text-[12px] font-extrabold uppercase tracking-wider border border-emerald-200 text-emerald-950 bg-gradient-to-r from-emerald-200 via-lime-200 to-emerald-200 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] active:scale-[0.98] shadow-md shadow-emerald-300/40 hover:shadow-lg hover:shadow-emerald-300/60 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+            <span className="relative inline-flex items-center gap-2">
+              {busy === 'place' ? 'Placing…' : (
+                <>
+                  <span>Confirm &amp; pay</span>
+                  <span className="tabular-nums">{fmt(payable)}</span>
+                  <span className="text-base leading-none transition-transform group-hover:translate-x-1">→</span>
+                </>
+              )}
+            </span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

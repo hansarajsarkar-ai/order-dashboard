@@ -737,6 +737,9 @@ interface PoItem {
   amount: string | null;
   status: string | null;
   margin: string | null;
+  packagingType: 'CASE' | 'UNIT' | null;
+  minimumOrderableQuantity: number | null;
+  noOfUnitsPerCase: number | null;
 }
 
 interface PoItemsResponse {
@@ -1098,6 +1101,24 @@ function PoItemsModal({
                   const draftQty = qtyDraft[it.itemId];
                   const showSaveBtn = draftQty !== undefined && draftQty !== String(it.quantity);
                   const rowBusy = busy === `qty-${it.itemId}` || busy === `del-${it.itemId}`;
+                  // CASE rows can't be edited freely — only stepped by full
+                  // packs. Each click writes the new total straight to the
+                  // PATCH endpoint instead of going through the draft/Save
+                  // flow that UNIT rows still use.
+                  const isCase = it.packagingType === 'CASE';
+                  const moq = it.minimumOrderableQuantity && it.minimumOrderableQuantity > 0
+                    ? it.minimumOrderableQuantity
+                    : 1;
+                  const currentQty = Number(it.quantity) || 0;
+                  const stepQty = (delta: 1 | -1) => {
+                    const next = currentQty + delta * moq;
+                    if (next < moq) return; // can't go below one case
+                    void mutate(`qty-${it.itemId}`, {
+                      url: '/api/order-place/po-items',
+                      method: 'PATCH',
+                      body: { itemId: it.itemId, quantity: next },
+                    });
+                  };
                   return (
                     <tr key={it.itemId} className={`border-t border-white/5 hover:bg-white/5 ${rowBusy ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-2.5 text-purple-300/70 tabular-nums">{i + 1}</td>
@@ -1107,26 +1128,49 @@ function PoItemsModal({
                       <td className="px-4 py-2.5 text-purple-200">{it.size ?? '—'}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-white">
                         {isDraft ? (
-                          <div className="inline-flex items-center gap-1 justify-end">
-                            <input
-                              type="number"
-                              min={1}
-                              value={draftQty ?? String(it.quantity ?? '')}
-                              onChange={(e) => setQtyDraft((prev) => ({ ...prev, [it.itemId]: e.target.value }))}
-                              onKeyDown={(e) => { if (e.key === 'Enter') saveQty(it); }}
-                              disabled={busy !== null}
-                              className="w-20 px-2 py-1 rounded-md bg-white/5 border border-white/10 text-white text-sm text-right tabular-nums focus:outline-none focus:border-fuchsia-400/50"
-                            />
-                            {showSaveBtn && (
+                          isCase ? (
+                            <div className="inline-flex items-center gap-1 justify-end">
                               <button
-                                onClick={() => saveQty(it)}
+                                onClick={() => stepQty(-1)}
+                                disabled={busy !== null || currentQty <= moq}
+                                className="w-7 h-7 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-white text-base leading-none flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                                aria-label="Remove one case"
+                                title={`Remove 1 case (−${moq})`}
+                              >−</button>
+                              <div className="px-2 min-w-[3.5rem] text-right">
+                                <div className="text-white text-sm font-semibold tabular-nums leading-tight">{currentQty}</div>
+                                <div className="text-[9px] text-amber-200/80 tabular-nums leading-tight">{Math.round(currentQty / moq)} case{Math.round(currentQty / moq) === 1 ? '' : 's'}</div>
+                              </div>
+                              <button
+                                onClick={() => stepQty(1)}
                                 disabled={busy !== null}
-                                className="px-2 py-1 rounded-md bg-fuchsia-500/30 border border-fuchsia-400/40 text-fuchsia-100 text-[10px] font-bold uppercase hover:bg-fuchsia-500/50 disabled:opacity-50"
-                              >
-                                Save
-                              </button>
-                            )}
-                          </div>
+                                className="w-7 h-7 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-white text-base leading-none flex items-center justify-center disabled:opacity-40"
+                                aria-label="Add one case"
+                                title={`Add 1 case (+${moq})`}
+                              >+</button>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1 justify-end">
+                              <input
+                                type="number"
+                                min={1}
+                                value={draftQty ?? String(it.quantity ?? '')}
+                                onChange={(e) => setQtyDraft((prev) => ({ ...prev, [it.itemId]: e.target.value }))}
+                                onKeyDown={(e) => { if (e.key === 'Enter') saveQty(it); }}
+                                disabled={busy !== null}
+                                className="w-20 px-2 py-1 rounded-md bg-white/5 border border-white/10 text-white text-sm text-right tabular-nums focus:outline-none focus:border-fuchsia-400/50"
+                              />
+                              {showSaveBtn && (
+                                <button
+                                  onClick={() => saveQty(it)}
+                                  disabled={busy !== null}
+                                  className="px-2 py-1 rounded-md bg-fuchsia-500/30 border border-fuchsia-400/40 text-fuchsia-100 text-[10px] font-bold uppercase hover:bg-fuchsia-500/50 disabled:opacity-50"
+                                >
+                                  Save
+                                </button>
+                              )}
+                            </div>
+                          )
                         ) : (
                           it.quantity ?? '—'
                         )}

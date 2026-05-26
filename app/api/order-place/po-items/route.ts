@@ -39,6 +39,13 @@ interface PoItemRow {
   // consumerSellingPrice. Null if no matching slab is found (shouldn't
   // happen for items the trigger accepted, but the schema allows it).
   margin: string | null;
+  // Packaging metadata sourced from the line's seller_brandSKU. The UI
+  // uses these to gate the qty cell: CASE rows can only be edited via
+  // stepper buttons that change by moq units per click; UNIT rows keep
+  // the free-form input.
+  packagingType: 'CASE' | 'UNIT' | null;
+  minimumOrderableQuantity: number | null;
+  noOfUnitsPerCase: number | null;
 }
 
 // Audit constants — distinguish dashboard-driven writes from buyer/seller/app
@@ -397,10 +404,14 @@ async function loadPoAndItems(poNumber: string) {
       poi."unitPrice"::text                              AS "unitPrice",
       poi."amount"::text                                 AS "amount",
       poi."status"                                       AS "status",
-      pos."margin"::text                                 AS "margin"
+      pos."margin"::text                                 AS "margin",
+      sb."packagingType"                                 AS "packagingType",
+      sb."minimumOrderableQuantity"                      AS "minimumOrderableQuantity",
+      sb."noOfUnitsPerCase"                              AS "noOfUnitsPerCase"
     FROM "purchaseOrder"."purchaseOrderItem" poi
-    LEFT JOIN "brands"."brandSKU" bs  ON bs."id"  = poi."brandSKUId"
-    LEFT JOIN "brands"."brand"    bra ON bra."id" = bs."brandId"
+    LEFT JOIN "brands"."brandSKU"      bs  ON bs."id"  = poi."brandSKUId"
+    LEFT JOIN "brands"."brand"         bra ON bra."id" = bs."brandId"
+    LEFT JOIN "users"."seller_brandSKU" sb ON sb."id"  = poi."seller_brandSKUId"
     -- Slab is matched by both purchaseOrderTermId AND quantity range
     -- (same logic the BEFORE INSERT trigger uses to compute unitPrice).
     LEFT JOIN "purchaseOrderTerms"."purchaseOrderTermSlab" pos

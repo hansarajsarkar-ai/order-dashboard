@@ -1210,6 +1210,7 @@ interface PoSummary {
   paymentOption: string | null;
   paymentInstrument: string | null;
   sellerMov: string | null;
+  buyerWalletAmount: string | null;
 }
 
 interface PoItem {
@@ -1465,9 +1466,27 @@ function PoItemsModal({
                   <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">Created:</span>{' '}
                   <span className="text-purple-100 group-hover:text-white transition-colors">{formatDate(po.created_at)}</span>
                 </div>
-                <div className="group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-emerald-400 hover:bg-emerald-500/10 transition-all duration-150 cursor-default">
-                  <span className="text-purple-400/70 group-hover:text-emerald-300 transition-colors">PO total:</span>{' '}
-                  <span className="text-white font-semibold tabular-nums group-hover:text-emerald-200 group-hover:[text-shadow:0_0_12px_rgba(110,231,183,0.5)] transition-all">{formatAmount(po.amount)}</span>
+                <div className="group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-emerald-400 hover:bg-emerald-500/10 transition-all duration-150 cursor-default flex items-center gap-2 flex-wrap">
+                  <span>
+                    <span className="text-purple-400/70 group-hover:text-emerald-300 transition-colors">PO total:</span>{' '}
+                    <span className="text-white font-semibold tabular-nums group-hover:text-emerald-200 group-hover:[text-shadow:0_0_12px_rgba(110,231,183,0.5)] transition-all">{formatAmount(po.amount)}</span>
+                  </span>
+                  {/* Buyer wallet — analytics.realTimeBuyerWalletBalances
+                      .availableWalletBalance. Always rendered (em-dash on
+                      null) so the user knows the data was actually looked
+                      up rather than just missing from the layout. */}
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-cyan-400/30 bg-cyan-500/10 text-cyan-200 text-[10px] font-bold uppercase tracking-wider"
+                    title="Buyer's available wallet balance from analytics.realTimeBuyerWalletBalances"
+                  >
+                    <span aria-hidden>💳</span>
+                    <span>Wallet</span>
+                    <span className="text-white tabular-nums">
+                      {po.buyerWalletAmount != null
+                        ? `₹${Number(po.buyerWalletAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : '—'}
+                    </span>
+                  </span>
                 </div>
                 <div className="md:col-span-2 group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
                   <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">PO ID:</span>{' '}

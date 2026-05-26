@@ -22,6 +22,9 @@ interface PoSummaryRow {
   // Place Order behind sum(line.amount) >= sellerMov; the server
   // re-checks the same condition in place-order.
   sellerMov: string | null;
+  // buyer's spendable wallet balance from analytics.realTimeBuyerWalletBalances.
+  // null if the buyer has no row in that table (e.g. brand-new buyer).
+  buyerWalletAmount: string | null;
 }
 
 interface PoItemRow {
@@ -374,10 +377,12 @@ async function loadPoAndItems(poNumber: string) {
       s."phone"                            AS "sellerPhone",
       (a."paymentInfo" ->> 'option')       AS "paymentOption",
       (a."paymentInfo" ->> 'instrument')   AS "paymentInstrument",
-      s."minimumOrderValue"::text          AS "sellerMov"
+      s."minimumOrderValue"::text          AS "sellerMov",
+      bw."availableWalletBalance"::text    AS "buyerWalletAmount"
     FROM "purchaseOrder"."purchaseOrder" a
     JOIN "users"."buyer"  b ON b."id" = a."buyerId"
     JOIN "users"."seller" s ON s."id" = a."sellerId"
+    LEFT JOIN "analytics"."realTimeBuyerWalletBalances" bw ON bw."buyerId" = a."buyerId"
     WHERE a."poNumber"::text = $1
     LIMIT 1;
   `, [poNumber]);

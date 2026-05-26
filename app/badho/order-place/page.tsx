@@ -1487,7 +1487,6 @@ function PoItemsModal({
                   <th className="px-4 py-3 text-left">Image</th>
                   <th className="px-4 py-3 text-left">Brand</th>
                   <th className="px-4 py-3 text-left">SKU</th>
-                  <th className="px-4 py-3 text-left">Size</th>
                   <th className="px-4 py-3 text-right">Qty</th>
                   <th className="px-4 py-3 text-right">Unit Price</th>
                   <th className="px-4 py-3 text-right">Amount</th>
@@ -1525,7 +1524,6 @@ function PoItemsModal({
                       <td className="px-4 py-2.5"><ProductThumb images={it.images ?? []} alt={it.skuLabel ?? 'product'} /></td>
                       <td className="px-4 py-2.5 text-purple-100">{it.brandLabel ?? '—'}</td>
                       <td className="px-4 py-2.5 text-white">{it.skuLabel ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-purple-200">{it.size ?? '—'}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-white">
                         {isDraft ? (
                           isCase ? (
@@ -1936,7 +1934,6 @@ function AddProductPanel({
               <th className="px-3 py-2 text-left">Image</th>
               <th className="px-3 py-2 text-left">Brand</th>
               <th className="px-3 py-2 text-left">SKU</th>
-              <th className="px-3 py-2 text-left">Size</th>
               <th className="px-3 py-2 text-right" title="seller_brandSKU.noOfUnitsPerCase — pieces per shipping case. For UNIT packaging this is usually 1.">Units/Case</th>
               <th className="px-3 py-2 text-right" title="seller_brandSKU.minimumOrderableQuantity — smallest qty the seller will accept on an order line. For CASE packaging this equals one full case.">MOQ</th>
               <th className="px-3 py-2 text-right" title="Indicative unit price from the lowest qty slab. The PO trigger may recompute this from consumerSellingPrice × (1 − margin/100) on insert.">Unit Price</th>
@@ -1985,7 +1982,6 @@ function AddProductPanel({
                   <td className="px-3 py-2"><ProductThumb images={s.images ?? []} alt={s.skuLabel ?? 'product'} /></td>
                   <td className="px-3 py-2 text-purple-100">{s.brandLabel ?? '—'}</td>
                   <td className="px-3 py-2 text-white">{s.skuLabel ?? '—'}</td>
-                  <td className="px-3 py-2 text-purple-200">{s.size ?? '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-purple-200">
                     <PackagingChip
                       packagingType={s.packagingType ?? null}
@@ -2001,7 +1997,7 @@ function AddProductPanel({
               );
             })}
             {!loading && results.length === 0 && (
-              <tr><td colSpan={11} className="px-3 py-6 text-center text-purple-300/60 text-xs">
+              <tr><td colSpan={10} className="px-3 py-6 text-center text-purple-300/60 text-xs">
                 {q ? `No SKUs match "${q}" for this seller.` : 'No SKUs found for this seller.'}
               </td></tr>
             )}

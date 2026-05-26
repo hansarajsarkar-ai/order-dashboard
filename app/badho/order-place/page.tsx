@@ -1466,28 +1466,45 @@ function PoItemsModal({
                   <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">Created:</span>{' '}
                   <span className="text-purple-100 group-hover:text-white transition-colors">{formatDate(po.created_at)}</span>
                 </div>
-                <div className="group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-emerald-400 hover:bg-emerald-500/10 transition-all duration-150 cursor-default flex items-center gap-2 flex-wrap">
-                  <span>
-                    <span className="text-purple-400/70 group-hover:text-emerald-300 transition-colors">PO total:</span>{' '}
-                    <span className="text-white font-semibold tabular-nums group-hover:text-emerald-200 group-hover:[text-shadow:0_0_12px_rgba(110,231,183,0.5)] transition-all">{formatAmount(po.amount)}</span>
-                  </span>
-                  {/* Buyer wallet — analytics.realTimeBuyerWalletBalances
-                      .availableWalletBalance. Always rendered (em-dash on
-                      null) so the user knows the data was actually looked
-                      up rather than just missing from the layout. */}
-                  <span
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-cyan-400/30 bg-cyan-500/10 text-cyan-200 text-[10px] font-bold uppercase tracking-wider"
-                    title="Buyer's available wallet balance from analytics.realTimeBuyerWalletBalances"
-                  >
-                    <span aria-hidden>💳</span>
-                    <span>Wallet</span>
-                    <span className="text-white tabular-nums">
-                      {po.buyerWalletAmount != null
-                        ? `₹${Number(po.buyerWalletAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : '—'}
-                    </span>
-                  </span>
+                <div className="group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-emerald-400 hover:bg-emerald-500/10 transition-all duration-150 cursor-default">
+                  <span className="text-purple-400/70 group-hover:text-emerald-300 transition-colors">PO total:</span>{' '}
+                  <span className="text-white font-semibold tabular-nums group-hover:text-emerald-200 group-hover:[text-shadow:0_0_12px_rgba(110,231,183,0.5)] transition-all">{formatAmount(po.amount)}</span>
                 </div>
+                {/* Buyer wallet tile — promoted to a "hero" card so the
+                    user feels the credit they can spend instead of
+                    skimming past a tiny chip. Sourced from
+                    analytics.realTimeBuyerWalletBalances. Gets a gentle
+                    pulse only when balance > 0 so empty wallets don't
+                    flicker in the corner. */}
+                {(() => {
+                  const wallet = po.buyerWalletAmount != null ? Number(po.buyerWalletAmount) : null;
+                  const hasFunds = wallet != null && wallet > 0;
+                  return (
+                    <div
+                      className={`md:col-span-2 wallet-tile relative overflow-hidden rounded-lg px-3 py-2 border ${
+                        hasFunds
+                          ? 'wallet-tile-active border-cyan-300/50 bg-gradient-to-r from-cyan-500/15 via-emerald-500/10 to-cyan-500/15'
+                          : 'border-white/10 bg-white/[0.03]'
+                      }`}
+                      title="Buyer's available wallet balance (analytics.realTimeBuyerWalletBalances)"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-lg leading-none" aria-hidden>💳</span>
+                          <div className="leading-tight">
+                            <div className="text-[10px] uppercase tracking-wider text-cyan-200/80 font-semibold">Wallet balance</div>
+                            <div className="text-[10px] text-purple-300/60">Available to apply on this PO</div>
+                          </div>
+                        </div>
+                        <div className={`tabular-nums font-extrabold text-lg ${hasFunds ? 'text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.45)]' : 'text-purple-300/50'}`}>
+                          {wallet != null
+                            ? `₹${wallet.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '—'}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="md:col-span-2 group px-2 py-0.5 -mx-2 rounded border-l-2 border-transparent hover:border-fuchsia-400 hover:bg-fuchsia-500/10 transition-all duration-150 cursor-default">
                   <span className="text-purple-400/70 group-hover:text-fuchsia-300 transition-colors">PO ID:</span>{' '}
                   <span className="font-mono text-[11px] text-purple-100 group-hover:text-white select-all break-all">{po.poId}</span>
@@ -1858,6 +1875,24 @@ function PoItemsModal({
               0 8px 18px -6px rgba(16, 185, 129, 0.5),
               0 0 0 0   rgba(52, 211, 153, 0),
               0 0 0 0   rgba(52, 211, 153, 0);
+          }
+        }
+        /* Wallet tile — only animates when the buyer actually has funds,
+           so empty wallets stay quiet. A slow box-shadow breath keeps the
+           tile alive without competing with the Place Order CTA. */
+        .wallet-tile.wallet-tile-active {
+          animation: wallet-breath 3s ease-in-out infinite;
+        }
+        @keyframes wallet-breath {
+          0%, 100% {
+            box-shadow:
+              0 0 0 0 rgba(34, 211, 238, 0),
+              0 8px 22px -10px rgba(34, 211, 238, 0.45);
+          }
+          50% {
+            box-shadow:
+              0 0 0 6px rgba(34, 211, 238, 0.05),
+              0 10px 26px -8px rgba(34, 211, 238, 0.65);
           }
         }
       `}</style>

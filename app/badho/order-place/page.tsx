@@ -905,6 +905,11 @@ function CreatePoDialog({
   onCreated: (poNumber: string) => void;
 }) {
   const [phone, setPhone] = useState('');
+  // `buyerMatch` is the latest successful lookup result; `buyer` is the
+  // value the user actually confirmed via the Select button. Submit only
+  // looks at `buyer`, so the pill no longer lies about a click that
+  // never happened.
+  const [buyerMatch, setBuyerMatch] = useState<BuyerLookupResult | null>(null);
   const [buyer, setBuyer] = useState<BuyerLookupResult | null>(null);
   const [buyerErr, setBuyerErr] = useState<string | null>(null);
   const [buyerLoading, setBuyerLoading] = useState(false);
@@ -918,8 +923,12 @@ function CreatePoDialog({
   const [submitting, setSubmitting] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
 
-  // Buyer lookup — debounced on phone input. 10-digit gate matches the API.
+  // Buyer lookup — debounced on phone input. 10-digit gate matches the
+  // API. We populate `buyerMatch` but never auto-set `buyer`; the user
+  // must hit Select to commit. Changing the phone clears both states so
+  // a stale confirmation can't outlive its number.
   useEffect(() => {
+    setBuyerMatch(null);
     setBuyer(null);
     setBuyerErr(null);
     if (!/^\d{10}$/.test(phone)) return;
@@ -930,7 +939,7 @@ function CreatePoDialog({
           const j = await res.json();
           if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
           if (!j.buyer) setBuyerErr('No buyer found for this phone');
-          else setBuyer(j.buyer);
+          else setBuyerMatch(j.buyer);
         })
         .catch((e) => setBuyerErr(e instanceof Error ? e.message : String(e)))
         .finally(() => setBuyerLoading(false));
@@ -1030,12 +1039,43 @@ function CreatePoDialog({
                   {[buyer.city, buyer.district, buyer.state, buyer.pincode].filter(Boolean).join(' · ') || '—'}
                 </div>
               </div>
-              <span
-                className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/25 border border-emerald-400/50 text-emerald-100"
-                title="Buyer auto-selected from phone match"
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/25 border border-emerald-400/50 text-emerald-100"
+                >
+                  ✓ Selected
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBuyer(null)}
+                  className="text-[10px] text-purple-300 hover:text-white underline underline-offset-2"
+                >
+                  change
+                </button>
+              </div>
+            </div>
+          )}
+          {!buyerLoading && !buyer && buyerMatch && (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setBuyer(buyerMatch)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setBuyer(buyerMatch); } }}
+              className="group rounded-md bg-white/[0.03] hover:bg-fuchsia-500/10 border border-white/10 hover:border-fuchsia-400/40 px-2.5 py-1.5 flex items-start justify-between gap-2 cursor-pointer transition-colors"
+            >
+              <div className="min-w-0">
+                <div className="text-sm text-white font-semibold truncate">{buyerMatch.businessName ?? '—'}</div>
+                <div className="text-[11px] text-purple-200/80 truncate">
+                  {[buyerMatch.city, buyerMatch.district, buyerMatch.state, buyerMatch.pincode].filter(Boolean).join(' · ') || '—'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setBuyer(buyerMatch); }}
+                className="shrink-0 px-2.5 py-1 rounded-md bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/40 text-fuchsia-100 text-[10px] font-bold uppercase tracking-wider opacity-80 group-hover:opacity-100 transition-opacity"
               >
-                ✓ Selected
-              </span>
+                Select
+              </button>
             </div>
           )}
         </div>

@@ -1449,12 +1449,23 @@ function PoItemsModal({
           </div>
         )}
 
-        {isDraft && showAdd && (
-          <AddProductPanel poNumber={poNumber} busy={busy} onAdd={addProduct} onAddBulk={addProductsBulk} />
-        )}
-
-        {/* Body */}
-        <div className="flex-1 min-h-0 overflow-auto">
+        {/* Body — when the Add panel is open we go side-by-side (Add on
+            the left, current PO items on the right) so the user never
+            loses sight of what's already in the order. On narrow
+            viewports both stack vertically with the Add panel capped at
+            half-height so the items table stays scrollable below it. */}
+        <div className={`flex-1 min-h-0 ${isDraft && showAdd ? 'flex flex-col lg:flex-row' : ''}`}>
+          {isDraft && showAdd && (
+            <div className="lg:w-1/2 lg:border-r border-white/10 max-h-[50vh] lg:max-h-none overflow-auto bg-white/[0.015]">
+              <AddProductPanel poNumber={poNumber} busy={busy} onAdd={addProduct} onAddBulk={addProductsBulk} />
+            </div>
+          )}
+          <div className={`${isDraft && showAdd ? 'lg:w-1/2' : 'w-full'} min-h-0 flex-1 overflow-auto`}>
+            {isDraft && showAdd && (
+              <div className="sticky top-0 z-20 px-6 py-2 bg-slate-900/90 backdrop-blur border-b border-white/10 text-[11px] uppercase tracking-wider text-purple-300/80 font-semibold">
+                In this PO · {items.length} item{items.length === 1 ? '' : 's'}
+              </div>
+            )}
           {loading && (
             <div className="px-6 py-12 text-center text-purple-300/70 text-sm">Loading items…</div>
           )}
@@ -1590,6 +1601,7 @@ function PoItemsModal({
               </tbody>
             </table>
           )}
+          </div>
         </div>
 
         {/* Footer */}

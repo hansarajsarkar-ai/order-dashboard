@@ -259,16 +259,6 @@ function OrderPlaceDashboard() {
     });
   };
 
-  const setDatePreset = (days: number) => {
-    const today = new Date();
-    setFilters((prev) => ({
-      ...prev,
-      startDate: ymd(new Date(today.getTime() - days * 24 * 60 * 60 * 1000)),
-      endDate:   ymd(today),
-      page: 1,
-    }));
-  };
-
   const activeFilterCount = useMemo(() => {
     const def = defaultDates();
     let n = 0;
@@ -303,16 +293,6 @@ function OrderPlaceDashboard() {
 
   const inputClass = 'w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder-purple-300/50 focus:bg-white/10 focus:border-fuchsia-400/50 focus:outline-none focus:ring-1 focus:ring-fuchsia-400/30 transition-colors';
   const labelClass = 'text-[11px] font-semibold uppercase tracking-wider text-purple-300/80 mb-1';
-  const presetBtn = (active: boolean) =>
-    `px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${active ? 'bg-fuchsia-500/30 text-white border border-fuchsia-400/50' : 'bg-white/5 text-purple-200 border border-white/10 hover:bg-white/10'}`;
-
-  const def = defaultDates();
-  const daysDiff = (() => {
-    const a = new Date(filters.startDate).getTime();
-    const b = new Date(filters.endDate).getTime();
-    return Math.round((b - a) / (24 * 60 * 60 * 1000));
-  })();
-  const today = ymd(new Date());
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 px-4 py-6 relative overflow-hidden">
@@ -354,8 +334,7 @@ function OrderPlaceDashboard() {
               Order Place Dashboard
             </h1>
             <p className="text-purple-200/80 text-sm mt-1">
-              D2R brand-seller purchase orders still in <span className="font-semibold text-fuchsia-300">DRAFT</span>.
-              Window: <span className="font-mono">{filters.startDate}</span> → <span className="font-mono">{filters.endDate}</span> ({daysDiff} days).
+              D2R brand-seller purchase orders still in <span className="font-semibold text-fuchsia-300">DRAFT</span> over the last <span className="font-semibold text-fuchsia-300">30 days</span>.
             </p>
           </div>
           <button
@@ -367,52 +346,25 @@ function OrderPlaceDashboard() {
           </button>
         </div>
 
-        {/* Filter bar */}
+        {/* Filter bar — date window is hard-coded to the last 30 days
+            (the only window worth surfacing in this dashboard). All other
+            filters remain user-editable below. */}
         <div className="mb-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-300/80">Date preset</span>
-              {[
-                { label: 'Today', days: 0 },
-                { label: '7d',  days: 7 },
-                { label: '30d', days: 30 },
-                { label: '90d', days: 90 },
-              ].map((p) => {
-                const active = filters.startDate === ymd(new Date(Date.now() - p.days * 24 * 60 * 60 * 1000))
-                            && filters.endDate === today;
-                return (
-                  <button key={p.label} onClick={() => setDatePreset(p.days)} className={presetBtn(active)}>
-                    {p.label}
-                  </button>
-                );
-              })}
+          {activeFilterCount > 0 && (
+            <div className="flex items-center justify-end gap-2 mb-3 flex-wrap">
+              <span className="text-[11px] text-fuchsia-300 font-semibold">
+                {activeFilterCount} active filter{activeFilterCount > 1 ? 's' : ''}
+              </span>
+              <button
+                onClick={clearFilters}
+                className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25"
+              >
+                Clear all
+              </button>
             </div>
-            <div className="flex items-center gap-2">
-              {activeFilterCount > 0 && (
-                <>
-                  <span className="text-[11px] text-fuchsia-300 font-semibold">
-                    {activeFilterCount} active filter{activeFilterCount > 1 ? 's' : ''}
-                  </span>
-                  <button
-                    onClick={clearFilters}
-                    className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25"
-                  >
-                    Clear all
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-            <div>
-              <div className={labelClass}>Start date</div>
-              <input type="date" value={filters.startDate} onChange={(e) => setF('startDate', e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <div className={labelClass}>End date</div>
-              <input type="date" value={filters.endDate} onChange={(e) => setF('endDate', e.target.value)} className={inputClass} />
-            </div>
             <div>
               <div className={labelClass}>PO Number</div>
               <input

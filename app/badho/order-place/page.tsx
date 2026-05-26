@@ -1023,11 +1023,19 @@ function CreatePoDialog({
           {buyerLoading && <div className="text-[11px] text-purple-300/70">Looking up…</div>}
           {!buyerLoading && buyerErr && <div className="text-[11px] text-rose-300">{buyerErr}</div>}
           {!buyerLoading && buyer && (
-            <div className="rounded-md bg-emerald-500/10 border border-emerald-400/30 px-2.5 py-1.5">
-              <div className="text-sm text-white font-semibold">{buyer.businessName ?? '—'}</div>
-              <div className="text-[11px] text-purple-200/80">
-                {[buyer.city, buyer.district, buyer.state, buyer.pincode].filter(Boolean).join(' · ') || '—'}
+            <div className="rounded-md bg-emerald-500/10 border border-emerald-400/30 px-2.5 py-1.5 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-sm text-white font-semibold truncate">{buyer.businessName ?? '—'}</div>
+                <div className="text-[11px] text-purple-200/80 truncate">
+                  {[buyer.city, buyer.district, buyer.state, buyer.pincode].filter(Boolean).join(' · ') || '—'}
+                </div>
               </div>
+              <span
+                className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/25 border border-emerald-400/50 text-emerald-100"
+                title="Buyer auto-selected from phone match"
+              >
+                ✓ Selected
+              </span>
             </div>
           )}
         </div>
@@ -1066,16 +1074,30 @@ function CreatePoDialog({
               </div>
             )}
             {!sellerLoading && sellerResults.map((s) => (
-              <button
+              <div
                 key={s.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => setSeller(s)}
-                className="w-full text-left px-3 py-1.5 hover:bg-white/5 border-t border-white/5 first:border-t-0 transition-colors"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSeller(s); } }}
+                className="group flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-fuchsia-500/10 border-t border-white/5 first:border-t-0 transition-colors cursor-pointer"
               >
-                <div className="text-sm text-white truncate">{s.businessName ?? '—'}</div>
-                <div className="text-[11px] text-purple-300/70 truncate">
-                  {s.brandLabel ? `${s.brandLabel} · ` : ''}{[s.city, s.state].filter(Boolean).join(' · ') || '—'}
+                <div className="min-w-0">
+                  <div className="text-sm text-white truncate">{s.businessName ?? '—'}</div>
+                  <div className="text-[11px] text-purple-300/70 truncate">
+                    {s.brandLabel ? `${s.brandLabel} · ` : ''}{[s.city, s.state].filter(Boolean).join(' · ') || '—'}
+                  </div>
                 </div>
-              </button>
+                <button
+                  type="button"
+                  // Inner button — stop the row click so it doesn't fire
+                  // twice (no functional issue, just keeps semantics clean).
+                  onClick={(e) => { e.stopPropagation(); setSeller(s); }}
+                  className="shrink-0 px-2.5 py-1 rounded-md bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/40 text-fuchsia-100 text-[10px] font-bold uppercase tracking-wider opacity-80 group-hover:opacity-100 transition-opacity"
+                >
+                  Select
+                </button>
+              </div>
             ))}
           </div>
         )}

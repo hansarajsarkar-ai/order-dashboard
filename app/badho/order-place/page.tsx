@@ -2099,6 +2099,17 @@ function AddProductPanel({
         // purchaseOrderItem is cases × moq.
         const units = validNumber ? (isCase ? raw * moq : raw) : 0;
         const inSlab = validNumber && (units >= minQ) && (maxQ == null || units <= maxQ);
+        // Calculated unit price = MRP × margin% (matches both tables).
+        // null when either input is missing/not-numeric.
+        const mrpNum = Number(sku.mrp);
+        const marginNum = Number(sku.marginHint);
+        const calcUnitPrice: number | null =
+          sku.mrp != null && sku.marginHint != null && Number.isFinite(mrpNum) && Number.isFinite(marginNum)
+            ? (mrpNum * marginNum) / 100
+            : null;
+        const lineAmount: number | null = calcUnitPrice != null ? units * calcUnitPrice : null;
+        const fmt2 = (n: number) =>
+          `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         const close = () => { setPendingSku(null); };
         const submit = () => {
           if (!validNumber) return;
@@ -2131,7 +2142,9 @@ function AddProductPanel({
               <div className="grid grid-cols-3 gap-2 mb-4 text-[11px]">
                 <div className="rounded-md bg-white/5 border border-white/10 px-2 py-1.5">
                   <div className="text-purple-400/70 text-[10px] uppercase tracking-wider">Unit</div>
-                  <div className="text-purple-100 font-semibold tabular-nums">{formatAmount(sku.unitPriceHint)}</div>
+                  <div className="text-purple-100 font-semibold tabular-nums">
+                    {calcUnitPrice != null ? fmt2(calcUnitPrice) : '—'}
+                  </div>
                 </div>
                 <div className="rounded-md bg-white/5 border border-white/10 px-2 py-1.5">
                   <div className="text-purple-400/70 text-[10px] uppercase tracking-wider">Margin</div>
@@ -2183,6 +2196,20 @@ function AddProductPanel({
                   aria-label={isCase ? 'Add one case' : 'Increase quantity'}
                 >+</button>
               </div>
+              {/* Live amount preview — units × calcUnitPrice. Updates on
+                  every stepper press so the user sees exactly what hits
+                  the PO before confirming. */}
+              {lineAmount != null && validNumber && (
+                <div className="mb-3 rounded-md bg-emerald-500/10 border border-emerald-400/30 px-2.5 py-1.5 flex items-center justify-between text-[11px]">
+                  <span className="text-emerald-200/80 uppercase tracking-wider">Amount</span>
+                  <span className="text-white font-bold tabular-nums text-sm">
+                    {fmt2(lineAmount)}
+                    <span className="text-emerald-200/70 font-normal ml-1.5 text-[10px]">
+                      = {units} × {calcUnitPrice != null ? fmt2(calcUnitPrice) : '—'}
+                    </span>
+                  </span>
+                </div>
+              )}
               <div className="text-[10px] text-purple-300/70 mb-4 space-y-0.5">
                 {isCase && (
                   <div>

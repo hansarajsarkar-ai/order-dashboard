@@ -1932,6 +1932,7 @@ function AddProductPanel({
                   title={allVisibleSelected ? 'Unselect all visible' : 'Select all visible'}
                 />
               </th>
+              <th className="px-3 py-2 text-center">Add</th>
               <th className="px-3 py-2 text-left">Image</th>
               <th className="px-3 py-2 text-left">Brand</th>
               <th className="px-3 py-2 text-left">SKU</th>
@@ -1941,7 +1942,6 @@ function AddProductPanel({
               <th className="px-3 py-2 text-right" title="Indicative unit price from the lowest qty slab. The PO trigger may recompute this from consumerSellingPrice × (1 − margin/100) on insert.">Unit Price</th>
               <th className="px-3 py-2 text-right" title="Slab margin (%) used by the PO trigger to derive unitPrice.">Margin</th>
               <th className="px-3 py-2 text-right">MRP</th>
-              <th className="px-3 py-2 text-center">Add now</th>
             </tr>
           </thead>
           <tbody>
@@ -1962,21 +1962,6 @@ function AddProductPanel({
                       className="accent-fuchsia-500 cursor-pointer disabled:cursor-not-allowed"
                     />
                   </td>
-                  <td className="px-3 py-2"><ProductThumb images={s.images ?? []} alt={s.skuLabel ?? 'product'} /></td>
-                  <td className="px-3 py-2 text-purple-100">{s.brandLabel ?? '—'}</td>
-                  <td className="px-3 py-2 text-white">{s.skuLabel ?? '—'}</td>
-                  <td className="px-3 py-2 text-purple-200">{s.size ?? '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-purple-200">
-                    <PackagingChip
-                      packagingType={s.packagingType ?? null}
-                      unitsPerCase={s.noOfUnitsPerCase ?? null}
-                      moq={s.minimumOrderableQuantity ?? null}
-                    />
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-purple-200">{s.minimumOrderableQuantity ?? '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-purple-100">{formatAmount(s.unitPriceHint)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-emerald-200">{s.marginHint != null ? `${Number(s.marginHint).toFixed(2)}%` : '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-purple-200">{formatAmount(s.mrp)}</td>
                   <td className="px-3 py-2 text-center">
                     <button
                       onClick={() => {
@@ -1997,6 +1982,21 @@ function AddProductPanel({
                       {adding ? '…' : s.alreadyInPo ? 'Add again' : 'Add'}
                     </button>
                   </td>
+                  <td className="px-3 py-2"><ProductThumb images={s.images ?? []} alt={s.skuLabel ?? 'product'} /></td>
+                  <td className="px-3 py-2 text-purple-100">{s.brandLabel ?? '—'}</td>
+                  <td className="px-3 py-2 text-white">{s.skuLabel ?? '—'}</td>
+                  <td className="px-3 py-2 text-purple-200">{s.size ?? '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-purple-200">
+                    <PackagingChip
+                      packagingType={s.packagingType ?? null}
+                      unitsPerCase={s.noOfUnitsPerCase ?? null}
+                      moq={s.minimumOrderableQuantity ?? null}
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-purple-200">{s.minimumOrderableQuantity ?? '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-purple-100">{formatAmount(s.unitPriceHint)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-emerald-200">{s.marginHint != null ? `${Number(s.marginHint).toFixed(2)}%` : '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-purple-200">{formatAmount(s.mrp)}</td>
                 </tr>
               );
             })}

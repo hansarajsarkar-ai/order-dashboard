@@ -143,7 +143,12 @@ export async function GET(req: NextRequest) {
         AND ($2::text IS NULL
              OR bs."label" ILIKE $2 ESCAPE '\\'
              OR bra."label" ILIKE $2 ESCAPE '\\')
-      ORDER BY bra."label" NULLS LAST, bs."label" NULLS LAST
+      -- Sort by MRP ascending so cheapest SKUs surface first (the picker
+      -- is most often used by buyers shopping by price). Fall back to
+      -- brand/SKU label to keep ordering stable when MRPs tie or are NULL.
+      ORDER BY bs."consumerSellingPrice" ASC NULLS LAST,
+               bra."label" NULLS LAST,
+               bs."label"  NULLS LAST
       LIMIT ${MAX_ROWS};
     `;
 

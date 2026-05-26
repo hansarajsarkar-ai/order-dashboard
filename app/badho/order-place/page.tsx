@@ -711,6 +711,147 @@ function ProductThumb({ images, alt }: { images: string[]; alt: string }) {
   );
 }
 
+// Interactive packaging chip — shows the CASE/UNIT tag + units-per-case
+// in compact form, then opens a portal popover on hover or click with a
+// breakdown: 1/2/5/10 cases → unit totals + the MOQ in cases. Helps the
+// user reason about how a stepper click translates into PO quantity
+// without leaving the table.
+function PackagingChip({
+  packagingType,
+  unitsPerCase,
+  moq,
+}: {
+  packagingType: 'CASE' | 'UNIT' | null;
+  unitsPerCase: number | null;
+  moq: number | null;
+}) {
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const hideTimer = useRef<number | null>(null);
+
+  if (unitsPerCase == null) {
+    return <span className="text-purple-300/40">—</span>;
+  }
+
+  const isCase = packagingType === 'CASE';
+  const upc = unitsPerCase || 1;
+  // For CASE, "1 case = upc units" tends to match moq; if not, MOQ may be
+  // expressed in units that don't divide evenly — show as raw units.
+  const moqCases = isCase && moq && upc > 0 ? Math.ceil(moq / upc) : null;
+  const samples = isCase ? [1, 2, 5, 10] : [1, 5, 10, 25];
+
+  const POPUP_W = 240;
+  const POPUP_H = 240;
+  const openAt = () => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = r.right + 8;
+    if (left + POPUP_W > vw - 8) left = r.left - POPUP_W - 8;
+    if (left < 8) left = 8;
+    let top = r.top + r.height / 2 - POPUP_H / 2;
+    if (top < 8) top = 8;
+    if (top + POPUP_H > vh - 8) top = vh - POPUP_H - 8;
+    setPos({ top, left });
+    setOpen(true);
+  };
+  const cancelHide = () => {
+    if (hideTimer.current != null) {
+      window.clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  };
+  const scheduleHide = () => {
+    cancelHide();
+    hideTimer.current = window.setTimeout(() => setOpen(false), 120);
+  };
+
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        onMouseEnter={() => { cancelHide(); openAt(); }}
+        onMouseLeave={scheduleHide}
+        onClick={(e) => { e.stopPropagation(); open ? setOpen(false) : openAt(); }}
+        className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-white/5 transition-colors cursor-help focus:outline-none focus:ring-1 focus:ring-fuchsia-400/40"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <span
+          className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider border ${
+            isCase
+              ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'
+              : 'bg-sky-500/15 text-sky-200 border-sky-400/30'
+          }`}
+        >
+          {packagingType ?? 'UNIT'}
+        </span>
+        <span className="text-purple-100 tabular-nums">{unitsPerCase}</span>
+        <span className="text-purple-400/50 text-[9px]" aria-hidden>ⓘ</span>
+      </button>
+      {open && pos &&
+        createPortal(
+          <div
+            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999, width: POPUP_W }}
+            onMouseEnter={cancelHide}
+            onMouseLeave={scheduleHide}
+            className="rounded-xl bg-slate-950/95 backdrop-blur-xl border border-white/15 shadow-2xl p-3 text-xs"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="uppercase tracking-wider text-[10px] text-purple-300/70 font-semibold">Packaging</span>
+              <span
+                className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider border ${
+                  isCase
+                    ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'
+                    : 'bg-sky-500/15 text-sky-200 border-sky-400/30'
+                }`}
+              >
+                {packagingType ?? 'UNIT'}
+              </span>
+            </div>
+            <div className="space-y-1 mb-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-purple-300/70">1 case</span>
+                <span className="text-white font-semibold tabular-nums">{upc} unit{upc === 1 ? '' : 's'}</span>
+              </div>
+              {moq != null && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-purple-300/70">Min order</span>
+                  <span className="text-white font-semibold tabular-nums">
+                    {moq} unit{moq === 1 ? '' : 's'}
+                    {moqCases != null && moqCases > 0 && (
+                      <span className="text-amber-200/80 ml-1">· {moqCases} case{moqCases === 1 ? '' : 's'}</span>
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="rounded-md border border-white/10 overflow-hidden">
+              <div className="grid grid-cols-2 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold">
+                <span>{isCase ? 'Cases' : 'Packs'}</span>
+                <span className="text-right">Units</span>
+              </div>
+              {samples.map((n, i) => (
+                <div
+                  key={n}
+                  className={`grid grid-cols-2 px-2 py-1 tabular-nums ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}
+                >
+                  <span className="text-purple-100">{n}</span>
+                  <span className="text-right text-white font-medium">{n * upc}</span>
+                </div>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
 interface PoSummary {
   poId: string;
   poNumber: string | number | null;
@@ -1566,14 +1707,11 @@ function AddProductPanel({
                   <td className="px-3 py-2 text-white">{s.skuLabel ?? '—'}</td>
                   <td className="px-3 py-2 text-purple-200">{s.size ?? '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-purple-200">
-                    {s.noOfUnitsPerCase != null ? (
-                      <span className="inline-flex items-center gap-1">
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider border ${s.packagingType === 'CASE' ? 'bg-amber-500/15 text-amber-200 border-amber-400/30' : 'bg-sky-500/15 text-sky-200 border-sky-400/30'}`}>
-                          {s.packagingType ?? 'UNIT'}
-                        </span>
-                        <span>{s.noOfUnitsPerCase}</span>
-                      </span>
-                    ) : '—'}
+                    <PackagingChip
+                      packagingType={s.packagingType ?? null}
+                      unitsPerCase={s.noOfUnitsPerCase ?? null}
+                      moq={s.minimumOrderableQuantity ?? null}
+                    />
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-purple-200">{s.minimumOrderableQuantity ?? '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-purple-100">{formatAmount(s.unitPriceHint)}</td>

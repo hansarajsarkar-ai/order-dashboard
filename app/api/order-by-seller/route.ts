@@ -100,6 +100,12 @@ export async function GET(req: NextRequest) {
         r.buyer_district,
         r.buyer_state,
       ].filter((v) => v != null && String(v).trim() !== '').join(', '),
+      buyerAddressLine1: r.buyer_address_line1,
+      buyerLandmark: r.buyer_landmark,
+      buyerPincode: r.buyer_pincode,
+      buyerCity: r.buyer_city,
+      buyerDistrict: r.buyer_district,
+      buyerState: r.buyer_state,
       markedPendingTime: r.marked_pending_time,
       createdAt: r.created_at,
     }));

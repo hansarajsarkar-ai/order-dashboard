@@ -230,6 +230,12 @@ interface SellerOrderRow {
   buyerPhone: string | null;
   buyerBusinessName: string | null;
   buyerFullAddress?: string;
+  buyerAddressLine1?: string | null;
+  buyerLandmark?: string | null;
+  buyerPincode?: string | null;
+  buyerCity?: string | null;
+  buyerDistrict?: string | null;
+  buyerState?: string | null;
   markedPendingTime: string | null;
   createdAt: string;
 }
@@ -5845,7 +5851,7 @@ export default function OrderStatusDashboard() {
                       <tr className="border-b border-slate-200">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Address Details</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
@@ -5868,7 +5874,34 @@ export default function OrderStatusDashboard() {
                               {r.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
+                          <td className="px-4 py-3 text-slate-600 text-xs" title={r.buyerFullAddress || ''}>
+                            {r.buyerAddressLine1 || r.buyerCity || r.buyerPincode ? (
+                              <div className="space-y-0.5 max-w-sm">
+                                {r.buyerAddressLine1 && (
+                                  <div className="truncate" title={r.buyerAddressLine1}>
+                                    <span className="font-semibold text-slate-700">Address:</span> {r.buyerAddressLine1}
+                                  </div>
+                                )}
+                                {r.buyerLandmark && (
+                                  <div className="truncate" title={r.buyerLandmark}>
+                                    <span className="font-semibold text-slate-700">Landmark:</span> {r.buyerLandmark}
+                                  </div>
+                                )}
+                                {r.buyerPincode && (
+                                  <div className="truncate">
+                                    <span className="font-semibold text-slate-700">Pincode:</span> {r.buyerPincode}
+                                  </div>
+                                )}
+                                {(r.buyerCity || r.buyerDistrict || r.buyerState) && (
+                                  <div className="truncate">
+                                    <span className="font-semibold text-slate-700">City:</span> {[r.buyerCity, r.buyerDistrict, r.buyerState].filter(Boolean).join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">—</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums">{r.buyerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || '—'}</td>

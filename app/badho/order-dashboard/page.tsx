@@ -5640,29 +5640,10 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-600 text-xs" title={r.buyerFullAddress || ''}>
-                            {r.buyerAddressLine1 || r.buyerCity || r.buyerPincode ? (
-                              <div className="space-y-0.5 max-w-sm">
-                                {r.buyerAddressLine1 && (
-                                  <div className="truncate" title={r.buyerAddressLine1}>
-                                    <span className="font-semibold text-slate-700">Address:</span> {r.buyerAddressLine1}
-                                  </div>
-                                )}
-                                {r.buyerLandmark && (
-                                  <div className="truncate" title={r.buyerLandmark}>
-                                    <span className="font-semibold text-slate-700">Landmark:</span> {r.buyerLandmark}
-                                  </div>
-                                )}
-                                {r.buyerPincode && (
-                                  <div className="truncate">
-                                    <span className="font-semibold text-slate-700">Pincode:</span> {r.buyerPincode}
-                                  </div>
-                                )}
-                                {(r.buyerCity || r.buyerDistrict || r.buyerState) && (
-                                  <div className="truncate">
-                                    <span className="font-semibold text-slate-700">City:</span> {[r.buyerCity, r.buyerDistrict, r.buyerState].filter(Boolean).join(', ')}
-                                  </div>
-                                )}
+                          <td className="px-4 py-3 text-slate-600 text-xs max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
+                            {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (
+                              <div className="whitespace-normal break-words">
+                                {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}
                               </div>
                             ) : (
                               <span className="text-slate-400 italic">—</span>
@@ -5881,29 +5862,10 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums">{r.buyerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || '—'}</td>
-                          <td className="px-4 py-3 text-slate-600 text-xs" title={r.buyerFullAddress || ''}>
-                            {r.buyerAddressLine1 || r.buyerCity || r.buyerPincode ? (
-                              <div className="space-y-0.5 max-w-sm">
-                                {r.buyerAddressLine1 && (
-                                  <div className="truncate" title={r.buyerAddressLine1}>
-                                    <span className="font-semibold text-slate-700">Address:</span> {r.buyerAddressLine1}
-                                  </div>
-                                )}
-                                {r.buyerLandmark && (
-                                  <div className="truncate" title={r.buyerLandmark}>
-                                    <span className="font-semibold text-slate-700">Landmark:</span> {r.buyerLandmark}
-                                  </div>
-                                )}
-                                {r.buyerPincode && (
-                                  <div className="truncate">
-                                    <span className="font-semibold text-slate-700">Pincode:</span> {r.buyerPincode}
-                                  </div>
-                                )}
-                                {(r.buyerCity || r.buyerDistrict || r.buyerState) && (
-                                  <div className="truncate">
-                                    <span className="font-semibold text-slate-700">City:</span> {[r.buyerCity, r.buyerDistrict, r.buyerState].filter(Boolean).join(', ')}
-                                  </div>
-                                )}
+                          <td className="px-4 py-3 text-slate-600 text-xs max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
+                            {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (
+                              <div className="whitespace-normal break-words">
+                                {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}
                               </div>
                             ) : (
                               <span className="text-slate-400 italic">—</span>
@@ -6374,29 +6336,10 @@ export default function OrderStatusDashboard() {
                                 r.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
                               }`}>{r.status}</span>
                             </td>
-                            <td className="px-3 py-2 text-slate-600 text-[11px]" title={r.buyerFullAddress || ''}>
-                              {r.buyerAddressLine1 || r.buyerCity || r.buyerPincode ? (
-                                <div className="space-y-0.5 max-w-sm">
-                                  {r.buyerAddressLine1 && (
-                                    <div className="truncate" title={r.buyerAddressLine1}>
-                                      <span className="font-semibold text-slate-700">Addr:</span> {r.buyerAddressLine1}
-                                    </div>
-                                  )}
-                                  {r.buyerLandmark && (
-                                    <div className="truncate" title={r.buyerLandmark}>
-                                      <span className="font-semibold text-slate-700">LM:</span> {r.buyerLandmark}
-                                    </div>
-                                  )}
-                                  {r.buyerPincode && (
-                                    <div className="truncate">
-                                      <span className="font-semibold text-slate-700">Pin:</span> {r.buyerPincode}
-                                    </div>
-                                  )}
-                                  {(r.buyerCity || r.buyerDistrict || r.buyerState) && (
-                                    <div className="truncate">
-                                      <span className="font-semibold text-slate-700">Area:</span> {[r.buyerCity, r.buyerDistrict, r.buyerState].filter(Boolean).join(', ')}
-                                    </div>
-                                  )}
+                            <td className="px-3 py-2 text-slate-600 text-[11px] max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
+                              {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (
+                                <div className="whitespace-normal break-words">
+                                  {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}
                                 </div>
                               ) : (
                                 <span className="text-slate-400 italic">—</span>

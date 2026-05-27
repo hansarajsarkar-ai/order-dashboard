@@ -12,6 +12,12 @@ interface OrderDetailRow {
   sellerBusinessName: string | null;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
+  buyerAddressLine1: string | null;
+  buyerLandmark: string | null;
+  buyerPincode: string | null;
+  buyerCity: string | null;
+  buyerDistrict: string | null;
+  buyerState: string | null;
   paidAmount: string | null;
   poAmount: string | null;
   CoupanAmount: string | null;
@@ -123,6 +129,12 @@ export async function GET(req: NextRequest) {
         s."businessName"                                                                      AS "sellerBusinessName",
         b."phone"                                                                             AS "buyerPhone",
         b."businessName"                                                                      AS "buyerBusinessName",
+        b."addressLine1"                                                                      AS "buyerAddressLine1",
+        b."landmark"                                                                          AS "buyerLandmark",
+        b."pincode"                                                                           AS "buyerPincode",
+        b."city"                                                                              AS "buyerCity",
+        b."district"                                                                          AS "buyerDistrict",
+        b."state"                                                                             AS "buyerState",
         pop."paidAmount"                                                                      AS "paidAmount",
         po."amount"                                                                           AS "poAmount",
         po."appliedOfferDiscount"                                                             AS "CoupanAmount",

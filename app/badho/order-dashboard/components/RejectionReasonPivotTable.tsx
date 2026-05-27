@@ -41,6 +41,12 @@ interface OrderDetail {
   sellerBusinessName: string | null;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
+  buyerAddressLine1: string | null;
+  buyerLandmark: string | null;
+  buyerPincode: string | null;
+  buyerCity: string | null;
+  buyerDistrict: string | null;
+  buyerState: string | null;
   paidAmount: string | number | null;
   poAmount: string | number | null;
   CoupanAmount: string | number | null;
@@ -290,6 +296,12 @@ export default function RejectionReasonPivotTable() {
       (r.sellerPhone || '').toLowerCase().includes(q) ||
       (r.buyerBusinessName || '').toLowerCase().includes(q) ||
       (r.buyerPhone || '').toLowerCase().includes(q) ||
+      (r.buyerAddressLine1 || '').toLowerCase().includes(q) ||
+      (r.buyerLandmark || '').toLowerCase().includes(q) ||
+      (r.buyerPincode || '').toLowerCase().includes(q) ||
+      (r.buyerCity || '').toLowerCase().includes(q) ||
+      (r.buyerDistrict || '').toLowerCase().includes(q) ||
+      (r.buyerState || '').toLowerCase().includes(q) ||
       (r.awbNumber || '').toLowerCase().includes(q) ||
       (r.courierName || '').toLowerCase().includes(q) ||
       (r.rejectReason || '').toLowerCase().includes(q) ||
@@ -723,7 +735,7 @@ export default function RejectionReasonPivotTable() {
                 type="text"
                 value={modalSearch}
                 onChange={(e) => setModalSearch(e.target.value)}
-                placeholder="Search PO, buyer, seller, AWB, reject reason…"
+                placeholder="Search PO, buyer, seller, address, AWB, reject reason…"
                 className="flex-1 min-w-[260px] px-3 py-2 text-sm bg-purple-950/40 border border-purple-500/30 text-white placeholder-purple-400/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
               />
               {modalData && FILTER_DEFS.map(({ key, label }) => {
@@ -807,7 +819,7 @@ export default function RejectionReasonPivotTable() {
                       'awbNumber', 'courierName',
                       'codAmountToBeCollected', 'reason_category',
                       'sellerPhone', 'sellerBusinessName',
-                      'buyerPhone', 'buyerBusinessName',
+                      'buyerBusinessName', 'buyerPhone', 'buyerAddress',
                       'paymentDate', 'paymentEvent',
                       'deliveryStatus (dv)',
                       'RefundIntiatedTime', 'RefundCompletedTime',
@@ -822,7 +834,8 @@ export default function RejectionReasonPivotTable() {
                       r.awbNumber, r.courierName,
                       r.codAmountToBeCollected, r.reason_category,
                       r.sellerPhone, r.sellerBusinessName,
-                      r.buyerPhone, r.buyerBusinessName,
+                      r.buyerBusinessName, r.buyerPhone,
+                      [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_'),
                       r.paymentDate, r.paymentEvent,
                       r.deliveryStatusDv,
                       r.RefundIntiatedTime, r.RefundCompletedTime,
@@ -859,7 +872,7 @@ export default function RejectionReasonPivotTable() {
                         'awbNumber', 'courierName',
                         'codAmountToBeCollected', 'reason_category',
                         'sellerPhone', 'sellerBusinessName',
-                        'buyerPhone', 'buyerBusinessName',
+                        'buyerBusinessName', 'buyerPhone', 'Buyer Address',
                         'paymentDate', 'paymentEvent',
                         'deliveryStatus (dv)',
                         'RefundIntiatedTime', 'RefundCompletedTime',
@@ -898,8 +911,17 @@ export default function RejectionReasonPivotTable() {
                         </td>
                         <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.sellerPhone || '—'}</td>
                         <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">{r.sellerBusinessName || '—'}</td>
-                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.buyerPhone || '—'}</td>
                         <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">{r.buyerBusinessName || '—'}</td>
+                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.buyerPhone || '—'}</td>
+                        <td className="px-2 py-1.5 text-purple-200 max-w-md border-r border-purple-500/10" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
+                          {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (
+                            <div className="whitespace-normal break-words">
+                              {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}
+                            </div>
+                          ) : (
+                            <span className="text-purple-500/40 italic">—</span>
+                          )}
+                        </td>
                         <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{formatDate(r.paymentDate)}</td>
                         <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.paymentEvent || '—'}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap border-r border-purple-500/10">

@@ -5361,20 +5361,20 @@ export default function OrderStatusDashboard() {
               className="bg-white text-slate-900 border border-slate-200 rounded-xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-purple-50">
+              <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-purple-50">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900">
+                  <h3 className="text-base font-bold text-slate-900">
                     {pivotDrillStatus}
                     {pivotDrillDelivery !== undefined && (
-                      <span className="text-slate-500 text-base font-normal"> → </span>
+                      <span className="text-slate-500 text-sm font-normal"> → </span>
                     )}
                     {pivotDrillDelivery !== undefined && (
-                      <span className="text-fuchsia-600 text-base font-semibold">
+                      <span className="text-fuchsia-600 text-sm font-semibold">
                         {pivotDrillDelivery ?? '(no delivery status)'}
                       </span>
                     )}
                   </h3>
-                  <p className="text-slate-500 text-sm mt-0.5">
+                  <p className="text-slate-500 text-xs">
                     {pivotDrillMonth ? `${MONTH_NAMES[pivotDrillMonth - 1]} ${currentYear}` : `${currentYear} (all months)`}
                     {' · '}
                     {pivotDrillLoading
@@ -5426,8 +5426,8 @@ export default function OrderStatusDashboard() {
                   </button>
                 </div>
               </div>
-              <div className="px-6 py-3 border-b border-slate-200 bg-white">
-                <div className="flex flex-col md:flex-row md:items-end gap-3">
+              <div className="px-4 py-2 border-b border-slate-200 bg-white">
+                <div className="flex flex-col md:flex-row md:items-end gap-2">
                   <div className="flex-1 min-w-0">
                     <label htmlFor="pivot-drill-search" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Search</label>
                     <div className="relative">
@@ -5559,7 +5559,7 @@ export default function OrderStatusDashboard() {
                 ) : !filteredPivotDrillRows || filteredPivotDrillRows.length === 0 ? (
                   <div className="px-6 py-12 text-center text-slate-500">No matches for &ldquo;{pivotDrillSearch}&rdquo;</div>
                 ) : (
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-slate-100 z-10">
                       <tr className="border-b border-slate-200">
                         {(() => {
@@ -5575,7 +5575,7 @@ export default function OrderStatusDashboard() {
                           const SortTh = ({ k, label, align = 'left', cls = '' }: { k: string; label: string; align?: 'left' | 'right'; cls?: string }) => (
                             <th
                               onClick={() => togglePivotSort(k)}
-                              className={`px-4 py-3 text-${align} text-xs font-semibold cursor-pointer select-none hover:bg-slate-200/60 whitespace-nowrap ${cls || 'text-slate-600'}`}
+                              className={`px-2.5 py-2 text-${align} text-[11px] font-semibold cursor-pointer select-none hover:bg-slate-200/60 whitespace-nowrap ${cls || 'text-slate-600'}`}
                             >
                               <span className={`inline-flex items-center ${align === 'right' ? 'justify-end w-full' : ''}`}>
                                 {label}
@@ -5603,7 +5603,7 @@ export default function OrderStatusDashboard() {
                               <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="buyerBusiness" label="Buyer Business" />
                               <SortTh k="buyerPhone" label="Buyer Phone" />
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Address Details</th>
+                              <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Address Details</th>
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
                               <SortTh k="markedPending" label="Marked Pending" />
@@ -5627,29 +5627,29 @@ export default function OrderStatusDashboard() {
                           key={r.poNumber}
                           className={`border-b border-slate-100 align-top ${r.pushedStatus === 'Pushed' ? 'bg-emerald-50/60 hover:bg-emerald-100/70' : 'bg-rose-50/60 hover:bg-rose-100/70'}`}
                         >
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-2.5 py-1.5 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                               {r.pushedStatus || 'Not Pushed'}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
-                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-600 text-xs max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
+                          <td className="px-2.5 py-1.5 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
+                          <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-600 text-xs max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
                             {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (
                               <div className="whitespace-normal break-words">
                                 {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}
@@ -5658,16 +5658,16 @@ export default function OrderStatusDashboard() {
                               <span className="text-slate-400 italic">—</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700">{r.sellerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400 italic">—</span>}</td>
                           {pivotDrillStatus === 'REJECTED' && (
                             <>
-                              <td className="px-4 py-2 text-slate-700 max-w-[260px] truncate bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-4 py-2 text-slate-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-4 py-2 text-slate-700 max-w-[260px] truncate bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 max-w-[260px] truncate bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 max-w-[260px] truncate bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400 italic">—</span>}</td>
                             </>
                           )}
                         </tr>
@@ -5677,7 +5677,7 @@ export default function OrderStatusDashboard() {
                 )}
               </div>
               {pivotDrillPaged && filteredPivotDrillRows && filteredPivotDrillRows.length > 0 && (
-                <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-sm text-slate-600 flex-wrap gap-2">
+                <div className="px-4 py-2 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-600 flex-wrap gap-2">
                   <div>
                     Showing <span className="font-semibold text-slate-900">{pivotDrillPaged.startIdx + 1}</span>–<span className="font-semibold text-slate-900">{pivotDrillPaged.endIdx}</span> of <span className="font-semibold text-slate-900">{filteredPivotDrillRows.length}</span>
                   </div>

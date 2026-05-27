@@ -121,7 +121,6 @@ function KapilaDashboard() {
   const [loading, setLoading] = useState(false);
   const [yearLoading, setYearLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showAmount, setShowAmount] = useState(true);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -222,7 +221,6 @@ function KapilaDashboard() {
 
   const statuses = data?.statuses || [];
   const rows = data?.data || [];
-  const byStatus = data?.totals.byStatus || {};
   const grand = data?.totals.grand || { count: 0, amount: 0 };
 
   return (
@@ -294,12 +292,6 @@ function KapilaDashboard() {
             <button onClick={resetDates} className="px-2 py-1 text-xs rounded-md bg-white/5 hover:bg-white/10 text-purple-200 border border-white/10">Reset</button>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <button
-              onClick={() => setShowAmount((v) => !v)}
-              className="px-3 py-1.5 text-xs rounded-lg bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border border-fuchsia-400/30 text-fuchsia-200 font-medium"
-            >
-              Show: {showAmount ? 'Amount' : 'PO Count'}
-            </button>
             {loading && <span className="text-xs text-purple-300">Loading…</span>}
           </div>
         </div>
@@ -328,67 +320,6 @@ function KapilaDashboard() {
             <div className="text-xs text-purple-300">Statuses</div>
             <div className="text-2xl font-bold text-white mt-1">{statuses.length}</div>
           </div>
-        </div>
-
-        {/* Pivot table */}
-        <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-            <div className="text-sm font-semibold text-white">
-              Status × Date pivot — <span className="text-purple-300 font-normal">{showAmount ? 'Amount' : 'PO Count'}</span>
-            </div>
-            <div className="text-xs text-purple-300">{startDate} → {endDate}</div>
-          </div>
-          {rows.length === 0 && !loading ? (
-            <div className="p-10 text-center text-purple-300/70 text-sm">No data in this range.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-white/[0.03]">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 z-10">Date</th>
-                    {statuses.map((s) => (
-                      <th key={s} className={`px-3 py-2 text-right text-xs font-semibold ${statusClass(s)}`}>{s}</th>
-                    ))}
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-fuchsia-300 bg-white/[0.04]">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.day} className="border-t border-white/5 hover:bg-white/[0.03]">
-                      <td className="px-3 py-2 text-purple-100 whitespace-nowrap sticky left-0 bg-slate-900/60 z-10">{fmtDate(r.day)}</td>
-                      {statuses.map((s) => {
-                        const c = r.cells[s];
-                        return (
-                          <td key={s} className="px-3 py-2 text-right text-purple-200 tabular-nums">
-                            {c ? (showAmount ? fmtAmount(c.amount) : fmtCount(c.count)) : '—'}
-                          </td>
-                        );
-                      })}
-                      <td className="px-3 py-2 text-right text-fuchsia-200 font-semibold tabular-nums bg-white/[0.02]">
-                        {showAmount ? fmtAmount(r.total.amount) : fmtCount(r.total.count)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-white/10 bg-white/[0.04]">
-                    <td className="px-3 py-2 text-xs font-semibold text-fuchsia-200 sticky left-0 bg-slate-900/80">Total</td>
-                    {statuses.map((s) => {
-                      const c = byStatus[s];
-                      return (
-                        <td key={s} className="px-3 py-2 text-right text-fuchsia-200 font-semibold tabular-nums">
-                          {c ? (showAmount ? fmtAmount(c.amount) : fmtCount(c.count)) : '—'}
-                        </td>
-                      );
-                    })}
-                    <td className="px-3 py-2 text-right text-white font-bold tabular-nums">
-                      {showAmount ? fmtAmount(grand.amount) : fmtCount(grand.count)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
         </div>
 
         {/* Year × Status pivot (all-time, not date-filtered) */}

@@ -99,6 +99,13 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '📞',
     status: 'live',
   },
+  {
+    slug: 'kapila',
+    title: 'Kapila Dashboard',
+    description: 'Kapila dashboard — coming soon.',
+    icon: '🐄',
+    status: 'coming-soon',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

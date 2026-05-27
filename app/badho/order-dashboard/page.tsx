@@ -2148,7 +2148,7 @@ export default function OrderStatusDashboard() {
                       </RadialBarChart>
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <p className="text-white/60 text-xs uppercase tracking-wider">Achieved</p>
+                      <p className="text-white/60 text-xs uppercase tracking-wider">{currentMonth} Achieved</p>
                       <p className="text-5xl font-bold text-white tabular-nums">{goalData.achievePct.toFixed(2)}%</p>
                       <p className="text-white/60 text-xs mt-1">{remainingLabel}</p>
                     </div>
@@ -2159,7 +2159,7 @@ export default function OrderStatusDashboard() {
                       onClick={() => setGoalModalOpen(true)}
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
-                      <p className="text-white/60 text-xs uppercase tracking-wider mb-2">Achieved</p>
+                      <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{currentMonth} Achieved</p>
                       <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(goalData.achieved)}</p>
                       <p className="text-white/50 text-xs mt-1">{goalData.orders.toLocaleString()} orders</p>
                       <p className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</p>

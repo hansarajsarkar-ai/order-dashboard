@@ -1032,6 +1032,12 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
+  // Pre-fetch alert count on mount so the tab badge appears immediately
+  useEffect(() => {
+    if (alertBrandData === null) fetchAlertBrand();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const openAlertModal = async (category: string, sellerBusinessName?: string) => {
     setAlertModalCategory(category);
     setAlertModalSeller(sellerBusinessName || null);
@@ -1941,6 +1947,51 @@ export default function OrderStatusDashboard() {
             { key: 'alert', label: 'Alert' },
           ] as const).map((tab) => {
             const active = activeTab === tab.key;
+            const isAlert = tab.key === 'alert';
+            const alertCount = alertBrandData?.grandTotal?.count ?? 0;
+            const hasAlerts = isAlert && alertCount > 0;
+
+            if (isAlert) {
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`relative px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-300 inline-flex items-center gap-1.5 ${
+                    active
+                      ? 'bg-gradient-to-r from-rose-500 via-red-500 to-orange-500 text-white shadow-[0_0_28px_rgba(244,63,94,0.7),inset_0_0_18px_rgba(251,113,133,0.4)]'
+                      : hasAlerts
+                      ? 'bg-gradient-to-r from-rose-500/30 via-red-500/30 to-orange-500/30 text-rose-100 hover:from-rose-500/50 hover:via-red-500/50 hover:to-orange-500/50 hover:text-white border border-rose-400/50 shadow-[0_0_18px_rgba(244,63,94,0.4)] animate-pulse-glow'
+                      : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={hasAlerts ? 'animate-bell-ring' : ''}
+                    aria-hidden="true"
+                  >
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                  </svg>
+                  <span>{tab.label}</span>
+                  {alertCount > 0 && (
+                    <span className="relative inline-flex">
+                      <span className="absolute inset-0 rounded-full bg-rose-400 animate-ping opacity-75" />
+                      <span className="relative inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-extrabold tabular-nums border border-white/40 shadow-lg">
+                        {alertCount}
+                      </span>
+                    </span>
+                  )}
+                </button>
+              );
+            }
+
             return (
               <button
                 key={tab.key}
@@ -5483,13 +5534,45 @@ export default function OrderStatusDashboard() {
 
         {/* Brand-wise SLA breach pivot — rows = seller, columns = payment category */}
         {activeTab === 'alert' && (
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
-              <div>
-                <h2 className="text-2xl font-bold text-white">Brand-wise SLA Breach</h2>
-                <p className="text-purple-300 text-sm mt-1">
-                  Sellers × payment category · click any cell to see those PENDING orders
-                </p>
+          <div className="relative bg-gradient-to-br from-rose-950/40 via-slate-900/30 to-amber-950/30 backdrop-blur-xl border-2 border-rose-500/40 rounded-2xl overflow-hidden shadow-[0_0_60px_rgba(244,63,94,0.25),inset_0_0_30px_rgba(244,63,94,0.05)]">
+            {/* Animated alert stripe across the top */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-amber-400 to-rose-500 bg-[length:200%_100%] animate-stripe-flow" />
+
+            <div className="px-8 py-6 border-b border-rose-500/30 bg-gradient-to-r from-rose-500/15 via-red-500/10 to-amber-500/10 flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-start gap-4">
+                <div className="relative shrink-0 mt-1">
+                  <div className="absolute inset-0 rounded-full bg-rose-500/40 animate-ping" />
+                  <div className="relative w-11 h-11 rounded-full bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center shadow-[0_0_20px_rgba(244,63,94,0.6)]">
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="white"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="animate-bell-ring"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-rose-200 via-amber-200 to-rose-200 flex items-center gap-2">
+                    Brand-wise SLA Breach
+                    {alertBrandData && alertBrandData.grandTotal.count > 0 && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500/30 border border-rose-400/50 text-rose-100 text-xs font-bold tracking-wide uppercase">
+                        ⚠ Action needed
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-rose-200/80 text-sm mt-1">
+                    Sellers × payment category · click any cell to see those PENDING orders
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <input
@@ -5497,12 +5580,12 @@ export default function OrderStatusDashboard() {
                   value={alertBrandSearch}
                   onChange={(e) => setAlertBrandSearch(e.target.value)}
                   placeholder="Search seller…"
-                  className="px-3 py-2 text-sm bg-white/10 border border-white/20 text-white placeholder-purple-300/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-400 w-56"
+                  className="px-3 py-2 text-sm bg-white/10 border border-rose-400/40 text-white placeholder-rose-200/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-400 w-56"
                 />
                 <button
                   onClick={fetchAlertBrand}
                   disabled={alertBrandLoading}
-                  className="px-4 py-2 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-500/40 text-fuchsia-200 text-sm font-semibold disabled:opacity-40"
+                  className="px-4 py-2 rounded-lg bg-rose-500/30 hover:bg-rose-500/50 border border-rose-400/60 text-rose-100 hover:text-white text-sm font-semibold disabled:opacity-40 transition-all"
                 >
                   {alertBrandLoading ? 'Refreshing…' : '↻ Refresh'}
                 </button>
@@ -6929,6 +7012,38 @@ export default function OrderStatusDashboard() {
         }
         .animation-delay-2000 {
           animation-delay: 2s;
+        }
+      `}</style>
+      <style jsx global>{`
+        @keyframes bell-ring {
+          0%, 100% { transform: rotate(0deg); }
+          10%, 30% { transform: rotate(-14deg); }
+          20%, 40% { transform: rotate(14deg); }
+          50% { transform: rotate(0deg); }
+        }
+        .animate-bell-ring {
+          transform-origin: top center;
+          animation: bell-ring 1.5s ease-in-out infinite;
+        }
+        @keyframes stripe-flow {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+        .animate-stripe-flow {
+          animation: stripe-flow 3s linear infinite;
+        }
+        @keyframes pulse-glow {
+          0%, 100% {
+            box-shadow: 0 0 14px rgba(244, 63, 94, 0.35),
+                        0 0 0 0 rgba(244, 63, 94, 0.55);
+          }
+          50% {
+            box-shadow: 0 0 22px rgba(244, 63, 94, 0.6),
+                        0 0 0 6px rgba(244, 63, 94, 0);
+          }
+        }
+        .animate-pulse-glow {
+          animation: pulse-glow 1.8s ease-in-out infinite;
         }
       `}</style>
     </div>

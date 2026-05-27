@@ -438,6 +438,9 @@ export default function OrderStatusDashboard() {
   const [poItemsTotals, setPoItemsTotals] = useState<{ items: number; qty: number; amount: number; total: number } | null>(null);
   const [poItemsLoading, setPoItemsLoading] = useState(false);
   const [poItemsError, setPoItemsError] = useState<string | null>(null);
+  const [poItemsSearch, setPoItemsSearch] = useState('');
+  const [poItemsSort, setPoItemsSort] = useState<'amount' | 'qty' | 'name'>('amount');
+  const [poItemsStatusFilter, setPoItemsStatusFilter] = useState<string>('all');
 
   const openPoItemsModal = async (poNumber: string) => {
     setPoItemsModal(poNumber);
@@ -463,6 +466,9 @@ export default function OrderStatusDashboard() {
     setPoItemsData(null);
     setPoItemsTotals(null);
     setPoItemsError(null);
+    setPoItemsSearch('');
+    setPoItemsSort('amount');
+    setPoItemsStatusFilter('all');
   };
   useEffect(() => {
     if (!poItemsModal) return;
@@ -5820,11 +5826,11 @@ export default function OrderStatusDashboard() {
         {/* PO Items Modal — opens from "View Items" button */}
         {poItemsModal && (
           <div
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-modal-fade"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gradient-to-br from-slate-950/85 via-indigo-950/85 to-purple-950/85 backdrop-blur-lg animate-modal-fade"
             onClick={closePoItemsModal}
           >
             <div
-              className="relative bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 text-slate-900 rounded-3xl w-[92vw] max-w-5xl max-h-[88vh] flex flex-col overflow-hidden shadow-[0_30px_90px_-20px_rgba(99,102,241,0.4),0_0_60px_-10px_rgba(168,85,247,0.3)] border border-white animate-modal-scale"
+              className="relative bg-gradient-to-br from-white via-indigo-50/40 to-fuchsia-50/30 text-slate-900 rounded-3xl w-[94vw] max-w-6xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_40px_120px_-20px_rgba(99,102,241,0.55),0_0_80px_-10px_rgba(168,85,247,0.4),inset_0_1px_0_rgba(255,255,255,0.8)] border border-white/80 animate-modal-scale"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Decorative gradient blobs */}
@@ -5895,12 +5901,105 @@ export default function OrderStatusDashboard() {
                 )}
               </div>
 
+              {/* Toolbar: search, sort, status filter chips */}
+              {poItemsData && poItemsData.length > 0 && (() => {
+                const statusCounts = poItemsData.reduce<Record<string, number>>((acc, it) => {
+                  const s = it.status || '—';
+                  acc[s] = (acc[s] || 0) + 1;
+                  return acc;
+                }, {});
+                const statusOrder = ['REJECTED', 'PENDING', 'IN_PROGRESS', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'];
+                const sortedStatuses = Object.keys(statusCounts).sort((a, b) => {
+                  const ai = statusOrder.indexOf(a); const bi = statusOrder.indexOf(b);
+                  return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+                });
+                return (
+                  <div className="relative px-7 py-3 border-b border-slate-200/60 bg-white/60 backdrop-blur-sm flex items-center gap-3 flex-wrap">
+                    {/* search */}
+                    <div className="relative flex-1 min-w-[200px] max-w-md">
+                      <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={poItemsSearch}
+                        onChange={(e) => setPoItemsSearch(e.target.value)}
+                        placeholder="Search SKUs…"
+                        className="w-full pl-9 pr-3 py-1.5 text-sm bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent shadow-sm"
+                      />
+                    </div>
+                    {/* sort */}
+                    <div className="inline-flex items-center rounded-xl border border-slate-300 overflow-hidden bg-white shadow-sm">
+                      <span className="px-2 text-[10px] uppercase tracking-wider text-slate-400 font-bold border-r border-slate-200">Sort</span>
+                      {(['amount', 'qty', 'name'] as const).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setPoItemsSort(s)}
+                          className={`px-2.5 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                            poItemsSort === s
+                              ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-inner'
+                              : 'text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                    {/* status filter chips */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => setPoItemsStatusFilter('all')}
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
+                          poItemsStatusFilter === 'all'
+                            ? 'bg-slate-900 text-white shadow-md'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        All <span className="ml-1 opacity-75 tabular-nums">{poItemsData.length}</span>
+                      </button>
+                      {sortedStatuses.map((s) => {
+                        const active = poItemsStatusFilter === s;
+                        const palette: Record<string, string> = {
+                          'REJECTED':    'from-rose-500 to-red-500',
+                          'DELIVERED':   'from-emerald-500 to-teal-500',
+                          'COMPLETED':   'from-emerald-500 to-teal-500',
+                          'DISPATCHED':  'from-blue-500 to-indigo-500',
+                          'IN_TRANSIT':  'from-cyan-500 to-sky-500',
+                          'IN_PROGRESS': 'from-amber-500 to-orange-500',
+                          'PENDING':     'from-slate-400 to-slate-500',
+                        };
+                        const grad = palette[s] || 'from-slate-400 to-slate-500';
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => setPoItemsStatusFilter(active ? 'all' : s)}
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
+                              active
+                                ? `bg-gradient-to-r ${grad} text-white shadow-md scale-105`
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {s} <span className={`ml-1 tabular-nums ${active ? 'opacity-90' : 'opacity-60'}`}>{statusCounts[s]}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Body */}
               <div className="relative flex-1 overflow-auto px-5 py-4">
                 {poItemsLoading ? (
-                  <div className="px-6 py-20 text-center">
-                    <div className="inline-block w-10 h-10 rounded-full border-[3px] border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
-                    <p className="text-slate-500 text-sm">Loading items…</p>
+                  <div className="space-y-2.5">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className="rounded-2xl bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 h-16 animate-shimmer-skeleton"
+                        style={{ backgroundSize: '400% 100%', animationDelay: `${i * 80}ms` }}
+                      />
+                    ))}
+                    <p className="text-center text-slate-400 text-xs mt-4">Fetching items…</p>
                   </div>
                 ) : poItemsError ? (
                   <div className="px-6 py-16 text-center">
@@ -5914,6 +6013,7 @@ export default function OrderStatusDashboard() {
                   </div>
                 ) : (() => {
                   const maxAmount = Math.max(...poItemsData.map((i) => i.amount || 0), 1);
+                  const topAmount = maxAmount;
                   const statusColor = (s: string | null) => {
                     switch (s) {
                       case 'REJECTED':    return { bg: 'bg-gradient-to-r from-rose-500 to-red-500', text: 'text-white', ring: 'ring-rose-300', dot: 'bg-rose-400' };
@@ -5926,42 +6026,91 @@ export default function OrderStatusDashboard() {
                       default:            return { bg: 'bg-slate-200', text: 'text-slate-700', ring: 'ring-slate-300', dot: 'bg-slate-400' };
                     }
                   };
+
+                  // filter + sort
+                  const q = poItemsSearch.trim().toLowerCase();
+                  let rows = poItemsData.filter((it) =>
+                    (poItemsStatusFilter === 'all' || it.status === poItemsStatusFilter) &&
+                    (q === '' ||
+                      (it.skuLabel || '').toLowerCase().includes(q) ||
+                      (it.brandLabel || '').toLowerCase().includes(q))
+                  );
+                  rows = [...rows].sort((a, b) => {
+                    if (poItemsSort === 'amount') return (b.amount || 0) - (a.amount || 0);
+                    if (poItemsSort === 'qty')    return (b.quantity || 0) - (a.quantity || 0);
+                    return (a.skuLabel || '').localeCompare(b.skuLabel || '');
+                  });
+
+                  if (rows.length === 0) {
+                    return (
+                      <div className="px-6 py-16 text-center">
+                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-100 text-slate-400 text-2xl mb-3">🔍</div>
+                        <p className="text-slate-500">No items match your filters</p>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <div className="space-y-2">
-                      {poItemsData.map((it, idx) => {
+                    <div className="space-y-2.5">
+                      {rows.map((it, idx) => {
                         const sc = statusColor(it.status);
                         const barPct = it.amount ? Math.max(4, (it.amount / maxAmount) * 100) : 0;
+                        const isTop = it.amount != null && it.amount === topAmount && poItemsData.length > 1;
                         return (
                           <div
                             key={it.id}
-                            className="group relative rounded-2xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-[0_8px_24px_-8px_rgba(99,102,241,0.25)] hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
-                            style={{ animationDelay: `${idx * 30}ms` }}
+                            className={`group relative rounded-2xl overflow-hidden transition-all duration-300 ease-out animate-card-in ${
+                              isTop
+                                ? 'bg-gradient-to-r from-amber-50 via-white to-yellow-50 border-2 border-amber-300 shadow-[0_8px_24px_-8px_rgba(245,158,11,0.35),inset_0_1px_0_rgba(255,255,255,0.8)] hover:shadow-[0_14px_36px_-8px_rgba(245,158,11,0.5)]'
+                                : 'bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-[0_12px_32px_-10px_rgba(99,102,241,0.35)]'
+                            } hover:-translate-y-0.5 hover:scale-[1.01]`}
+                            style={{ animationDelay: `${idx * 35}ms` }}
                           >
+                            {/* TOP badge ribbon */}
+                            {isTop && (
+                              <div className="absolute top-0 right-0 z-10">
+                                <div className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 text-amber-900 text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-bl-xl shadow-md flex items-center gap-1">
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm0 2h14v2H5v-2z"/>
+                                  </svg>
+                                  TOP ITEM
+                                </div>
+                              </div>
+                            )}
+
                             {/* amount intensity bar on the left */}
                             <div
-                              className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-400 via-purple-500 to-fuchsia-500 transition-all duration-300 group-hover:w-1.5"
-                              style={{ opacity: 0.3 + (barPct / 100) * 0.7 }}
+                              className={`absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 group-hover:w-1.5 ${
+                                isTop
+                                  ? 'bg-gradient-to-b from-amber-400 via-yellow-500 to-amber-500'
+                                  : 'bg-gradient-to-b from-indigo-400 via-purple-500 to-fuchsia-500'
+                              }`}
+                              style={{ opacity: 0.4 + (barPct / 100) * 0.6 }}
                             />
 
                             <div className="flex items-center gap-4 pl-5 pr-4 py-3">
                               {/* Numbered avatar */}
-                              <div className="shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 border border-indigo-200 flex items-center justify-center text-[11px] font-extrabold text-indigo-700 tabular-nums shadow-sm group-hover:scale-110 group-hover:rotate-3 transition-transform">
-                                {idx + 1}
+                              <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-[12px] font-extrabold tabular-nums shadow-sm group-hover:scale-110 group-hover:rotate-3 transition-transform ${
+                                isTop
+                                  ? 'bg-gradient-to-br from-amber-300 to-yellow-400 border border-amber-400 text-amber-900'
+                                  : 'bg-gradient-to-br from-indigo-100 to-purple-100 border border-indigo-200 text-indigo-700'
+                              }`}>
+                                {isTop ? '★' : idx + 1}
                               </div>
 
                               {/* SKU name + brand */}
                               <div className="flex-1 min-w-0">
-                                <div className="font-bold text-slate-900 text-sm leading-snug truncate">
+                                <div className={`font-bold text-sm leading-snug truncate ${isTop ? 'text-amber-900' : 'text-slate-900'}`}>
                                   {it.skuLabel || <span className="text-slate-400 italic font-normal">Unnamed SKU</span>}
                                 </div>
-                                <div className="flex items-center gap-2 mt-0.5">
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
                                   {it.brandLabel && (
                                     <span className="text-[10px] text-slate-500 font-medium truncate max-w-[180px]">
                                       🏷 {it.brandLabel}
                                     </span>
                                   )}
                                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${sc.bg} ${sc.text} ring-1 ring-inset ring-white/30 shadow-sm`}>
-                                    <span className={`w-1 h-1 rounded-full ${sc.dot}`} />
+                                    <span className={`w-1 h-1 rounded-full ${sc.dot} animate-pulse`} />
                                     {it.status || '—'}
                                   </span>
                                 </div>
@@ -5969,15 +6118,17 @@ export default function OrderStatusDashboard() {
 
                               {/* Quantity chip */}
                               <div className="shrink-0 text-right">
-                                <div className="inline-flex items-baseline gap-1 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200">
-                                  <span className="text-lg font-extrabold text-slate-900 tabular-nums leading-none">
+                                <div className={`inline-flex items-baseline gap-1 px-3 py-1.5 rounded-xl border ${
+                                  isTop ? 'bg-amber-100 border-amber-200' : 'bg-slate-50 border-slate-200'
+                                }`}>
+                                  <span className={`text-lg font-extrabold tabular-nums leading-none ${isTop ? 'text-amber-900' : 'text-slate-900'}`}>
                                     {it.quantity != null ? it.quantity.toLocaleString('en-IN') : '—'}
                                   </span>
                                   <span className="text-[10px] text-slate-500 font-medium">{it.quantityUnit || 'qty'}</span>
                                 </div>
                               </div>
 
-                              {/* Unit price × — visual equation */}
+                              {/* Unit price */}
                               <div className="shrink-0 hidden md:flex flex-col items-end leading-tight">
                                 <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Unit</div>
                                 <div className="text-sm font-semibold text-slate-700 tabular-nums">
@@ -5985,7 +6136,7 @@ export default function OrderStatusDashboard() {
                                 </div>
                               </div>
 
-                              {/* Discount (only if any) */}
+                              {/* Discount */}
                               {it.discount ? (
                                 <div className="shrink-0 hidden md:flex flex-col items-end leading-tight">
                                   <div className="text-[10px] text-amber-500 uppercase tracking-wider font-semibold">Discount</div>
@@ -5996,15 +6147,23 @@ export default function OrderStatusDashboard() {
                               ) : null}
 
                               {/* Final amount with gradient bar */}
-                              <div className="shrink-0 text-right min-w-[120px]">
+                              <div className="shrink-0 text-right min-w-[130px]">
                                 <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Amount</div>
-                                <div className="text-lg font-extrabold tabular-nums bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent">
+                                <div className={`text-lg font-extrabold tabular-nums bg-clip-text text-transparent ${
+                                  isTop
+                                    ? 'bg-gradient-to-r from-amber-600 via-yellow-600 to-orange-600'
+                                    : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600'
+                                }`}>
                                   {it.amount != null ? `₹${it.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
                                 </div>
                                 {/* mini progress bar */}
-                                <div className="mt-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                   <div
-                                    className="h-full bg-gradient-to-r from-indigo-400 via-purple-500 to-fuchsia-500 rounded-full transition-all duration-500"
+                                    className={`h-full rounded-full transition-all duration-700 ease-out ${
+                                      isTop
+                                        ? 'bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500'
+                                        : 'bg-gradient-to-r from-indigo-400 via-purple-500 to-fuchsia-500'
+                                    }`}
                                     style={{ width: `${barPct}%` }}
                                   />
                                 </div>
@@ -6019,28 +6178,76 @@ export default function OrderStatusDashboard() {
               </div>
 
               {/* Sticky footer total */}
-              {poItemsTotals && poItemsData && poItemsData.length > 0 && (
-                <div className="relative px-7 py-3 border-t border-slate-200/60 bg-gradient-to-r from-indigo-50 via-white to-fuchsia-50 flex items-center justify-between">
-                  <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
-                    Order Total
-                  </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total Qty</div>
-                      <div className="text-base font-extrabold tabular-nums text-slate-900">
-                        {poItemsTotals.qty.toLocaleString('en-IN')}
+              {poItemsTotals && poItemsData && poItemsData.length > 0 && (() => {
+                // status breakdown for the footer
+                const byStatus = poItemsData.reduce<Record<string, { qty: number; amount: number }>>((acc, it) => {
+                  const s = it.status || '—';
+                  if (!acc[s]) acc[s] = { qty: 0, amount: 0 };
+                  acc[s].qty += it.quantity || 0;
+                  acc[s].amount += it.amount || 0;
+                  return acc;
+                }, {});
+                const order = ['DELIVERED', 'COMPLETED', 'DISPATCHED', 'IN_TRANSIT', 'IN_PROGRESS', 'PENDING', 'REJECTED'];
+                const breakdownEntries = Object.entries(byStatus).sort(([a], [b]) => {
+                  const ai = order.indexOf(a); const bi = order.indexOf(b);
+                  return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+                });
+                const statusDot: Record<string, string> = {
+                  'REJECTED':    'bg-rose-500',
+                  'DELIVERED':   'bg-emerald-500',
+                  'COMPLETED':   'bg-emerald-500',
+                  'DISPATCHED':  'bg-blue-500',
+                  'IN_TRANSIT':  'bg-cyan-500',
+                  'IN_PROGRESS': 'bg-amber-500',
+                  'PENDING':     'bg-slate-400',
+                };
+                return (
+                  <div className="relative border-t border-slate-200/60 bg-gradient-to-r from-indigo-50 via-white to-fuchsia-50">
+                    {/* status breakdown strip */}
+                    <div className="px-7 pt-2.5 pb-1.5 flex items-center gap-3 flex-wrap text-[10px]">
+                      <span className="uppercase tracking-wider text-slate-400 font-semibold shrink-0">By status:</span>
+                      {breakdownEntries.map(([s, v]) => (
+                        <span key={s} className="inline-flex items-center gap-1.5 text-slate-700">
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusDot[s] || 'bg-slate-400'}`} />
+                          <span className="font-semibold tracking-wide">{s}</span>
+                          <span className="text-slate-500 tabular-nums">
+                            {v.qty.toLocaleString('en-IN')} qty · ₹{v.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                    {/* main total bar */}
+                    <div className="px-7 py-3 flex items-center justify-between border-t border-white/70">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-md">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Order Total</div>
+                          <div className="text-[10px] text-slate-400">{poItemsTotals.items} SKU{poItemsTotals.items === 1 ? '' : 's'} in this PO</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total Qty</div>
+                          <div className="text-base font-extrabold tabular-nums text-slate-900">
+                            {poItemsTotals.qty.toLocaleString('en-IN')}
+                          </div>
+                        </div>
+                        <div className="w-px h-10 bg-slate-300" />
+                        <div className="text-right">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total Amount</div>
+                          <div className="text-2xl font-extrabold tabular-nums bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent leading-none">
+                            ₹{poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="w-px h-8 bg-slate-300" />
-                    <div className="text-right">
-                      <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total Amount</div>
-                      <div className="text-xl font-extrabold tabular-nums bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent">
-                        ₹{poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         )}
@@ -7381,6 +7588,24 @@ export default function OrderStatusDashboard() {
         }
         .animate-shimmer {
           animation: shimmer 4s linear infinite;
+        }
+        @keyframes card-in {
+          from { opacity: 0; transform: translateY(8px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0)   scale(1);    }
+        }
+        .animate-card-in {
+          animation: card-in 0.35s cubic-bezier(0.34, 1.4, 0.5, 1) backwards;
+        }
+        @keyframes shimmer-skeleton {
+          0%   { background-position: -100% 0; }
+          100% { background-position:  200% 0; }
+        }
+        .animate-shimmer-skeleton {
+          background-image: linear-gradient(90deg,
+            rgba(241, 245, 249, 1) 0%,
+            rgba(226, 232, 240, 1) 50%,
+            rgba(241, 245, 249, 1) 100%);
+          animation: shimmer-skeleton 1.4s ease-in-out infinite;
         }
       `}</style>
     </div>

@@ -42,6 +42,11 @@ interface OrderListRow {
   sellerBusinessName: string | null;
   buyerAddress: string;
   buyerFullAddress?: string;
+  buyerAddressLine1?: string | null;
+  buyerLandmark?: string | null;
+  buyerPincode?: string | null;
+  buyerCity?: string | null;
+  buyerDistrict?: string | null;
   buyerState: string | null;
   sellerAddress?: string;
   rejectReason?: string | null;
@@ -5564,7 +5569,7 @@ export default function OrderStatusDashboard() {
                               <SortTh k="pushed" label="Pushed" />
                               <SortTh k="poNumber" label="PO Number" />
                               <SortTh k="status" label="Order Status" />
-                              <SortTh k="buyerFullAddress" label="Buyer Address" />
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Address Details</th>
                               <SortTh k="poAmount" label="PO Amount" align="right" />
                               <SortTh k="paidAmount" label="Paid Amount" align="right" />
                               <SortTh k="coupon" label="Coupon Amount" align="right" />
@@ -5610,7 +5615,34 @@ export default function OrderStatusDashboard() {
                           </td>
                           <td className="px-4 py-3 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
-                          <td className="px-4 py-3 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-600 text-xs" title={r.buyerFullAddress || ''}>
+                            {r.buyerAddressLine1 || r.buyerCity || r.buyerPincode ? (
+                              <div className="space-y-0.5 max-w-sm">
+                                {r.buyerAddressLine1 && (
+                                  <div className="truncate" title={r.buyerAddressLine1}>
+                                    <span className="font-semibold text-slate-700">Address:</span> {r.buyerAddressLine1}
+                                  </div>
+                                )}
+                                {r.buyerLandmark && (
+                                  <div className="truncate" title={r.buyerLandmark}>
+                                    <span className="font-semibold text-slate-700">Landmark:</span> {r.buyerLandmark}
+                                  </div>
+                                )}
+                                {r.buyerPincode && (
+                                  <div className="truncate">
+                                    <span className="font-semibold text-slate-700">Pincode:</span> {r.buyerPincode}
+                                  </div>
+                                )}
+                                {(r.buyerCity || r.buyerDistrict || r.buyerState) && (
+                                  <div className="truncate">
+                                    <span className="font-semibold text-slate-700">City:</span> {[r.buyerCity, r.buyerDistrict, r.buyerState].filter(Boolean).join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">—</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>

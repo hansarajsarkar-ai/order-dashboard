@@ -35,6 +35,15 @@ interface PoSummaryRow {
   discount: string | null;
   totalDiscount: string | null;
   codHandlingCharge: string | null;
+  // Shipping charge if the PO already has a computed quote (lives inside
+  // purchaseOrder.deliveryDetails jsonb). Null when nothing's been
+  // computed yet — typical for fresh DRAFTs.
+  deliveryCharge: string | null;
+  // Code of the offer reservation the buyer's app applied, if any. We
+  // surface it so the dashboard can render the "applied" pill without a
+  // second roundtrip; the actual discount value already lives on
+  // appliedOfferDiscount.
+  appliedOfferCode: string | null;
 }
 
 interface PoItemRow {
@@ -394,11 +403,24 @@ async function loadPoAndItems(poNumber: string) {
       a."appliedVolumeDiscountAmount"::text AS "appliedVolumeDiscountAmount",
       a."discount"::text                   AS "discount",
       a."totalDiscount"::text              AS "totalDiscount",
-      a."codHandlingCharge"::text          AS "codHandlingCharge"
+      a."codHandlingCharge"::text          AS "codHandlingCharge",
+      -- deliveryDetails is jsonb; the buyer app stores totalCharge there
+      -- after a Pidge/shipping quote. We try a couple of common shapes
+      -- and fall back to NULL if nothing's computed.
+      COALESCE(
+        a."deliveryDetails" ->> 'totalCharge',
+        a."deliveryDetails" ->> 'charge',
+        a."deliveryDetails" ->> 'amount'
+      )                                    AS "deliveryCharge",
+      -- Active reservation → its offer code, so the UI can render
+      -- "FIRSTORDER applied" without a separate lookup.
+      offr."code"                          AS "appliedOfferCode"
     FROM "purchaseOrder"."purchaseOrder" a
     JOIN "users"."buyer"  b ON b."id" = a."buyerId"
     JOIN "users"."seller" s ON s."id" = a."sellerId"
     LEFT JOIN "analytics"."realTimeBuyerWalletBalances" bw ON bw."buyerId" = a."buyerId"
+    LEFT JOIN "promotions"."offerReservation" ores ON ores."id"   = a."appliedOfferReservationId"
+    LEFT JOIN "promotions"."offer"            offr ON offr."id"   = ores."offerId"
     WHERE a."poNumber"::text = $1
     LIMIT 1;
   `, [poNumber]);

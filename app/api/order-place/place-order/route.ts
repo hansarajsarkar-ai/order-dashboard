@@ -35,6 +35,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'applyWalletAmount must be a non-negative number' }, { status: 400 });
   }
 
+  // Optional coupon code the agent picked in the dashboard's checkout
+  // sidebar. We re-validate against promotions.offer + scope + min order
+  // before writing appliedOfferDiscount/appliedOfferReservationId, so a
+  // stale UI can't slip an invalid code through.
+  const applyCouponCodeRaw = body.applyCouponCode;
+  const applyCouponCode =
+    applyCouponCodeRaw === undefined || applyCouponCodeRaw === null
+      ? ''
+      : String(applyCouponCodeRaw).trim();
+
   const pool = getPool();
   const client = await pool.connect();
   try {
@@ -97,6 +107,118 @@ export async function POST(req: NextRequest) {
         totalAmount: po.totalAmount,
         shortfall: shortfall.toFixed(2),
       }, { status: 422 });
+    }
+
+    // Coupon application (optional). MVP supports Absolute discount
+    // offers only; conditional / percentage offers are kicked back to
+    // the buyer-app flow because they need the full Badho condition
+    // engine to evaluate correctly.
+    let appliedOfferDiscount = 0;
+    if (applyCouponCode) {
+      const buyerId = po.buyerId;
+      const sellerRow = await client.query<{ sellerId: string }>(
+        `SELECT "sellerId"::text AS "sellerId"
+           FROM "purchaseOrder"."purchaseOrder"
+          WHERE "id" = $1 LIMIT 1;`,
+        [po.poId],
+      );
+      const sellerId = sellerRow.rows[0]?.sellerId;
+
+      const off = await client.query<{
+        id: string;
+        code: string;
+        discountDetails: { type?: string; value?: string | number; cap?: string | number } | null;
+        minimumOrderValue: string | null;
+        forCODOrder: boolean | null;
+        forPrepaidOrder: boolean | null;
+      }>(`
+        SELECT
+          o."id"::text                AS "id",
+          o."code"                    AS "code",
+          o."discountDetails"         AS "discountDetails",
+          o."minimumOrderValue"::text AS "minimumOrderValue",
+          o."forCODOrder"             AS "forCODOrder",
+          o."forPrepaidOrder"         AS "forPrepaidOrder"
+        FROM "promotions"."offer" o
+        WHERE UPPER(o."code") = UPPER($1)
+          AND o."isActive" = TRUE
+          AND o."isTest"   = FALSE
+          AND (o."expiryTime"     IS NULL OR o."expiryTime"     > NOW())
+          AND (o."activationTime" IS NULL OR o."activationTime" <= NOW())
+          AND (o."buyerId"  IS NULL OR o."buyerId"  = $2)
+          AND (o."sellerId" IS NULL OR o."sellerId" = $3)
+          AND (o."maxUsageCount" IS NULL OR o."currentUsageCount" < o."maxUsageCount")
+        FOR UPDATE
+        LIMIT 1;
+      `, [applyCouponCode, buyerId, sellerId]);
+
+      if (off.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return NextResponse.json({ error: `Coupon "${applyCouponCode}" not found or not eligible.` }, { status: 422 });
+      }
+      const o = off.rows[0];
+
+      // Re-check min order at place time (subtotal might have changed
+      // since the agent picked the coupon).
+      const minOrder = o.minimumOrderValue != null ? Number(o.minimumOrderValue) : 0;
+      if (minOrder > 0 && totalNum < minOrder) {
+        await client.query('ROLLBACK');
+        return NextResponse.json({
+          error: `Coupon ${o.code} needs min ₹${minOrder.toFixed(2)} — current subtotal ₹${totalNum.toFixed(2)}. Add ₹${(minOrder - totalNum).toFixed(2)}.`,
+        }, { status: 422 });
+      }
+
+      const dt = String(o.discountDetails?.type ?? '').toLowerCase();
+      const raw = o.discountDetails?.value;
+      const cap = o.discountDetails?.cap != null ? Number(o.discountDetails.cap) : null;
+      if (dt !== 'absolute' || raw == null) {
+        await client.query('ROLLBACK');
+        return NextResponse.json({
+          error: `Coupon ${o.code} uses ${o.discountDetails?.type ?? 'unknown'} discount — apply via buyer app (dashboard supports absolute coupons only).`,
+        }, { status: 422 });
+      }
+      appliedOfferDiscount = Number(raw);
+      if (cap != null && appliedOfferDiscount > cap) appliedOfferDiscount = cap;
+      if (appliedOfferDiscount > totalNum)           appliedOfferDiscount = totalNum;
+      appliedOfferDiscount = Number(appliedOfferDiscount.toFixed(2));
+
+      // Insert an offerReservation so downstream Badho services see the
+      // coupon as committed. Status='APPLIED' mirrors the value the
+      // buyer-app uses when an offer is locked in but not yet settled.
+      let reservationId: string;
+      try {
+        const ins = await client.query<{ id: string }>(
+          `
+          INSERT INTO "promotions"."offerReservation" (
+            "offerId", "buyerId", "purchaseOrderId", "status", "expiryAt", "isTest"
+          ) VALUES ($1, $2, $3, 'APPLIED', NOW() + INTERVAL '1 day', FALSE)
+          RETURNING "id"::text AS id;
+          `,
+          [o.id, buyerId, po.poId],
+        );
+        reservationId = ins.rows[0].id;
+      } catch (e) {
+        await client.query('ROLLBACK');
+        const msg = e instanceof Error ? e.message : String(e);
+        return NextResponse.json({ error: `Coupon reservation failed: ${msg}` }, { status: 422 });
+      }
+
+      // Mirror onto the PO row so the BEFORE UPDATE trigger sees the
+      // applied state when we flip status to PENDING.
+      await client.query(
+        `UPDATE "purchaseOrder"."purchaseOrder"
+            SET "appliedOfferReservationId" = $2,
+                "appliedOfferDiscount"      = $3,
+                "appliedOfferSnapshotJSON"  = jsonb_build_object(
+                  'code', $4::text,
+                  'value', $3::numeric,
+                  'source', 'dashboard'
+                ),
+                "updated_at"                = NOW(),
+                "modifiedByRole"            = 'dashboard'
+          WHERE "id" = $1;`,
+        [po.poId, reservationId, appliedOfferDiscount, o.code],
+      );
     }
 
     // Wallet application — must happen while the PO is still DRAFT so

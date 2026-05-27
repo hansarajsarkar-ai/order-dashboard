@@ -1217,6 +1217,8 @@ interface PoSummary {
   discount: string | null;
   totalDiscount: string | null;
   codHandlingCharge: string | null;
+  deliveryCharge: string | null;
+  appliedOfferCode: string | null;
 }
 
 interface PoItem {
@@ -1408,7 +1410,7 @@ function PoItemsModal({
     }
   };
 
-  const placeOrder = async (opts?: { applyWalletAmount?: number }) => {
+  const placeOrder = async (opts?: { applyWalletAmount?: number; applyCouponCode?: string | null }) => {
     setBusy('place');
     setMutationError(null);
     try {
@@ -1421,6 +1423,9 @@ function PoItemsModal({
           // omitted/0 as "leave appliedWalletAmount alone".
           ...(opts?.applyWalletAmount && opts.applyWalletAmount > 0
             ? { applyWalletAmount: opts.applyWalletAmount }
+            : {}),
+          ...(opts?.applyCouponCode
+            ? { applyCouponCode: opts.applyCouponCode }
             : {}),
         }),
         cache: 'no-store',
@@ -1845,12 +1850,15 @@ function PoItemsModal({
         <PlaceOrderConfirm
           poNumber={poNumber}
           po={po}
+          items={items}
           itemCount={data?.itemCount ?? 0}
           totalQuantity={data?.totalQuantity ?? 0}
           subtotalServer={data?.totalItemAmount ?? null}
           busy={busy}
           onCancel={() => setPlaceConfirm(false)}
-          onConfirm={(walletApplied) => placeOrder({ applyWalletAmount: walletApplied })}
+          onConfirm={(walletApplied, couponCode) =>
+            placeOrder({ applyWalletAmount: walletApplied, applyCouponCode: couponCode })
+          }
         />
       )}
 
@@ -1948,9 +1956,21 @@ function PoItemsModal({
 // purchaseOrder.appliedWalletAmount before flipping the status to
 // PENDING (the BEFORE UPDATE trigger handles "DRAFT only" + one-wallet-
 // per-buyer policy).
+interface CouponRow {
+  id: string;
+  code: string;
+  description: string | null;
+  discountType: string | null;
+  discountValue: string | null;
+  minimumOrderValue: string | null;
+  eligible: boolean;
+  ineligibleReason: string | null;
+}
+
 function PlaceOrderConfirm({
   poNumber,
   po,
+  items,
   itemCount,
   totalQuantity,
   subtotalServer,
@@ -1960,12 +1980,13 @@ function PlaceOrderConfirm({
 }: {
   poNumber: string;
   po: PoSummary | null;
+  items: PoItem[];
   itemCount: number;
   totalQuantity: number;
   subtotalServer: number | null;
   busy: string | null;
   onCancel: () => void;
-  onConfirm: (walletApplied: number) => void;
+  onConfirm: (walletApplied: number, couponCode: string | null) => void;
 }) {
   const num = (v: string | number | null | undefined): number => {
     if (v === null || v === undefined || v === '') return 0;
@@ -1975,21 +1996,89 @@ function PlaceOrderConfirm({
   const fmt = (n: number) =>
     `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  // Total MRP across the cart, computed client-side from items so it
+  // updates the moment a row is edited (no extra API call).
+  const mrpTotal = items.reduce((acc, it) => {
+    const mrp = num(it.mrp);
+    const qty = num(it.quantity);
+    return acc + mrp * qty;
+  }, 0);
+
   const subtotal       = subtotalServer ?? num(po?.amount ?? null);
-  const offerDiscount  = num(po?.appliedOfferDiscount);
-  const volumeDiscount = num(po?.appliedVolumeDiscountAmount);
-  const totalDiscount  = num(po?.totalDiscount) || (offerDiscount + volumeDiscount);
+  // Catalog discount = MRP total − items subtotal. This is the implicit
+  // discount baked into the seller's slab pricing (MRP × (1 − margin)).
+  const catalogDiscount = Math.max(0, mrpTotal - subtotal);
   const codFee         = po?.paymentOption === 'COD' ? num(po?.codHandlingCharge) : 0;
+  const deliveryCharge = num(po?.deliveryCharge);
   const walletAvail    = po?.buyerWalletAmount != null ? num(po.buyerWalletAmount) : 0;
   const walletPreApplied = num(po?.appliedWalletAmount);
-  const walletCap      = Math.max(0, Math.min(walletAvail, Math.max(0, subtotal - totalDiscount)));
+
+  // Coupon state — local to the dialog. The dashboard previews the
+  // discount via /preview-coupon but never writes anything until Place
+  // Order, so the agent can flip codes without leaving artifacts.
+  const [couponInput, setCouponInput] = useState<string>(po?.appliedOfferCode ?? '');
+  const [couponApplied, setCouponApplied] = useState<{ code: string; discount: number; description: string | null } | null>(
+    po?.appliedOfferCode && num(po?.appliedOfferDiscount) > 0
+      ? { code: po.appliedOfferCode, discount: num(po.appliedOfferDiscount), description: null }
+      : null,
+  );
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponList, setCouponList] = useState<CouponRow[]>([]);
+  const [showCouponPanel, setShowCouponPanel] = useState(false);
+  const [couponListLoaded, setCouponListLoaded] = useState(false);
+
+  const couponDiscount = couponApplied?.discount ?? 0;
+  const totalDiscount  = catalogDiscount + couponDiscount;
+
+  const walletCap      = Math.max(0, Math.min(walletAvail, Math.max(0, subtotal - couponDiscount)));
   const canUseWallet   = walletCap > 0;
 
-  // Start ON if the buyer's app already applied wallet (preserve their
-  // choice); otherwise default OFF so the user must opt in.
   const [useWallet, setUseWallet] = useState<boolean>(walletPreApplied > 0);
   const walletApplied  = useWallet ? walletCap : 0;
-  const payable        = Math.max(0, subtotal - totalDiscount - walletApplied + codFee);
+  const payable        = Math.max(0, subtotal - couponDiscount - walletApplied + deliveryCharge + codFee);
+
+  const loadCoupons = async () => {
+    if (couponListLoaded) return;
+    try {
+      const res = await fetch(`/api/order-place/coupons?poNumber=${encodeURIComponent(poNumber)}`, { cache: 'no-store' });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+      setCouponList((j.rows as CouponRow[]) ?? []);
+      setCouponListLoaded(true);
+    } catch (e) {
+      setCouponError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const applyCoupon = async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) { setCouponError('Enter a coupon code'); return; }
+    setCouponBusy(true);
+    setCouponError(null);
+    try {
+      const res = await fetch('/api/order-place/preview-coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ poNumber, code: trimmed }),
+        cache: 'no-store',
+      });
+      const j = await res.json();
+      if (!res.ok || !j.valid) throw new Error(j?.error || `HTTP ${res.status}`);
+      setCouponApplied({ code: j.code, discount: Number(j.discount), description: j.description ?? null });
+      setCouponInput(j.code);
+      setShowCouponPanel(false);
+    } catch (e) {
+      setCouponError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCouponBusy(false);
+    }
+  };
+  const clearCoupon = () => {
+    setCouponApplied(null);
+    setCouponInput('');
+    setCouponError(null);
+  };
 
   return (
     <div
@@ -2013,23 +2102,125 @@ function PlaceOrderConfirm({
           </p>
         </div>
 
-        {/* Bill details */}
-        <div className="px-6 py-4">
+        {/* Bill details — full checkout breakdown */}
+        <div className="px-6 py-4 max-h-[60vh] overflow-y-auto">
           <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold mb-2">Bill details</div>
           <div className="space-y-2 text-sm">
+            {mrpTotal > 0 && mrpTotal !== subtotal && (
+              <Row label="Total MRP" value={fmt(mrpTotal)} />
+            )}
             <Row label="Items subtotal" value={fmt(subtotal)} />
-            {totalDiscount > 0 && (
+            {catalogDiscount > 0 && (
+              <Row label="Catalog discount (MRP − slab)" value={`− ${fmt(catalogDiscount)}`} tone="discount" />
+            )}
+            {couponApplied && (
               <Row
-                label={offerDiscount > 0 && volumeDiscount > 0 ? 'Coupon + volume discount' : offerDiscount > 0 ? 'Coupon discount' : 'Discount'}
-                value={`− ${fmt(totalDiscount)}`}
+                label={`Coupon · ${couponApplied.code}`}
+                value={`− ${fmt(couponApplied.discount)}`}
                 tone="discount"
               />
             )}
 
-            {/* Wallet toggle row — Blinkit/Zepto-style. Always rendered
-                so the user knows the wallet exists; disabled when there
-                is nothing to apply. Captures both "available" and
-                "applied" in one row. */}
+            {/* Coupon section — Blinkit/Zepto style. Collapsed by default
+                to keep the dialog quiet; expands inline. */}
+            <div className={`mt-2 rounded-lg border ${couponApplied ? 'border-emerald-300/50 bg-emerald-500/10' : 'border-white/10 bg-white/[0.03]'} px-3 py-2 transition-colors`}>
+              {couponApplied ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="text-base leading-none" aria-hidden>🎟</span>
+                    <span className="leading-tight min-w-0">
+                      <span className="block text-sm text-white font-semibold truncate">{couponApplied.code} applied</span>
+                      <span className="block text-[10px] text-emerald-200/80 truncate">
+                        Saved <span className="font-semibold tabular-nums">{fmt(couponApplied.discount)}</span>
+                        {couponApplied.description && <> · {couponApplied.description}</>}
+                      </span>
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearCoupon}
+                    disabled={busy !== null}
+                    className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-white/10 hover:bg-rose-500/30 border border-white/15 hover:border-rose-400/50 text-purple-100 hover:text-rose-100 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => { setShowCouponPanel((v) => !v); void loadCoupons(); }}
+                    className="w-full flex items-center justify-between gap-2"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-base leading-none" aria-hidden>🎟</span>
+                      <span className="text-sm text-white font-semibold">Apply coupon</span>
+                      <span className="text-[10px] text-purple-300/70">See available or enter manually</span>
+                    </span>
+                    <span className={`text-purple-300 transition-transform ${showCouponPanel ? 'rotate-180' : ''}`} aria-hidden>▾</span>
+                  </button>
+                  {showCouponPanel && (
+                    <div className="mt-2 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={couponInput}
+                          onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(null); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(couponInput); } }}
+                          placeholder="Enter code"
+                          disabled={couponBusy || busy !== null}
+                          className="flex-1 px-3 py-1.5 rounded-md bg-white/5 border border-white/15 text-white text-sm tracking-wider uppercase placeholder:normal-case placeholder:tracking-normal focus:outline-none focus:border-fuchsia-400/60"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => applyCoupon(couponInput)}
+                          disabled={couponBusy || busy !== null || !couponInput.trim()}
+                          className="px-3 py-1.5 rounded-md bg-fuchsia-500/25 hover:bg-fuchsia-500/45 border border-fuchsia-400/40 text-fuchsia-100 text-[11px] font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
+                        >
+                          {couponBusy ? '…' : 'Apply'}
+                        </button>
+                      </div>
+                      {couponError && (
+                        <div className="text-[11px] text-rose-300 px-1">⚠ {couponError}</div>
+                      )}
+                      {couponList.length > 0 && (
+                        <div className="max-h-44 overflow-y-auto rounded-md border border-white/10 divide-y divide-white/5">
+                          {couponList.map((c) => (
+                            <div
+                              key={c.id}
+                              className={`flex items-center justify-between gap-2 px-2.5 py-1.5 ${c.eligible ? 'hover:bg-fuchsia-500/10' : 'opacity-60'}`}
+                            >
+                              <div className="min-w-0">
+                                <div className="text-[12px] font-bold tracking-wider text-white">{c.code}</div>
+                                <div className="text-[10px] text-purple-300/70 truncate">
+                                  {c.discountValue && `₹${c.discountValue} off`}
+                                  {c.minimumOrderValue && c.minimumOrderValue !== '0' && ` · min ₹${c.minimumOrderValue}`}
+                                  {!c.eligible && c.ineligibleReason && ` · ${c.ineligibleReason}`}
+                                  {c.description && c.eligible && ` · ${c.description}`}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => applyCoupon(c.code)}
+                                disabled={!c.eligible || couponBusy || busy !== null}
+                                className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/40 text-fuchsia-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              >
+                                Apply
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {couponListLoaded && couponList.length === 0 && (
+                        <div className="text-[10px] text-purple-300/60 italic">No coupons available for this PO.</div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Wallet toggle */}
             <div className={`mt-2 rounded-lg border ${useWallet && canUseWallet ? 'border-cyan-300/50 bg-gradient-to-r from-cyan-500/10 to-emerald-500/10' : 'border-white/10 bg-white/[0.03]'} px-3 py-2 transition-colors`}>
               <label className={`flex items-center justify-between gap-3 ${canUseWallet ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                 <span className="flex items-center gap-2 min-w-0">
@@ -2042,12 +2233,11 @@ function PlaceOrderConfirm({
                         <> · applying <span className="text-emerald-200 font-semibold tabular-nums">{fmt(walletApplied)}</span></>
                       )}
                       {canUseWallet && walletCap < walletAvail && (
-                        <> · capped at order total</>
+                        <> · capped at order net</>
                       )}
                     </span>
                   </span>
                 </span>
-                {/* Toggle switch */}
                 <span
                   role="switch"
                   aria-checked={useWallet && canUseWallet}
@@ -2062,7 +2252,6 @@ function PlaceOrderConfirm({
                     className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${useWallet && canUseWallet ? 'translate-x-[1.375rem]' : 'translate-x-0.5'}`}
                   />
                 </span>
-                {/* Hidden checkbox for a11y/form semantics */}
                 <input
                   type="checkbox"
                   className="sr-only"
@@ -2076,6 +2265,7 @@ function PlaceOrderConfirm({
             {walletApplied > 0 && (
               <Row label="Wallet applied" value={`− ${fmt(walletApplied)}`} tone="discount" />
             )}
+            {deliveryCharge > 0 && <Row label="Delivery charges" value={`+ ${fmt(deliveryCharge)}`} tone="surcharge" />}
             {codFee > 0 && <Row label="COD handling fee" value={`+ ${fmt(codFee)}`} tone="surcharge" />}
 
             <div className="border-t border-white/10 my-2" />
@@ -2083,6 +2273,11 @@ function PlaceOrderConfirm({
               <span className="text-[11px] uppercase tracking-wider text-emerald-200/80 font-semibold">To pay</span>
               <span className="tabular-nums font-extrabold text-emerald-100 text-2xl drop-shadow-[0_0_16px_rgba(110,231,183,0.5)]">{fmt(payable)}</span>
             </div>
+            {catalogDiscount + couponDiscount + walletApplied > 0 && (
+              <div className="text-[10px] text-emerald-300/80 text-right">
+                You saved <span className="font-semibold tabular-nums">{fmt(catalogDiscount + couponDiscount + walletApplied)}</span> on this order
+              </div>
+            )}
             {po?.paymentOption && (
               <div className="text-[10px] text-purple-300/60 text-right">
                 via <span className="text-purple-100 font-semibold">{po.paymentOption}</span>
@@ -2102,7 +2297,7 @@ function PlaceOrderConfirm({
             Cancel
           </button>
           <button
-            onClick={() => onConfirm(walletApplied)}
+            onClick={() => onConfirm(walletApplied, couponApplied?.code ?? null)}
             disabled={busy !== null}
             className="confirm-place-cta group relative overflow-hidden rounded-lg px-5 py-2.5 text-[12px] font-extrabold uppercase tracking-wider border border-emerald-200 text-emerald-950 bg-gradient-to-r from-emerald-200 via-lime-200 to-emerald-200 bg-[length:200%_100%] hover:bg-[position:100%_0] hover:scale-[1.03] active:scale-[0.98] shadow-md shadow-emerald-300/40 hover:shadow-lg hover:shadow-emerald-300/60 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >

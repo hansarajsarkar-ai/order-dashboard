@@ -6291,8 +6291,18 @@ export default function OrderStatusDashboard() {
                     <table className="w-full text-xs">
                       <thead className="sticky top-0 bg-slate-100 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                         <tr className="border-b border-slate-200">
-                          <SortTh k="pushed" label="Pushed" />
-                          <SortTh k="poNumber" label="PO Number" />
+                          <th
+                            onClick={() => toggleAlertSort('pushed')}
+                            className="sticky left-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
+                          >
+                            <span className="inline-flex items-center">Pushed{arrowFor('pushed')}</span>
+                          </th>
+                          <th
+                            onClick={() => toggleAlertSort('poNumber')}
+                            className="sticky left-[120px] z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                          >
+                            <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
+                          </th>
                           <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                           <SortTh k="status" label="Order Status" />
                           <SortTh k="poAmount" label="PO Amount" />
@@ -6325,18 +6335,19 @@ export default function OrderStatusDashboard() {
                       <tbody>
                         {filtered.slice(0, 2000).map((r, idx) => {
                           const isPushed = r.pushedStatus === 'Pushed';
+                          const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
                           return (
                             <tr
                               key={r.poNumber}
-                              className={`border-b border-slate-100 align-top transition-colors hover:bg-purple-50/70 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
+                              className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}
                             >
-                              <td className="px-2.5 py-2 whitespace-nowrap">
+                              <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap`}>
                                 <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isPushed ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
                                   <span className={`w-1.5 h-1.5 rounded-full ${isPushed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]' : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'}`} />
                                   {r.pushedStatus || 'Not Pushed'}
                                 </span>
                               </td>
-                              <td className="px-2.5 py-2 whitespace-nowrap">
+                              <td className={`sticky left-[120px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                                 <div className="inline-flex items-center gap-2">
                                   <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
                                   <a
@@ -6653,8 +6664,18 @@ export default function OrderStatusDashboard() {
                           );
                           return (
                             <>
-                              <SortTh k="pushed" label="Pushed" />
-                              <SortTh k="poNumber" label="PO Number" />
+                              <th
+                                onClick={() => togglePivotSort('pushed')}
+                                className="sticky left-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
+                              >
+                                <span className="inline-flex items-center">Pushed{arrowFor('pushed')}</span>
+                              </th>
+                              <th
+                                onClick={() => togglePivotSort('poNumber')}
+                                className="sticky left-[120px] z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                              >
+                                <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
+                              </th>
                               <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                               <SortTh k="status" label="Order Status" />
                               <SortTh k="poAmount" label="PO Amount" align="right" />
@@ -6691,18 +6712,20 @@ export default function OrderStatusDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r, idx) => (
+                      {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r, idx) => {
+                        const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                        return (
                         <tr
                           key={r.poNumber}
-                          className={`border-b border-slate-100 align-top transition-colors hover:bg-purple-50/70 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
+                          className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}
                         >
-                          <td className="px-2.5 py-2 whitespace-nowrap">
+                          <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap`}>
                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${r.pushedStatus === 'Pushed' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]' : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'}`} />
                               {r.pushedStatus || 'Not Pushed'}
                             </span>
                           </td>
-                          <td className="px-2.5 py-2 whitespace-nowrap">
+                          <td className={`sticky left-[120px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                             <div className="inline-flex items-center gap-2">
                               <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
                               <a
@@ -6774,7 +6797,8 @@ export default function OrderStatusDashboard() {
                             </>
                           )}
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}

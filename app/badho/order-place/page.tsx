@@ -1311,7 +1311,7 @@ function PoItemsModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const po = data?.po;
+  const po = data?.po ?? null;
   const items = data?.items ?? [];
   const isDraft = po?.status === 'DRAFT';
 

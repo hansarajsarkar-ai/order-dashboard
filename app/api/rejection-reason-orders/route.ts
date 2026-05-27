@@ -37,6 +37,7 @@ interface OrderDetailRow {
   reasonAddedByBadhoTeam: string | null;
   deliveryStatusPo: string | null;
   reason_category: string;
+  pushedStatus: string;
 }
 
 const REASON_CASE = `
@@ -153,12 +154,13 @@ export async function GET(req: NextRequest) {
         po."rejectedBy",
         po."reasonAddedByBadhoTeam",
         po."deliveryStatus"                                                                   AS "deliveryStatusPo",
-        ${REASON_CASE}                                                                        AS reason_category
+        ${REASON_CASE}                                                                        AS reason_category,
+        CASE WHEN dv."deliveryId" IS NOT NULL THEN 'Pushed' ELSE 'Not Pushed' END             AS "pushedStatus"
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
       LEFT JOIN LATERAL (
-        SELECT di."trackingInfo", di."status", di."codAmountToBeCollected"
+        SELECT di."id" AS "deliveryId", di."trackingInfo", di."status", di."codAmountToBeCollected"
         FROM "deliveries"."intercityDelivery" di
         WHERE di."purchaseOrderId" = po."id"
         ORDER BY di."created_at" DESC

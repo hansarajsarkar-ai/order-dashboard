@@ -66,6 +66,7 @@ interface OrderDetail {
   reasonAddedByBadhoTeam: string | null;
   deliveryStatusPo: string | null;
   reason_category: string;
+  pushedStatus: string | null;
 }
 
 interface ModalFilters {
@@ -913,13 +914,14 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                   <thead className="sticky top-0 bg-slate-100 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                     <tr className="border-b border-slate-200">
                       {[
-                        'PO Number','Items','Marked Pending','Order Status','PO Amount','Paid Amount',
-                        'Coupon Amount','Seller Discount','Badho Discount','Wallet','COD Amount',
-                        'Payment Option','AWB Number','Courier','Reason Category',
-                        'Seller Phone','Seller Business','Buyer Business','Buyer Phone','Buyer Address',
+                        'Pushed','PO Number','Items','Order Status','PO Amount','Paid Amount',
+                        'Coupon Amount','Seller Discount','Applied Wallet Amount','Payment Option',
+                        'AWB Number','Courier Name','COD Amount','Payment Option Badho Discount',
                         'Payment Date','Payment Event','Delivery Status',
+                        'Buyer Business','Buyer Phone','Buyer Address',
+                        'Seller Phone','Seller Business','Marked Pending',
                         'Refund Initiated','Refund Completed',
-                        'Reject Reason','Rejected By','Reason Added By Badho','Delivery Status (PO)',
+                        'Reject Reason','Rejected By','Reason Added By Badho Team',
                       ].map((h, i) => (
                         <th
                           key={i}
@@ -933,11 +935,18 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                   <tbody>
                     {filteredModalData.slice(0, 2000).map((r, idx) => {
                       const buyerAddr = [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_');
+                      const isPushed = r.pushedStatus === 'Pushed';
                       return (
                         <tr
                           key={`${r.poNumber}-${idx}`}
                           className={`border-b border-slate-100 align-top transition-colors hover:bg-purple-50/70 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
                         >
+                          <td className="px-2.5 py-2 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isPushed ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isPushed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]' : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'}`} />
+                              {r.pushedStatus || 'Not Pushed'}
+                            </span>
+                          </td>
                           <td className="px-2.5 py-2 text-slate-900 tabular-nums font-bold whitespace-nowrap">{r.poNumber || '—'}</td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {onViewItems && r.poNumber ? (
@@ -955,43 +964,35 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                               </button>
                             ) : <span className="text-slate-400">—</span>}
                           </td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime)}</td>
-                          <td className="px-2.5 py-2 whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">{r.orderStatus || '—'}</span>
-                          </td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount != null && Number(r.CoupanAmount) !== 0 ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller != null && Number(r.discountBySeller) !== 0 ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho != null && Number(r.PaymentOptionDiscountByBadho) !== 0 ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount != null && Number(r.appliedWalletAmount) !== 0 ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null && Number(r.codAmountToBeCollected) !== 0 ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200">{r.reason_category || '—'}</span>
-                          </td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-900 font-medium">{r.buyerBusinessName || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={buyerAddr}>
-                            {buyerAddr ? <div className="whitespace-normal break-words">{buyerAddr}</div> : <span className="text-slate-400">—</span>}
-                          </td>
+                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null && Number(r.codAmountToBeCollected) !== 0 ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho != null && Number(r.PaymentOptionDiscountByBadho) !== 0 ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDate(r.paymentDate)}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {r.deliveryStatusDv ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatusDv}</span> : <span className="text-slate-400">—</span>}
                           </td>
+                          <td className="px-2.5 py-2 text-slate-900 font-medium">{r.buyerBusinessName || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={buyerAddr}>
+                            {buyerAddr ? <div className="whitespace-normal break-words">{buyerAddr}</div> : <span className="text-slate-400">—</span>}
+                          </td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime)}</td>
                           <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{formatDate(r.RefundIntiatedTime)}</td>
                           <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{formatDate(r.RefundCompletedTime)}</td>
                           <td className="px-2.5 py-2 text-rose-700 max-w-[260px] truncate bg-rose-50/60" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/60">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-rose-700 max-w-[260px] truncate bg-rose-50/60" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 whitespace-nowrap">
-                            {r.deliveryStatusPo ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">{r.deliveryStatusPo}</span> : <span className="text-slate-400">—</span>}
-                          </td>
                         </tr>
                       );
                     })}

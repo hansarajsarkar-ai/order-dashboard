@@ -6079,92 +6079,121 @@ export default function OrderStatusDashboard() {
           </div>
         )}
 
-        {/* Alert Detail Modal */}
+        {/* Alert Detail Modal — same layout & columns as pivot drill modal */}
         {alertModalCategory && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/70 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-950/70 backdrop-blur-md"
             onClick={closeAlertModal}
           >
             <div
-              className="bg-white text-slate-900 border border-slate-200 rounded-xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden shadow-2xl"
+              className="relative bg-white text-slate-900 border border-purple-400/50 rounded-2xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden animate-corner-breath"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-rose-50 to-amber-50">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    SLA Breach Alerts
-                    <span className="text-rose-600 text-sm font-semibold ml-2">· {alertModalCategory === 'all' ? 'All Categories' : alertModalCategory}</span>
+              {/* breathing purple corner accents */}
+              <div className="pointer-events-none absolute -top-px -left-px w-20 h-20 rounded-tl-2xl border-t-2 border-l-2 border-purple-500 animate-edge-pulse" />
+              <div className="pointer-events-none absolute -top-px -right-px w-20 h-20 rounded-tr-2xl border-t-2 border-r-2 border-purple-500 animate-edge-pulse" style={{ animationDelay: '0.6s' }} />
+              <div className="pointer-events-none absolute -bottom-px -left-px w-20 h-20 rounded-bl-2xl border-b-2 border-l-2 border-purple-500 animate-edge-pulse" style={{ animationDelay: '1.2s' }} />
+              <div className="pointer-events-none absolute -bottom-px -right-px w-20 h-20 rounded-br-2xl border-b-2 border-r-2 border-purple-500 animate-edge-pulse" style={{ animationDelay: '1.8s' }} />
+
+              <div className="relative px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-purple-50 via-white to-fuchsia-50/60">
+                <div className="min-w-0">
+                  <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900 truncate">
+                    <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse shrink-0" />
+                    <span>SLA Breach Alerts</span>
+                    <span className="text-slate-400 text-sm font-normal mx-1">·</span>
+                    <span className="text-purple-700 text-sm font-bold">{alertModalCategory === 'all' ? 'All Categories' : alertModalCategory}</span>
                     {alertModalSeller && (
-                      <span className="text-slate-600 text-sm font-normal ml-2">· {alertModalSeller}</span>
+                      <>
+                        <span className="text-slate-400 text-sm font-normal mx-1">·</span>
+                        <span className="text-slate-700 text-sm font-semibold truncate">{alertModalSeller}</span>
+                      </>
                     )}
                   </h3>
-                  <p className="text-slate-500 text-xs">
+                  <p className="text-slate-500 text-xs mt-1">
                     {alertModalLoading
                       ? 'Loading…'
                       : alertModalData
-                      ? `${alertModalData.length} order${alertModalData.length === 1 ? '' : 's'} past SLA deadline`
+                      ? <span className="text-slate-900 font-semibold">{alertModalData.length} order{alertModalData.length === 1 ? '' : 's'} past SLA deadline</span>
                       : ''}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
+                    className="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 border border-purple-600 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_2px_8px_-2px_rgba(168,85,247,0.5)]"
                     disabled={!alertModalData || alertModalData.length === 0}
                     onClick={() => {
                       if (!alertModalData) return;
                       const headers = [
-                        'poNumber', 'MarkedpendingTime', 'markedInProgressTime', 'paymentDate', 'paymentEvent',
+                        'pushedStatus', 'poNumber', 'orderStatus',
+                        'poAmount', 'paidAmount', 'CoupanAmount',
+                        'discountBySeller', 'appliedWalletAmount',
+                        'PaymentOption', 'awbNumber', 'courierName', 'codAmountToBeCollected',
+                        'PaymentOptionDiscountByBadho', 'paymentDate', 'paymentEvent',
+                        'deliveryStatus', 'buyerBusinessName', 'buyerPhone', 'buyerAddress',
                         'sellerPhone', 'sellerBusinessName',
-                        'buyerPhone', 'buyerBusinessName', 'buyerAddress',
-                        'paidAmount', 'poAmount', 'CoupanAmount', 'orderStatus',
-                        'discountBySeller', 'PaymentOptionDiscountByBadho', 'appliedWalletAmount',
-                        'PaymentOption', 'awbNumber', 'courierName', 'deliveryStatus',
-                        'RefundIntiatedTime', 'RefundCompletedTime', 'codAmountToBeCollected',
-                        'pushedStatus', 'rejectReason', 'rejectedBy', 'reasonAddedByBadhoTeam',
-                        'seller_address_line1', 'seller_city', 'seller_state',
-                        'created_at', 'category', 'sla_breach_at',
+                        'MarkedpendingTime', 'RefundIntiatedTime', 'RefundCompletedTime',
+                        'paymentCategory', 'markedInProgressTime', 'slaBreachAt',
                       ];
                       const rows: CsvCell[][] = alertModalData.map((r) => [
-                        r.poNumber, r.MarkedpendingTime, r.markedInProgressTime, r.paymentDate, r.paymentEvent,
+                        r.pushedStatus, r.poNumber, r.orderStatus,
+                        r.poAmount, r.paidAmount, r.CoupanAmount,
+                        r.discountBySeller, r.appliedWalletAmount,
+                        r.PaymentOption, r.awbNumber, r.courierName, r.codAmountToBeCollected,
+                        r.PaymentOptionDiscountByBadho, r.paymentDate, r.paymentEvent,
+                        r.deliveryStatus, r.buyerBusinessName, r.buyerPhone, r.buyerFullAddress,
                         r.sellerPhone, r.sellerBusinessName,
-                        r.buyerPhone, r.buyerBusinessName, r.buyerFullAddress,
-                        r.paidAmount, r.poAmount, r.CoupanAmount, r.orderStatus,
-                        r.discountBySeller, r.PaymentOptionDiscountByBadho, r.appliedWalletAmount,
-                        r.PaymentOption, r.awbNumber, r.courierName, r.deliveryStatus,
-                        r.RefundIntiatedTime, r.RefundCompletedTime, r.codAmountToBeCollected,
-                        r.pushedStatus, r.rejectReason, r.rejectedBy, r.reasonAddedByBadhoTeam,
-                        r.sellerAddressLine1, r.sellerCity, r.sellerState,
-                        r.createdAt, r.category, r.slaBreachAt,
+                        r.MarkedpendingTime, r.RefundIntiatedTime, r.RefundCompletedTime,
+                        r.category, r.markedInProgressTime, r.slaBreachAt,
                       ]);
                       downloadCSV(`sla-breach-${alertModalCategory}.csv`, headers, rows);
                     }}
-                    className={DOWNLOAD_BTN_LIGHT_CLASS}
                   >
                     ↓ CSV
                   </button>
                   <button
                     onClick={closeAlertModal}
-                    className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 text-base font-semibold transition-all hover:rotate-90"
+                    aria-label="Close"
                   >
-                    Close
+                    ×
                   </button>
                 </div>
               </div>
-              <div className="px-4 py-2 border-b border-slate-200 bg-white">
-                <input
-                  type="text"
-                  value={alertModalSearch}
-                  onChange={(e) => setAlertModalSearch(e.target.value)}
-                  placeholder="Search PO, buyer, seller, address, AWB…"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400"
-                />
+              {/* Compact toolbar — matches pivot drill modal */}
+              <div className="relative px-4 py-2 border-b border-slate-200 bg-slate-50/80">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative w-64 max-w-full">
+                    <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="m20 20-3.5-3.5" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={alertModalSearch}
+                      onChange={(e) => setAlertModalSearch(e.target.value)}
+                      placeholder="Search PO, buyer, seller…"
+                      className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
+                    />
+                    {alertModalSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setAlertModalSearch('')}
+                        aria-label="Clear search"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 inline-flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700 text-xs"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex-1 overflow-auto">
+              <div className="relative flex-1 overflow-auto">
                 {alertModalLoading ? (
-                  <div className="px-6 py-16 text-center text-slate-500">Loading orders…</div>
+                  <div className="px-6 py-12 text-center text-slate-500">Loading orders…</div>
                 ) : alertModalError ? (
-                  <div className="px-6 py-16 text-center text-rose-600">Error: {alertModalError}</div>
+                  <div className="px-6 py-12 text-center text-rose-600">{alertModalError}</div>
                 ) : !alertModalData || alertModalData.length === 0 ? (
-                  <div className="px-6 py-16 text-center text-slate-500">No orders found</div>
+                  <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
                 ) : (() => {
                   const q = alertModalSearch.trim().toLowerCase();
                   const filtered = q
@@ -6179,64 +6208,57 @@ export default function OrderStatusDashboard() {
                         (r.courierName || '').toLowerCase().includes(q)
                       )
                     : alertModalData;
+                  const paymentCatColor: Record<string, string> = {
+                    'Fully_Paid':     'bg-emerald-100 text-emerald-700 border border-emerald-200',
+                    'Partially_Paid': 'bg-amber-100 text-amber-700 border border-amber-200',
+                    'COD':            'bg-cyan-100 text-cyan-700 border border-cyan-200',
+                    'Other':          'bg-purple-100 text-purple-700 border border-purple-200',
+                  };
                   return (
                     <table className="w-full text-xs">
-                      <thead className="sticky top-0 bg-slate-100 z-10 border-b border-slate-200">
-                        <tr>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Payment Option</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Items</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Marked Pending</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Marked In Progress</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-rose-600 whitespace-nowrap">SLA Breach At</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Pushed</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Order Status</th>
-                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">PO Amount</th>
-                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Paid Amount</th>
-                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Coupon Amount</th>
-                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Seller Discount</th>
-                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Badho Discount</th>
-                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Wallet Amount</th>
-                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">COD Amount</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Payment Option</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Payment Event</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Payment Date</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">AWB Number</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Courier Name</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Delivery Status</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Seller Phone</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Seller Business</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Buyer Business</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Refund Initiated</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Refund Completed</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Reject Reason</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Rejected By</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Reason Added By Badho</th>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Created At</th>
+                      <thead className="sticky top-0 bg-slate-100 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
+                        <tr className="border-b border-slate-200">
+                          {[
+                            'Pushed','PO Number','Items','Order Status','PO Amount','Paid Amount',
+                            'Coupon Amount','Seller Discount','Applied Wallet Amount','Payment Option',
+                            'AWB Number','Courier Name','COD Amount','Payment Option Badho Discount',
+                            'Payment Date','Payment Event','Delivery Status',
+                            'Buyer Business','Buyer Phone','Buyer Address',
+                            'Seller Phone','Seller Business','Marked Pending',
+                            'Refund Initiated','Refund Completed',
+                          ].map((h, i) => (
+                            <th
+                              key={i}
+                              className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider"
+                            >
+                              {h}
+                            </th>
+                          ))}
+                          {/* SLA-specific trailing columns */}
+                          <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider bg-purple-50/60">Payment Category</th>
+                          <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider bg-purple-50/60">Marked In Progress</th>
+                          <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-rose-700 whitespace-nowrap uppercase tracking-wider bg-rose-50/60">SLA Breach At</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filtered.slice(0, 2000).map((r) => {
-                          const colorMap: Record<string, string> = {
-                            'Fully_Paid':     'bg-emerald-100 text-emerald-700',
-                            'Partially_Paid': 'bg-amber-100 text-amber-700',
-                            'COD':            'bg-cyan-100 text-cyan-700',
-                            'Other':          'bg-purple-100 text-purple-700',
-                          };
+                        {filtered.slice(0, 2000).map((r, idx) => {
+                          const isPushed = r.pushedStatus === 'Pushed';
                           return (
-                            <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-rose-50/40 align-top">
-                              <td className="px-2.5 py-1.5 whitespace-nowrap">
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${colorMap[r.category] || 'bg-slate-100 text-slate-700'}`}>
-                                  {r.category}
+                            <tr
+                              key={r.poNumber}
+                              className={`border-b border-slate-100 align-top transition-colors hover:bg-purple-50/70 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
+                            >
+                              <td className="px-2.5 py-2 whitespace-nowrap">
+                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isPushed ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isPushed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]' : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'}`} />
+                                  {r.pushedStatus || 'Not Pushed'}
                                 </span>
                               </td>
-                              <td className="px-2.5 py-1.5 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
-                              <td className="px-2.5 py-1.5 whitespace-nowrap">
+                              <td className="px-2.5 py-2 text-slate-900 tabular-nums font-bold whitespace-nowrap">{r.poNumber}</td>
+                              <td className="px-2.5 py-2 whitespace-nowrap">
                                 <button
                                   onClick={() => openPoItemsModal(r.poNumber)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-[11px] font-semibold border border-indigo-200 hover:border-indigo-300 transition-colors"
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[11px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
                                   title="View items in this PO"
                                 >
                                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -6247,43 +6269,40 @@ export default function OrderStatusDashboard() {
                                   View Items
                                 </button>
                               </td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime)}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.markedInProgressTime ? formatDateTime(r.markedInProgressTime) : <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-2.5 py-1.5 text-rose-700 whitespace-nowrap font-medium">{formatDateTime(r.slaBreachAt)}</td>
-                              <td className="px-2.5 py-1.5 whitespace-nowrap">
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                  {r.pushedStatus}
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 whitespace-nowrap">
+                                {r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : <span className="text-slate-400">—</span>}
+                              </td>
+                              <td className="px-2.5 py-2 text-slate-900 font-medium">{r.buyerBusinessName || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={r.buyerFullAddress}>
+                                {r.buyerFullAddress ? <div className="whitespace-normal break-words">{r.buyerFullAddress}</div> : <span className="text-slate-400">—</span>}
+                              </td>
+                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime)}</td>
+                              <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400">—</span>}</td>
+                              {/* SLA-specific trailing columns */}
+                              <td className="px-2.5 py-2 whitespace-nowrap bg-purple-50/40">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${paymentCatColor[r.category] || 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
+                                  {r.category}
                                 </span>
                               </td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.orderStatus || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.PaymentOption || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.paymentEvent || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.courierName || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.deliveryStatus || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700">{r.sellerBusinessName || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700">{r.buyerBusinessName || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-600 max-w-md" title={r.buyerFullAddress}>
-                                {r.buyerFullAddress ? (
-                                  <div className="whitespace-normal break-words">{r.buyerFullAddress}</div>
-                                ) : <span className="text-slate-400 italic">—</span>}
-                              </td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 max-w-[240px] truncate" title={r.rejectReason || ''}>{r.rejectReason || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.rejectedBy || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 max-w-[240px] truncate" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || '—'}</td>
-                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-purple-50/40">{r.markedInProgressTime ? formatDateTime(r.markedInProgressTime) : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap font-semibold bg-rose-50/60">{formatDateTime(r.slaBreachAt)}</td>
                             </tr>
                           );
                         })}

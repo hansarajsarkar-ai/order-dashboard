@@ -5,9 +5,11 @@ export const dynamic = 'force-dynamic';
 
 const KAPILA_BRAND_ID = '7dae193a-96a1-4495-a9da-e2316fc0c2c7';
 
+type Granularity = 'day' | 'month' | 'year';
+
 interface Row {
   status: string;
-  yr: string;
+  period: string;
   total_po: string;
   total_amount: string;
 }
@@ -15,14 +17,30 @@ interface Row {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const brandId = searchParams.get('brandId') || KAPILA_BRAND_ID;
+  const gRaw = (searchParams.get('granularity') || 'year').toLowerCase();
+  const granularity: Granularity =
+    gRaw === 'day' ? 'day' : gRaw === 'month' ? 'month' : 'year';
+
+  // periodExpr: SQL fragment producing the column-bucket value as text.
+  // dateFilter:  optional SQL fragment limiting the date range (day view only).
+  let periodExpr: string;
+  let dateFilter = '';
+  if (granularity === 'day') {
+    periodExpr = `po."created_at"::date::text`;
+    // 90-day window for day view — keeps the column count manageable.
+    dateFilter = `AND po."created_at" >= (CURRENT_DATE - INTERVAL '90 days')`;
+  } else if (granularity === 'month') {
+    periodExpr = `to_char(po."created_at", 'YYYY-MM')`;
+  } else {
+    periodExpr = `EXTRACT(YEAR FROM po."created_at")::int::text`;
+  }
 
   try {
-    // DELIVERED is merged into COMPLETED — same fulfilled bucket from a business POV.
     const sql = `
       SELECT
         CASE WHEN po."status" IN ('COMPLETED','DELIVERED') THEN 'COMPLETED'
              ELSE po."status" END                         AS status,
-        EXTRACT(YEAR FROM po."created_at")::int::text     AS yr,
+        ${periodExpr}                                     AS period,
         COUNT(DISTINCT po."poNumber")                     AS total_po,
         COALESCE(SUM(poi."amount"::numeric), 0)::text     AS total_amount
       FROM "purchaseOrder"."purchaseOrderItem" poi
@@ -39,33 +57,31 @@ export async function GET(req: NextRequest) {
         AND s."isTest"                     = FALSE
         AND b."businessName" NOT ILIKE '%test%'
         AND s."businessName" NOT ILIKE '%test%'
-      GROUP BY
-        CASE WHEN po."status" IN ('COMPLETED','DELIVERED') THEN 'COMPLETED'
-             ELSE po."status" END,
-        EXTRACT(YEAR FROM po."created_at")
-      ORDER BY EXTRACT(YEAR FROM po."created_at") DESC, status;
+        ${dateFilter}
+      GROUP BY 1, ${periodExpr}
+      ORDER BY ${periodExpr} DESC, status;
     `;
 
     const rows = await query<Row>(sql, [brandId]);
 
     type Cell = { count: number; amount: number };
     const statusMap: Record<string, Record<string, Cell>> = {};
-    const byYear: Record<string, Cell> = {};
+    const byPeriod: Record<string, Cell> = {};
     const byStatus: Record<string, Cell> = {};
     const grand: Cell = { count: 0, amount: 0 };
 
     for (const r of rows) {
       const status = r.status;
-      const yr = r.yr;
+      const period = r.period;
       const count = parseInt(r.total_po, 10) || 0;
       const amount = parseFloat(r.total_amount) || 0;
 
       if (!statusMap[status]) statusMap[status] = {};
-      statusMap[status][yr] = { count, amount };
+      statusMap[status][period] = { count, amount };
 
-      if (!byYear[yr]) byYear[yr] = { count: 0, amount: 0 };
-      byYear[yr].count += count;
-      byYear[yr].amount += amount;
+      if (!byPeriod[period]) byPeriod[period] = { count: 0, amount: 0 };
+      byPeriod[period].count += count;
+      byPeriod[period].amount += amount;
 
       if (!byStatus[status]) byStatus[status] = { count: 0, amount: 0 };
       byStatus[status].count += count;
@@ -75,7 +91,7 @@ export async function GET(req: NextRequest) {
       grand.amount += amount;
     }
 
-    const years = Object.keys(byYear).sort((a, b) => (a < b ? 1 : -1));
+    const periods = Object.keys(byPeriod).sort((a, b) => (a < b ? 1 : -1));
     const statuses = Object.keys(byStatus).sort(
       (a, b) => byStatus[b].amount - byStatus[a].amount
     );
@@ -88,8 +104,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       data,
-      years,
-      totals: { byYear, grand },
+      periods,
+      granularity,
+      totals: { byPeriod, grand },
       brandId,
       timestamp: new Date().toISOString(),
     });

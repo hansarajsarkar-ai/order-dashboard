@@ -478,6 +478,10 @@ export default function OrderStatusDashboard() {
     buyerState: string | null;
     buyerCity: string | null;
     buyerFullAddress?: string;
+    buyerAddressLine1?: string | null;
+    buyerLandmark?: string | null;
+    buyerPincode?: string | null;
+    buyerDistrict?: string | null;
     sellerPhone: string | null;
     sellerBusinessName: string | null;
     deliveryNetwork: string | null;
@@ -6350,7 +6354,7 @@ export default function OrderStatusDashboard() {
                         <tr>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Status</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Address Details</th>
                           <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Amount</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Pending Time</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Delivered Time</th>
@@ -6370,7 +6374,34 @@ export default function OrderStatusDashboard() {
                                 r.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
                               }`}>{r.status}</span>
                             </td>
-                            <td className="px-3 py-2 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
+                            <td className="px-3 py-2 text-slate-600 text-[11px]" title={r.buyerFullAddress || ''}>
+                              {r.buyerAddressLine1 || r.buyerCity || r.buyerPincode ? (
+                                <div className="space-y-0.5 max-w-sm">
+                                  {r.buyerAddressLine1 && (
+                                    <div className="truncate" title={r.buyerAddressLine1}>
+                                      <span className="font-semibold text-slate-700">Addr:</span> {r.buyerAddressLine1}
+                                    </div>
+                                  )}
+                                  {r.buyerLandmark && (
+                                    <div className="truncate" title={r.buyerLandmark}>
+                                      <span className="font-semibold text-slate-700">LM:</span> {r.buyerLandmark}
+                                    </div>
+                                  )}
+                                  {r.buyerPincode && (
+                                    <div className="truncate">
+                                      <span className="font-semibold text-slate-700">Pin:</span> {r.buyerPincode}
+                                    </div>
+                                  )}
+                                  {(r.buyerCity || r.buyerDistrict || r.buyerState) && (
+                                    <div className="truncate">
+                                      <span className="font-semibold text-slate-700">Area:</span> {[r.buyerCity, r.buyerDistrict, r.buyerState].filter(Boolean).join(', ')}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic">—</span>
+                              )}
+                            </td>
                             <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{formatAmount(r.amount)}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.markedPendingTime || '—'}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.markedDeliveredTime || '—'}</td>

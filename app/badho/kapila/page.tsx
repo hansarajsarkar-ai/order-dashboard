@@ -226,11 +226,11 @@ function KapilaDashboard() {
   const grand = data?.totals.grand || { count: 0, amount: 0 };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 px-3 py-6 relative overflow-hidden">
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
 
-      <div className="w-[95%] mx-auto relative z-10">
+      <div className="w-full relative z-10">
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <Link
             href="/badho"

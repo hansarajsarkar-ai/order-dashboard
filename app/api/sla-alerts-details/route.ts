@@ -46,15 +46,21 @@ interface Row {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const category = searchParams.get('category'); // 'Fully_Paid' | 'Partially_Paid' | 'COD' | 'Other' | null (all)
+  const category = searchParams.get('category'); // 'Fully_Paid' | 'Partially_Paid' | 'COD' | 'Other' | 'all'
+  const sellerBusinessName = searchParams.get('sellerBusinessName'); // optional brand filter
 
   try {
     const params: (string | number)[] = [];
-    let categoryFilter = '';
-    if (category) {
+    const filterClauses: string[] = [];
+    if (category && category !== 'all') {
       params.push(category);
-      categoryFilter = `WHERE "category" = $${params.length}`;
+      filterClauses.push(`"category" = $${params.length}`);
     }
+    if (sellerBusinessName) {
+      params.push(sellerBusinessName);
+      filterClauses.push(`"sellerBusinessName" = $${params.length}`);
+    }
+    const categoryFilter = filterClauses.length > 0 ? `WHERE ${filterClauses.join(' AND ')}` : '';
 
     const sql = `
       WITH base AS (
@@ -230,6 +236,7 @@ export async function GET(req: NextRequest) {
       data,
       count: data.length,
       category: category || 'all',
+      sellerBusinessName: sellerBusinessName || null,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

@@ -467,10 +467,30 @@ export default function OrderStatusDashboard() {
   const [alertSummaryLoading, setAlertSummaryLoading] = useState(false);
   const [alertSummaryError, setAlertSummaryError] = useState<string | null>(null);
   const [alertModalCategory, setAlertModalCategory] = useState<string | null>(null);
+  const [alertModalSeller, setAlertModalSeller] = useState<string | null>(null);
   const [alertModalData, setAlertModalData] = useState<AlertDetailRow[] | null>(null);
   const [alertModalLoading, setAlertModalLoading] = useState(false);
   const [alertModalError, setAlertModalError] = useState<string | null>(null);
   const [alertModalSearch, setAlertModalSearch] = useState('');
+
+  // Alert tab — Brand-wise pivot (rows = seller, cols = payment category)
+  interface AlertBrandCell { count: number; amount: number; }
+  interface AlertBrandRow {
+    brand: string;
+    sellerBusinessName: string;
+    sellerPhone: string | null;
+    cells: Record<string, AlertBrandCell>;
+    total: AlertBrandCell;
+  }
+  const [alertBrandData, setAlertBrandData] = useState<{
+    data: AlertBrandRow[];
+    categories: string[];
+    totalsByCategory: Record<string, AlertBrandCell>;
+    grandTotal: AlertBrandCell;
+  } | null>(null);
+  const [alertBrandLoading, setAlertBrandLoading] = useState(false);
+  const [alertBrandError, setAlertBrandError] = useState<string | null>(null);
+  const [alertBrandSearch, setAlertBrandSearch] = useState('');
 
   // RTO tab
   interface RtoMonth { month: number; count: number; amount: number; }
@@ -1014,21 +1034,40 @@ export default function OrderStatusDashboard() {
     }
   };
 
+  const fetchAlertBrand = async () => {
+    try {
+      setAlertBrandLoading(true);
+      setAlertBrandError(null);
+      const res = await fetch('/api/sla-alerts-by-brand');
+      if (!res.ok) throw new Error('Failed to fetch brand-wise alerts');
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setAlertBrandData(json);
+    } catch (err) {
+      setAlertBrandError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setAlertBrandLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab !== 'alert') return;
-    if (alertSummary !== null) return;
-    fetchAlertSummary();
+    if (alertSummary === null) fetchAlertSummary();
+    if (alertBrandData === null) fetchAlertBrand();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  const openAlertModal = async (category: string) => {
+  const openAlertModal = async (category: string, sellerBusinessName?: string) => {
     setAlertModalCategory(category);
+    setAlertModalSeller(sellerBusinessName || null);
     setAlertModalSearch('');
     setAlertModalData(null);
     setAlertModalError(null);
     setAlertModalLoading(true);
     try {
-      const res = await fetch(`/api/sla-alerts-details?category=${encodeURIComponent(category)}`);
+      const params = new URLSearchParams({ category });
+      if (sellerBusinessName) params.set('sellerBusinessName', sellerBusinessName);
+      const res = await fetch(`/api/sla-alerts-details?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch alert details');
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -1042,6 +1081,7 @@ export default function OrderStatusDashboard() {
 
   const closeAlertModal = () => {
     setAlertModalCategory(null);
+    setAlertModalSeller(null);
     setAlertModalData(null);
     setAlertModalSearch('');
     setAlertModalError(null);
@@ -5570,6 +5610,203 @@ export default function OrderStatusDashboard() {
           </div>
         )}
 
+        {/* Brand-wise SLA breach pivot — rows = seller, columns = payment category */}
+        {activeTab === 'alert' && (
+          <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Brand-wise SLA Breach</h2>
+                <p className="text-purple-300 text-sm mt-1">
+                  Sellers × payment category · click any cell to see those PENDING orders
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={alertBrandSearch}
+                  onChange={(e) => setAlertBrandSearch(e.target.value)}
+                  placeholder="Search seller…"
+                  className="px-3 py-2 text-sm bg-white/10 border border-white/20 text-white placeholder-purple-300/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-400 w-56"
+                />
+                <button
+                  onClick={fetchAlertBrand}
+                  disabled={alertBrandLoading}
+                  className="px-4 py-2 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-500/40 text-fuchsia-200 text-sm font-semibold disabled:opacity-40"
+                >
+                  {alertBrandLoading ? 'Refreshing…' : '↻ Refresh'}
+                </button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              {alertBrandLoading && !alertBrandData ? (
+                <div className="px-8 py-16 text-center">
+                  <div className="inline-block w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin mb-3" />
+                  <p className="text-purple-300">Loading brand-wise breakdown…</p>
+                </div>
+              ) : alertBrandError ? (
+                <div className="px-8 py-12 text-center text-rose-300">Error: {alertBrandError}</div>
+              ) : !alertBrandData || alertBrandData.data.length === 0 ? (
+                <div className="px-8 py-12 text-center text-purple-300">No brand-wise SLA breaches right now.</div>
+              ) : (() => {
+                const q = alertBrandSearch.trim().toLowerCase();
+                const filteredRows = q
+                  ? alertBrandData.data.filter((r) =>
+                      r.sellerBusinessName.toLowerCase().includes(q) ||
+                      r.brand.toLowerCase().includes(q) ||
+                      (r.sellerPhone || '').toLowerCase().includes(q)
+                    )
+                  : alertBrandData.data;
+                const catColorBg: Record<string, string> = {
+                  'Fully_Paid':     'bg-emerald-500/10',
+                  'Partially_Paid': 'bg-amber-500/10',
+                  'COD':            'bg-cyan-500/10',
+                  'Other':          'bg-purple-500/10',
+                };
+                const catColorText: Record<string, string> = {
+                  'Fully_Paid':     'text-emerald-200',
+                  'Partially_Paid': 'text-amber-200',
+                  'COD':            'text-cyan-200',
+                  'Other':          'text-purple-200',
+                };
+                return (
+                  <table className="w-full text-sm">
+                    <thead className="bg-white/5 border-b border-white/10">
+                      <tr>
+                        <th
+                          rowSpan={2}
+                          className="px-4 py-3 text-left text-xs font-semibold text-purple-200 uppercase tracking-wide sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[280px]"
+                        >
+                          Seller (Brand)
+                        </th>
+                        {alertBrandData.categories.map((c) => (
+                          <th
+                            key={c}
+                            colSpan={2}
+                            className={`px-2 py-2 text-center text-xs font-semibold border-r border-white/10 ${catColorText[c]} ${catColorBg[c]}`}
+                          >
+                            {c}
+                          </th>
+                        ))}
+                        <th colSpan={2} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">
+                          Total
+                        </th>
+                      </tr>
+                      <tr className="bg-white/5 border-b border-white/10">
+                        {alertBrandData.categories.map((c) => (
+                          <Fragment key={c}>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium text-purple-300 ${catColorBg[c]}`}>Count</th>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium text-purple-300 border-r border-white/10 ${catColorBg[c]}`}>Amount</th>
+                          </Fragment>
+                        ))}
+                        <th className="px-2 py-2 text-right text-[10px] font-medium text-purple-100 bg-purple-500/20">Count</th>
+                        <th className="px-2 py-2 text-right text-[10px] font-medium text-purple-100 bg-purple-500/20 border-r border-white/10">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRows.map((row) => (
+                        <tr key={row.sellerBusinessName} className="border-b border-white/5 hover:bg-fuchsia-500/10 group">
+                          <td className="px-4 py-2.5 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90">
+                            <div className="text-white font-semibold text-sm leading-tight">{row.sellerBusinessName}</div>
+                            <div className="text-[10px] text-purple-300 tabular-nums leading-tight">
+                              {row.sellerPhone || '—'} · <span className="text-fuchsia-300">{row.brand}</span>
+                            </div>
+                          </td>
+                          {alertBrandData.categories.map((c) => {
+                            const cell = row.cells[c];
+                            const has = cell.count > 0;
+                            return (
+                              <Fragment key={c}>
+                                <td
+                                  onClick={() => has && openAlertModal(c, row.sellerBusinessName)}
+                                  className={`group/cell px-2 py-2.5 text-right text-purple-100 tabular-nums ${catColorBg[c]} ${has ? 'cursor-pointer' : ''}`}
+                                >
+                                  {has ? (
+                                    <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35] group-hover/cell:font-extrabold group-hover/cell:text-white group-hover/cell:[text-shadow:0_0_14px_rgba(217,70,239,0.95),0_0_28px_rgba(168,85,247,0.6)]">
+                                      {cell.count.toLocaleString()}
+                                    </span>
+                                  ) : (
+                                    <span className="text-purple-500/30">—</span>
+                                  )}
+                                </td>
+                                <td className={`group/cell px-2 py-2.5 text-right text-purple-200/90 tabular-nums border-r border-white/10 ${catColorBg[c]}`}>
+                                  {has ? (
+                                    <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.25] group-hover/cell:font-bold group-hover/cell:text-fuchsia-100">
+                                      {formatAmount(cell.amount)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-purple-500/30">—</span>
+                                  )}
+                                </td>
+                              </Fragment>
+                            );
+                          })}
+                          <td
+                            onClick={() => row.total.count > 0 && openAlertModal('all', row.sellerBusinessName)}
+                            className={`group/cell px-2 py-2.5 text-right font-bold text-white tabular-nums bg-purple-500/15 ${row.total.count > 0 ? 'cursor-pointer' : ''}`}
+                          >
+                            <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35] group-hover/cell:[text-shadow:0_0_16px_rgba(217,70,239,1),0_0_32px_rgba(168,85,247,0.7)]">
+                              {row.total.count.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="group/cell px-2 py-2.5 text-right font-bold text-fuchsia-300 tabular-nums bg-purple-500/15 border-r border-white/10">
+                            <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.25] group-hover/cell:text-fuchsia-100">
+                              {formatAmount(row.total.amount)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="bg-gradient-to-r from-fuchsia-500/20 via-purple-500/20 to-indigo-500/20 border-t-2 border-fuchsia-500/50 font-bold">
+                        <td className="px-4 py-3 sticky left-0 bg-slate-900/95 z-10 border-r border-white/10 text-white">
+                          Grand Total
+                        </td>
+                        {alertBrandData.categories.map((c) => {
+                          const t = alertBrandData.totalsByCategory[c];
+                          return (
+                            <Fragment key={c}>
+                              <td
+                                onClick={() => t.count > 0 && openAlertModal(c)}
+                                className={`group/cell px-2 py-3 text-right text-white tabular-nums ${catColorBg[c]} ${t.count > 0 ? 'cursor-pointer' : ''}`}
+                              >
+                                {t.count > 0 ? (
+                                  <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35]">
+                                    {t.count.toLocaleString()}
+                                  </span>
+                                ) : '—'}
+                              </td>
+                              <td className={`px-2 py-3 text-right text-fuchsia-200 tabular-nums border-r border-white/10 ${catColorBg[c]}`}>
+                                {t.count > 0 ? formatAmount(t.amount) : '—'}
+                              </td>
+                            </Fragment>
+                          );
+                        })}
+                        <td
+                          onClick={() => alertBrandData.grandTotal.count > 0 && openAlertModal('all')}
+                          className="group/cell px-2 py-3 text-right text-white tabular-nums bg-purple-500/25 cursor-pointer"
+                        >
+                          <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35]">
+                            {alertBrandData.grandTotal.count.toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="px-2 py-3 text-right text-fuchsia-200 tabular-nums bg-purple-500/25 border-r border-white/10">
+                          {formatAmount(alertBrandData.grandTotal.amount)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+            {alertBrandData && (
+              <div className="px-8 py-3 border-t border-white/10 bg-white/5 text-xs text-purple-300/70 flex items-center justify-between">
+                <span>
+                  {alertBrandData.data.length} sellers · {alertBrandData.grandTotal.count.toLocaleString()} total breached orders
+                </span>
+                <span>Last updated: {new Date(alertBrandData.grandTotal && Date.now()).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Alert Detail Modal */}
         {alertModalCategory && (
           <div
@@ -5585,6 +5822,9 @@ export default function OrderStatusDashboard() {
                   <h3 className="text-base font-bold text-slate-900">
                     SLA Breach Alerts
                     <span className="text-rose-600 text-sm font-semibold ml-2">· {alertModalCategory === 'all' ? 'All Categories' : alertModalCategory}</span>
+                    {alertModalSeller && (
+                      <span className="text-slate-600 text-sm font-normal ml-2">· {alertModalSeller}</span>
+                    )}
                   </h3>
                   <p className="text-slate-500 text-xs">
                     {alertModalLoading

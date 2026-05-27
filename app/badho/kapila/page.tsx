@@ -1,28 +1,12 @@
 'use client';
 
-import { Fragment, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { Fragment, useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface Cell {
   count: number;
   amount: number;
-}
-
-interface DayRow {
-  day: string;
-  cells: Record<string, Cell>;
-  total: Cell;
-}
-
-interface ApiResponse {
-  data: DayRow[];
-  statuses: string[];
-  totals: { byStatus: Record<string, Cell>; grand: Cell };
-  startDate: string;
-  endDate: string;
-  brandId: string;
-  timestamp: string;
 }
 
 interface YearStatusRow {
@@ -39,18 +23,6 @@ interface YearApiResponse {
   timestamp: string;
 }
 
-function ymd(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function defaultDates(): { startDate: string; endDate: string } {
-  const today = new Date();
-  return {
-    startDate: ymd(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)),
-    endDate: ymd(today),
-  };
-}
-
 function fmtAmount(n: number): string {
   if (!n) return '—';
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
@@ -62,11 +34,6 @@ function fmtAmount(n: number): string {
 function fmtCount(n: number): string {
   if (!n) return '—';
   return n.toLocaleString('en-IN');
-}
-
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -85,42 +52,12 @@ function statusClass(s: string): string {
 }
 
 export default function KapilaDashboardPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-          <div className="text-purple-200 text-sm">Loading…</div>
-        </div>
-      }
-    >
-      <KapilaDashboard />
-    </Suspense>
-  );
-}
-
-function KapilaDashboard() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-
   const [authChecked, setAuthChecked] = useState(false);
   const [employeeName, setEmployeeName] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  const initial = (() => {
-    const def = defaultDates();
-    return {
-      startDate: searchParams?.get('startDate') || def.startDate,
-      endDate: searchParams?.get('endDate') || def.endDate,
-    };
-  })();
-
-  const [startDate, setStartDate] = useState(initial.startDate);
-  const [endDate, setEndDate] = useState(initial.endDate);
-  const [data, setData] = useState<ApiResponse | null>(null);
   const [yearData, setYearData] = useState<YearApiResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [yearLoading, setYearLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -132,41 +69,6 @@ function KapilaDashboard() {
     setEmployeeName(localStorage.getItem('employeeName') || '');
     setAuthChecked(true);
   }, [router]);
-
-  const lastQueryRef = useRef('');
-  useEffect(() => {
-    if (!authChecked) return;
-    const def = defaultDates();
-    const qs = new URLSearchParams();
-    if (startDate !== def.startDate) qs.set('startDate', startDate);
-    if (endDate !== def.endDate) qs.set('endDate', endDate);
-    const q = qs.toString();
-    if (q === lastQueryRef.current) return;
-    lastQueryRef.current = q;
-    router.replace(q ? `?${q}` : '?', { scroll: false });
-  }, [startDate, endDate, authChecked, router]);
-
-  const fetchData = useCallback(async (s: string, e: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const qs = new URLSearchParams({ startDate: s, endDate: e });
-      const res = await fetch(`/api/kapila/status-date-pivot?${qs.toString()}`, { cache: 'no-store' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-      setData(json as ApiResponse);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!authChecked) return;
-    const t = setTimeout(() => fetchData(startDate, endDate), 250);
-    return () => clearTimeout(t);
-  }, [startDate, endDate, authChecked, fetchData]);
 
   const fetchYearData = useCallback(async () => {
     setYearLoading(true);
@@ -199,18 +101,6 @@ function KapilaDashboard() {
     router.replace('/login');
   };
 
-  const resetDates = () => {
-    const def = defaultDates();
-    setStartDate(def.startDate);
-    setEndDate(def.endDate);
-  };
-
-  const setRange = (days: number) => {
-    const today = new Date();
-    setEndDate(ymd(today));
-    setStartDate(ymd(new Date(today.getTime() - days * 24 * 60 * 60 * 1000)));
-  };
-
   if (!authChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -218,10 +108,6 @@ function KapilaDashboard() {
       </div>
     );
   }
-
-  const statuses = data?.statuses || [];
-  const rows = data?.data || [];
-  const grand = data?.totals.grand || { count: 0, amount: 0 };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 px-3 py-6 relative overflow-hidden">
@@ -259,71 +145,10 @@ function KapilaDashboard() {
           <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
             Kapila Dashboard
           </h1>
-          <p className="text-purple-200 text-sm mt-1">PO count & amount by status × date (Kapila brand only)</p>
+          <p className="text-purple-200 text-sm mt-1">PO count & amount by status × year (Kapila brand only)</p>
         </div>
 
-        {/* Filter bar */}
-        <div className="mb-6 p-4 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-purple-300">From</label>
-            <input
-              type="date"
-              value={startDate}
-              max={endDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="px-2 py-1.5 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:border-fuchsia-400/50 focus:outline-none"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-purple-300">To</label>
-            <input
-              type="date"
-              value={endDate}
-              min={startDate}
-              max={ymd(new Date())}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="px-2 py-1.5 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:border-fuchsia-400/50 focus:outline-none"
-            />
-          </div>
-          <div className="flex items-center gap-1 ml-2">
-            <button onClick={() => setRange(7)}  className="px-2 py-1 text-xs rounded-md bg-white/5 hover:bg-white/10 text-purple-200 border border-white/10">7d</button>
-            <button onClick={() => setRange(30)} className="px-2 py-1 text-xs rounded-md bg-white/5 hover:bg-white/10 text-purple-200 border border-white/10">30d</button>
-            <button onClick={() => setRange(90)} className="px-2 py-1 text-xs rounded-md bg-white/5 hover:bg-white/10 text-purple-200 border border-white/10">90d</button>
-            <button onClick={resetDates} className="px-2 py-1 text-xs rounded-md bg-white/5 hover:bg-white/10 text-purple-200 border border-white/10">Reset</button>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            {loading && <span className="text-xs text-purple-300">Loading…</span>}
-          </div>
-        </div>
-
-        {error && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-400/30 text-rose-200 text-sm">
-            <span className="font-semibold">Error:</span> {error}
-          </div>
-        )}
-
-        {/* KPI strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10">
-            <div className="text-xs text-purple-300">Total POs</div>
-            <div className="text-2xl font-bold text-white mt-1">{fmtCount(grand.count)}</div>
-          </div>
-          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10">
-            <div className="text-xs text-purple-300">Total Amount</div>
-            <div className="text-2xl font-bold text-white mt-1">{fmtAmount(grand.amount)}</div>
-          </div>
-          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10">
-            <div className="text-xs text-purple-300">Days with activity</div>
-            <div className="text-2xl font-bold text-white mt-1">{rows.length}</div>
-          </div>
-          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10">
-            <div className="text-xs text-purple-300">Statuses</div>
-            <div className="text-2xl font-bold text-white mt-1">{statuses.length}</div>
-          </div>
-        </div>
-
-        {/* Year × Status pivot (all-time, not date-filtered) */}
-        <div className="mt-8 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 overflow-hidden">
+        <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 overflow-hidden">
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
             <div className="text-sm font-semibold text-white">
               Status × Year pivot <span className="text-purple-300 font-normal">(all time)</span>

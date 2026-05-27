@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     const sql = `
       SELECT DISTINCT
         po."poNumber"::text AS "poNumber",
-        po."markedPendingTime"::date AS "MarkedpendingTime",
+        po."markedPendingTime" AS "MarkedpendingTime",
         pop."created_at" AS "paymentDate",
         pop."event" AS "paymentEvent",
         s."phone" AS "sellerPhone",

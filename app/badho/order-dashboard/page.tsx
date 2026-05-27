@@ -5830,78 +5830,34 @@ export default function OrderStatusDashboard() {
             onClick={closePoItemsModal}
           >
             <div
-              className="relative bg-gradient-to-br from-white via-indigo-50/40 to-fuchsia-50/30 text-slate-900 rounded-3xl w-[94vw] max-w-6xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_40px_120px_-20px_rgba(99,102,241,0.55),0_0_80px_-10px_rgba(168,85,247,0.4),inset_0_1px_0_rgba(255,255,255,0.8)] border border-white/80 animate-modal-scale"
+              className="relative bg-white text-slate-900 rounded-2xl w-[94vw] max-w-5xl max-h-[88vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45),0_0_60px_-10px_rgba(168,85,247,0.3)] border border-slate-200 animate-modal-scale"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Decorative gradient blobs */}
-              <div className="absolute -top-24 -right-24 w-72 h-72 bg-gradient-to-br from-fuchsia-300/40 to-indigo-400/40 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-gradient-to-br from-sky-300/30 to-purple-400/30 rounded-full blur-3xl pointer-events-none" />
 
-              {/* Hero header */}
-              <div className="relative px-7 pt-6 pb-5 border-b border-slate-200/60 bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white overflow-hidden">
-                {/* shimmer overlay */}
-                <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_30%,rgba(255,255,255,0.18)_50%,transparent_70%)] bg-[length:200%_100%] animate-shimmer pointer-events-none" />
-                {/* sparkle dots */}
-                <div className="absolute top-3 right-12 w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" />
-                <div className="absolute top-8 right-24 w-1 h-1 rounded-full bg-white/60 animate-pulse" style={{ animationDelay: '0.4s' }} />
-                <div className="absolute top-6 right-40 w-1 h-1 rounded-full bg-white/50 animate-pulse" style={{ animationDelay: '0.8s' }} />
-
-                <div className="relative flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-4 min-w-0">
-                    <div className="relative shrink-0">
-                      <div className="absolute inset-0 rounded-2xl bg-white/30 blur-md" />
-                      <div className="relative w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/40 flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_24px_-8px_rgba(0,0,0,0.3)]">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                          <line x1="12" y1="22.08" x2="12" y2="12" />
-                        </svg>
-                      </div>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-white/70 font-semibold">Purchase Order</div>
-                      <h3 className="text-2xl font-extrabold tracking-tight leading-tight">
-                        PO {poItemsModal}
-                      </h3>
-                      <p className="text-white/80 text-xs mt-1">
-                        Items, quantities &amp; line-item amounts
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={closePoItemsModal}
-                    className="shrink-0 w-9 h-9 rounded-xl bg-white/15 hover:bg-white/30 backdrop-blur-sm border border-white/30 text-white text-lg font-semibold transition-all hover:rotate-90 hover:scale-105"
-                    aria-label="Close"
-                  >
-                    ×
-                  </button>
+              {/* Hero header — minimal */}
+              <header className="relative px-6 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white overflow-hidden flex items-center justify-between gap-4">
+                <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_30%,rgba(255,255,255,0.14)_50%,transparent_70%)] bg-[length:200%_100%] animate-shimmer pointer-events-none" />
+                <div className="relative flex items-baseline gap-3 min-w-0">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-semibold">PO</span>
+                  <h3 className="text-xl font-extrabold tracking-tight truncate">{poItemsModal}</h3>
+                  {poItemsTotals && (
+                    <span className="hidden sm:flex items-baseline gap-4 ml-4 text-[12px] text-white/85">
+                      <span><span className="font-bold tabular-nums">{poItemsTotals.items}</span> <span className="text-white/60">SKUs</span></span>
+                      <span><span className="font-bold tabular-nums">{poItemsTotals.qty.toLocaleString('en-IN')}</span> <span className="text-white/60">qty</span></span>
+                      <span className="font-bold tabular-nums text-base">₹{poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                    </span>
+                  )}
                 </div>
+                <button
+                  onClick={closePoItemsModal}
+                  className="relative shrink-0 w-8 h-8 rounded-lg bg-white/15 hover:bg-white/30 text-white text-lg leading-none transition-all hover:rotate-90"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </header>
 
-                {/* Stat cards */}
-                {poItemsTotals && (
-                  <div className="relative grid grid-cols-3 gap-3 mt-5">
-                    {[
-                      { label: 'SKUs',     value: poItemsTotals.items.toLocaleString('en-IN'), icon: '📦' },
-                      { label: 'Quantity', value: poItemsTotals.qty.toLocaleString('en-IN'),   icon: '🔢' },
-                      { label: 'Amount',   value: `₹${poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`, icon: '💰' },
-                    ].map((stat) => (
-                      <div
-                        key={stat.label}
-                        className="rounded-xl bg-white/15 backdrop-blur-sm border border-white/25 px-4 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]"
-                      >
-                        <div className="text-[10px] uppercase tracking-wider text-white/70 font-semibold flex items-center gap-1.5">
-                          <span>{stat.icon}</span>{stat.label}
-                        </div>
-                        <div className="text-lg font-extrabold tabular-nums mt-0.5 truncate">
-                          {stat.value}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Toolbar: search, sort, status filter chips */}
+              {/* Toolbar — compact single row */}
               {poItemsData && poItemsData.length > 0 && (() => {
                 const statusCounts = poItemsData.reduce<Record<string, number>>((acc, it) => {
                   const s = it.status || '—';
@@ -5913,73 +5869,63 @@ export default function OrderStatusDashboard() {
                   const ai = statusOrder.indexOf(a); const bi = statusOrder.indexOf(b);
                   return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
                 });
+                const dotFor: Record<string, string> = {
+                  'REJECTED':    'bg-rose-500',
+                  'DELIVERED':   'bg-emerald-500',
+                  'COMPLETED':   'bg-emerald-500',
+                  'DISPATCHED':  'bg-blue-500',
+                  'IN_TRANSIT':  'bg-cyan-500',
+                  'IN_PROGRESS': 'bg-amber-500',
+                  'PENDING':     'bg-slate-400',
+                };
                 return (
-                  <div className="relative px-7 py-3 border-b border-slate-200/60 bg-white/60 backdrop-blur-sm flex items-center gap-3 flex-wrap">
-                    {/* search */}
-                    <div className="relative flex-1 min-w-[200px] max-w-md">
-                      <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <div className="px-6 py-2.5 border-b border-slate-200 bg-slate-50/70 flex items-center gap-2 flex-wrap text-xs">
+                    <div className="relative flex-1 min-w-[180px] max-w-xs">
+                      <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
                       </svg>
                       <input
                         type="text"
                         value={poItemsSearch}
                         onChange={(e) => setPoItemsSearch(e.target.value)}
-                        placeholder="Search SKUs…"
-                        className="w-full pl-9 pr-3 py-1.5 text-sm bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent shadow-sm"
+                        placeholder="Search SKU…"
+                        className="w-full pl-8 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 focus:border-indigo-300"
                       />
                     </div>
-                    {/* sort */}
-                    <div className="inline-flex items-center rounded-xl border border-slate-300 overflow-hidden bg-white shadow-sm">
-                      <span className="px-2 text-[10px] uppercase tracking-wider text-slate-400 font-bold border-r border-slate-200">Sort</span>
+                    <div className="inline-flex items-center rounded-md border border-slate-200 overflow-hidden bg-white">
                       {(['amount', 'qty', 'name'] as const).map((s) => (
                         <button
                           key={s}
                           onClick={() => setPoItemsSort(s)}
-                          className={`px-2.5 py-1.5 text-xs font-semibold capitalize transition-colors ${
-                            poItemsSort === s
-                              ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-inner'
-                              : 'text-slate-600 hover:bg-slate-100'
+                          className={`px-2.5 py-1.5 text-[11px] font-semibold capitalize transition-colors ${
+                            poItemsSort === s ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100'
                           }`}
                         >
                           {s}
                         </button>
                       ))}
                     </div>
-                    {/* status filter chips */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-1 flex-wrap ml-auto">
                       <button
                         onClick={() => setPoItemsStatusFilter('all')}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
-                          poItemsStatusFilter === 'all'
-                            ? 'bg-slate-900 text-white shadow-md'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                          poItemsStatusFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-100'
                         }`}
                       >
-                        All <span className="ml-1 opacity-75 tabular-nums">{poItemsData.length}</span>
+                        All <span className="opacity-70 tabular-nums">{poItemsData.length}</span>
                       </button>
                       {sortedStatuses.map((s) => {
                         const active = poItemsStatusFilter === s;
-                        const palette: Record<string, string> = {
-                          'REJECTED':    'from-rose-500 to-red-500',
-                          'DELIVERED':   'from-emerald-500 to-teal-500',
-                          'COMPLETED':   'from-emerald-500 to-teal-500',
-                          'DISPATCHED':  'from-blue-500 to-indigo-500',
-                          'IN_TRANSIT':  'from-cyan-500 to-sky-500',
-                          'IN_PROGRESS': 'from-amber-500 to-orange-500',
-                          'PENDING':     'from-slate-400 to-slate-500',
-                        };
-                        const grad = palette[s] || 'from-slate-400 to-slate-500';
                         return (
                           <button
                             key={s}
                             onClick={() => setPoItemsStatusFilter(active ? 'all' : s)}
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
-                              active
-                                ? `bg-gradient-to-r ${grad} text-white shadow-md scale-105`
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                              active ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
                             }`}
                           >
-                            {s} <span className={`ml-1 tabular-nums ${active ? 'opacity-90' : 'opacity-60'}`}>{statusCounts[s]}</span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${dotFor[s] || 'bg-slate-400'}`} />
+                            {s} <span className="opacity-70 tabular-nums">{statusCounts[s]}</span>
                           </button>
                         );
                       })}
@@ -5988,46 +5934,44 @@ export default function OrderStatusDashboard() {
                 );
               })()}
 
-              {/* Body */}
-              <div className="relative flex-1 overflow-auto px-5 py-4">
+              {/* Body — clean table */}
+              <div className="relative flex-1 overflow-auto">
                 {poItemsLoading ? (
-                  <div className="space-y-2.5">
+                  <div className="px-6 py-6 space-y-2">
                     {[1, 2, 3, 4, 5].map((i) => (
                       <div
                         key={i}
-                        className="rounded-2xl bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 h-16 animate-shimmer-skeleton"
+                        className="rounded-md h-10 animate-shimmer-skeleton"
                         style={{ backgroundSize: '400% 100%', animationDelay: `${i * 80}ms` }}
                       />
                     ))}
-                    <p className="text-center text-slate-400 text-xs mt-4">Fetching items…</p>
                   </div>
                 ) : poItemsError ? (
-                  <div className="px-6 py-16 text-center">
-                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-rose-100 text-rose-600 text-2xl mb-3">⚠</div>
-                    <p className="text-rose-600 font-medium">{poItemsError}</p>
-                  </div>
+                  <div className="px-6 py-16 text-center text-rose-600 text-sm">⚠ {poItemsError}</div>
                 ) : !poItemsData || poItemsData.length === 0 ? (
-                  <div className="px-6 py-16 text-center">
-                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-100 text-slate-400 text-2xl mb-3">📭</div>
-                    <p className="text-slate-500">No items found for this PO</p>
-                  </div>
+                  <div className="px-6 py-16 text-center text-slate-500 text-sm">No items found for this PO</div>
                 ) : (() => {
                   const maxAmount = Math.max(...poItemsData.map((i) => i.amount || 0), 1);
                   const topAmount = maxAmount;
-                  const statusColor = (s: string | null) => {
-                    switch (s) {
-                      case 'REJECTED':    return { bg: 'bg-gradient-to-r from-rose-500 to-red-500', text: 'text-white', ring: 'ring-rose-300', dot: 'bg-rose-400' };
-                      case 'DELIVERED':
-                      case 'COMPLETED':   return { bg: 'bg-gradient-to-r from-emerald-500 to-teal-500', text: 'text-white', ring: 'ring-emerald-300', dot: 'bg-emerald-400' };
-                      case 'DISPATCHED':  return { bg: 'bg-gradient-to-r from-blue-500 to-indigo-500', text: 'text-white', ring: 'ring-blue-300', dot: 'bg-blue-400' };
-                      case 'IN_TRANSIT':  return { bg: 'bg-gradient-to-r from-cyan-500 to-sky-500', text: 'text-white', ring: 'ring-cyan-300', dot: 'bg-cyan-400' };
-                      case 'IN_PROGRESS': return { bg: 'bg-gradient-to-r from-amber-500 to-orange-500', text: 'text-white', ring: 'ring-amber-300', dot: 'bg-amber-400' };
-                      case 'PENDING':     return { bg: 'bg-gradient-to-r from-slate-400 to-slate-500', text: 'text-white', ring: 'ring-slate-300', dot: 'bg-slate-400' };
-                      default:            return { bg: 'bg-slate-200', text: 'text-slate-700', ring: 'ring-slate-300', dot: 'bg-slate-400' };
-                    }
+                  const dotFor: Record<string, string> = {
+                    'REJECTED':    'bg-rose-500',
+                    'DELIVERED':   'bg-emerald-500',
+                    'COMPLETED':   'bg-emerald-500',
+                    'DISPATCHED':  'bg-blue-500',
+                    'IN_TRANSIT':  'bg-cyan-500',
+                    'IN_PROGRESS': 'bg-amber-500',
+                    'PENDING':     'bg-slate-400',
+                  };
+                  const textFor: Record<string, string> = {
+                    'REJECTED':    'text-rose-700',
+                    'DELIVERED':   'text-emerald-700',
+                    'COMPLETED':   'text-emerald-700',
+                    'DISPATCHED':  'text-blue-700',
+                    'IN_TRANSIT':  'text-cyan-700',
+                    'IN_PROGRESS': 'text-amber-700',
+                    'PENDING':     'text-slate-600',
                   };
 
-                  // filter + sort
                   const q = poItemsSearch.trim().toLowerCase();
                   let rows = poItemsData.filter((it) =>
                     (poItemsStatusFilter === 'all' || it.status === poItemsStatusFilter) &&
@@ -6042,212 +5986,95 @@ export default function OrderStatusDashboard() {
                   });
 
                   if (rows.length === 0) {
-                    return (
-                      <div className="px-6 py-16 text-center">
-                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-100 text-slate-400 text-2xl mb-3">🔍</div>
-                        <p className="text-slate-500">No items match your filters</p>
-                      </div>
-                    );
+                    return <div className="px-6 py-16 text-center text-slate-500 text-sm">No items match your filters</div>;
                   }
 
                   return (
-                    <div className="space-y-2.5">
-                      {rows.map((it, idx) => {
-                        const sc = statusColor(it.status);
-                        const barPct = it.amount ? Math.max(4, (it.amount / maxAmount) * 100) : 0;
-                        const isTop = it.amount != null && it.amount === topAmount && poItemsData.length > 1;
-                        return (
-                          <div
-                            key={it.id}
-                            className={`group relative rounded-2xl overflow-hidden transition-all duration-300 ease-out animate-card-in ${
-                              isTop
-                                ? 'bg-gradient-to-r from-amber-50 via-white to-yellow-50 border-2 border-amber-300 shadow-[0_8px_24px_-8px_rgba(245,158,11,0.35),inset_0_1px_0_rgba(255,255,255,0.8)] hover:shadow-[0_14px_36px_-8px_rgba(245,158,11,0.5)]'
-                                : 'bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-[0_12px_32px_-10px_rgba(99,102,241,0.35)]'
-                            } hover:-translate-y-0.5 hover:scale-[1.01]`}
-                            style={{ animationDelay: `${idx * 35}ms` }}
-                          >
-                            {/* TOP badge ribbon */}
-                            {isTop && (
-                              <div className="absolute top-0 right-0 z-10">
-                                <div className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 text-amber-900 text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-bl-xl shadow-md flex items-center gap-1">
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                    <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm0 2h14v2H5v-2z"/>
-                                  </svg>
-                                  TOP ITEM
-                                </div>
-                              </div>
-                            )}
-
-                            {/* amount intensity bar on the left */}
-                            <div
-                              className={`absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 group-hover:w-1.5 ${
-                                isTop
-                                  ? 'bg-gradient-to-b from-amber-400 via-yellow-500 to-amber-500'
-                                  : 'bg-gradient-to-b from-indigo-400 via-purple-500 to-fuchsia-500'
-                              }`}
-                              style={{ opacity: 0.4 + (barPct / 100) * 0.6 }}
-                            />
-
-                            <div className="flex items-center gap-4 pl-5 pr-4 py-3">
-                              {/* Numbered avatar */}
-                              <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-[12px] font-extrabold tabular-nums shadow-sm group-hover:scale-110 group-hover:rotate-3 transition-transform ${
-                                isTop
-                                  ? 'bg-gradient-to-br from-amber-300 to-yellow-400 border border-amber-400 text-amber-900'
-                                  : 'bg-gradient-to-br from-indigo-100 to-purple-100 border border-indigo-200 text-indigo-700'
-                              }`}>
+                    <table className="w-full text-sm border-separate border-spacing-0">
+                      <thead className="sticky top-0 bg-white z-10">
+                        <tr className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                          <th className="px-3 py-2 text-left w-8 border-b border-slate-200">#</th>
+                          <th className="pl-2 pr-3 py-2 text-left border-b border-slate-200">SKU</th>
+                          <th className="px-3 py-2 text-left border-b border-slate-200 w-32">Status</th>
+                          <th className="px-3 py-2 text-right border-b border-slate-200 w-24">Qty</th>
+                          <th className="px-3 py-2 text-right border-b border-slate-200 w-24">Unit</th>
+                          <th className="px-3 py-2 text-right border-b border-slate-200 w-24">Discount</th>
+                          <th className="px-3 py-2 text-right border-b border-slate-200 w-40">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((it, idx) => {
+                          const barPct = it.amount ? Math.max(2, (it.amount / maxAmount) * 100) : 0;
+                          const isTop = it.amount != null && it.amount === topAmount && poItemsData.length > 1;
+                          return (
+                            <tr
+                              key={it.id}
+                              className={`group transition-colors hover:bg-indigo-50/50 animate-card-in ${isTop ? 'bg-amber-50/60' : ''}`}
+                              style={{ animationDelay: `${idx * 25}ms` }}
+                            >
+                              <td className={`px-3 py-2.5 text-[11px] tabular-nums border-b border-slate-100 font-semibold ${isTop ? 'text-amber-600' : 'text-slate-400'}`}>
                                 {isTop ? '★' : idx + 1}
-                              </div>
-
-                              {/* SKU name + brand */}
-                              <div className="flex-1 min-w-0">
-                                <div className={`font-bold text-sm leading-snug truncate ${isTop ? 'text-amber-900' : 'text-slate-900'}`}>
+                              </td>
+                              <td className="pl-2 pr-3 py-2.5 border-b border-slate-100 max-w-0">
+                                <div className={`font-semibold truncate ${isTop ? 'text-amber-900' : 'text-slate-900'}`}>
                                   {it.skuLabel || <span className="text-slate-400 italic font-normal">Unnamed SKU</span>}
                                 </div>
-                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                  {it.brandLabel && (
-                                    <span className="text-[10px] text-slate-500 font-medium truncate max-w-[180px]">
-                                      🏷 {it.brandLabel}
-                                    </span>
-                                  )}
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${sc.bg} ${sc.text} ring-1 ring-inset ring-white/30 shadow-sm`}>
-                                    <span className={`w-1 h-1 rounded-full ${sc.dot} animate-pulse`} />
-                                    {it.status || '—'}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Quantity chip */}
-                              <div className="shrink-0 text-right">
-                                <div className={`inline-flex items-baseline gap-1 px-3 py-1.5 rounded-xl border ${
-                                  isTop ? 'bg-amber-100 border-amber-200' : 'bg-slate-50 border-slate-200'
-                                }`}>
-                                  <span className={`text-lg font-extrabold tabular-nums leading-none ${isTop ? 'text-amber-900' : 'text-slate-900'}`}>
-                                    {it.quantity != null ? it.quantity.toLocaleString('en-IN') : '—'}
-                                  </span>
-                                  <span className="text-[10px] text-slate-500 font-medium">{it.quantityUnit || 'qty'}</span>
-                                </div>
-                              </div>
-
-                              {/* Unit price */}
-                              <div className="shrink-0 hidden md:flex flex-col items-end leading-tight">
-                                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Unit</div>
-                                <div className="text-sm font-semibold text-slate-700 tabular-nums">
-                                  {it.unitPrice != null ? `₹${it.unitPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
-                                </div>
-                              </div>
-
-                              {/* Discount */}
-                              {it.discount ? (
-                                <div className="shrink-0 hidden md:flex flex-col items-end leading-tight">
-                                  <div className="text-[10px] text-amber-500 uppercase tracking-wider font-semibold">Discount</div>
-                                  <div className="text-sm font-semibold text-amber-600 tabular-nums">
-                                    −₹{it.discount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                                  </div>
-                                </div>
-                              ) : null}
-
-                              {/* Final amount with gradient bar */}
-                              <div className="shrink-0 text-right min-w-[130px]">
-                                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Amount</div>
-                                <div className={`text-lg font-extrabold tabular-nums bg-clip-text text-transparent ${
-                                  isTop
-                                    ? 'bg-gradient-to-r from-amber-600 via-yellow-600 to-orange-600'
-                                    : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600'
-                                }`}>
+                                {it.brandLabel && (
+                                  <div className="text-[10px] text-slate-400 truncate mt-0.5">{it.brandLabel}</div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5 border-b border-slate-100">
+                                <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${textFor[it.status || ''] || 'text-slate-600'}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${dotFor[it.status || ''] || 'bg-slate-400'}`} />
+                                  {it.status || '—'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums border-b border-slate-100">
+                                <span className="font-semibold text-slate-900">{it.quantity != null ? it.quantity.toLocaleString('en-IN') : '—'}</span>
+                                {it.quantityUnit ? <span className="text-[10px] text-slate-400 ml-0.5">{it.quantityUnit}</span> : null}
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 border-b border-slate-100">
+                                {it.unitPrice != null ? `₹${it.unitPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums border-b border-slate-100">
+                                {it.discount ? <span className="text-amber-600 font-medium">−₹{it.discount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span> : <span className="text-slate-300">—</span>}
+                              </td>
+                              <td className="px-3 py-2.5 text-right border-b border-slate-100">
+                                <div className={`font-bold tabular-nums leading-none ${isTop ? 'text-amber-700' : 'text-slate-900'}`}>
                                   {it.amount != null ? `₹${it.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
                                 </div>
-                                {/* mini progress bar */}
-                                <div className="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="mt-1 h-0.5 bg-slate-100 rounded-full overflow-hidden">
                                   <div
-                                    className={`h-full rounded-full transition-all duration-700 ease-out ${
-                                      isTop
-                                        ? 'bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500'
-                                        : 'bg-gradient-to-r from-indigo-400 via-purple-500 to-fuchsia-500'
-                                    }`}
+                                    className={`h-full rounded-full transition-all duration-700 ${isTop ? 'bg-amber-400' : 'bg-gradient-to-r from-indigo-400 to-fuchsia-500'}`}
                                     style={{ width: `${barPct}%` }}
                                   />
                                 </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   );
                 })()}
               </div>
 
-              {/* Sticky footer total */}
-              {poItemsTotals && poItemsData && poItemsData.length > 0 && (() => {
-                // status breakdown for the footer
-                const byStatus = poItemsData.reduce<Record<string, { qty: number; amount: number }>>((acc, it) => {
-                  const s = it.status || '—';
-                  if (!acc[s]) acc[s] = { qty: 0, amount: 0 };
-                  acc[s].qty += it.quantity || 0;
-                  acc[s].amount += it.amount || 0;
-                  return acc;
-                }, {});
-                const order = ['DELIVERED', 'COMPLETED', 'DISPATCHED', 'IN_TRANSIT', 'IN_PROGRESS', 'PENDING', 'REJECTED'];
-                const breakdownEntries = Object.entries(byStatus).sort(([a], [b]) => {
-                  const ai = order.indexOf(a); const bi = order.indexOf(b);
-                  return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
-                });
-                const statusDot: Record<string, string> = {
-                  'REJECTED':    'bg-rose-500',
-                  'DELIVERED':   'bg-emerald-500',
-                  'COMPLETED':   'bg-emerald-500',
-                  'DISPATCHED':  'bg-blue-500',
-                  'IN_TRANSIT':  'bg-cyan-500',
-                  'IN_PROGRESS': 'bg-amber-500',
-                  'PENDING':     'bg-slate-400',
-                };
-                return (
-                  <div className="relative border-t border-slate-200/60 bg-gradient-to-r from-indigo-50 via-white to-fuchsia-50">
-                    {/* status breakdown strip */}
-                    <div className="px-7 pt-2.5 pb-1.5 flex items-center gap-3 flex-wrap text-[10px]">
-                      <span className="uppercase tracking-wider text-slate-400 font-semibold shrink-0">By status:</span>
-                      {breakdownEntries.map(([s, v]) => (
-                        <span key={s} className="inline-flex items-center gap-1.5 text-slate-700">
-                          <span className={`w-1.5 h-1.5 rounded-full ${statusDot[s] || 'bg-slate-400'}`} />
-                          <span className="font-semibold tracking-wide">{s}</span>
-                          <span className="text-slate-500 tabular-nums">
-                            {v.qty.toLocaleString('en-IN')} qty · ₹{v.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                          </span>
-                        </span>
-                      ))}
-                    </div>
-                    {/* main total bar */}
-                    <div className="px-7 py-3 flex items-center justify-between border-t border-white/70">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-md">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                          </svg>
-                        </div>
-                        <div>
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Order Total</div>
-                          <div className="text-[10px] text-slate-400">{poItemsTotals.items} SKU{poItemsTotals.items === 1 ? '' : 's'} in this PO</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-right">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total Qty</div>
-                          <div className="text-base font-extrabold tabular-nums text-slate-900">
-                            {poItemsTotals.qty.toLocaleString('en-IN')}
-                          </div>
-                        </div>
-                        <div className="w-px h-10 bg-slate-300" />
-                        <div className="text-right">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total Amount</div>
-                          <div className="text-2xl font-extrabold tabular-nums bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent leading-none">
-                            ₹{poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
+              {/* Footer — single clean line */}
+              {poItemsTotals && poItemsData && poItemsData.length > 0 && (
+                <footer className="px-6 py-3 border-t border-slate-200 bg-slate-50/80 flex items-center justify-between text-xs">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                    {poItemsTotals.items} SKU{poItemsTotals.items === 1 ? '' : 's'} · Order Total
+                  </span>
+                  <span className="flex items-baseline gap-5">
+                    <span className="text-slate-500">
+                      <span className="font-bold tabular-nums text-slate-900 text-sm">{poItemsTotals.qty.toLocaleString('en-IN')}</span> qty
+                    </span>
+                    <span className="text-xl font-extrabold tabular-nums bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent leading-none">
+                      ₹{poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </span>
+                  </span>
+                </footer>
+              )}
             </div>
           </div>
         )}

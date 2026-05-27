@@ -17,9 +17,11 @@ export async function GET(req: NextRequest) {
   const brandId = searchParams.get('brandId') || KAPILA_BRAND_ID;
 
   try {
+    // DELIVERED is merged into COMPLETED — same fulfilled bucket from a business POV.
     const sql = `
       SELECT
-        po."status"                                       AS status,
+        CASE WHEN po."status" IN ('COMPLETED','DELIVERED') THEN 'COMPLETED'
+             ELSE po."status" END                         AS status,
         EXTRACT(YEAR FROM po."created_at")::int::text     AS yr,
         COUNT(DISTINCT po."poNumber")                     AS total_po,
         COALESCE(SUM(poi."amount"::numeric), 0)::text     AS total_amount
@@ -37,8 +39,11 @@ export async function GET(req: NextRequest) {
         AND s."isTest"                     = FALSE
         AND b."businessName" NOT ILIKE '%test%'
         AND s."businessName" NOT ILIKE '%test%'
-      GROUP BY po."status", EXTRACT(YEAR FROM po."created_at")
-      ORDER BY EXTRACT(YEAR FROM po."created_at") DESC, po."status";
+      GROUP BY
+        CASE WHEN po."status" IN ('COMPLETED','DELIVERED') THEN 'COMPLETED'
+             ELSE po."status" END,
+        EXTRACT(YEAR FROM po."created_at")
+      ORDER BY EXTRACT(YEAR FROM po."created_at") DESC, status;
     `;
 
     const rows = await query<Row>(sql, [brandId]);

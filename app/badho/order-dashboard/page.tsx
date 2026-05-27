@@ -415,6 +415,63 @@ export default function OrderStatusDashboard() {
   const [sellerDrillStatus, setSellerDrillStatus] = useState<string>('all');
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography' | 'alert'>('dashboard');
+
+  // Alert tab — SLA breach alerts
+  interface AlertSummaryRow {
+    category: string;
+    poCount: number;
+    totalPoAmount: number;
+  }
+  interface AlertDetailRow {
+    poNumber: string;
+    MarkedpendingTime: string | null;
+    paymentDate: string | null;
+    paymentEvent: string | null;
+    sellerPhone: string | null;
+    sellerBusinessName: string | null;
+    buyerPhone: string | null;
+    buyerBusinessName: string | null;
+    paidAmount: number | null;
+    poAmount: number | null;
+    CoupanAmount: number | null;
+    orderStatus: string | null;
+    discountBySeller: number;
+    PaymentOptionDiscountByBadho: number;
+    appliedWalletAmount: number | null;
+    PaymentOption: string | null;
+    awbNumber: string | null;
+    courierName: string | null;
+    deliveryStatus: string | null;
+    RefundIntiatedTime: string | null;
+    RefundCompletedTime: string | null;
+    codAmountToBeCollected: number | null;
+    pushedStatus: string;
+    rejectReason: string | null;
+    rejectedBy: string | null;
+    reasonAddedByBadhoTeam: string | null;
+    buyerAddressLine1: string | null;
+    buyerLandmark: string | null;
+    buyerPincode: string | null;
+    buyerCity: string | null;
+    buyerDistrict: string | null;
+    buyerState: string | null;
+    buyerFullAddress: string;
+    sellerAddressLine1: string | null;
+    sellerCity: string | null;
+    sellerState: string | null;
+    createdAt: string;
+    category: string;
+    slaBreachAt: string;
+  }
+  const [alertSummary, setAlertSummary] = useState<AlertSummaryRow[] | null>(null);
+  const [alertSummaryLoading, setAlertSummaryLoading] = useState(false);
+  const [alertSummaryError, setAlertSummaryError] = useState<string | null>(null);
+  const [alertModalCategory, setAlertModalCategory] = useState<string | null>(null);
+  const [alertModalData, setAlertModalData] = useState<AlertDetailRow[] | null>(null);
+  const [alertModalLoading, setAlertModalLoading] = useState(false);
+  const [alertModalError, setAlertModalError] = useState<string | null>(null);
+  const [alertModalSearch, setAlertModalSearch] = useState('');
+
   // RTO tab
   interface RtoMonth { month: number; count: number; amount: number; }
   interface RtoSeller {
@@ -939,6 +996,63 @@ export default function OrderStatusDashboard() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [rtoKpiModal]);
+
+  // ─── Alert tab — SLA breach summary & details ─────────────────────────────
+  const fetchAlertSummary = async () => {
+    try {
+      setAlertSummaryLoading(true);
+      setAlertSummaryError(null);
+      const res = await fetch('/api/sla-alerts-summary');
+      if (!res.ok) throw new Error('Failed to fetch alerts summary');
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setAlertSummary(json.data);
+    } catch (err) {
+      setAlertSummaryError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setAlertSummaryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'alert') return;
+    if (alertSummary !== null) return;
+    fetchAlertSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const openAlertModal = async (category: string) => {
+    setAlertModalCategory(category);
+    setAlertModalSearch('');
+    setAlertModalData(null);
+    setAlertModalError(null);
+    setAlertModalLoading(true);
+    try {
+      const res = await fetch(`/api/sla-alerts-details?category=${encodeURIComponent(category)}`);
+      if (!res.ok) throw new Error('Failed to fetch alert details');
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setAlertModalData(json.data);
+    } catch (err) {
+      setAlertModalError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setAlertModalLoading(false);
+    }
+  };
+
+  const closeAlertModal = () => {
+    setAlertModalCategory(null);
+    setAlertModalData(null);
+    setAlertModalSearch('');
+    setAlertModalError(null);
+  };
+
+  useEffect(() => {
+    if (!alertModalCategory) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeAlertModal(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [alertModalCategory]);
 
   // GMV Goal ACHIEVED modal — fetch + ESC
   const fetchGoalModalData = async () => {
@@ -5354,16 +5468,306 @@ export default function OrderStatusDashboard() {
 
         {activeTab === 'alert' && (
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-            <div className="px-8 py-6 border-b border-white/10 bg-white/5">
-              <h2 className="text-2xl font-bold text-white">Alerts</h2>
-              <p className="text-purple-300 text-sm mt-1">Operational alerts and exceptions</p>
+            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white">SLA Breach Alerts</h2>
+                <p className="text-purple-300 text-sm mt-1">
+                  PENDING orders past the 2-working-day SLA from <span className="font-mono text-fuchsia-300">markedPendingTime</span> — categorized by payment type
+                </p>
+              </div>
+              <button
+                onClick={fetchAlertSummary}
+                disabled={alertSummaryLoading}
+                className="px-4 py-2 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-500/40 text-fuchsia-200 text-sm font-semibold disabled:opacity-40"
+              >
+                {alertSummaryLoading ? 'Refreshing…' : '↻ Refresh'}
+              </button>
             </div>
-            <div className="p-12 text-center">
-              <div className="text-5xl mb-4">🔔</div>
-              <h3 className="text-lg font-semibold text-white mb-2">Coming soon</h3>
-              <p className="text-purple-300/80 text-sm max-w-xl mx-auto">
-                This tab will surface operational alerts — stuck POs, high-RTO sellers, GMV pace warnings, etc. Wire up specific alerts here.
-              </p>
+            <div className="p-6">
+              {alertSummaryLoading && !alertSummary ? (
+                <div className="px-8 py-16 text-center">
+                  <div className="inline-block w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin mb-3" />
+                  <p className="text-purple-300">Loading SLA breach alerts…</p>
+                </div>
+              ) : alertSummaryError ? (
+                <div className="px-8 py-12 text-center text-rose-300">Error: {alertSummaryError}</div>
+              ) : !alertSummary || alertSummary.length === 0 ? (
+                <div className="px-8 py-12 text-center text-purple-300">
+                  No SLA-breached PENDING orders right now.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-white/5 border-b border-white/10">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200 uppercase tracking-wide">Category</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wide">PO Count</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wide">Total PO Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {alertSummary.map((row) => {
+                        const colorMap: Record<string, string> = {
+                          'Fully_Paid':     'text-emerald-300',
+                          'Partially_Paid': 'text-amber-300',
+                          'COD':            'text-cyan-300',
+                          'Other':          'text-purple-300',
+                        };
+                        const bgMap: Record<string, string> = {
+                          'Fully_Paid':     'bg-emerald-500/10',
+                          'Partially_Paid': 'bg-amber-500/10',
+                          'COD':            'bg-cyan-500/10',
+                          'Other':          'bg-purple-500/10',
+                        };
+                        return (
+                          <tr key={row.category} className="border-b border-white/5 hover:bg-fuchsia-500/10 transition-colors">
+                            <td className="px-4 py-3">
+                              <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${bgMap[row.category] || 'bg-white/10'} ${colorMap[row.category] || 'text-white'}`}>
+                                {row.category}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={() => openAlertModal(row.category)}
+                                className="inline-block px-3 py-1 rounded-md text-white text-base font-bold tabular-nums hover:bg-fuchsia-500/30 hover:scale-105 transition-all cursor-pointer"
+                                title="Click to view orders"
+                              >
+                                {row.poCount.toLocaleString()}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-right text-fuchsia-200 tabular-nums font-semibold">
+                              ₹{Number(row.totalPoAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {alertSummary.length > 0 && (() => {
+                        const totalCount = alertSummary.reduce((s, r) => s + r.poCount, 0);
+                        const totalAmount = alertSummary.reduce((s, r) => s + r.totalPoAmount, 0);
+                        return (
+                          <tr className="bg-gradient-to-r from-fuchsia-500/15 via-purple-500/15 to-indigo-500/15 border-t-2 border-fuchsia-500/40 font-bold">
+                            <td className="px-4 py-3 text-white">Grand Total</td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={() => openAlertModal('all')}
+                                className="inline-block px-3 py-1 rounded-md text-white text-base font-bold tabular-nums hover:bg-fuchsia-500/30 hover:scale-105 transition-all cursor-pointer"
+                                title="Click to view all orders"
+                              >
+                                {totalCount.toLocaleString()}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-right text-fuchsia-200 tabular-nums">
+                              ₹{totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        );
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Alert Detail Modal */}
+        {alertModalCategory && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/70 backdrop-blur-sm"
+            onClick={closeAlertModal}
+          >
+            <div
+              className="bg-white text-slate-900 border border-slate-200 rounded-xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-rose-50 to-amber-50">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    SLA Breach Alerts
+                    <span className="text-rose-600 text-sm font-semibold ml-2">· {alertModalCategory === 'all' ? 'All Categories' : alertModalCategory}</span>
+                  </h3>
+                  <p className="text-slate-500 text-xs">
+                    {alertModalLoading
+                      ? 'Loading…'
+                      : alertModalData
+                      ? `${alertModalData.length} order${alertModalData.length === 1 ? '' : 's'} past SLA deadline`
+                      : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={!alertModalData || alertModalData.length === 0}
+                    onClick={() => {
+                      if (!alertModalData) return;
+                      const headers = [
+                        'poNumber', 'MarkedpendingTime', 'paymentDate', 'paymentEvent',
+                        'sellerPhone', 'sellerBusinessName',
+                        'buyerPhone', 'buyerBusinessName', 'buyerAddress',
+                        'paidAmount', 'poAmount', 'CoupanAmount', 'orderStatus',
+                        'discountBySeller', 'PaymentOptionDiscountByBadho', 'appliedWalletAmount',
+                        'PaymentOption', 'awbNumber', 'courierName', 'deliveryStatus',
+                        'RefundIntiatedTime', 'RefundCompletedTime', 'codAmountToBeCollected',
+                        'pushedStatus', 'rejectReason', 'rejectedBy', 'reasonAddedByBadhoTeam',
+                        'seller_address_line1', 'seller_city', 'seller_state',
+                        'created_at', 'category', 'sla_breach_at',
+                      ];
+                      const rows: CsvCell[][] = alertModalData.map((r) => [
+                        r.poNumber, r.MarkedpendingTime, r.paymentDate, r.paymentEvent,
+                        r.sellerPhone, r.sellerBusinessName,
+                        r.buyerPhone, r.buyerBusinessName, r.buyerFullAddress,
+                        r.paidAmount, r.poAmount, r.CoupanAmount, r.orderStatus,
+                        r.discountBySeller, r.PaymentOptionDiscountByBadho, r.appliedWalletAmount,
+                        r.PaymentOption, r.awbNumber, r.courierName, r.deliveryStatus,
+                        r.RefundIntiatedTime, r.RefundCompletedTime, r.codAmountToBeCollected,
+                        r.pushedStatus, r.rejectReason, r.rejectedBy, r.reasonAddedByBadhoTeam,
+                        r.sellerAddressLine1, r.sellerCity, r.sellerState,
+                        r.createdAt, r.category, r.slaBreachAt,
+                      ]);
+                      downloadCSV(`sla-breach-${alertModalCategory}.csv`, headers, rows);
+                    }}
+                    className={DOWNLOAD_BTN_LIGHT_CLASS}
+                  >
+                    ↓ CSV
+                  </button>
+                  <button
+                    onClick={closeAlertModal}
+                    className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="px-4 py-2 border-b border-slate-200 bg-white">
+                <input
+                  type="text"
+                  value={alertModalSearch}
+                  onChange={(e) => setAlertModalSearch(e.target.value)}
+                  placeholder="Search PO, buyer, seller, address, AWB…"
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+              <div className="flex-1 overflow-auto">
+                {alertModalLoading ? (
+                  <div className="px-6 py-16 text-center text-slate-500">Loading orders…</div>
+                ) : alertModalError ? (
+                  <div className="px-6 py-16 text-center text-rose-600">Error: {alertModalError}</div>
+                ) : !alertModalData || alertModalData.length === 0 ? (
+                  <div className="px-6 py-16 text-center text-slate-500">No orders found</div>
+                ) : (() => {
+                  const q = alertModalSearch.trim().toLowerCase();
+                  const filtered = q
+                    ? alertModalData.filter((r) =>
+                        (r.poNumber || '').toLowerCase().includes(q) ||
+                        (r.buyerPhone || '').toLowerCase().includes(q) ||
+                        (r.buyerBusinessName || '').toLowerCase().includes(q) ||
+                        (r.sellerPhone || '').toLowerCase().includes(q) ||
+                        (r.sellerBusinessName || '').toLowerCase().includes(q) ||
+                        (r.buyerFullAddress || '').toLowerCase().includes(q) ||
+                        (r.awbNumber || '').toLowerCase().includes(q) ||
+                        (r.courierName || '').toLowerCase().includes(q)
+                      )
+                    : alertModalData;
+                  return (
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-slate-100 z-10 border-b border-slate-200">
+                        <tr>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Category</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Marked Pending</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-rose-600 whitespace-nowrap">SLA Breach At</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Pushed</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Order Status</th>
+                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">PO Amount</th>
+                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Paid Amount</th>
+                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Coupon Amount</th>
+                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Seller Discount</th>
+                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Badho Discount</th>
+                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Wallet Amount</th>
+                          <th className="px-2.5 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">COD Amount</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Payment Option</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Payment Event</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Payment Date</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">AWB Number</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Courier Name</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Delivery Status</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Seller Phone</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Seller Business</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Buyer Business</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Refund Initiated</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Refund Completed</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Reject Reason</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Rejected By</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Reason Added By Badho</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Created At</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.slice(0, 2000).map((r) => {
+                          const colorMap: Record<string, string> = {
+                            'Fully_Paid':     'bg-emerald-100 text-emerald-700',
+                            'Partially_Paid': 'bg-amber-100 text-amber-700',
+                            'COD':            'bg-cyan-100 text-cyan-700',
+                            'Other':          'bg-purple-100 text-purple-700',
+                          };
+                          return (
+                            <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-rose-50/40 align-top">
+                              <td className="px-2.5 py-1.5 whitespace-nowrap">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${colorMap[r.category] || 'bg-slate-100 text-slate-700'}`}>
+                                  {r.category}
+                                </span>
+                              </td>
+                              <td className="px-2.5 py-1.5 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime)}</td>
+                              <td className="px-2.5 py-1.5 text-rose-700 whitespace-nowrap font-medium">{formatDateTime(r.slaBreachAt)}</td>
+                              <td className="px-2.5 py-1.5 whitespace-nowrap">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                  {r.pushedStatus}
+                                </span>
+                              </td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.orderStatus || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.PaymentOption || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.paymentEvent || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.courierName || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.deliveryStatus || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700">{r.sellerBusinessName || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700">{r.buyerBusinessName || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-600 max-w-md" title={r.buyerFullAddress}>
+                                {r.buyerFullAddress ? (
+                                  <div className="whitespace-normal break-words">{r.buyerFullAddress}</div>
+                                ) : <span className="text-slate-400 italic">—</span>}
+                              </td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 max-w-[240px] truncate" title={r.rejectReason || ''}>{r.rejectReason || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.rejectedBy || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 max-w-[240px] truncate" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+              {alertModalData && alertModalData.length > 2000 && (
+                <div className="px-4 py-2 border-t border-amber-300 bg-amber-50 text-amber-700 text-xs">
+                  Showing first 2,000 of {alertModalData.length.toLocaleString()} rows — CSV includes everything.
+                </div>
+              )}
             </div>
           </div>
         )}

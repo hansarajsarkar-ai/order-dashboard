@@ -12,8 +12,14 @@ interface Row {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const currentYear = new Date().getFullYear();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
   const year = parseInt(searchParams.get('year') || String(currentYear));
+  const monthParam = searchParams.get('month');
+  const month = monthParam !== null && monthParam !== '' && monthParam !== 'all'
+    ? parseInt(monthParam)
+    : currentMonth;
 
   try {
     const sql = `
@@ -34,10 +40,11 @@ export async function GET(req: NextRequest) {
         AND po."deliveryType"    = 'INTERCITY'
         AND po."status" IN ('DELIVERED', 'COMPLETED')
         AND po."markedPendingTime" IS NOT NULL
-        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1;
+        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
+        AND EXTRACT(MONTH FROM po."markedPendingTime") = $2;
     `;
 
-    const rows = await query<Row>(sql, [year]);
+    const rows = await query<Row>(sql, [year, month]);
     const achieved = parseFloat(rows[0]?.achieved || '0');
     const orders = parseInt(rows[0]?.orders || '0');
     const goal = GOAL;
@@ -46,6 +53,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       year,
+      month,
       goal,
       achieved,
       orders,

@@ -417,11 +417,6 @@ export default function OrderStatusDashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography' | 'alert'>('dashboard');
 
   // Alert tab — SLA breach alerts
-  interface AlertSummaryRow {
-    category: string;
-    poCount: number;
-    totalPoAmount: number;
-  }
   interface AlertDetailRow {
     poNumber: string;
     MarkedpendingTime: string | null;
@@ -463,9 +458,6 @@ export default function OrderStatusDashboard() {
     category: string;
     slaBreachAt: string;
   }
-  const [alertSummary, setAlertSummary] = useState<AlertSummaryRow[] | null>(null);
-  const [alertSummaryLoading, setAlertSummaryLoading] = useState(false);
-  const [alertSummaryError, setAlertSummaryError] = useState<string | null>(null);
   const [alertModalCategory, setAlertModalCategory] = useState<string | null>(null);
   const [alertModalSeller, setAlertModalSeller] = useState<string | null>(null);
   const [alertModalData, setAlertModalData] = useState<AlertDetailRow[] | null>(null);
@@ -1017,23 +1009,7 @@ export default function OrderStatusDashboard() {
     return () => window.removeEventListener('keydown', onKey);
   }, [rtoKpiModal]);
 
-  // ─── Alert tab — SLA breach summary & details ─────────────────────────────
-  const fetchAlertSummary = async () => {
-    try {
-      setAlertSummaryLoading(true);
-      setAlertSummaryError(null);
-      const res = await fetch('/api/sla-alerts-summary');
-      if (!res.ok) throw new Error('Failed to fetch alerts summary');
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      setAlertSummary(json.data);
-    } catch (err) {
-      setAlertSummaryError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setAlertSummaryLoading(false);
-    }
-  };
-
+  // ─── Alert tab — SLA breach brand-wise pivot & details ────────────────────
   const fetchAlertBrand = async () => {
     try {
       setAlertBrandLoading(true);
@@ -1052,7 +1028,6 @@ export default function OrderStatusDashboard() {
 
   useEffect(() => {
     if (activeTab !== 'alert') return;
-    if (alertSummary === null) fetchAlertSummary();
     if (alertBrandData === null) fetchAlertBrand();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -5506,113 +5481,9 @@ export default function OrderStatusDashboard() {
           </div>
         )}
 
-        {activeTab === 'alert' && (
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
-              <div>
-                <h2 className="text-2xl font-bold text-white">SLA Breach Alerts</h2>
-                <p className="text-purple-300 text-sm mt-1">
-                  PENDING orders past the 2-working-day SLA from <span className="font-mono text-fuchsia-300">markedPendingTime</span> — categorized by payment type
-                </p>
-              </div>
-              <button
-                onClick={fetchAlertSummary}
-                disabled={alertSummaryLoading}
-                className="px-4 py-2 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-500/40 text-fuchsia-200 text-sm font-semibold disabled:opacity-40"
-              >
-                {alertSummaryLoading ? 'Refreshing…' : '↻ Refresh'}
-              </button>
-            </div>
-            <div className="p-6">
-              {alertSummaryLoading && !alertSummary ? (
-                <div className="px-8 py-16 text-center">
-                  <div className="inline-block w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin mb-3" />
-                  <p className="text-purple-300">Loading SLA breach alerts…</p>
-                </div>
-              ) : alertSummaryError ? (
-                <div className="px-8 py-12 text-center text-rose-300">Error: {alertSummaryError}</div>
-              ) : !alertSummary || alertSummary.length === 0 ? (
-                <div className="px-8 py-12 text-center text-purple-300">
-                  No SLA-breached PENDING orders right now.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-white/5 border-b border-white/10">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200 uppercase tracking-wide">Category</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wide">PO Count</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200 uppercase tracking-wide">Total PO Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {alertSummary.map((row) => {
-                        const colorMap: Record<string, string> = {
-                          'Fully_Paid':     'text-emerald-300',
-                          'Partially_Paid': 'text-amber-300',
-                          'COD':            'text-cyan-300',
-                          'Other':          'text-purple-300',
-                        };
-                        const bgMap: Record<string, string> = {
-                          'Fully_Paid':     'bg-emerald-500/10',
-                          'Partially_Paid': 'bg-amber-500/10',
-                          'COD':            'bg-cyan-500/10',
-                          'Other':          'bg-purple-500/10',
-                        };
-                        return (
-                          <tr key={row.category} className="border-b border-white/5 hover:bg-fuchsia-500/10 transition-colors">
-                            <td className="px-4 py-3">
-                              <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${bgMap[row.category] || 'bg-white/10'} ${colorMap[row.category] || 'text-white'}`}>
-                                {row.category}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => openAlertModal(row.category)}
-                                className="inline-block px-3 py-1 rounded-md text-white text-base font-bold tabular-nums hover:bg-fuchsia-500/30 hover:scale-105 transition-all cursor-pointer"
-                                title="Click to view orders"
-                              >
-                                {row.poCount.toLocaleString()}
-                              </button>
-                            </td>
-                            <td className="px-4 py-3 text-right text-fuchsia-200 tabular-nums font-semibold">
-                              ₹{Number(row.totalPoAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {alertSummary.length > 0 && (() => {
-                        const totalCount = alertSummary.reduce((s, r) => s + r.poCount, 0);
-                        const totalAmount = alertSummary.reduce((s, r) => s + r.totalPoAmount, 0);
-                        return (
-                          <tr className="bg-gradient-to-r from-fuchsia-500/15 via-purple-500/15 to-indigo-500/15 border-t-2 border-fuchsia-500/40 font-bold">
-                            <td className="px-4 py-3 text-white">Grand Total</td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => openAlertModal('all')}
-                                className="inline-block px-3 py-1 rounded-md text-white text-base font-bold tabular-nums hover:bg-fuchsia-500/30 hover:scale-105 transition-all cursor-pointer"
-                                title="Click to view all orders"
-                              >
-                                {totalCount.toLocaleString()}
-                              </button>
-                            </td>
-                            <td className="px-4 py-3 text-right text-fuchsia-200 tabular-nums">
-                              ₹{totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        );
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Brand-wise SLA breach pivot — rows = seller, columns = payment category */}
         {activeTab === 'alert' && (
-          <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
                 <h2 className="text-2xl font-bold text-white">Brand-wise SLA Breach</h2>

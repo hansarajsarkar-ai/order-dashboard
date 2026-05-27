@@ -20,7 +20,7 @@ interface BrandRow {
   total: { count: number; amount: number };
 }
 
-const CATEGORIES = ['Fully_Paid', 'Partially_Paid', 'COD', 'Other'] as const;
+const CATEGORIES = ['Fully_Paid', 'Partially_Paid', 'COD'] as const;
 
 export async function GET() {
   try {
@@ -131,9 +131,11 @@ export async function GET() {
 
     const rows = await query<Row>(sql, []);
 
-    // Pivot into brand rows × category columns
+    // Pivot into brand rows × category columns (excluding 'Other')
+    const allowed = new Set<string>(CATEGORIES);
     const byBrand = new Map<string, BrandRow>();
     for (const r of rows) {
+      if (!allowed.has(r.category)) continue; // skip 'Other'
       const key = r.sellerBusinessName;
       if (!byBrand.has(key)) {
         byBrand.set(key, {

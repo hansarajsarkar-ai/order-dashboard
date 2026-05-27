@@ -224,6 +224,7 @@ interface SellerOrderRow {
   amount: number;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
+  buyerFullAddress?: string;
   markedPendingTime: string | null;
   createdAt: string;
 }
@@ -465,6 +466,7 @@ export default function OrderStatusDashboard() {
     buyerBusinessName: string | null;
     buyerState: string | null;
     buyerCity: string | null;
+    buyerFullAddress?: string;
     sellerPhone: string | null;
     sellerBusinessName: string | null;
     deliveryNetwork: string | null;
@@ -5693,9 +5695,9 @@ export default function OrderStatusDashboard() {
                     disabled={!filteredSellerDrillRows || filteredSellerDrillRows.length === 0}
                     onClick={() => {
                       if (!filteredSellerDrillRows) return;
-                      const headers = ['PO Number', 'Status', 'Amount', 'Buyer Phone', 'Buyer Business', 'Marked Pending', 'Created At'];
+                      const headers = ['PO Number', 'Status', 'Amount', 'Buyer Phone', 'Buyer Business', 'Buyer Address', 'Marked Pending', 'Created At'];
                       const rows: CsvCell[][] = filteredSellerDrillRows.map((r) => [
-                        r.poNumber, r.status, r.amount, r.buyerPhone, r.buyerBusinessName, r.markedPendingTime, r.createdAt,
+                        r.poNumber, r.status, r.amount, r.buyerPhone, r.buyerBusinessName, r.buyerFullAddress ?? '', r.markedPendingTime, r.createdAt,
                       ]);
                       const safeName = (sellerDrillName || 'seller').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 40);
                       downloadCSV(`seller-orders-${safeName}-${currentYear}.csv`, headers, rows);
@@ -5814,6 +5816,7 @@ export default function OrderStatusDashboard() {
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Created At</th>
                       </tr>
@@ -5836,6 +5839,7 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums">{r.buyerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || '—'}</td>
+                          <td className="px-4 py-3 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
                         </tr>
@@ -5903,7 +5907,7 @@ export default function OrderStatusDashboard() {
                       if (!filteredDrillRows) return;
                       const headers = ['PO Number', 'Status', 'Amount', 'Buyer Phone', 'Buyer Business', 'Seller Phone', 'Seller Business', 'Buyer Address', 'Buyer State', 'Marked Pending', 'Created At'];
                       const rows: CsvCell[][] = filteredDrillRows.map((r) => [
-                        r.poNumber, r.status, r.amount, r.buyerPhone, r.buyerBusinessName, r.sellerPhone, r.sellerBusinessName, r.buyerAddress, r.buyerState, r.markedPendingTime, r.createdAt,
+                        r.poNumber, r.status, r.amount, r.buyerPhone, r.buyerBusinessName, r.sellerPhone, r.sellerBusinessName, r.buyerFullAddress || r.buyerAddress, r.buyerState, r.markedPendingTime, r.createdAt,
                       ]);
                       const monthTag = drillMonth ? MONTH_NAMES[drillMonth - 1] : 'all';
                       downloadCSV(`orders-${drillStatus}-${monthTag}-${currentYear}.csv`, headers, rows);
@@ -5964,7 +5968,7 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.sellerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || '—'}</td>
-                          <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={r.buyerAddress}>{r.buyerAddress || '—'}</td>
+                          <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={r.buyerFullAddress || r.buyerAddress}>{r.buyerFullAddress || r.buyerAddress || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerState || '—'}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
@@ -6138,6 +6142,7 @@ export default function OrderStatusDashboard() {
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Shipment Status</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Business</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
                           <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Attempts</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-rose-600 whitespace-nowrap">Final Failure Reason</th>
                         </tr>
@@ -6152,6 +6157,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.shipmentStatus || '—'}</td>
                             <td className="px-3 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
                             <td className="px-3 py-2 text-slate-700">{r.buyerBusinessName || '—'}</td>
+                            <td className="px-3 py-2 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                             <td className="px-3 py-2 text-right tabular-nums font-bold text-rose-700">{r.deliveryAttempt || 0}</td>
                             <td className="px-3 py-2 text-rose-700 max-w-[280px]" title={r.finalFailureReason || ''}>{r.finalFailureReason || <span className="italic text-slate-400">—</span>}</td>
                           </tr>
@@ -6231,14 +6237,14 @@ export default function OrderStatusDashboard() {
                             'PO Number', 'Status', 'Delivery Status', 'Amount',
                             'Marked Pending Time', 'Marked Delivered Time',
                             'Seller Business', 'Seller Phone',
-                            'Buyer Business', 'Buyer Phone', 'Buyer City', 'Buyer State',
+                            'Buyer Business', 'Buyer Phone', 'Buyer City', 'Buyer State', 'Buyer Address',
                             'Delivery Network', 'Delivery Type',
                           ];
                           const rows: CsvCell[][] = filtered.map((r) => [
                             r.poNumber, r.status, r.deliveryStatus, r.amount,
                             r.markedPendingTime, r.markedDeliveredTime,
                             r.sellerBusinessName, r.sellerPhone,
-                            r.buyerBusinessName, r.buyerPhone, r.buyerCity, r.buyerState,
+                            r.buyerBusinessName, r.buyerPhone, r.buyerCity, r.buyerState, r.buyerFullAddress ?? '',
                             r.deliveryNetwork, r.deliveryType,
                           ]);
                           downloadCSV(`gmv-goal-achieved-${currentYear}.csv`, headers, rows);
@@ -6286,6 +6292,7 @@ export default function OrderStatusDashboard() {
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">City / State</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Delivery Status</th>
                         </tr>
                       </thead>
@@ -6312,6 +6319,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                               {[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}
                             </td>
+                            <td className="px-3 py-2 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.deliveryStatus || '—'}</td>
                           </tr>
                         ))}

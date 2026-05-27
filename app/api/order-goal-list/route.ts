@@ -14,6 +14,10 @@ interface Row {
   buyer_business_name: string | null;
   buyer_state: string | null;
   buyer_city: string | null;
+  buyer_address_line1: string | null;
+  buyer_landmark: string | null;
+  buyer_pincode: string | null;
+  buyer_district: string | null;
   seller_phone: string | null;
   seller_business_name: string | null;
   delivery_network: string | null;
@@ -38,6 +42,10 @@ export async function GET(req: NextRequest) {
         b."businessName"                                             AS buyer_business_name,
         b."state"                                                    AS buyer_state,
         b."city"                                                     AS buyer_city,
+        b."addressLine1"                                             AS buyer_address_line1,
+        b."landmark"                                                 AS buyer_landmark,
+        b."pincode"                                                  AS buyer_pincode,
+        b."district"                                                 AS buyer_district,
         s."phone"                                                    AS seller_phone,
         s."businessName"                                             AS seller_business_name,
         po."deliveryNetwork"                                         AS delivery_network,
@@ -72,6 +80,14 @@ export async function GET(req: NextRequest) {
       buyerBusinessName: r.buyer_business_name,
       buyerState: r.buyer_state,
       buyerCity: r.buyer_city,
+      buyerFullAddress: [
+        r.buyer_address_line1,
+        r.buyer_landmark,
+        r.buyer_pincode,
+        r.buyer_city,
+        r.buyer_district,
+        r.buyer_state,
+      ].filter((v) => v != null && String(v).trim() !== '').join(', '),
       sellerPhone: r.seller_phone,
       sellerBusinessName: r.seller_business_name,
       deliveryNetwork: r.delivery_network,

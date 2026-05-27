@@ -9,6 +9,12 @@ interface Row {
   amount: string;
   buyer_phone: string | null;
   buyer_business_name: string | null;
+  buyer_address_line1: string | null;
+  buyer_landmark: string | null;
+  buyer_pincode: string | null;
+  buyer_city: string | null;
+  buyer_district: string | null;
+  buyer_state: string | null;
   marked_pending_time: string | null;
   created_at: string;
 }
@@ -50,6 +56,12 @@ export async function GET(req: NextRequest) {
         po."amount"::text            AS amount,
         b."phone"                    AS buyer_phone,
         b."businessName"             AS buyer_business_name,
+        b."addressLine1"             AS buyer_address_line1,
+        b."landmark"                 AS buyer_landmark,
+        b."pincode"                  AS buyer_pincode,
+        b."city"                     AS buyer_city,
+        b."district"                 AS buyer_district,
+        b."state"                    AS buyer_state,
         po."markedPendingTime"       AS marked_pending_time,
         po."created_at"              AS created_at
       FROM "purchaseOrder"."purchaseOrder" po
@@ -80,6 +92,14 @@ export async function GET(req: NextRequest) {
       amount: parseFloat(r.amount),
       buyerPhone: r.buyer_phone,
       buyerBusinessName: r.buyer_business_name,
+      buyerFullAddress: [
+        r.buyer_address_line1,
+        r.buyer_landmark,
+        r.buyer_pincode,
+        r.buyer_city,
+        r.buyer_district,
+        r.buyer_state,
+      ].filter((v) => v != null && String(v).trim() !== '').join(', '),
       markedPendingTime: r.marked_pending_time,
       createdAt: r.created_at,
     }));

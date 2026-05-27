@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic';
 
 interface Row {
   status: string;
-  created_at: string | Date;
-  count: string;
+  dated: string | Date;
+  po: string;
 }
 
 type DataRecord = Record<string, string | number>;
@@ -15,17 +15,22 @@ export async function GET() {
   try {
     const sql = `
       SELECT
-        "status",
-        "created_at" :: date as created_at,
-        count(distinct "poNumber") as count
-      FROM "purchaseOrder"."purchaseOrder"
-      WHERE "isTest" = false
-        AND "isFalseOrder" = false
-        AND "status" NOT IN ('DRAFT','CANCELLED','REJECTED')
-        AND "createdBy" IN ('employee','buyer')
-        AND "created_at" :: date >= current_date - 30
-      GROUP BY "status", "created_at" :: date
-      ORDER BY "created_at" DESC, "status"
+        a."markedPendingTime" :: date AS dated,
+        a."status",
+        count(distinct a."poNumber") AS po
+      FROM "purchaseOrder"."purchaseOrder" a
+      JOIN "users"."seller" AS b ON b."id" = a."sellerId"
+      JOIN "users"."buyer"  AS c ON c."id" = a."buyerId"
+      WHERE a."deliveryType"    = 'INTERCITY'
+        AND a."deliveryNetwork" = 'THIRD_PARTY'
+        AND a."status" NOT IN ('REJECTED','CANCELLED')
+        AND a."markedPendingTime" IS NOT NULL
+        AND b."isTest" = FALSE AND b."businessName" NOT ILIKE '%test%'
+        AND c."isTest" = FALSE AND c."businessName" NOT ILIKE '%test%'
+        AND a."isTest" = FALSE AND a."isFalseOrder" = FALSE
+        AND a."markedPendingTime" :: date >= current_date - 30
+      GROUP BY 1, 2
+      ORDER BY 1 DESC, 2
     `;
 
     const rows = await query<Row>(sql, []);
@@ -34,18 +39,18 @@ export async function GET() {
 
     rows.forEach((row) => {
       let dateStr: string;
-      if (typeof row.created_at === 'string') {
-        dateStr = row.created_at.split('T')[0];
-      } else if (row.created_at instanceof Date) {
-        dateStr = row.created_at.toISOString().split('T')[0];
+      if (typeof row.dated === 'string') {
+        dateStr = row.dated.split('T')[0];
+      } else if (row.dated instanceof Date) {
+        dateStr = row.dated.toISOString().split('T')[0];
       } else {
-        dateStr = String(row.created_at).split('T')[0];
+        dateStr = String(row.dated).split('T')[0];
       }
       if (!dataMap.has(dateStr)) {
         dataMap.set(dateStr, { date: dateStr });
       }
       const record = dataMap.get(dateStr)!;
-      record[row.status] = parseInt(row.count);
+      record[row.status] = parseInt(row.po);
     });
 
     const statuses = Array.from(new Set(rows.map(r => r.status))).sort();
@@ -63,11 +68,11 @@ export async function GET() {
     });
 
     const grand = {
-      totalOrders: rows.reduce((sum, r) => sum + parseInt(r.count), 0),
+      totalOrders: rows.reduce((sum, r) => sum + parseInt(r.po), 0),
       statusBreakdown: statuses.reduce((acc, status) => {
         acc[status] = rows
           .filter(r => r.status === status)
-          .reduce((sum, r) => sum + parseInt(r.count), 0);
+          .reduce((sum, r) => sum + parseInt(r.po), 0);
         return acc;
       }, {} as Record<string, number>)
     };

@@ -1507,7 +1507,16 @@ export default function OrderStatusDashboard() {
     if (!s) return '—';
     try {
       const d = new Date(s);
-      return d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+      return d.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
     } catch {
       return s;
     }
@@ -5588,12 +5597,12 @@ export default function OrderStatusDashboard() {
                               <SortTh k="awb" label="AWB Number" />
                               <SortTh k="courier" label="Courier Name" />
                               <SortTh k="cod" label="COD Amount" align="right" />
-                              <SortTh k="buyerPhone" label="Buyer Phone" />
                               <SortTh k="badhoDiscount" label="Payment Option Badho Discount" align="right" />
                               <SortTh k="paymentDate" label="Payment Date" />
                               <SortTh k="paymentEvent" label="Payment Event" />
                               <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="buyerBusiness" label="Buyer Business" />
+                              <SortTh k="buyerPhone" label="Buyer Phone" />
                               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Address Details</th>
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
@@ -5634,12 +5643,12 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-600 text-xs max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
                             {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (
                               <div className="whitespace-normal break-words">
@@ -5837,8 +5846,8 @@ export default function OrderStatusDashboard() {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Address Details</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Created At</th>
@@ -5860,8 +5869,8 @@ export default function OrderStatusDashboard() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
-                          <td className="px-4 py-3 text-slate-700 tabular-nums">{r.buyerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700 tabular-nums">{r.buyerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-600 text-xs max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
                             {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (
                               <div className="whitespace-normal break-words">
@@ -5980,8 +5989,8 @@ export default function OrderStatusDashboard() {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Business</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer State</th>
@@ -5996,8 +6005,8 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700">{r.status}</td>
                           <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={r.buyerFullAddress || r.buyerAddress}>{r.buyerFullAddress || r.buyerAddress || '—'}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
-                          <td className="px-4 py-3 text-slate-700">{r.buyerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || '—'}</td>
+                          <td className="px-4 py-3 text-slate-700">{r.buyerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.sellerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerState || '—'}</td>
@@ -6172,8 +6181,8 @@ export default function OrderStatusDashboard() {
                           <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Order Value</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-rose-600 whitespace-nowrap">Marked Rejected</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Shipment Status</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Business</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
                           <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Attempts</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-rose-600 whitespace-nowrap">Final Failure Reason</th>
                         </tr>

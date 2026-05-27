@@ -414,7 +414,7 @@ export default function OrderStatusDashboard() {
   const [sellerDrillEndDate, setSellerDrillEndDate] = useState<string>('');
   const [sellerDrillStatus, setSellerDrillStatus] = useState<string>('all');
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography' | 'alert'>('dashboard');
   // RTO tab
   interface RtoMonth { month: number; count: number; amount: number; }
   interface RtoSeller {
@@ -1809,6 +1809,7 @@ export default function OrderStatusDashboard() {
             { key: 'rto', label: 'RTO' },
             { key: 'seller', label: 'Seller wise' },
             { key: 'demography', label: 'Demography' },
+            { key: 'alert', label: 'Alert' },
           ] as const).map((tab) => {
             const active = activeTab === tab.key;
             return (
@@ -5347,6 +5348,22 @@ export default function OrderStatusDashboard() {
                   );
                 })()}
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'alert' && (
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-8 py-6 border-b border-white/10 bg-white/5">
+              <h2 className="text-2xl font-bold text-white">Alerts</h2>
+              <p className="text-purple-300 text-sm mt-1">Operational alerts and exceptions</p>
+            </div>
+            <div className="p-12 text-center">
+              <div className="text-5xl mb-4">🔔</div>
+              <h3 className="text-lg font-semibold text-white mb-2">Coming soon</h3>
+              <p className="text-purple-300/80 text-sm max-w-xl mx-auto">
+                This tab will surface operational alerts — stuck POs, high-RTO sellers, GMV pace warnings, etc. Wire up specific alerts here.
+              </p>
             </div>
           </div>
         )}

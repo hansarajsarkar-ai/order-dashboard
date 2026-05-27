@@ -31,7 +31,10 @@ interface Row {
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
   buyer_address_line1: string | null;
+  buyer_landmark: string | null;
+  buyer_pincode: string | null;
   buyer_city: string | null;
+  buyer_district: string | null;
   buyer_state: string | null;
   seller_address_line1: string | null;
   seller_city: string | null;
@@ -101,7 +104,10 @@ export async function GET(req: NextRequest) {
         po."rejectedBy" AS "rejectedBy",
         po."reasonAddedByBadhoTeam" AS "reasonAddedByBadhoTeam",
         b."addressLine1" AS buyer_address_line1,
+        b."landmark" AS buyer_landmark,
+        b."pincode" AS buyer_pincode,
         b."city" AS buyer_city,
+        b."district" AS buyer_district,
         b."state" AS buyer_state,
         s."addressLine1" AS seller_address_line1,
         s."city" AS seller_city,
@@ -177,6 +183,14 @@ export async function GET(req: NextRequest) {
       reasonAddedByBadhoTeam: r.reasonAddedByBadhoTeam,
       amount: r.poAmount != null ? Number(r.poAmount) : 0,
       buyerAddress: [r.buyer_address_line1, r.buyer_city, r.buyer_state].filter(Boolean).join(', '),
+      buyerFullAddress: [
+        r.buyer_address_line1,
+        r.buyer_landmark,
+        r.buyer_pincode,
+        r.buyer_city,
+        r.buyer_district,
+        r.buyer_state,
+      ].filter((v) => v != null && String(v).trim() !== '').join(', '),
       buyerState: r.buyer_state,
       sellerAddress: [r.seller_address_line1, r.seller_city, r.seller_state].filter(Boolean).join(', '),
       markedPendingTime: r.MarkedpendingTime,

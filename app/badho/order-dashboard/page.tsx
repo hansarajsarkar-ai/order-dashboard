@@ -41,6 +41,7 @@ interface OrderListRow {
   sellerPhone: string | null;
   sellerBusinessName: string | null;
   buyerAddress: string;
+  buyerFullAddress?: string;
   buyerState: string | null;
   sellerAddress?: string;
   rejectReason?: string | null;
@@ -1620,6 +1621,7 @@ export default function OrderStatusDashboard() {
       case 'rejectReason': return r.rejectReason ?? '';
       case 'rejectedBy': return r.rejectedBy ?? '';
       case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
+      case 'buyerFullAddress': return r.buyerFullAddress ?? '';
       default: return '';
     }
   };
@@ -5368,7 +5370,7 @@ export default function OrderStatusDashboard() {
                         'Seller Discount', 'Applied Wallet Amount', 'Payment Option',
                         'AWB Number', 'Courier Name', 'COD Amount', 'Buyer Phone',
                         'Payment Option Badho Discount', 'Payment Date', 'Payment Event',
-                        'Delivery Status', 'Buyer Business', 'Seller Phone', 'Seller Business',
+                        'Delivery Status', 'Buyer Business', 'Buyer Address', 'Seller Phone', 'Seller Business',
                         'Marked Pending', 'Refund Initiated', 'Refund Completed',
                         ...(isRejected ? ['Reject Reason', 'Rejected By', 'Reason Added By Badho Team'] : []),
                       ];
@@ -5378,7 +5380,7 @@ export default function OrderStatusDashboard() {
                         r.discountBySeller ?? '', r.appliedWalletAmount ?? '', r.PaymentOption ?? '',
                         r.awbNumber ?? '', r.courierName ?? '', r.codAmountToBeCollected ?? '', r.buyerPhone ?? '',
                         r.PaymentOptionDiscountByBadho ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
-                        r.deliveryStatus ?? '', r.buyerBusinessName ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
+                        r.deliveryStatus ?? '', r.buyerBusinessName ?? '', r.buyerFullAddress ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
                         r.MarkedpendingTime ?? r.markedPendingTime ?? '',
                         r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '',
                         ...(isRejected ? [r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? ''] : []),
@@ -5575,6 +5577,7 @@ export default function OrderStatusDashboard() {
                               <SortTh k="paymentEvent" label="Payment Event" />
                               <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="buyerBusiness" label="Buyer Business" />
+                              <SortTh k="buyerFullAddress" label="Buyer Address" />
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
                               <SortTh k="markedPending" label="Marked Pending" />
@@ -5620,6 +5623,7 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>

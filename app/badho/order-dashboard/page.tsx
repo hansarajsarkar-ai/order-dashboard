@@ -420,6 +420,7 @@ export default function OrderStatusDashboard() {
   interface AlertDetailRow {
     poNumber: string;
     MarkedpendingTime: string | null;
+    markedInProgressTime: string | null;
     paymentDate: string | null;
     paymentEvent: string | null;
     sellerPhone: string | null;
@@ -5794,7 +5795,7 @@ export default function OrderStatusDashboard() {
                     onClick={() => {
                       if (!alertModalData) return;
                       const headers = [
-                        'poNumber', 'MarkedpendingTime', 'paymentDate', 'paymentEvent',
+                        'poNumber', 'MarkedpendingTime', 'markedInProgressTime', 'paymentDate', 'paymentEvent',
                         'sellerPhone', 'sellerBusinessName',
                         'buyerPhone', 'buyerBusinessName', 'buyerAddress',
                         'paidAmount', 'poAmount', 'CoupanAmount', 'orderStatus',
@@ -5806,7 +5807,7 @@ export default function OrderStatusDashboard() {
                         'created_at', 'category', 'sla_breach_at',
                       ];
                       const rows: CsvCell[][] = alertModalData.map((r) => [
-                        r.poNumber, r.MarkedpendingTime, r.paymentDate, r.paymentEvent,
+                        r.poNumber, r.MarkedpendingTime, r.markedInProgressTime, r.paymentDate, r.paymentEvent,
                         r.sellerPhone, r.sellerBusinessName,
                         r.buyerPhone, r.buyerBusinessName, r.buyerFullAddress,
                         r.paidAmount, r.poAmount, r.CoupanAmount, r.orderStatus,
@@ -5865,9 +5866,10 @@ export default function OrderStatusDashboard() {
                     <table className="w-full text-xs">
                       <thead className="sticky top-0 bg-slate-100 z-10 border-b border-slate-200">
                         <tr>
-                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Category</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Payment Option</th>
                           <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
                           <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Marked Pending</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Marked In Progress</th>
                           <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-rose-600 whitespace-nowrap">SLA Breach At</th>
                           <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Pushed</th>
                           <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Order Status</th>
@@ -5914,6 +5916,7 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className="px-2.5 py-1.5 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
                               <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime)}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.markedInProgressTime ? formatDateTime(r.markedInProgressTime) : <span className="text-slate-400 italic">—</span>}</td>
                               <td className="px-2.5 py-1.5 text-rose-700 whitespace-nowrap font-medium">{formatDateTime(r.slaBreachAt)}</td>
                               <td className="px-2.5 py-1.5 whitespace-nowrap">
                                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>

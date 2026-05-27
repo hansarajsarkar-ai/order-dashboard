@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 interface Row {
   poNumber: string;
   MarkedpendingTime: string | null;
+  markedInProgressTime: string | null;
   paymentDate: string | null;
   paymentEvent: string | null;
   sellerPhone: string | null;
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
         SELECT DISTINCT
           po."poNumber"::text AS "poNumber",
           po."markedPendingTime" AS "MarkedpendingTime",
+          po."markedInProgressTime" AS "markedInProgressTime",
           pop."created_at"       AS "paymentDate",
           pop."event"            AS "paymentEvent",
           s."phone"              AS "sellerPhone",
@@ -186,6 +188,7 @@ export async function GET(req: NextRequest) {
     const data = rows.map((r) => ({
       poNumber: r.poNumber,
       MarkedpendingTime: r.MarkedpendingTime,
+      markedInProgressTime: r.markedInProgressTime,
       paymentDate: r.paymentDate,
       paymentEvent: r.paymentEvent,
       sellerPhone: r.sellerPhone,

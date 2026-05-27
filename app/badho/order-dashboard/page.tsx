@@ -5368,21 +5368,21 @@ export default function OrderStatusDashboard() {
                       if (!filteredPivotDrillRows) return;
                       const isRejected = pivotDrillStatus === 'REJECTED';
                       const headers = [
-                        'Pushed', 'PO Number', 'Order Status', 'PO Amount', 'Paid Amount', 'Coupon Amount',
+                        'Pushed', 'PO Number', 'Order Status', 'Buyer Address', 'PO Amount', 'Paid Amount', 'Coupon Amount',
                         'Seller Discount', 'Applied Wallet Amount', 'Payment Option',
                         'AWB Number', 'Courier Name', 'COD Amount', 'Buyer Phone',
                         'Payment Option Badho Discount', 'Payment Date', 'Payment Event',
-                        'Delivery Status', 'Buyer Business', 'Buyer Address', 'Seller Phone', 'Seller Business',
+                        'Delivery Status', 'Buyer Business', 'Seller Phone', 'Seller Business',
                         'Marked Pending', 'Refund Initiated', 'Refund Completed',
                         ...(isRejected ? ['Reject Reason', 'Rejected By', 'Reason Added By Badho Team'] : []),
                       ];
                       const rows: CsvCell[][] = filteredPivotDrillRows.map((r) => [
-                        r.pushedStatus ?? 'Not Pushed', r.poNumber, r.orderStatus ?? r.status,
+                        r.pushedStatus ?? 'Not Pushed', r.poNumber, r.orderStatus ?? r.status, r.buyerFullAddress ?? '',
                         r.poAmount ?? '', r.paidAmount ?? '', r.CoupanAmount ?? '',
                         r.discountBySeller ?? '', r.appliedWalletAmount ?? '', r.PaymentOption ?? '',
                         r.awbNumber ?? '', r.courierName ?? '', r.codAmountToBeCollected ?? '', r.buyerPhone ?? '',
                         r.PaymentOptionDiscountByBadho ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
-                        r.deliveryStatus ?? '', r.buyerBusinessName ?? '', r.buyerFullAddress ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
+                        r.deliveryStatus ?? '', r.buyerBusinessName ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
                         r.MarkedpendingTime ?? r.markedPendingTime ?? '',
                         r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '',
                         ...(isRejected ? [r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? ''] : []),
@@ -5564,6 +5564,7 @@ export default function OrderStatusDashboard() {
                               <SortTh k="pushed" label="Pushed" />
                               <SortTh k="poNumber" label="PO Number" />
                               <SortTh k="status" label="Order Status" />
+                              <SortTh k="buyerFullAddress" label="Buyer Address" />
                               <SortTh k="poAmount" label="PO Amount" align="right" />
                               <SortTh k="paidAmount" label="Paid Amount" align="right" />
                               <SortTh k="coupon" label="Coupon Amount" align="right" />
@@ -5579,7 +5580,6 @@ export default function OrderStatusDashboard() {
                               <SortTh k="paymentEvent" label="Payment Event" />
                               <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="buyerBusiness" label="Buyer Business" />
-                              <SortTh k="buyerFullAddress" label="Buyer Address" />
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
                               <SortTh k="markedPending" label="Marked Pending" />
@@ -5610,6 +5610,7 @@ export default function OrderStatusDashboard() {
                           </td>
                           <td className="px-4 py-3 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
+                          <td className="px-4 py-3 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
@@ -5625,7 +5626,6 @@ export default function OrderStatusDashboard() {
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.deliveryStatus || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>
@@ -5695,9 +5695,9 @@ export default function OrderStatusDashboard() {
                     disabled={!filteredSellerDrillRows || filteredSellerDrillRows.length === 0}
                     onClick={() => {
                       if (!filteredSellerDrillRows) return;
-                      const headers = ['PO Number', 'Status', 'Amount', 'Buyer Phone', 'Buyer Business', 'Buyer Address', 'Marked Pending', 'Created At'];
+                      const headers = ['PO Number', 'Status', 'Buyer Address', 'Amount', 'Buyer Phone', 'Buyer Business', 'Marked Pending', 'Created At'];
                       const rows: CsvCell[][] = filteredSellerDrillRows.map((r) => [
-                        r.poNumber, r.status, r.amount, r.buyerPhone, r.buyerBusinessName, r.buyerFullAddress ?? '', r.markedPendingTime, r.createdAt,
+                        r.poNumber, r.status, r.buyerFullAddress ?? '', r.amount, r.buyerPhone, r.buyerBusinessName, r.markedPendingTime, r.createdAt,
                       ]);
                       const safeName = (sellerDrillName || 'seller').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 40);
                       downloadCSV(`seller-orders-${safeName}-${currentYear}.csv`, headers, rows);
@@ -5813,10 +5813,10 @@ export default function OrderStatusDashboard() {
                       <tr className="border-b border-slate-200">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Created At</th>
                       </tr>
@@ -5836,10 +5836,10 @@ export default function OrderStatusDashboard() {
                               {r.status}
                             </span>
                           </td>
+                          <td className="px-4 py-3 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3 text-slate-700 tabular-nums">{r.buyerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || '—'}</td>
-                          <td className="px-4 py-3 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
                         </tr>
@@ -5905,9 +5905,9 @@ export default function OrderStatusDashboard() {
                     disabled={!filteredDrillRows || filteredDrillRows.length === 0}
                     onClick={() => {
                       if (!filteredDrillRows) return;
-                      const headers = ['PO Number', 'Status', 'Amount', 'Buyer Phone', 'Buyer Business', 'Seller Phone', 'Seller Business', 'Buyer Address', 'Buyer State', 'Marked Pending', 'Created At'];
+                      const headers = ['PO Number', 'Status', 'Buyer Address', 'Amount', 'Buyer Phone', 'Buyer Business', 'Seller Phone', 'Seller Business', 'Buyer State', 'Marked Pending', 'Created At'];
                       const rows: CsvCell[][] = filteredDrillRows.map((r) => [
-                        r.poNumber, r.status, r.amount, r.buyerPhone, r.buyerBusinessName, r.sellerPhone, r.sellerBusinessName, r.buyerFullAddress || r.buyerAddress, r.buyerState, r.markedPendingTime, r.createdAt,
+                        r.poNumber, r.status, r.buyerFullAddress || r.buyerAddress, r.amount, r.buyerPhone, r.buyerBusinessName, r.sellerPhone, r.sellerBusinessName, r.buyerState, r.markedPendingTime, r.createdAt,
                       ]);
                       const monthTag = drillMonth ? MONTH_NAMES[drillMonth - 1] : 'all';
                       downloadCSV(`orders-${drillStatus}-${monthTag}-${currentYear}.csv`, headers, rows);
@@ -5947,12 +5947,12 @@ export default function OrderStatusDashboard() {
                       <tr className="border-b border-slate-200">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Seller Business</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer State</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Created At</th>
@@ -5963,12 +5963,12 @@ export default function OrderStatusDashboard() {
                         <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50">
                           <td className="px-4 py-3 text-slate-900 tabular-nums font-medium">{r.poNumber}</td>
                           <td className="px-4 py-3 text-slate-700">{r.status}</td>
+                          <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={r.buyerFullAddress || r.buyerAddress}>{r.buyerFullAddress || r.buyerAddress || '—'}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerBusinessName || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.sellerPhone || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.sellerBusinessName || '—'}</td>
-                          <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={r.buyerFullAddress || r.buyerAddress}>{r.buyerFullAddress || r.buyerAddress || '—'}</td>
                           <td className="px-4 py-3 text-slate-700">{r.buyerState || '—'}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.markedPendingTime)}</td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
@@ -6137,12 +6137,12 @@ export default function OrderStatusDashboard() {
                         <tr>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Brand</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
                           <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Order Value</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-rose-600 whitespace-nowrap">Marked Rejected</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Shipment Status</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Business</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
                           <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Attempts</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-rose-600 whitespace-nowrap">Final Failure Reason</th>
                         </tr>
@@ -6152,12 +6152,12 @@ export default function OrderStatusDashboard() {
                           <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-rose-50/40 align-top">
                             <td className="px-3 py-2 text-slate-800 whitespace-nowrap font-medium">{r.brandName || '—'}</td>
                             <td className="px-3 py-2 text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poNumber}</td>
+                            <td className="px-3 py-2 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                             <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{formatAmount(r.orderValue)}</td>
                             <td className="px-3 py-2 text-rose-700 whitespace-nowrap">{r.markedRejectedTime || '—'}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.shipmentStatus || '—'}</td>
                             <td className="px-3 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
                             <td className="px-3 py-2 text-slate-700">{r.buyerBusinessName || '—'}</td>
-                            <td className="px-3 py-2 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                             <td className="px-3 py-2 text-right tabular-nums font-bold text-rose-700">{r.deliveryAttempt || 0}</td>
                             <td className="px-3 py-2 text-rose-700 max-w-[280px]" title={r.finalFailureReason || ''}>{r.finalFailureReason || <span className="italic text-slate-400">—</span>}</td>
                           </tr>
@@ -6234,17 +6234,17 @@ export default function OrderStatusDashboard() {
                         className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white text-xs font-semibold hover:shadow-[0_0_18px_rgba(217,70,239,0.4)]"
                         onClick={() => {
                           const headers = [
-                            'PO Number', 'Status', 'Delivery Status', 'Amount',
+                            'PO Number', 'Status', 'Buyer Address', 'Delivery Status', 'Amount',
                             'Marked Pending Time', 'Marked Delivered Time',
                             'Seller Business', 'Seller Phone',
-                            'Buyer Business', 'Buyer Phone', 'Buyer City', 'Buyer State', 'Buyer Address',
+                            'Buyer Business', 'Buyer Phone', 'Buyer City', 'Buyer State',
                             'Delivery Network', 'Delivery Type',
                           ];
                           const rows: CsvCell[][] = filtered.map((r) => [
-                            r.poNumber, r.status, r.deliveryStatus, r.amount,
+                            r.poNumber, r.status, r.buyerFullAddress ?? '', r.deliveryStatus, r.amount,
                             r.markedPendingTime, r.markedDeliveredTime,
                             r.sellerBusinessName, r.sellerPhone,
-                            r.buyerBusinessName, r.buyerPhone, r.buyerCity, r.buyerState, r.buyerFullAddress ?? '',
+                            r.buyerBusinessName, r.buyerPhone, r.buyerCity, r.buyerState,
                             r.deliveryNetwork, r.deliveryType,
                           ]);
                           downloadCSV(`gmv-goal-achieved-${currentYear}.csv`, headers, rows);
@@ -6285,6 +6285,7 @@ export default function OrderStatusDashboard() {
                         <tr>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Status</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
                           <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Amount</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Pending Time</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Delivered Time</th>
@@ -6292,7 +6293,6 @@ export default function OrderStatusDashboard() {
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">City / State</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Delivery Status</th>
                         </tr>
                       </thead>
@@ -6305,6 +6305,7 @@ export default function OrderStatusDashboard() {
                                 r.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
                               }`}>{r.status}</span>
                             </td>
+                            <td className="px-3 py-2 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                             <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{formatAmount(r.amount)}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.markedPendingTime || '—'}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.markedDeliveredTime || '—'}</td>
@@ -6319,7 +6320,6 @@ export default function OrderStatusDashboard() {
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                               {[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}
                             </td>
-                            <td className="px-3 py-2 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.deliveryStatus || '—'}</td>
                           </tr>
                         ))}

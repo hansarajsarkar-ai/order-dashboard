@@ -1038,7 +1038,26 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                               {r.pushedStatus || 'Not Pushed'}
                             </span>
                           </td>
-                          <td className="px-2.5 py-2 text-slate-900 tabular-nums font-bold whitespace-nowrap">{r.poNumber || '—'}</td>
+                          <td className="px-2.5 py-2 whitespace-nowrap">
+                            {r.poNumber ? (
+                              <div className="inline-flex items-center gap-2">
+                                <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
+                                <a
+                                  href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 hover:border-purple-300 transition-all"
+                                  title="Open in D2R Support Dashboard"
+                                >
+                                  Details
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M7 17L17 7" />
+                                    <polyline points="7 7 17 7 17 17" />
+                                  </svg>
+                                </a>
+                              </div>
+                            ) : <span className="text-slate-400">—</span>}
+                          </td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {onViewItems && r.poNumber ? (
                               <button

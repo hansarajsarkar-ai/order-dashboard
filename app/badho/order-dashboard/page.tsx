@@ -6308,25 +6308,25 @@ export default function OrderStatusDashboard() {
             onClick={closePivotDrill}
           >
             <div
-              className="relative bg-white text-slate-900 border border-emerald-400/50 rounded-2xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden animate-corner-breath"
+              className="relative bg-white text-slate-900 border border-purple-400/50 rounded-2xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden animate-corner-breath"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* breathing green corner accents */}
-              <div className="pointer-events-none absolute -top-px -left-px w-20 h-20 rounded-tl-2xl border-t-2 border-l-2 border-emerald-500 animate-edge-pulse" />
-              <div className="pointer-events-none absolute -top-px -right-px w-20 h-20 rounded-tr-2xl border-t-2 border-r-2 border-emerald-500 animate-edge-pulse" style={{ animationDelay: '0.6s' }} />
-              <div className="pointer-events-none absolute -bottom-px -left-px w-20 h-20 rounded-bl-2xl border-b-2 border-l-2 border-emerald-500 animate-edge-pulse" style={{ animationDelay: '1.2s' }} />
-              <div className="pointer-events-none absolute -bottom-px -right-px w-20 h-20 rounded-br-2xl border-b-2 border-r-2 border-emerald-500 animate-edge-pulse" style={{ animationDelay: '1.8s' }} />
+              {/* breathing purple corner accents */}
+              <div className="pointer-events-none absolute -top-px -left-px w-20 h-20 rounded-tl-2xl border-t-2 border-l-2 border-purple-500 animate-edge-pulse" />
+              <div className="pointer-events-none absolute -top-px -right-px w-20 h-20 rounded-tr-2xl border-t-2 border-r-2 border-purple-500 animate-edge-pulse" style={{ animationDelay: '0.6s' }} />
+              <div className="pointer-events-none absolute -bottom-px -left-px w-20 h-20 rounded-bl-2xl border-b-2 border-l-2 border-purple-500 animate-edge-pulse" style={{ animationDelay: '1.2s' }} />
+              <div className="pointer-events-none absolute -bottom-px -right-px w-20 h-20 rounded-br-2xl border-b-2 border-r-2 border-purple-500 animate-edge-pulse" style={{ animationDelay: '1.8s' }} />
 
-              <div className="relative px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-emerald-50 via-white to-emerald-50/60">
+              <div className="relative px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-purple-50 via-white to-fuchsia-50/60">
                 <div>
                   <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.7)] animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse" />
                     <span>{pivotDrillStatus}</span>
                     {pivotDrillDelivery !== undefined && (
                       <span className="text-slate-400 text-sm font-normal mx-1">→</span>
                     )}
                     {pivotDrillDelivery !== undefined && (
-                      <span className="text-emerald-700 text-sm font-bold">
+                      <span className="text-purple-700 text-sm font-bold">
                         {pivotDrillDelivery ?? '(no delivery status)'}
                       </span>
                     )}
@@ -6343,7 +6343,7 @@ export default function OrderStatusDashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 border border-emerald-600 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_2px_8px_-2px_rgba(16,185,129,0.5)]"
+                    className="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 border border-purple-600 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_2px_8px_-2px_rgba(168,85,247,0.5)]"
                     disabled={!filteredPivotDrillRows || filteredPivotDrillRows.length === 0}
                     onClick={() => {
                       if (!filteredPivotDrillRows) return;
@@ -6399,7 +6399,7 @@ export default function OrderStatusDashboard() {
                         value={pivotDrillSearch}
                         onChange={(e) => setPivotDrillSearch(e.target.value)}
                         placeholder="Search orders…"
-                        className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400"
+                        className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-400/60 focus:border-purple-400"
                       />
                       {pivotDrillSearch && (
                         <button
@@ -6430,7 +6430,7 @@ export default function OrderStatusDashboard() {
                             type="button"
                             onClick={() => setPivotDrillPushedFilter(opt.value)}
                             aria-pressed={active}
-                            className={`px-3 py-2 whitespace-nowrap transition-colors font-medium ${idx > 0 ? 'border-l border-slate-300' : ''} ${active ? 'bg-emerald-500 text-white shadow-[inset_0_0_12px_rgba(255,255,255,0.2)]' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'}`}
+                            className={`px-3 py-2 whitespace-nowrap transition-colors font-medium ${idx > 0 ? 'border-l border-slate-300' : ''} ${active ? 'bg-purple-500 text-white shadow-[inset_0_0_12px_rgba(255,255,255,0.2)]' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'}`}
                           >
                             {opt.label}
                             <span className={`ml-1.5 text-[11px] tabular-nums ${active ? 'text-white/90 font-bold' : 'text-slate-500'}`}>{opt.count}</span>
@@ -6449,7 +6449,7 @@ export default function OrderStatusDashboard() {
                         id="pivot-drill-reject-reason"
                         value={pivotDrillRejectReasonFilter}
                         onChange={(e) => setPivotDrillRejectReasonFilter(e.target.value)}
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400"
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-400/60 focus:border-purple-400"
                       >
                         <option value="all">All reasons</option>
                         {pivotRejectReasonOptions.map((reason) => (
@@ -6500,7 +6500,7 @@ export default function OrderStatusDashboard() {
                     <button
                       type="button"
                       onClick={resetPivotDrillFilters}
-                      className="ml-auto text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-2"
+                      className="ml-auto text-xs font-semibold text-purple-600 hover:text-purple-700 underline underline-offset-2"
                     >
                       Clear all
                     </button>
@@ -6518,14 +6518,14 @@ export default function OrderStatusDashboard() {
                   <div className="px-6 py-12 text-center text-slate-500">No matches for &ldquo;{pivotDrillSearch}&rdquo;</div>
                 ) : (
                   <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-slate-100 z-10 shadow-[0_2px_0_rgba(16,185,129,0.35)]">
+                    <thead className="sticky top-0 bg-slate-100 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                       <tr className="border-b border-slate-200">
                         {(() => {
                           const arrowFor = (k: string) => {
                             const active = pivotDrillSort?.key === k;
                             const dir = active ? pivotDrillSort?.direction : null;
                             return (
-                              <span className={`ml-1 text-[10px] leading-none ${active ? 'text-emerald-600' : 'text-slate-300'}`}>
+                              <span className={`ml-1 text-[10px] leading-none ${active ? 'text-purple-600' : 'text-slate-300'}`}>
                                 {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : '⇅'}
                               </span>
                             );
@@ -6584,7 +6584,7 @@ export default function OrderStatusDashboard() {
                       {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r, idx) => (
                         <tr
                           key={r.poNumber}
-                          className={`border-b border-slate-100 align-top transition-colors hover:bg-emerald-50/60 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
+                          className={`border-b border-slate-100 align-top transition-colors hover:bg-purple-50/70 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
                         >
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
@@ -6655,7 +6655,7 @@ export default function OrderStatusDashboard() {
               {pivotDrillPaged && filteredPivotDrillRows && filteredPivotDrillRows.length > 0 && (
                 <div className="relative px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-700 flex-wrap gap-2">
                   <div>
-                    Showing <span className="font-bold text-emerald-700">{pivotDrillPaged.startIdx + 1}</span>–<span className="font-bold text-emerald-700">{pivotDrillPaged.endIdx}</span> of <span className="font-bold text-slate-900">{filteredPivotDrillRows.length}</span>
+                    Showing <span className="font-bold text-purple-700">{pivotDrillPaged.startIdx + 1}</span>–<span className="font-bold text-purple-700">{pivotDrillPaged.endIdx}</span> of <span className="font-bold text-slate-900">{filteredPivotDrillRows.length}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -7448,13 +7448,13 @@ export default function OrderStatusDashboard() {
         @keyframes corner-breath {
           0%, 100% {
             box-shadow:
-              0 0 40px -8px rgba(52, 211, 153, 0.25),
-              0 0 80px -20px rgba(16, 185, 129, 0.15);
+              0 0 40px -8px rgba(168, 85, 247, 0.28),
+              0 0 80px -20px rgba(217, 70, 239, 0.18);
           }
           50% {
             box-shadow:
-              0 0 70px -8px rgba(52, 211, 153, 0.45),
-              0 0 140px -20px rgba(16, 185, 129, 0.28);
+              0 0 70px -8px rgba(168, 85, 247, 0.5),
+              0 0 140px -20px rgba(217, 70, 239, 0.32);
           }
         }
         .animate-corner-breath {
@@ -7463,12 +7463,12 @@ export default function OrderStatusDashboard() {
         @keyframes edge-pulse {
           0%, 100% {
             opacity: 0.6;
-            filter: drop-shadow(0 0 3px rgba(52, 211, 153, 0.45));
+            filter: drop-shadow(0 0 3px rgba(168, 85, 247, 0.5));
           }
           50% {
             opacity: 1;
-            filter: drop-shadow(0 0 10px rgba(52, 211, 153, 0.85))
-                    drop-shadow(0 0 20px rgba(16, 185, 129, 0.4));
+            filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.9))
+                    drop-shadow(0 0 20px rgba(217, 70, 239, 0.45));
           }
         }
         .animate-edge-pulse {

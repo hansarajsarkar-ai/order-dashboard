@@ -6196,8 +6196,8 @@ export default function OrderStatusDashboard() {
                             <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{formatAmount(r.orderValue)}</td>
                             <td className="px-3 py-2 text-rose-700 whitespace-nowrap">{r.markedRejectedTime || '—'}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.shipmentStatus || '—'}</td>
-                            <td className="px-3 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
                             <td className="px-3 py-2 text-slate-700">{r.buyerBusinessName || '—'}</td>
+                            <td className="px-3 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
                             <td className="px-3 py-2 text-right tabular-nums font-bold text-rose-700">{r.deliveryAttempt || 0}</td>
                             <td className="px-3 py-2 text-rose-700 max-w-[280px]" title={r.finalFailureReason || ''}>{r.finalFailureReason || <span className="italic text-slate-400">—</span>}</td>
                           </tr>
@@ -6331,7 +6331,6 @@ export default function OrderStatusDashboard() {
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Delivered Time</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Seller</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">City / State</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Delivery Status</th>
                         </tr>
@@ -6363,8 +6362,8 @@ export default function OrderStatusDashboard() {
                             </td>
                             <td className="px-3 py-2 text-slate-800">
                               <div className="font-medium leading-tight">{r.buyerBusinessName || '—'}</div>
+                              <div className="text-[10px] text-slate-500 tabular-nums leading-tight">{r.buyerPhone || '—'}</div>
                             </td>
-                            <td className="px-3 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                               {[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}
                             </td>

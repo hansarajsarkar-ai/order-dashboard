@@ -2153,41 +2153,23 @@ export default function OrderStatusDashboard() {
                       <p className="text-white/60 text-xs mt-1">{remainingLabel}</p>
                     </div>
                   </div>
-                  <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="lg:col-span-2 flex flex-col gap-4">
                     <button
                       type="button"
                       onClick={() => setGoalModalOpen(true)}
-                      className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                      className="text-left bg-gradient-to-br from-fuchsia-500/15 via-purple-500/10 to-indigo-500/15 border border-fuchsia-400/30 rounded-xl p-6 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/60 hover:shadow-[0_0_40px_rgba(217,70,239,0.35)] hover:scale-[1.01] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
-                      <p className="text-white/60 text-xs uppercase tracking-wider mb-2">Achieved</p>
-                      <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(goalData.achieved)}</p>
-                      <p className="text-white/50 text-xs mt-1">{goalData.orders.toLocaleString()} orders</p>
-                      <p className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</p>
-                    </button>
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02]">
-                      <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{currentMonth} Goal</p>
-                      <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(goalData.goal)}</p>
-                      <p className="text-white/50 text-xs mt-1">DELIVERED + COMPLETED</p>
-                    </div>
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02]">
-                      <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{overshoot ? 'Above Goal' : 'Remaining'}</p>
-                      <p className={`text-3xl font-bold tabular-nums ${overshoot ? 'text-emerald-400' : 'text-white'}`}>
-                        {formatAmount(overshoot ? goalData.achieved - goalData.goal : goalData.remaining)}
+                      <p className="text-fuchsia-200 text-xs uppercase tracking-[0.18em] font-bold mb-2">
+                        {currentMonth.toUpperCase()} Achieved GMV
                       </p>
-                      <p className="text-white/50 text-xs mt-1">{overshoot ? 'beyond ₹1 Cr' : 'to hit ₹1 Cr'}</p>
-                    </div>
-                    <div className="sm:col-span-2 bg-white/5 border border-white/10 rounded-xl p-4 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_40px_rgba(217,70,239,0.3)]">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-white/70 text-sm font-semibold">Progress to ₹1 Cr</p>
-                        <p className="text-white/70 text-sm tabular-nums">{goalData.achievePct.toFixed(2)}%</p>
+                      <p className="text-5xl font-extrabold text-white tabular-nums leading-none">{formatAmount(goalData.achieved)}</p>
+                      <div className="mt-3 flex items-center gap-3 flex-wrap">
+                        <span className="text-white/70 text-sm font-medium">{goalData.orders.toLocaleString()} orders</span>
+                        <span className="text-fuchsia-300/60">·</span>
+                        <span className="text-white/70 text-sm tabular-nums">{goalData.achievePct.toFixed(2)}% of ₹1 Cr</span>
+                        <span className="text-[10px] text-fuchsia-300/80 ml-auto">click for details →</span>
                       </div>
-                      <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-700 ${overshoot ? 'bg-emerald-500' : 'bg-purple-500'}`}
-                          style={{ width: `${Math.min(goalData.achievePct, 100)}%` }}
-                        />
-                      </div>
-                    </div>
+                    </button>
                     <CountdownCalendar compact={true} />
                   </div>
                 </div>

@@ -5603,7 +5603,7 @@ export default function OrderStatusDashboard() {
                               <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="buyerBusiness" label="Buyer Business" />
                               <SortTh k="buyerPhone" label="Buyer Phone" />
-                              <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Address Details</th>
+                              <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
                               <SortTh k="markedPending" label="Marked Pending" />
@@ -5848,7 +5848,7 @@ export default function OrderStatusDashboard() {
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Phone</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Address Details</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Marked Pending</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Created At</th>
                       </tr>
@@ -6325,7 +6325,7 @@ export default function OrderStatusDashboard() {
                         <tr>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Status</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Address Details</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
                           <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Amount</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Pending Time</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Delivered Time</th>

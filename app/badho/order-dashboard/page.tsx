@@ -5820,110 +5820,227 @@ export default function OrderStatusDashboard() {
         {/* PO Items Modal — opens from "View Items" button */}
         {poItemsModal && (
           <div
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-modal-fade"
             onClick={closePoItemsModal}
           >
             <div
-              className="bg-white text-slate-900 border border-slate-200 rounded-xl w-[90vw] max-w-4xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
+              className="relative bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 text-slate-900 rounded-3xl w-[92vw] max-w-5xl max-h-[88vh] flex flex-col overflow-hidden shadow-[0_30px_90px_-20px_rgba(99,102,241,0.4),0_0_60px_-10px_rgba(168,85,247,0.3)] border border-white animate-modal-scale"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="px-5 py-3 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-purple-50 flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600" aria-hidden="true">
-                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                      <line x1="12" y1="22.08" x2="12" y2="12" />
-                    </svg>
-                    Items in PO {poItemsModal}
-                  </h3>
-                  <p className="text-slate-500 text-xs mt-0.5">
-                    {poItemsLoading
-                      ? 'Loading…'
-                      : poItemsTotals
-                      ? `${poItemsTotals.items} SKU${poItemsTotals.items === 1 ? '' : 's'} · ${poItemsTotals.qty.toLocaleString('en-IN')} total qty · ₹${poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-                      : ''}
-                  </p>
+              {/* Decorative gradient blobs */}
+              <div className="absolute -top-24 -right-24 w-72 h-72 bg-gradient-to-br from-fuchsia-300/40 to-indigo-400/40 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-gradient-to-br from-sky-300/30 to-purple-400/30 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Hero header */}
+              <div className="relative px-7 pt-6 pb-5 border-b border-slate-200/60 bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white overflow-hidden">
+                {/* shimmer overlay */}
+                <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_30%,rgba(255,255,255,0.18)_50%,transparent_70%)] bg-[length:200%_100%] animate-shimmer pointer-events-none" />
+                {/* sparkle dots */}
+                <div className="absolute top-3 right-12 w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" />
+                <div className="absolute top-8 right-24 w-1 h-1 rounded-full bg-white/60 animate-pulse" style={{ animationDelay: '0.4s' }} />
+                <div className="absolute top-6 right-40 w-1 h-1 rounded-full bg-white/50 animate-pulse" style={{ animationDelay: '0.8s' }} />
+
+                <div className="relative flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-4 min-w-0">
+                    <div className="relative shrink-0">
+                      <div className="absolute inset-0 rounded-2xl bg-white/30 blur-md" />
+                      <div className="relative w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/40 flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_24px_-8px_rgba(0,0,0,0.3)]">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                          <line x1="12" y1="22.08" x2="12" y2="12" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-white/70 font-semibold">Purchase Order</div>
+                      <h3 className="text-2xl font-extrabold tracking-tight leading-tight">
+                        PO {poItemsModal}
+                      </h3>
+                      <p className="text-white/80 text-xs mt-1">
+                        Items, quantities &amp; line-item amounts
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={closePoItemsModal}
+                    className="shrink-0 w-9 h-9 rounded-xl bg-white/15 hover:bg-white/30 backdrop-blur-sm border border-white/30 text-white text-lg font-semibold transition-all hover:rotate-90 hover:scale-105"
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
                 </div>
-                <button
-                  onClick={closePoItemsModal}
-                  className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
-                >
-                  Close
-                </button>
-              </div>
-              <div className="flex-1 overflow-auto">
-                {poItemsLoading ? (
-                  <div className="px-6 py-16 text-center text-slate-500">Loading items…</div>
-                ) : poItemsError ? (
-                  <div className="px-6 py-16 text-center text-rose-600">Error: {poItemsError}</div>
-                ) : !poItemsData || poItemsData.length === 0 ? (
-                  <div className="px-6 py-16 text-center text-slate-500">No items found for this PO</div>
-                ) : (
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-slate-100 z-10 border-b border-slate-200">
-                      <tr>
-                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">#</th>
-                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600">SKU</th>
-                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Status</th>
-                        <th className="px-3 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Quantity</th>
-                        <th className="px-3 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Unit Price</th>
-                        <th className="px-3 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Discount</th>
-                        <th className="px-3 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {poItemsData.map((it, idx) => (
-                        <tr key={it.id} className="border-b border-slate-100 hover:bg-indigo-50/40">
-                          <td className="px-3 py-2 text-slate-500 tabular-nums">{idx + 1}</td>
-                          <td className="px-3 py-2 text-slate-900">
-                            <div className="font-medium">{it.skuLabel || <span className="text-slate-400 italic">—</span>}</div>
-                            {it.brandLabel && <div className="text-[10px] text-slate-500 leading-tight">{it.brandLabel}</div>}
-                          </td>
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                              it.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
-                              it.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' :
-                              it.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
-                              it.status === 'DISPATCHED' ? 'bg-blue-100 text-blue-700' :
-                              it.status === 'IN_TRANSIT' ? 'bg-cyan-100 text-cyan-700' :
-                              it.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' :
-                              it.status === 'PENDING' ? 'bg-slate-100 text-slate-700' :
-                              'bg-slate-100 text-slate-600'
-                            }`}>{it.status || '—'}</span>
-                          </td>
-                          <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap font-semibold">
-                            {it.quantity != null ? it.quantity.toLocaleString('en-IN') : '—'}
-                            {it.quantityUnit ? <span className="text-[10px] text-slate-500 ml-1">{it.quantityUnit}</span> : null}
-                          </td>
-                          <td className="px-3 py-2 text-right text-slate-700 tabular-nums whitespace-nowrap">
-                            {it.unitPrice != null ? `₹${it.unitPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
-                          </td>
-                          <td className="px-3 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">
-                            {it.discount ? `₹${it.discount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
-                          </td>
-                          <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap font-semibold">
-                            {it.amount != null ? `₹${it.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    {poItemsTotals && (
-                      <tfoot className="sticky bottom-0 bg-indigo-50 border-t-2 border-indigo-300">
-                        <tr>
-                          <td colSpan={3} className="px-3 py-2 text-right font-bold text-indigo-900 uppercase text-[10px] tracking-wide">Total</td>
-                          <td className="px-3 py-2 text-right font-bold text-indigo-900 tabular-nums">{poItemsTotals.qty.toLocaleString('en-IN')}</td>
-                          <td />
-                          <td />
-                          <td className="px-3 py-2 text-right font-bold text-indigo-900 tabular-nums">
-                            ₹{poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
+
+                {/* Stat cards */}
+                {poItemsTotals && (
+                  <div className="relative grid grid-cols-3 gap-3 mt-5">
+                    {[
+                      { label: 'SKUs',     value: poItemsTotals.items.toLocaleString('en-IN'), icon: '📦' },
+                      { label: 'Quantity', value: poItemsTotals.qty.toLocaleString('en-IN'),   icon: '🔢' },
+                      { label: 'Amount',   value: `₹${poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`, icon: '💰' },
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="rounded-xl bg-white/15 backdrop-blur-sm border border-white/25 px-4 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]"
+                      >
+                        <div className="text-[10px] uppercase tracking-wider text-white/70 font-semibold flex items-center gap-1.5">
+                          <span>{stat.icon}</span>{stat.label}
+                        </div>
+                        <div className="text-lg font-extrabold tabular-nums mt-0.5 truncate">
+                          {stat.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
+
+              {/* Body */}
+              <div className="relative flex-1 overflow-auto px-5 py-4">
+                {poItemsLoading ? (
+                  <div className="px-6 py-20 text-center">
+                    <div className="inline-block w-10 h-10 rounded-full border-[3px] border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+                    <p className="text-slate-500 text-sm">Loading items…</p>
+                  </div>
+                ) : poItemsError ? (
+                  <div className="px-6 py-16 text-center">
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-rose-100 text-rose-600 text-2xl mb-3">⚠</div>
+                    <p className="text-rose-600 font-medium">{poItemsError}</p>
+                  </div>
+                ) : !poItemsData || poItemsData.length === 0 ? (
+                  <div className="px-6 py-16 text-center">
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-100 text-slate-400 text-2xl mb-3">📭</div>
+                    <p className="text-slate-500">No items found for this PO</p>
+                  </div>
+                ) : (() => {
+                  const maxAmount = Math.max(...poItemsData.map((i) => i.amount || 0), 1);
+                  const statusColor = (s: string | null) => {
+                    switch (s) {
+                      case 'REJECTED':    return { bg: 'bg-gradient-to-r from-rose-500 to-red-500', text: 'text-white', ring: 'ring-rose-300', dot: 'bg-rose-400' };
+                      case 'DELIVERED':
+                      case 'COMPLETED':   return { bg: 'bg-gradient-to-r from-emerald-500 to-teal-500', text: 'text-white', ring: 'ring-emerald-300', dot: 'bg-emerald-400' };
+                      case 'DISPATCHED':  return { bg: 'bg-gradient-to-r from-blue-500 to-indigo-500', text: 'text-white', ring: 'ring-blue-300', dot: 'bg-blue-400' };
+                      case 'IN_TRANSIT':  return { bg: 'bg-gradient-to-r from-cyan-500 to-sky-500', text: 'text-white', ring: 'ring-cyan-300', dot: 'bg-cyan-400' };
+                      case 'IN_PROGRESS': return { bg: 'bg-gradient-to-r from-amber-500 to-orange-500', text: 'text-white', ring: 'ring-amber-300', dot: 'bg-amber-400' };
+                      case 'PENDING':     return { bg: 'bg-gradient-to-r from-slate-400 to-slate-500', text: 'text-white', ring: 'ring-slate-300', dot: 'bg-slate-400' };
+                      default:            return { bg: 'bg-slate-200', text: 'text-slate-700', ring: 'ring-slate-300', dot: 'bg-slate-400' };
+                    }
+                  };
+                  return (
+                    <div className="space-y-2">
+                      {poItemsData.map((it, idx) => {
+                        const sc = statusColor(it.status);
+                        const barPct = it.amount ? Math.max(4, (it.amount / maxAmount) * 100) : 0;
+                        return (
+                          <div
+                            key={it.id}
+                            className="group relative rounded-2xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-[0_8px_24px_-8px_rgba(99,102,241,0.25)] hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+                            style={{ animationDelay: `${idx * 30}ms` }}
+                          >
+                            {/* amount intensity bar on the left */}
+                            <div
+                              className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-400 via-purple-500 to-fuchsia-500 transition-all duration-300 group-hover:w-1.5"
+                              style={{ opacity: 0.3 + (barPct / 100) * 0.7 }}
+                            />
+
+                            <div className="flex items-center gap-4 pl-5 pr-4 py-3">
+                              {/* Numbered avatar */}
+                              <div className="shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 border border-indigo-200 flex items-center justify-center text-[11px] font-extrabold text-indigo-700 tabular-nums shadow-sm group-hover:scale-110 group-hover:rotate-3 transition-transform">
+                                {idx + 1}
+                              </div>
+
+                              {/* SKU name + brand */}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-bold text-slate-900 text-sm leading-snug truncate">
+                                  {it.skuLabel || <span className="text-slate-400 italic font-normal">Unnamed SKU</span>}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {it.brandLabel && (
+                                    <span className="text-[10px] text-slate-500 font-medium truncate max-w-[180px]">
+                                      🏷 {it.brandLabel}
+                                    </span>
+                                  )}
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${sc.bg} ${sc.text} ring-1 ring-inset ring-white/30 shadow-sm`}>
+                                    <span className={`w-1 h-1 rounded-full ${sc.dot}`} />
+                                    {it.status || '—'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Quantity chip */}
+                              <div className="shrink-0 text-right">
+                                <div className="inline-flex items-baseline gap-1 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200">
+                                  <span className="text-lg font-extrabold text-slate-900 tabular-nums leading-none">
+                                    {it.quantity != null ? it.quantity.toLocaleString('en-IN') : '—'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-medium">{it.quantityUnit || 'qty'}</span>
+                                </div>
+                              </div>
+
+                              {/* Unit price × — visual equation */}
+                              <div className="shrink-0 hidden md:flex flex-col items-end leading-tight">
+                                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Unit</div>
+                                <div className="text-sm font-semibold text-slate-700 tabular-nums">
+                                  {it.unitPrice != null ? `₹${it.unitPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+                                </div>
+                              </div>
+
+                              {/* Discount (only if any) */}
+                              {it.discount ? (
+                                <div className="shrink-0 hidden md:flex flex-col items-end leading-tight">
+                                  <div className="text-[10px] text-amber-500 uppercase tracking-wider font-semibold">Discount</div>
+                                  <div className="text-sm font-semibold text-amber-600 tabular-nums">
+                                    −₹{it.discount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              {/* Final amount with gradient bar */}
+                              <div className="shrink-0 text-right min-w-[120px]">
+                                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Amount</div>
+                                <div className="text-lg font-extrabold tabular-nums bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent">
+                                  {it.amount != null ? `₹${it.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+                                </div>
+                                {/* mini progress bar */}
+                                <div className="mt-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-indigo-400 via-purple-500 to-fuchsia-500 rounded-full transition-all duration-500"
+                                    style={{ width: `${barPct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Sticky footer total */}
+              {poItemsTotals && poItemsData && poItemsData.length > 0 && (
+                <div className="relative px-7 py-3 border-t border-slate-200/60 bg-gradient-to-r from-indigo-50 via-white to-fuchsia-50 flex items-center justify-between">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                    Order Total
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total Qty</div>
+                      <div className="text-base font-extrabold tabular-nums text-slate-900">
+                        {poItemsTotals.qty.toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                    <div className="w-px h-8 bg-slate-300" />
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total Amount</div>
+                      <div className="text-xl font-extrabold tabular-nums bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent">
+                        ₹{poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -7243,6 +7360,27 @@ export default function OrderStatusDashboard() {
         }
         .animate-pulse-glow {
           animation: pulse-glow 1.8s ease-in-out infinite;
+        }
+        @keyframes modal-fade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        .animate-modal-fade {
+          animation: modal-fade 0.22s ease-out;
+        }
+        @keyframes modal-scale {
+          from { opacity: 0; transform: scale(0.94) translateY(8px); }
+          to   { opacity: 1; transform: scale(1)    translateY(0);   }
+        }
+        .animate-modal-scale {
+          animation: modal-scale 0.28s cubic-bezier(0.34, 1.4, 0.5, 1);
+        }
+        @keyframes shimmer {
+          0%   { background-position: -150% 50%; }
+          100% { background-position:  250% 50%; }
+        }
+        .animate-shimmer {
+          animation: shimmer 4s linear infinite;
         }
       `}</style>
     </div>

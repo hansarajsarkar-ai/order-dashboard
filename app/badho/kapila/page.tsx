@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -21,6 +21,20 @@ interface ApiResponse {
   totals: { byStatus: Record<string, Cell>; grand: Cell };
   startDate: string;
   endDate: string;
+  brandId: string;
+  timestamp: string;
+}
+
+interface YearStatusRow {
+  status: string;
+  cells: Record<string, Cell>;
+  total: Cell;
+}
+
+interface YearApiResponse {
+  data: YearStatusRow[];
+  years: string[];
+  totals: { byYear: Record<string, Cell>; grand: Cell };
   brandId: string;
   timestamp: string;
 }
@@ -103,7 +117,9 @@ function KapilaDashboard() {
   const [startDate, setStartDate] = useState(initial.startDate);
   const [endDate, setEndDate] = useState(initial.endDate);
   const [data, setData] = useState<ApiResponse | null>(null);
+  const [yearData, setYearData] = useState<YearApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [yearLoading, setYearLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAmount, setShowAmount] = useState(true);
 
@@ -153,6 +169,25 @@ function KapilaDashboard() {
     return () => clearTimeout(t);
   }, [startDate, endDate, authChecked, fetchData]);
 
+  const fetchYearData = useCallback(async () => {
+    setYearLoading(true);
+    try {
+      const res = await fetch(`/api/kapila/year-status-pivot`, { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      setYearData(json as YearApiResponse);
+    } catch (err) {
+      console.error('year pivot fetch failed:', err);
+    } finally {
+      setYearLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    fetchYearData();
+  }, [authChecked, fetchYearData]);
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
@@ -195,7 +230,7 @@ function KapilaDashboard() {
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
 
-      <div className="max-w-7xl mx-auto relative z-10">
+      <div className="w-[95%] mx-auto relative z-10">
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <Link
             href="/badho"
@@ -354,6 +389,101 @@ function KapilaDashboard() {
               </table>
             </div>
           )}
+        </div>
+
+        {/* Year × Status pivot (all-time, not date-filtered) */}
+        <div className="mt-8 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+            <div className="text-sm font-semibold text-white">
+              Status × Year pivot <span className="text-purple-300 font-normal">(all time)</span>
+            </div>
+            {yearLoading && <span className="text-xs text-purple-300">Loading…</span>}
+          </div>
+          {yearData && yearData.data.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-white/[0.03]">
+                  <tr>
+                    <th rowSpan={2} className="px-3 py-2 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 z-10 border-r border-white/10 align-bottom">
+                      Status
+                    </th>
+                    {yearData.years.map((y) => (
+                      <th key={y} colSpan={2} className="px-3 py-2 text-center text-xs font-semibold text-fuchsia-300 border-l border-white/10">
+                        {y}
+                      </th>
+                    ))}
+                    <th colSpan={2} className="px-3 py-2 text-center text-xs font-semibold text-fuchsia-200 bg-white/[0.04] border-l border-white/10">
+                      Total
+                    </th>
+                  </tr>
+                  <tr>
+                    {yearData.years.map((y) => (
+                      <Fragment key={y}>
+                        <th className="px-3 py-1.5 text-right text-[10px] font-medium text-purple-300/80 border-l border-white/10">Amount</th>
+                        <th className="px-3 py-1.5 text-right text-[10px] font-medium text-purple-300/80">Orders</th>
+                      </Fragment>
+                    ))}
+                    <th className="px-3 py-1.5 text-right text-[10px] font-medium text-fuchsia-200 bg-white/[0.04] border-l border-white/10">Amount</th>
+                    <th className="px-3 py-1.5 text-right text-[10px] font-medium text-fuchsia-200 bg-white/[0.04]">Orders</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {yearData.data.map((row) => (
+                    <tr key={row.status} className="border-t border-white/5 hover:bg-white/[0.03]">
+                      <td className={`px-3 py-2 whitespace-nowrap sticky left-0 bg-slate-900/60 z-10 border-r border-white/10 font-medium ${statusClass(row.status)}`}>
+                        {row.status}
+                      </td>
+                      {yearData.years.map((y) => {
+                        const c = row.cells[y];
+                        return (
+                          <Fragment key={y}>
+                            <td className="px-3 py-2 text-right text-purple-200 tabular-nums border-l border-white/10">
+                              {c ? fmtAmount(c.amount) : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-right text-purple-200 tabular-nums">
+                              {c ? fmtCount(c.count) : '—'}
+                            </td>
+                          </Fragment>
+                        );
+                      })}
+                      <td className="px-3 py-2 text-right text-fuchsia-200 font-semibold tabular-nums bg-white/[0.02] border-l border-white/10">
+                        {fmtAmount(row.total.amount)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-fuchsia-200 font-semibold tabular-nums bg-white/[0.02]">
+                        {fmtCount(row.total.count)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-white/10 bg-white/[0.04]">
+                    <td className="px-3 py-2 text-xs font-semibold text-fuchsia-200 sticky left-0 bg-slate-900/80 border-r border-white/10">Total</td>
+                    {yearData.years.map((y) => {
+                      const c = yearData.totals.byYear[y];
+                      return (
+                        <Fragment key={y}>
+                          <td className="px-3 py-2 text-right text-fuchsia-200 font-semibold tabular-nums border-l border-white/10">
+                            {c ? fmtAmount(c.amount) : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right text-fuchsia-200 font-semibold tabular-nums">
+                            {c ? fmtCount(c.count) : '—'}
+                          </td>
+                        </Fragment>
+                      );
+                    })}
+                    <td className="px-3 py-2 text-right text-white font-bold tabular-nums border-l border-white/10">
+                      {fmtAmount(yearData.totals.grand.amount)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-white font-bold tabular-nums">
+                      {fmtCount(yearData.totals.grand.count)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : !yearLoading ? (
+            <div className="p-10 text-center text-purple-300/70 text-sm">No data.</div>
+          ) : null}
         </div>
 
         <div className="mt-6 text-xs text-purple-300/50">

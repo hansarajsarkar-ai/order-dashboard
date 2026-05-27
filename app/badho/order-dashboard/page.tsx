@@ -416,6 +416,61 @@ export default function OrderStatusDashboard() {
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography' | 'alert'>('dashboard');
 
+  // PO Items modal (opened from any "View Items" button across the dashboard)
+  interface PoItemRow {
+    id: string;
+    brandSKUId: string;
+    skuLabel: string | null;
+    brandLabel: string | null;
+    status: string | null;
+    quantity: number | null;
+    quantityUnit: string | null;
+    unitPrice: number | null;
+    discount: number | null;
+    amount: number | null;
+    total: number | null;
+    isAccepted: boolean | null;
+    isRejected: boolean | null;
+    rejectedComment: string | null;
+  }
+  const [poItemsModal, setPoItemsModal] = useState<string | null>(null); // PO number
+  const [poItemsData, setPoItemsData] = useState<PoItemRow[] | null>(null);
+  const [poItemsTotals, setPoItemsTotals] = useState<{ items: number; qty: number; amount: number; total: number } | null>(null);
+  const [poItemsLoading, setPoItemsLoading] = useState(false);
+  const [poItemsError, setPoItemsError] = useState<string | null>(null);
+
+  const openPoItemsModal = async (poNumber: string) => {
+    setPoItemsModal(poNumber);
+    setPoItemsData(null);
+    setPoItemsTotals(null);
+    setPoItemsError(null);
+    setPoItemsLoading(true);
+    try {
+      const res = await fetch(`/api/po-items?poNumber=${encodeURIComponent(poNumber)}`);
+      if (!res.ok) throw new Error('Failed to fetch items');
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setPoItemsData(json.data);
+      setPoItemsTotals(json.totals);
+    } catch (err) {
+      setPoItemsError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setPoItemsLoading(false);
+    }
+  };
+  const closePoItemsModal = () => {
+    setPoItemsModal(null);
+    setPoItemsData(null);
+    setPoItemsTotals(null);
+    setPoItemsError(null);
+  };
+  useEffect(() => {
+    if (!poItemsModal) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePoItemsModal(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [poItemsModal]);
+
   // Alert tab — SLA breach alerts
   interface AlertDetailRow {
     poNumber: string;
@@ -5762,6 +5817,117 @@ export default function OrderStatusDashboard() {
           </div>
         )}
 
+        {/* PO Items Modal — opens from "View Items" button */}
+        {poItemsModal && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm"
+            onClick={closePoItemsModal}
+          >
+            <div
+              className="bg-white text-slate-900 border border-slate-200 rounded-xl w-[90vw] max-w-4xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-3 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-purple-50 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600" aria-hidden="true">
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                      <line x1="12" y1="22.08" x2="12" y2="12" />
+                    </svg>
+                    Items in PO {poItemsModal}
+                  </h3>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    {poItemsLoading
+                      ? 'Loading…'
+                      : poItemsTotals
+                      ? `${poItemsTotals.items} SKU${poItemsTotals.items === 1 ? '' : 's'} · ${poItemsTotals.qty.toLocaleString('en-IN')} total qty · ₹${poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                      : ''}
+                  </p>
+                </div>
+                <button
+                  onClick={closePoItemsModal}
+                  className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto">
+                {poItemsLoading ? (
+                  <div className="px-6 py-16 text-center text-slate-500">Loading items…</div>
+                ) : poItemsError ? (
+                  <div className="px-6 py-16 text-center text-rose-600">Error: {poItemsError}</div>
+                ) : !poItemsData || poItemsData.length === 0 ? (
+                  <div className="px-6 py-16 text-center text-slate-500">No items found for this PO</div>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-slate-100 z-10 border-b border-slate-200">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">#</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600">SKU</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Status</th>
+                        <th className="px-3 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Quantity</th>
+                        <th className="px-3 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Unit Price</th>
+                        <th className="px-3 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Discount</th>
+                        <th className="px-3 py-2 text-right text-[11px] font-semibold text-slate-600 whitespace-nowrap">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {poItemsData.map((it, idx) => (
+                        <tr key={it.id} className="border-b border-slate-100 hover:bg-indigo-50/40">
+                          <td className="px-3 py-2 text-slate-500 tabular-nums">{idx + 1}</td>
+                          <td className="px-3 py-2 text-slate-900">
+                            <div className="font-medium">{it.skuLabel || <span className="text-slate-400 italic">—</span>}</div>
+                            {it.brandLabel && <div className="text-[10px] text-slate-500 leading-tight">{it.brandLabel}</div>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              it.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
+                              it.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' :
+                              it.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
+                              it.status === 'DISPATCHED' ? 'bg-blue-100 text-blue-700' :
+                              it.status === 'IN_TRANSIT' ? 'bg-cyan-100 text-cyan-700' :
+                              it.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' :
+                              it.status === 'PENDING' ? 'bg-slate-100 text-slate-700' :
+                              'bg-slate-100 text-slate-600'
+                            }`}>{it.status || '—'}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap font-semibold">
+                            {it.quantity != null ? it.quantity.toLocaleString('en-IN') : '—'}
+                            {it.quantityUnit ? <span className="text-[10px] text-slate-500 ml-1">{it.quantityUnit}</span> : null}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-700 tabular-nums whitespace-nowrap">
+                            {it.unitPrice != null ? `₹${it.unitPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">
+                            {it.discount ? `₹${it.discount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap font-semibold">
+                            {it.amount != null ? `₹${it.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {poItemsTotals && (
+                      <tfoot className="sticky bottom-0 bg-indigo-50 border-t-2 border-indigo-300">
+                        <tr>
+                          <td colSpan={3} className="px-3 py-2 text-right font-bold text-indigo-900 uppercase text-[10px] tracking-wide">Total</td>
+                          <td className="px-3 py-2 text-right font-bold text-indigo-900 tabular-nums">{poItemsTotals.qty.toLocaleString('en-IN')}</td>
+                          <td />
+                          <td />
+                          <td className="px-3 py-2 text-right font-bold text-indigo-900 tabular-nums">
+                            ₹{poItemsTotals.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Alert Detail Modal */}
         {alertModalCategory && (
           <div
@@ -5868,6 +6034,7 @@ export default function OrderStatusDashboard() {
                         <tr>
                           <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Payment Option</th>
                           <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
+                          <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Items</th>
                           <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Marked Pending</th>
                           <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Marked In Progress</th>
                           <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-rose-600 whitespace-nowrap">SLA Breach At</th>
@@ -5915,6 +6082,20 @@ export default function OrderStatusDashboard() {
                                 </span>
                               </td>
                               <td className="px-2.5 py-1.5 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
+                              <td className="px-2.5 py-1.5 whitespace-nowrap">
+                                <button
+                                  onClick={() => openPoItemsModal(r.poNumber)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-[11px] font-semibold border border-indigo-200 hover:border-indigo-300 transition-colors"
+                                  title="View items in this PO"
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                    <line x1="12" y1="22.08" x2="12" y2="12" />
+                                  </svg>
+                                  View Items
+                                </button>
+                              </td>
                               <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime)}</td>
                               <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.markedInProgressTime ? formatDateTime(r.markedInProgressTime) : <span className="text-slate-400 italic">—</span>}</td>
                               <td className="px-2.5 py-1.5 text-rose-700 whitespace-nowrap font-medium">{formatDateTime(r.slaBreachAt)}</td>
@@ -6205,6 +6386,7 @@ export default function OrderStatusDashboard() {
                             <>
                               <SortTh k="pushed" label="Pushed" />
                               <SortTh k="poNumber" label="PO Number" />
+                              <th className="px-2.5 py-2 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">Items</th>
                               <SortTh k="status" label="Order Status" />
                               <SortTh k="poAmount" label="PO Amount" align="right" />
                               <SortTh k="paidAmount" label="Paid Amount" align="right" />
@@ -6251,6 +6433,20 @@ export default function OrderStatusDashboard() {
                             </span>
                           </td>
                           <td className="px-2.5 py-1.5 text-slate-900 tabular-nums font-medium whitespace-nowrap">{r.poNumber}</td>
+                          <td className="px-2.5 py-1.5 whitespace-nowrap">
+                            <button
+                              onClick={() => openPoItemsModal(r.poNumber)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-[11px] font-semibold border border-indigo-200 hover:border-indigo-300 transition-colors"
+                              title="View items in this PO"
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                <line x1="12" y1="22.08" x2="12" y2="12" />
+                              </svg>
+                              View Items
+                            </button>
+                          </td>
                           <td className="px-2.5 py-1.5 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
                           <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>
                           <td className="px-2.5 py-1.5 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400 italic">—</span>}</td>

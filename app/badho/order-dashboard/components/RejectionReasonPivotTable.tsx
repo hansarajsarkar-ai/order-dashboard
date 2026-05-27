@@ -173,7 +173,49 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
   const [modalSearch, setModalSearch] = useState('');
   const [colFilters, setColFilters] = useState<Record<string, Set<string>>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [modalSort, setModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
+
+  const toggleModalSort = (key: string) => {
+    setModalSort((prev) => {
+      if (!prev || prev.key !== key) return { key, direction: 'asc' };
+      if (prev.direction === 'asc') return { key, direction: 'desc' };
+      return null;
+    });
+  };
+  const modalSortValue = (r: OrderDetail, key: string): number | string | null => {
+    const num = (v: unknown) => (v == null || v === '' ? null : Number(v));
+    const dt = (v: unknown) => (v == null || v === '' ? null : new Date(v as string).getTime());
+    switch (key) {
+      case 'pushed': return r.pushedStatus ?? '';
+      case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
+      case 'status': return r.orderStatus ?? '';
+      case 'poAmount': return num(r.poAmount);
+      case 'paidAmount': return num(r.paidAmount);
+      case 'coupon': return num(r.CoupanAmount);
+      case 'sellerDiscount': return num(r.discountBySeller);
+      case 'badhoDiscount': return num(r.PaymentOptionDiscountByBadho);
+      case 'wallet': return num(r.appliedWalletAmount);
+      case 'paymentOption': return r.PaymentOption ?? '';
+      case 'paymentDate': return dt(r.paymentDate);
+      case 'paymentEvent': return r.paymentEvent ?? '';
+      case 'awb': return r.awbNumber ?? '';
+      case 'courier': return r.courierName ?? '';
+      case 'deliveryStatus': return r.deliveryStatusDv ?? '';
+      case 'cod': return num(r.codAmountToBeCollected);
+      case 'buyerPhone': return r.buyerPhone ?? '';
+      case 'buyerBusiness': return r.buyerBusinessName ?? '';
+      case 'sellerPhone': return r.sellerPhone ?? '';
+      case 'sellerBusiness': return r.sellerBusinessName ?? '';
+      case 'markedPending': return dt(r.MarkedpendingTime);
+      case 'refundInit': return dt(r.RefundIntiatedTime);
+      case 'refundDone': return dt(r.RefundCompletedTime);
+      case 'rejectReason': return r.rejectReason ?? '';
+      case 'rejectedBy': return r.rejectedBy ?? '';
+      case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
+      default: return '';
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -242,6 +284,7 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
     setModalSearch('');
     setColFilters({});
     setOpenFilter(null);
+    setModalSort(null);
   };
 
   useEffect(() => {
@@ -339,6 +382,20 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
       if (!set || set.size === 0) continue;
       filteredModalData = filteredModalData.filter((r) => set.has(valueForFilterKey(r, key)));
     }
+  }
+  if (filteredModalData && modalSort) {
+    const { key, direction } = modalSort;
+    filteredModalData = [...filteredModalData].sort((a, b) => {
+      const av = modalSortValue(a, key);
+      const bv = modalSortValue(b, key);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      let cmp = 0;
+      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
+      else cmp = String(av).localeCompare(String(bv));
+      return direction === 'asc' ? cmp : -cmp;
+    });
   }
 
   const activeFilterCount = Object.values(colFilters).reduce((s, set) => s + set.size, 0);
@@ -913,23 +970,57 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-slate-100 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                     <tr className="border-b border-slate-200">
-                      {[
-                        'Pushed','PO Number','Items','Order Status','PO Amount','Paid Amount',
-                        'Coupon Amount','Seller Discount','Applied Wallet Amount','Payment Option',
-                        'AWB Number','Courier Name','COD Amount','Payment Option Badho Discount',
-                        'Payment Date','Payment Event','Delivery Status',
-                        'Buyer Business','Buyer Phone','Buyer Address',
-                        'Seller Phone','Seller Business','Marked Pending',
-                        'Refund Initiated','Refund Completed',
-                        'Reject Reason','Rejected By','Reason Added By Badho Team',
-                      ].map((h, i) => (
-                        <th
-                          key={i}
-                          className={`px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider ${i >= 25 ? 'bg-rose-50/60' : ''}`}
-                        >
-                          {h}
-                        </th>
-                      ))}
+                      {(() => {
+                        const arrowFor = (k: string) => {
+                          const active = modalSort?.key === k;
+                          const dir = active ? modalSort?.direction : null;
+                          return (
+                            <span className={`ml-1 text-[10px] leading-none ${active ? 'text-purple-600' : 'text-slate-300'}`}>
+                              {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : '⇅'}
+                            </span>
+                          );
+                        };
+                        const SortTh = ({ k, label, cls = '' }: { k: string; label: string; cls?: string }) => (
+                          <th
+                            onClick={() => toggleModalSort(k)}
+                            className={`px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200/80 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-700'}`}
+                          >
+                            <span className="inline-flex items-center">{label}{arrowFor(k)}</span>
+                          </th>
+                        );
+                        return (
+                          <>
+                            <SortTh k="pushed" label="Pushed" />
+                            <SortTh k="poNumber" label="PO Number" />
+                            <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
+                            <SortTh k="status" label="Order Status" />
+                            <SortTh k="poAmount" label="PO Amount" />
+                            <SortTh k="paidAmount" label="Paid Amount" />
+                            <SortTh k="coupon" label="Coupon Amount" />
+                            <SortTh k="sellerDiscount" label="Seller Discount" />
+                            <SortTh k="wallet" label="Applied Wallet Amount" />
+                            <SortTh k="paymentOption" label="Payment Option" />
+                            <SortTh k="awb" label="AWB Number" />
+                            <SortTh k="courier" label="Courier Name" />
+                            <SortTh k="cod" label="COD Amount" />
+                            <SortTh k="badhoDiscount" label="Payment Option Badho Discount" />
+                            <SortTh k="paymentDate" label="Payment Date" />
+                            <SortTh k="paymentEvent" label="Payment Event" />
+                            <SortTh k="deliveryStatus" label="Delivery Status" />
+                            <SortTh k="buyerBusiness" label="Buyer Business" />
+                            <SortTh k="buyerPhone" label="Buyer Phone" />
+                            <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
+                            <SortTh k="sellerPhone" label="Seller Phone" />
+                            <SortTh k="sellerBusiness" label="Seller Business" />
+                            <SortTh k="markedPending" label="Marked Pending" />
+                            <SortTh k="refundInit" label="Refund Initiated" />
+                            <SortTh k="refundDone" label="Refund Completed" />
+                            <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50/60" />
+                            <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50/60" />
+                            <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50/60" />
+                          </>
+                        );
+                      })()}
                     </tr>
                   </thead>
                   <tbody>

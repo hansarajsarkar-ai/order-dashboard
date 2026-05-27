@@ -526,6 +526,47 @@ export default function OrderStatusDashboard() {
   const [alertModalLoading, setAlertModalLoading] = useState(false);
   const [alertModalError, setAlertModalError] = useState<string | null>(null);
   const [alertModalSearch, setAlertModalSearch] = useState('');
+  const [alertModalSort, setAlertModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const toggleAlertSort = (key: string) => {
+    setAlertModalSort((prev) => {
+      if (!prev || prev.key !== key) return { key, direction: 'asc' };
+      if (prev.direction === 'asc') return { key, direction: 'desc' };
+      return null;
+    });
+  };
+  const alertSortValue = (r: AlertDetailRow, key: string): number | string | null => {
+    const num = (v: unknown) => (v == null || v === '' ? null : Number(v));
+    const dt = (v: unknown) => (v == null || v === '' ? null : new Date(v as string).getTime());
+    switch (key) {
+      case 'pushed': return r.pushedStatus ?? '';
+      case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
+      case 'status': return r.orderStatus ?? '';
+      case 'poAmount': return num(r.poAmount);
+      case 'paidAmount': return num(r.paidAmount);
+      case 'coupon': return num(r.CoupanAmount);
+      case 'sellerDiscount': return num(r.discountBySeller);
+      case 'badhoDiscount': return num(r.PaymentOptionDiscountByBadho);
+      case 'wallet': return num(r.appliedWalletAmount);
+      case 'paymentOption': return r.PaymentOption ?? '';
+      case 'paymentDate': return dt(r.paymentDate);
+      case 'paymentEvent': return r.paymentEvent ?? '';
+      case 'awb': return r.awbNumber ?? '';
+      case 'courier': return r.courierName ?? '';
+      case 'deliveryStatus': return r.deliveryStatus ?? '';
+      case 'cod': return num(r.codAmountToBeCollected);
+      case 'buyerPhone': return r.buyerPhone ?? '';
+      case 'buyerBusiness': return r.buyerBusinessName ?? '';
+      case 'sellerPhone': return r.sellerPhone ?? '';
+      case 'sellerBusiness': return r.sellerBusinessName ?? '';
+      case 'markedPending': return dt(r.MarkedpendingTime);
+      case 'refundInit': return dt(r.RefundIntiatedTime);
+      case 'refundDone': return dt(r.RefundCompletedTime);
+      case 'category': return r.category ?? '';
+      case 'inProgress': return dt(r.markedInProgressTime);
+      case 'slaBreach': return dt(r.slaBreachAt);
+      default: return '';
+    }
+  };
 
   // Alert tab — Brand-wise pivot (rows = seller, cols = payment category)
   interface AlertBrandCell { count: number; amount: number; }
@@ -1128,6 +1169,7 @@ export default function OrderStatusDashboard() {
     setAlertModalData(null);
     setAlertModalSearch('');
     setAlertModalError(null);
+    setAlertModalSort(null);
   };
 
   useEffect(() => {
@@ -6196,7 +6238,7 @@ export default function OrderStatusDashboard() {
                   <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
                 ) : (() => {
                   const q = alertModalSearch.trim().toLowerCase();
-                  const filtered = q
+                  let filtered = q
                     ? alertModalData.filter((r) =>
                         (r.poNumber || '').toLowerCase().includes(q) ||
                         (r.buyerPhone || '').toLowerCase().includes(q) ||
@@ -6208,36 +6250,76 @@ export default function OrderStatusDashboard() {
                         (r.courierName || '').toLowerCase().includes(q)
                       )
                     : alertModalData;
+                  if (alertModalSort) {
+                    const { key, direction } = alertModalSort;
+                    filtered = [...filtered].sort((a, b) => {
+                      const av = alertSortValue(a, key);
+                      const bv = alertSortValue(b, key);
+                      if (av === null && bv === null) return 0;
+                      if (av === null) return 1;
+                      if (bv === null) return -1;
+                      let cmp = 0;
+                      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
+                      else cmp = String(av).localeCompare(String(bv));
+                      return direction === 'asc' ? cmp : -cmp;
+                    });
+                  }
                   const paymentCatColor: Record<string, string> = {
                     'Fully_Paid':     'bg-emerald-100 text-emerald-700 border border-emerald-200',
                     'Partially_Paid': 'bg-amber-100 text-amber-700 border border-amber-200',
                     'COD':            'bg-cyan-100 text-cyan-700 border border-cyan-200',
                     'Other':          'bg-purple-100 text-purple-700 border border-purple-200',
                   };
+                  const arrowFor = (k: string) => {
+                    const active = alertModalSort?.key === k;
+                    const dir = active ? alertModalSort?.direction : null;
+                    return (
+                      <span className={`ml-1 text-[10px] leading-none ${active ? 'text-purple-600' : 'text-slate-300'}`}>
+                        {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : '⇅'}
+                      </span>
+                    );
+                  };
+                  const SortTh = ({ k, label, cls = '' }: { k: string; label: string; cls?: string }) => (
+                    <th
+                      onClick={() => toggleAlertSort(k)}
+                      className={`px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200/80 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-700'}`}
+                    >
+                      <span className="inline-flex items-center">{label}{arrowFor(k)}</span>
+                    </th>
+                  );
                   return (
                     <table className="w-full text-xs">
                       <thead className="sticky top-0 bg-slate-100 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                         <tr className="border-b border-slate-200">
-                          {[
-                            'Pushed','PO Number','Items','Order Status','PO Amount','Paid Amount',
-                            'Coupon Amount','Seller Discount','Applied Wallet Amount','Payment Option',
-                            'AWB Number','Courier Name','COD Amount','Payment Option Badho Discount',
-                            'Payment Date','Payment Event','Delivery Status',
-                            'Buyer Business','Buyer Phone','Buyer Address',
-                            'Seller Phone','Seller Business','Marked Pending',
-                            'Refund Initiated','Refund Completed',
-                          ].map((h, i) => (
-                            <th
-                              key={i}
-                              className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider"
-                            >
-                              {h}
-                            </th>
-                          ))}
+                          <SortTh k="pushed" label="Pushed" />
+                          <SortTh k="poNumber" label="PO Number" />
+                          <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
+                          <SortTh k="status" label="Order Status" />
+                          <SortTh k="poAmount" label="PO Amount" />
+                          <SortTh k="paidAmount" label="Paid Amount" />
+                          <SortTh k="coupon" label="Coupon Amount" />
+                          <SortTh k="sellerDiscount" label="Seller Discount" />
+                          <SortTh k="wallet" label="Applied Wallet Amount" />
+                          <SortTh k="paymentOption" label="Payment Option" />
+                          <SortTh k="awb" label="AWB Number" />
+                          <SortTh k="courier" label="Courier Name" />
+                          <SortTh k="cod" label="COD Amount" />
+                          <SortTh k="badhoDiscount" label="Payment Option Badho Discount" />
+                          <SortTh k="paymentDate" label="Payment Date" />
+                          <SortTh k="paymentEvent" label="Payment Event" />
+                          <SortTh k="deliveryStatus" label="Delivery Status" />
+                          <SortTh k="buyerBusiness" label="Buyer Business" />
+                          <SortTh k="buyerPhone" label="Buyer Phone" />
+                          <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
+                          <SortTh k="sellerPhone" label="Seller Phone" />
+                          <SortTh k="sellerBusiness" label="Seller Business" />
+                          <SortTh k="markedPending" label="Marked Pending" />
+                          <SortTh k="refundInit" label="Refund Initiated" />
+                          <SortTh k="refundDone" label="Refund Completed" />
                           {/* SLA-specific trailing columns */}
-                          <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider bg-purple-50/60">Payment Category</th>
-                          <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider bg-purple-50/60">Marked In Progress</th>
-                          <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-rose-700 whitespace-nowrap uppercase tracking-wider bg-rose-50/60">SLA Breach At</th>
+                          <SortTh k="category" label="Payment Category" cls="text-slate-700 bg-purple-50/60" />
+                          <SortTh k="inProgress" label="Marked In Progress" cls="text-slate-700 bg-purple-50/60" />
+                          <SortTh k="slaBreach" label="SLA Breach At" cls="text-rose-700 bg-rose-50/60" />
                         </tr>
                       </thead>
                       <tbody>

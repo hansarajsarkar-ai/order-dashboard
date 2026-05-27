@@ -6308,39 +6308,36 @@ export default function OrderStatusDashboard() {
             onClick={closePivotDrill}
           >
             <div
-              className="relative bg-gradient-to-br from-slate-900 via-purple-950/80 to-slate-900 text-white border border-emerald-400/30 rounded-2xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden animate-corner-breath"
+              className="relative bg-slate-900 text-slate-100 border border-emerald-400/40 rounded-2xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden animate-corner-breath"
               onClick={(e) => e.stopPropagation()}
             >
               {/* breathing green corner accents */}
-              <div className="pointer-events-none absolute -top-px -left-px w-24 h-24 rounded-tl-2xl border-t-2 border-l-2 border-emerald-400/70 animate-edge-pulse" />
-              <div className="pointer-events-none absolute -top-px -right-px w-24 h-24 rounded-tr-2xl border-t-2 border-r-2 border-emerald-400/70 animate-edge-pulse" style={{ animationDelay: '0.4s' }} />
-              <div className="pointer-events-none absolute -bottom-px -left-px w-24 h-24 rounded-bl-2xl border-b-2 border-l-2 border-emerald-400/70 animate-edge-pulse" style={{ animationDelay: '0.8s' }} />
-              <div className="pointer-events-none absolute -bottom-px -right-px w-24 h-24 rounded-br-2xl border-b-2 border-r-2 border-emerald-400/70 animate-edge-pulse" style={{ animationDelay: '1.2s' }} />
-              {/* subtle ambient orbs */}
-              <div className="pointer-events-none absolute top-1/4 -left-32 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
-              <div className="pointer-events-none absolute bottom-1/4 -right-32 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-3xl" />
+              <div className="pointer-events-none absolute -top-px -left-px w-20 h-20 rounded-tl-2xl border-t-2 border-l-2 border-emerald-400/80 animate-edge-pulse" />
+              <div className="pointer-events-none absolute -top-px -right-px w-20 h-20 rounded-tr-2xl border-t-2 border-r-2 border-emerald-400/80 animate-edge-pulse" style={{ animationDelay: '0.6s' }} />
+              <div className="pointer-events-none absolute -bottom-px -left-px w-20 h-20 rounded-bl-2xl border-b-2 border-l-2 border-emerald-400/80 animate-edge-pulse" style={{ animationDelay: '1.2s' }} />
+              <div className="pointer-events-none absolute -bottom-px -right-px w-20 h-20 rounded-br-2xl border-b-2 border-r-2 border-emerald-400/80 animate-edge-pulse" style={{ animationDelay: '1.8s' }} />
 
-              <div className="relative px-5 py-3 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-slate-900/80 via-purple-900/50 to-slate-900/80 backdrop-blur-sm">
+              <div className="relative px-5 py-3 border-b border-slate-700/60 flex items-center justify-between bg-slate-800/70 backdrop-blur-sm">
                 <div>
-                  <h3 className="text-base font-extrabold tracking-tight flex items-center gap-2">
+                  <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-white">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)] animate-pulse" />
-                    <span className="bg-gradient-to-r from-emerald-300 via-cyan-200 to-purple-300 bg-clip-text text-transparent">{pivotDrillStatus}</span>
+                    <span>{pivotDrillStatus}</span>
                     {pivotDrillDelivery !== undefined && (
-                      <span className="text-purple-300/60 text-sm font-normal">→</span>
+                      <span className="text-slate-500 text-sm font-normal mx-1">→</span>
                     )}
                     {pivotDrillDelivery !== undefined && (
-                      <span className="text-fuchsia-300 text-sm font-semibold">
+                      <span className="text-emerald-300 text-sm font-bold">
                         {pivotDrillDelivery ?? '(no delivery status)'}
                       </span>
                     )}
                   </h3>
-                  <p className="text-purple-300/80 text-xs mt-0.5">
+                  <p className="text-slate-400 text-xs mt-1">
                     {pivotDrillMonth ? `${MONTH_NAMES[pivotDrillMonth - 1]} ${currentYear}` : `${currentYear} (all months)`}
                     {' · '}
                     {pivotDrillLoading
                       ? 'Loading…'
                       : pivotDrillRows
-                      ? `${filteredPivotDrillRows?.length ?? 0} of ${pivotDrillRows.length} order${pivotDrillRows.length === 1 ? '' : 's'}`
+                      ? <span className="text-slate-200 font-semibold">{filteredPivotDrillRows?.length ?? 0} of {pivotDrillRows.length} orders</span>
                       : ''}
                   </p>
                 </div>
@@ -6387,12 +6384,12 @@ export default function OrderStatusDashboard() {
                   </button>
                 </div>
               </div>
-              <div className="relative px-4 py-2 border-b border-white/10 bg-slate-900/60 backdrop-blur-sm">
+              <div className="relative px-4 py-2.5 border-b border-slate-700/60 bg-slate-800/40 backdrop-blur-sm">
                 <div className="flex flex-col md:flex-row md:items-end gap-2">
                   <div className="flex-1 min-w-0">
-                    <label htmlFor="pivot-drill-search" className="block text-[11px] font-semibold text-purple-300 uppercase tracking-wide mb-1">Search</label>
+                    <label htmlFor="pivot-drill-search" className="block text-[11px] font-bold text-slate-300 uppercase tracking-wide mb-1">Search</label>
                     <div className="relative">
-                      <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <circle cx="11" cy="11" r="7" />
                         <path d="m20 20-3.5-3.5" />
                       </svg>
@@ -6402,25 +6399,25 @@ export default function OrderStatusDashboard() {
                         value={pivotDrillSearch}
                         onChange={(e) => setPivotDrillSearch(e.target.value)}
                         placeholder="Search orders…"
-                        className="w-full pl-9 pr-9 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/40"
+                        className="w-full pl-9 pr-9 py-2 text-sm bg-slate-900/80 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400"
                       />
                       {pivotDrillSearch && (
                         <button
                           type="button"
                           onClick={() => setPivotDrillSearch('')}
                           aria-label="Clear search"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 inline-flex items-center justify-center rounded-full text-purple-300 hover:bg-white/10 hover:text-white"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 inline-flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-700 hover:text-white"
                         >
                           ×
                         </button>
                       )}
                     </div>
-                    <p className="mt-1 text-[11px] text-purple-400/70">PO number, buyer phone, seller phone</p>
+                    <p className="mt-1 text-[11px] text-slate-500">PO number, buyer phone, seller phone</p>
                   </div>
 
                   <div className="md:w-auto">
-                    <span className="block text-[11px] font-semibold text-purple-300 uppercase tracking-wide mb-1">Pushed</span>
-                    <div role="group" aria-label="Filter by pushed status" className="inline-flex rounded-lg border border-white/10 overflow-hidden text-sm bg-white/5">
+                    <span className="block text-[11px] font-bold text-slate-300 uppercase tracking-wide mb-1">Pushed</span>
+                    <div role="group" aria-label="Filter by pushed status" className="inline-flex rounded-lg border border-slate-600 overflow-hidden text-sm bg-slate-900/80">
                       {([
                         { value: 'all' as const, label: 'All', count: pivotPushedCounts.all },
                         { value: 'Pushed' as const, label: 'Pushed', count: pivotPushedCounts.pushed },
@@ -6433,10 +6430,10 @@ export default function OrderStatusDashboard() {
                             type="button"
                             onClick={() => setPivotDrillPushedFilter(opt.value)}
                             aria-pressed={active}
-                            className={`px-3 py-2 whitespace-nowrap transition-colors ${idx > 0 ? 'border-l border-white/10' : ''} ${active ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[inset_0_0_12px_rgba(255,255,255,0.2)]' : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}
+                            className={`px-3 py-2 whitespace-nowrap transition-colors font-medium ${idx > 0 ? 'border-l border-slate-600' : ''} ${active ? 'bg-emerald-500 text-white shadow-[inset_0_0_12px_rgba(255,255,255,0.2)]' : 'text-slate-200 hover:bg-slate-700/60 hover:text-white'}`}
                           >
                             {opt.label}
-                            <span className={`ml-1.5 text-[11px] tabular-nums ${active ? 'text-white/80' : 'text-purple-400'}`}>{opt.count}</span>
+                            <span className={`ml-1.5 text-[11px] tabular-nums ${active ? 'text-white/90 font-bold' : 'text-slate-400'}`}>{opt.count}</span>
                           </button>
                         );
                       })}
@@ -6445,18 +6442,18 @@ export default function OrderStatusDashboard() {
 
                   {pivotRejectReasonOptions.length > 0 && (
                     <div className="md:w-64">
-                      <label htmlFor="pivot-drill-reject-reason" className="block text-[11px] font-semibold text-purple-300 uppercase tracking-wide mb-1">
-                        Reject reason <span className="text-purple-400 font-normal normal-case">({pivotRejectReasonOptions.length})</span>
+                      <label htmlFor="pivot-drill-reject-reason" className="block text-[11px] font-bold text-slate-300 uppercase tracking-wide mb-1">
+                        Reject reason <span className="text-slate-500 font-normal normal-case">({pivotRejectReasonOptions.length})</span>
                       </label>
                       <select
                         id="pivot-drill-reject-reason"
                         value={pivotDrillRejectReasonFilter}
                         onChange={(e) => setPivotDrillRejectReasonFilter(e.target.value)}
-                        className="w-full px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/40"
+                        className="w-full px-3 py-2 text-sm bg-slate-900/80 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400"
                       >
-                        <option value="all" className="bg-slate-900">All reasons</option>
+                        <option value="all" className="bg-slate-900 text-white">All reasons</option>
                         {pivotRejectReasonOptions.map((reason) => (
-                          <option key={reason} value={reason} className="bg-slate-900">{reason.length > 60 ? `${reason.slice(0, 60)}…` : reason}</option>
+                          <option key={reason} value={reason} className="bg-slate-900 text-white">{reason.length > 60 ? `${reason.slice(0, 60)}…` : reason}</option>
                         ))}
                       </select>
                     </div>
@@ -6465,15 +6462,15 @@ export default function OrderStatusDashboard() {
 
                 {pivotDrillHasActiveFilters && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] uppercase tracking-wide text-purple-300 font-semibold">Active</span>
+                    <span className="text-[11px] uppercase tracking-wide text-slate-300 font-bold">Active</span>
                     {pivotDrillSearch.trim() !== '' && (
                       <button
                         type="button"
                         onClick={() => setPivotDrillSearch('')}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-purple-100 text-xs border border-white/15"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-700/80 hover:bg-slate-600 text-white text-xs border border-slate-600 font-medium"
                       >
                         <span>Search: &ldquo;{pivotDrillSearch.length > 24 ? `${pivotDrillSearch.slice(0, 24)}…` : pivotDrillSearch}&rdquo;</span>
-                        <span aria-hidden className="text-purple-300">×</span>
+                        <span aria-hidden className="text-slate-400">×</span>
                         <span className="sr-only">Remove search filter</span>
                       </button>
                     )}
@@ -6481,10 +6478,10 @@ export default function OrderStatusDashboard() {
                       <button
                         type="button"
                         onClick={() => setPivotDrillPushedFilter('all')}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-purple-100 text-xs border border-white/15"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-700/80 hover:bg-slate-600 text-white text-xs border border-slate-600 font-medium"
                       >
                         <span>Pushed: {pivotDrillPushedFilter}</span>
-                        <span aria-hidden className="text-purple-300">×</span>
+                        <span aria-hidden className="text-slate-400">×</span>
                         <span className="sr-only">Remove pushed filter</span>
                       </button>
                     )}
@@ -6492,18 +6489,18 @@ export default function OrderStatusDashboard() {
                       <button
                         type="button"
                         onClick={() => setPivotDrillRejectReasonFilter('all')}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-purple-100 text-xs border border-white/15"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-700/80 hover:bg-slate-600 text-white text-xs border border-slate-600 font-medium"
                         title={pivotDrillRejectReasonFilter}
                       >
                         <span>Reason: {pivotDrillRejectReasonFilter.length > 30 ? `${pivotDrillRejectReasonFilter.slice(0, 30)}…` : pivotDrillRejectReasonFilter}</span>
-                        <span aria-hidden className="text-purple-300">×</span>
+                        <span aria-hidden className="text-slate-400">×</span>
                         <span className="sr-only">Remove reject reason filter</span>
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={resetPivotDrillFilters}
-                      className="ml-auto text-xs font-medium text-purple-300 hover:text-emerald-300 underline underline-offset-2"
+                      className="ml-auto text-xs font-semibold text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
                     >
                       Clear all
                     </button>
@@ -6512,23 +6509,23 @@ export default function OrderStatusDashboard() {
               </div>
               <div className="relative flex-1 overflow-auto">
                 {pivotDrillLoading ? (
-                  <div className="px-6 py-12 text-center text-purple-300">Loading orders…</div>
+                  <div className="px-6 py-12 text-center text-slate-300">Loading orders…</div>
                 ) : pivotDrillError ? (
                   <div className="px-6 py-12 text-center text-rose-400">{pivotDrillError}</div>
                 ) : !pivotDrillRows || pivotDrillRows.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-purple-300">No orders found</div>
+                  <div className="px-6 py-12 text-center text-slate-300">No orders found</div>
                 ) : !filteredPivotDrillRows || filteredPivotDrillRows.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-purple-300">No matches for &ldquo;{pivotDrillSearch}&rdquo;</div>
+                  <div className="px-6 py-12 text-center text-slate-300">No matches for &ldquo;{pivotDrillSearch}&rdquo;</div>
                 ) : (
                   <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-slate-900/95 backdrop-blur-md z-10">
-                      <tr className="border-b border-emerald-400/20">
+                    <thead className="sticky top-0 bg-slate-800 z-10 shadow-[0_2px_0_rgba(52,211,153,0.25)]">
+                      <tr className="border-b border-slate-700">
                         {(() => {
                           const arrowFor = (k: string) => {
                             const active = pivotDrillSort?.key === k;
                             const dir = active ? pivotDrillSort?.direction : null;
                             return (
-                              <span className={`ml-1 text-[10px] leading-none ${active ? 'text-emerald-300' : 'text-purple-500/60'}`}>
+                              <span className={`ml-1 text-[10px] leading-none ${active ? 'text-emerald-400' : 'text-slate-500'}`}>
                                 {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : '⇅'}
                               </span>
                             );
@@ -6536,7 +6533,7 @@ export default function OrderStatusDashboard() {
                           const SortTh = ({ k, label, align = 'left', cls = '' }: { k: string; label: string; align?: 'left' | 'right'; cls?: string }) => (
                             <th
                               onClick={() => togglePivotSort(k)}
-                              className={`px-2.5 py-2.5 text-${align} text-[10px] font-bold cursor-pointer select-none hover:bg-white/10 whitespace-nowrap uppercase tracking-wider ${cls || 'text-purple-200'}`}
+                              className={`px-2.5 py-2.5 text-${align} text-[11px] font-bold cursor-pointer select-none hover:bg-slate-700/60 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-200'}`}
                             >
                               <span className={`inline-flex items-center ${align === 'right' ? 'justify-end w-full' : ''}`}>
                                 {label}
@@ -6548,7 +6545,7 @@ export default function OrderStatusDashboard() {
                             <>
                               <SortTh k="pushed" label="Pushed" />
                               <SortTh k="poNumber" label="PO Number" />
-                              <th className="px-2.5 py-2.5 text-left text-[10px] font-bold text-purple-200 whitespace-nowrap uppercase tracking-wider">Items</th>
+                              <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-200 whitespace-nowrap uppercase tracking-wider">Items</th>
                               <SortTh k="status" label="Order Status" />
                               <SortTh k="poAmount" label="PO Amount" align="right" />
                               <SortTh k="paidAmount" label="Paid Amount" align="right" />
@@ -6565,7 +6562,7 @@ export default function OrderStatusDashboard() {
                               <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="buyerBusiness" label="Buyer Business" />
                               <SortTh k="buyerPhone" label="Buyer Phone" />
-                              <th className="px-2.5 py-2.5 text-left text-[10px] font-bold text-purple-200 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
+                              <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-200 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
                               <SortTh k="markedPending" label="Marked Pending" />
@@ -6573,9 +6570,9 @@ export default function OrderStatusDashboard() {
                               <SortTh k="refundDone" label="Refund Completed" />
                               {pivotDrillStatus === 'REJECTED' && (
                                 <>
-                                  <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-300 bg-rose-500/15" />
-                                  <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-300 bg-rose-500/15" />
-                                  <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-300 bg-rose-500/15" />
+                                  <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-200 bg-rose-500/20" />
+                                  <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-200 bg-rose-500/20" />
+                                  <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-200 bg-rose-500/20" />
                                 </>
                               )}
                             </>
@@ -6584,22 +6581,22 @@ export default function OrderStatusDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r) => (
+                      {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r, idx) => (
                         <tr
                           key={r.poNumber}
-                          className={`border-b border-white/5 align-top transition-colors ${r.pushedStatus === 'Pushed' ? 'bg-emerald-500/[0.04] hover:bg-emerald-500/[0.12]' : 'bg-rose-500/[0.04] hover:bg-rose-500/[0.12]'}`}
+                          className={`border-b border-slate-800 align-top transition-colors hover:bg-slate-800/80 ${idx % 2 === 0 ? 'bg-slate-900' : 'bg-slate-900/60'}`}
                         >
-                          <td className="px-2.5 py-1.5 whitespace-nowrap">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${r.pushedStatus === 'Pushed' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 shadow-[0_0_8px_rgba(52,211,153,0.25)]' : 'bg-rose-500/20 text-rose-300 border border-rose-400/30 shadow-[0_0_8px_rgba(244,63,94,0.25)]'}`}>
-                              <span className={`w-1 h-1 rounded-full ${r.pushedStatus === 'Pushed' ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                          <td className="px-2.5 py-2 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${r.pushedStatus === 'Pushed' ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/40' : 'bg-rose-500/25 text-rose-200 border border-rose-400/40'}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${r.pushedStatus === 'Pushed' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 'bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]'}`} />
                               {r.pushedStatus || 'Not Pushed'}
                             </span>
                           </td>
-                          <td className="px-2.5 py-1.5 text-white tabular-nums font-bold whitespace-nowrap">{r.poNumber}</td>
-                          <td className="px-2.5 py-1.5 whitespace-nowrap">
+                          <td className="px-2.5 py-2 text-white tabular-nums font-bold whitespace-nowrap">{r.poNumber}</td>
+                          <td className="px-2.5 py-2 whitespace-nowrap">
                             <button
                               onClick={() => openPoItemsModal(r.poNumber)}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-purple-500/20 hover:bg-purple-500/40 text-purple-200 hover:text-white text-[11px] font-semibold border border-purple-400/30 hover:border-purple-300/60 transition-all shadow-[0_0_8px_rgba(168,85,247,0.2)]"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-200 hover:text-white text-[11px] font-bold border border-emerald-400/40 hover:border-emerald-300 transition-all"
                               title="View items in this PO"
                             >
                               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -6610,43 +6607,43 @@ export default function OrderStatusDashboard() {
                               View Items
                             </button>
                           </td>
-                          <td className="px-2.5 py-1.5 text-purple-100 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
-                          <td className="px-2.5 py-1.5 text-right text-white tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-right text-emerald-300 tabular-nums whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-right text-fuchsia-300 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-right text-cyan-200 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-purple-100 whitespace-nowrap">{r.PaymentOption || <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-purple-200 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-purple-100 whitespace-nowrap">{r.courierName || <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-purple-100 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-purple-100 whitespace-nowrap">{r.paymentEvent || <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 whitespace-nowrap">
-                            {r.deliveryStatus ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-400/20">{r.deliveryStatus}</span> : <span className="text-purple-500/50 italic">—</span>}
+                          <td className="px-2.5 py-2 text-slate-100 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
+                          <td className="px-2.5 py-2 text-right text-white tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-emerald-300 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-fuchsia-300 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-300 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-cyan-300 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-100 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-200 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-100 whitespace-nowrap">{r.courierName || <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-300 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-300 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-100 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-100 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 whitespace-nowrap">
+                            {r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-200 border border-cyan-400/30">{r.deliveryStatus}</span> : <span className="text-slate-500">—</span>}
                           </td>
-                          <td className="px-2.5 py-1.5 text-white font-medium">{r.buyerBusinessName || <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-purple-200 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-purple-200/80 text-xs max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
+                          <td className="px-2.5 py-2 text-white font-medium">{r.buyerBusinessName || <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-200 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-300 text-xs max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
                             {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (
                               <div className="whitespace-normal break-words">
                                 {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}
                               </div>
                             ) : (
-                              <span className="text-purple-500/50 italic">—</span>
+                              <span className="text-slate-500">—</span>
                             )}
                           </td>
-                          <td className="px-2.5 py-1.5 text-purple-200 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-white">{r.sellerBusinessName || <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-purple-100 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>
-                          <td className="px-2.5 py-1.5 text-orange-200 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-purple-500/50 italic">—</span>}</td>
-                          <td className="px-2.5 py-1.5 text-emerald-300 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-purple-500/50 italic">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-200 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-white">{r.sellerBusinessName || <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-100 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>
+                          <td className="px-2.5 py-2 text-orange-300 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-500">—</span>}</td>
+                          <td className="px-2.5 py-2 text-emerald-300 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-500">—</span>}</td>
                           {pivotDrillStatus === 'REJECTED' && (
                             <>
-                              <td className="px-2.5 py-1.5 text-rose-200 max-w-[260px] truncate bg-rose-500/10" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-purple-500/50 italic">—</span>}</td>
-                              <td className="px-2.5 py-1.5 text-rose-200 whitespace-nowrap bg-rose-500/10">{r.rejectedBy || <span className="text-purple-500/50 italic">—</span>}</td>
-                              <td className="px-2.5 py-1.5 text-rose-200 max-w-[260px] truncate bg-rose-500/10" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-purple-500/50 italic">—</span>}</td>
+                              <td className="px-2.5 py-2 text-rose-200 max-w-[260px] truncate bg-rose-500/10" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-500">—</span>}</td>
+                              <td className="px-2.5 py-2 text-rose-200 whitespace-nowrap bg-rose-500/10">{r.rejectedBy || <span className="text-slate-500">—</span>}</td>
+                              <td className="px-2.5 py-2 text-rose-200 max-w-[260px] truncate bg-rose-500/10" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-500">—</span>}</td>
                             </>
                           )}
                         </tr>
@@ -6656,7 +6653,7 @@ export default function OrderStatusDashboard() {
                 )}
               </div>
               {pivotDrillPaged && filteredPivotDrillRows && filteredPivotDrillRows.length > 0 && (
-                <div className="relative px-4 py-2 border-t border-white/10 bg-slate-900/80 backdrop-blur-sm flex items-center justify-between text-xs text-purple-200 flex-wrap gap-2">
+                <div className="relative px-4 py-2.5 border-t border-slate-700/60 bg-slate-800/70 backdrop-blur-sm flex items-center justify-between text-xs text-slate-200 flex-wrap gap-2">
                   <div>
                     Showing <span className="font-bold text-emerald-300">{pivotDrillPaged.startIdx + 1}</span>–<span className="font-bold text-emerald-300">{pivotDrillPaged.endIdx}</span> of <span className="font-bold text-white">{filteredPivotDrillRows.length}</span>
                   </div>
@@ -6664,17 +6661,17 @@ export default function OrderStatusDashboard() {
                     <button
                       onClick={() => setPivotDrillPage((p) => Math.max(1, p - 1))}
                       disabled={pivotDrillPaged.safePage <= 1}
-                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-purple-100 hover:text-white font-medium disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-semibold disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     >
                       ← Prev
                     </button>
-                    <span className="px-2 text-purple-300">
-                      Page <span className="text-white font-bold">{pivotDrillPaged.safePage}</span> of {pivotDrillPaged.totalPages}
+                    <span className="px-2 text-slate-300">
+                      Page <span className="text-white font-bold">{pivotDrillPaged.safePage}</span> of <span className="text-white font-bold">{pivotDrillPaged.totalPages}</span>
                     </span>
                     <button
                       onClick={() => setPivotDrillPage((p) => Math.min(pivotDrillPaged.totalPages, p + 1))}
                       disabled={pivotDrillPaged.safePage >= pivotDrillPaged.totalPages}
-                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-purple-100 hover:text-white font-medium disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-semibold disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     >
                       Next →
                     </button>
@@ -7451,33 +7448,31 @@ export default function OrderStatusDashboard() {
         @keyframes corner-breath {
           0%, 100% {
             box-shadow:
-              0 0 60px -10px rgba(52, 211, 153, 0.35),
-              0 0 120px -20px rgba(16, 185, 129, 0.25),
-              inset 0 0 30px -10px rgba(52, 211, 153, 0.12);
+              0 0 40px -8px rgba(52, 211, 153, 0.25),
+              0 0 80px -20px rgba(16, 185, 129, 0.15);
           }
           50% {
             box-shadow:
-              0 0 100px -10px rgba(52, 211, 153, 0.6),
-              0 0 180px -20px rgba(16, 185, 129, 0.45),
-              inset 0 0 50px -10px rgba(52, 211, 153, 0.22);
+              0 0 70px -8px rgba(52, 211, 153, 0.45),
+              0 0 140px -20px rgba(16, 185, 129, 0.28);
           }
         }
         .animate-corner-breath {
-          animation: corner-breath 3.6s ease-in-out infinite;
+          animation: corner-breath 4s ease-in-out infinite;
         }
         @keyframes edge-pulse {
           0%, 100% {
-            opacity: 0.55;
-            filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.5));
+            opacity: 0.6;
+            filter: drop-shadow(0 0 3px rgba(52, 211, 153, 0.45));
           }
           50% {
             opacity: 1;
-            filter: drop-shadow(0 0 14px rgba(52, 211, 153, 0.95))
-                    drop-shadow(0 0 28px rgba(16, 185, 129, 0.5));
+            filter: drop-shadow(0 0 10px rgba(52, 211, 153, 0.85))
+                    drop-shadow(0 0 20px rgba(16, 185, 129, 0.4));
           }
         }
         .animate-edge-pulse {
-          animation: edge-pulse 2.4s ease-in-out infinite;
+          animation: edge-pulse 3s ease-in-out infinite;
         }
       `}</style>
     </div>

@@ -102,9 +102,10 @@ const DASHBOARDS: DashboardEntry[] = [
   {
     slug: 'kapila',
     title: 'Kapila Dashboard',
-    description: 'Kapila dashboard — coming soon.',
+    description:
+      'Kapila brand — PO count and amount pivoted by order status × date, with date-range filter and KPI summary.',
     icon: '🐄',
-    status: 'coming-soon',
+    status: 'live',
   },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];

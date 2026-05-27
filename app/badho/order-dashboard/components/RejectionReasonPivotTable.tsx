@@ -132,7 +132,30 @@ const periodLabel = (key: string, granularity: 'month' | 'week' | 'day', dayMont
   return key;
 };
 
-export default function RejectionReasonPivotTable() {
+interface RejectionReasonPivotTableProps {
+  onViewItems?: (poNumber: string) => void;
+}
+
+const formatDateTime = (s: string | null | undefined) => {
+  if (!s) return '—';
+  try {
+    const d = new Date(s);
+    return d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return s;
+  }
+};
+
+export default function RejectionReasonPivotTable({ onViewItems }: RejectionReasonPivotTableProps = {}) {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -688,129 +711,50 @@ export default function RejectionReasonPivotTable() {
         )}
       </div>
 
-      {/* Order Detail Modal */}
+      {/* Order Detail Modal — matches the pivot drill modal in page.tsx */}
       {modalFilters && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-950/70 backdrop-blur-md"
           onClick={closeModal}
         >
           <div
-            className="bg-gradient-to-br from-slate-900 to-purple-950/60 border border-purple-500/30 rounded-2xl max-w-[95vw] w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl"
+            className="relative bg-white text-slate-900 border border-purple-400/50 rounded-2xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden animate-corner-breath"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b border-purple-500/30 bg-gradient-to-r from-purple-900/50 to-fuchsia-900/30 flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <h3 className="text-xl font-bold text-white">
-                  {modalFilters.reason}
-                  <span className="text-purple-300 text-base font-normal"> · {modalFilters.periodLabel} {year}</span>
+            {/* breathing purple corner accents */}
+            <div className="pointer-events-none absolute -top-px -left-px w-20 h-20 rounded-tl-2xl border-t-2 border-l-2 border-purple-500 animate-edge-pulse" />
+            <div className="pointer-events-none absolute -top-px -right-px w-20 h-20 rounded-tr-2xl border-t-2 border-r-2 border-purple-500 animate-edge-pulse" style={{ animationDelay: '0.6s' }} />
+            <div className="pointer-events-none absolute -bottom-px -left-px w-20 h-20 rounded-bl-2xl border-b-2 border-l-2 border-purple-500 animate-edge-pulse" style={{ animationDelay: '1.2s' }} />
+            <div className="pointer-events-none absolute -bottom-px -right-px w-20 h-20 rounded-br-2xl border-b-2 border-r-2 border-purple-500 animate-edge-pulse" style={{ animationDelay: '1.8s' }} />
+
+            <div className="relative px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-purple-50 via-white to-fuchsia-50/60">
+              <div className="min-w-0">
+                <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900 truncate">
+                  <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse shrink-0" />
+                  <span className="truncate">{modalFilters.reason}</span>
+                  <span className="text-slate-400 text-sm font-normal mx-1">·</span>
+                  <span className="text-purple-700 text-sm font-bold">{modalFilters.periodLabel} {year}</span>
                 </h3>
-                <p className="text-purple-300/70 text-sm mt-1 flex items-center gap-2 flex-wrap">
+                <p className="text-slate-500 text-xs mt-1 flex items-center gap-2 flex-wrap">
                   {modalFilters.orderStatus && (
-                    <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-200 font-semibold text-[10px]">
+                    <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-semibold text-[10px] border border-rose-200">
                       Order: {modalFilters.orderStatus}
                     </span>
                   )}
                   {modalFilters.deliveryStatus !== undefined && (
-                    <span className="px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-200 font-semibold text-[10px]">
+                    <span className="px-2 py-0.5 rounded-md bg-cyan-100 text-cyan-700 font-semibold text-[10px] border border-cyan-200">
                       Delivery: {modalFilters.deliveryStatus || 'N/A'}
                     </span>
                   )}
-                  {modalData && <span>· {filteredModalData?.length || 0} of {modalData.length} orders</span>}
+                  {modalData && <span className="text-slate-900 font-semibold">{filteredModalData?.length || 0} of {modalData.length} orders</span>}
                 </p>
               </div>
-              <button
-                onClick={closeModal}
-                className="text-purple-300 hover:text-white text-2xl leading-none p-1"
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
-            <div
-              ref={filterBarRef}
-              className="px-6 py-3 border-b border-purple-500/20 bg-slate-900/50 flex items-center gap-2 flex-wrap"
-            >
-              <input
-                type="text"
-                value={modalSearch}
-                onChange={(e) => setModalSearch(e.target.value)}
-                placeholder="Search PO, buyer, seller, address, AWB, reject reason…"
-                className="flex-1 min-w-[260px] px-3 py-2 text-sm bg-purple-950/40 border border-purple-500/30 text-white placeholder-purple-400/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-              />
-              {modalData && FILTER_DEFS.map(({ key, label }) => {
-                const selected = colFilters[key] || new Set<string>();
-                const options = filterColumnTallies(key);
-                if (options.length === 0) return null;
-                const isOpen = openFilter === key;
-                return (
-                  <div key={key} className="relative">
-                    <button
-                      onClick={() => setOpenFilter(isOpen ? null : key)}
-                      className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                        selected.size > 0
-                          ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_14px_rgba(217,70,239,0.45)]'
-                          : 'bg-purple-950/40 border border-purple-500/30 text-purple-200 hover:border-fuchsia-400/60 hover:text-white'
-                      }`}
-                    >
-                      <span>{label}</span>
-                      {selected.size > 0 && (
-                        <span className="px-1.5 py-0.5 rounded bg-white/25 text-[10px] tabular-nums">
-                          {selected.size}
-                        </span>
-                      )}
-                      <span className="opacity-70 text-[10px]">▾</span>
-                    </button>
-                    {isOpen && (
-                      <div className="absolute z-40 mt-1 right-0 min-w-[240px] max-h-72 overflow-auto bg-slate-900 border border-purple-500/40 rounded-xl shadow-2xl">
-                        <div className="sticky top-0 px-3 py-2 border-b border-purple-500/20 bg-slate-900/95 backdrop-blur flex items-center justify-between text-[10px] font-semibold text-purple-300 uppercase tracking-wide">
-                          <span>{label} · {options.length}</span>
-                          {selected.size > 0 && (
-                            <button
-                              onClick={() => clearFilterKey(key)}
-                              className="text-fuchsia-300 hover:text-white normal-case"
-                            >
-                              Clear
-                            </button>
-                          )}
-                        </div>
-                        {options.map(([val, count]) => {
-                          const checked = selected.has(val);
-                          return (
-                            <label
-                              key={val}
-                              className="flex items-center gap-2 px-3 py-1.5 hover:bg-fuchsia-500/15 cursor-pointer text-xs select-none"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleFilterValue(key, val)}
-                                className="accent-fuchsia-500 cursor-pointer"
-                              />
-                              <span className="flex-1 text-purple-100 truncate" title={val}>{val}</span>
-                              <span className="text-purple-400 tabular-nums text-[10px]">
-                                {count.toLocaleString()}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              {(activeFilterCount > 0 || modalSearch.trim()) && (
+              <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={clearAllModalFilters}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold bg-rose-500/15 border border-rose-500/40 text-rose-200 hover:bg-rose-500/25 hover:text-white whitespace-nowrap"
-                >
-                  ✕ Clear
-                </button>
-              )}
-              {modalData && filteredModalData && filteredModalData.length > 0 && (
-                <button
-                  className="px-3 py-2 rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white text-xs font-semibold hover:shadow-[0_0_18px_rgba(217,70,239,0.4)]"
+                  className="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 border border-purple-600 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_2px_8px_-2px_rgba(168,85,247,0.5)]"
+                  disabled={!filteredModalData || filteredModalData.length === 0}
                   onClick={() => {
+                    if (!filteredModalData) return;
                     const headers = [
                       'poNumber', 'MarkedpendingTime', 'orderStatus',
                       'poAmount', 'paidAmount', 'CoupanAmount',
@@ -846,42 +790,140 @@ export default function RejectionReasonPivotTable() {
                     downloadCSV(fname, headers, rows);
                   }}
                 >
-                  ↓ Download CSV
+                  ↓ CSV
                 </button>
-              )}
+                <button
+                  onClick={closeModal}
+                  className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 text-base font-semibold transition-all hover:rotate-90"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-auto">
+            {/* Toolbar — compact single row matching pivot drill modal */}
+            <div ref={filterBarRef} className="relative px-4 py-2 border-b border-slate-200 bg-slate-50/80">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative w-64 max-w-full">
+                  <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.5-3.5" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={modalSearch}
+                    onChange={(e) => setModalSearch(e.target.value)}
+                    placeholder="Search PO, buyer, seller…"
+                    className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
+                  />
+                  {modalSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setModalSearch('')}
+                      aria-label="Clear search"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 inline-flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700 text-xs"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                {modalData && FILTER_DEFS.map(({ key, label }) => {
+                  const selected = colFilters[key] || new Set<string>();
+                  const options = filterColumnTallies(key);
+                  if (options.length === 0) return null;
+                  const isOpen = openFilter === key;
+                  return (
+                    <div key={key} className="relative">
+                      <button
+                        onClick={() => setOpenFilter(isOpen ? null : key)}
+                        className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap flex items-center gap-1 ${
+                          selected.size > 0
+                            ? 'bg-purple-500 text-white border border-purple-600'
+                            : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>{label}</span>
+                        {selected.size > 0 && (
+                          <span className="px-1 rounded bg-white/30 text-[10px] tabular-nums">{selected.size}</span>
+                        )}
+                        <span className="opacity-70 text-[9px]">▾</span>
+                      </button>
+                      {isOpen && (
+                        <div className="absolute z-40 mt-1 left-0 min-w-[220px] max-h-72 overflow-auto bg-white border border-slate-300 rounded-lg shadow-xl">
+                          <div className="sticky top-0 px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase tracking-wide">
+                            <span>{label} · {options.length}</span>
+                            {selected.size > 0 && (
+                              <button
+                                onClick={() => clearFilterKey(key)}
+                                className="text-purple-600 hover:text-purple-800 normal-case font-semibold"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                          {options.map(([val, count]) => {
+                            const checked = selected.has(val);
+                            return (
+                              <label
+                                key={val}
+                                className="flex items-center gap-2 px-3 py-1.5 hover:bg-purple-50 cursor-pointer text-xs select-none border-b border-slate-100 last:border-b-0"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleFilterValue(key, val)}
+                                  className="accent-purple-500 cursor-pointer"
+                                />
+                                <span className="flex-1 text-slate-700 truncate" title={val}>{val}</span>
+                                <span className="text-slate-500 tabular-nums text-[10px]">
+                                  {count.toLocaleString()}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {(activeFilterCount > 0 || modalSearch.trim()) && (
+                  <button
+                    onClick={clearAllModalFilters}
+                    className="ml-auto text-[11px] font-semibold text-purple-600 hover:text-purple-700 underline underline-offset-2"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Body table — same look as pivot drill modal */}
+            <div className="relative flex-1 overflow-auto">
               {modalLoading ? (
-                <div className="px-8 py-16 text-center text-purple-300 animate-pulse">Loading order details…</div>
+                <div className="px-6 py-12 text-center text-slate-500">Loading order details…</div>
               ) : modalError ? (
-                <div className="px-8 py-16 text-center text-rose-300">Error: {modalError}</div>
+                <div className="px-6 py-12 text-center text-rose-600">Error: {modalError}</div>
               ) : !filteredModalData || filteredModalData.length === 0 ? (
-                <div className="px-8 py-16 text-center text-purple-300">
+                <div className="px-6 py-12 text-center text-slate-500">
                   {modalSearch ? `No matches for "${modalSearch}"` : 'No orders found'}
                 </div>
               ) : (
-                <table className="w-full text-[11px]">
-                  <thead className="sticky top-0 z-10 bg-purple-950/95 border-b border-purple-500/40">
-                    <tr>
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-slate-100 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
+                    <tr className="border-b border-slate-200">
                       {[
-                        'poNumber', 'MarkedpendingTime', 'orderStatus',
-                        'poAmount', 'paidAmount', 'CoupanAmount',
-                        'discountBySeller', 'PaymentOptionDiscountByBadho',
-                        'appliedWalletAmount', 'PaymentOption',
-                        'awbNumber', 'courierName',
-                        'codAmountToBeCollected', 'reason_category',
-                        'sellerPhone', 'sellerBusinessName',
-                        'buyerBusinessName', 'buyerPhone', 'Buyer Address',
-                        'paymentDate', 'paymentEvent',
-                        'deliveryStatus (dv)',
-                        'RefundIntiatedTime', 'RefundCompletedTime',
-                        'rejectReason', 'rejectedBy', 'reasonAddedByBadhoTeam',
-                        'deliveryStatus (po)',
-                      ].map((h) => (
+                        'PO Number','Items','Marked Pending','Order Status','PO Amount','Paid Amount',
+                        'Coupon Amount','Seller Discount','Badho Discount','Wallet','COD Amount',
+                        'Payment Option','AWB Number','Courier','Reason Category',
+                        'Seller Phone','Seller Business','Buyer Business','Buyer Phone','Buyer Address',
+                        'Payment Date','Payment Event','Delivery Status',
+                        'Refund Initiated','Refund Completed',
+                        'Reject Reason','Rejected By','Reason Added By Badho','Delivery Status (PO)',
+                      ].map((h, i) => (
                         <th
-                          key={h}
-                          className="px-2 py-2 text-left font-semibold text-purple-200 whitespace-nowrap border-r border-purple-500/20"
+                          key={i}
+                          className={`px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider ${i >= 25 ? 'bg-rose-50/60' : ''}`}
                         >
                           {h}
                         </th>
@@ -889,65 +931,77 @@ export default function RejectionReasonPivotTable() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredModalData.slice(0, 2000).map((r, idx) => (
-                      <tr key={`${r.poNumber}-${idx}`} className="border-b border-purple-500/10 hover:bg-fuchsia-500/15 align-top">
-                        <td className="px-2 py-1.5 text-white tabular-nums font-semibold whitespace-nowrap border-r border-purple-500/10">{r.poNumber || '—'}</td>
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.MarkedpendingTime ? new Date(r.MarkedpendingTime).toLocaleDateString('en-IN') : '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap border-r border-purple-500/10">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-200">{r.orderStatus || '—'}</span>
-                        </td>
-                        <td className="px-2 py-1.5 text-right text-white tabular-nums whitespace-nowrap border-r border-purple-500/10">{formatNumber(r.poAmount)}</td>
-                        <td className="px-2 py-1.5 text-right text-emerald-300 tabular-nums whitespace-nowrap border-r border-purple-500/10">{formatNumber(r.paidAmount)}</td>
-                        <td className="px-2 py-1.5 text-right text-fuchsia-300 tabular-nums whitespace-nowrap border-r border-purple-500/10">{formatNumber(r.CoupanAmount)}</td>
-                        <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.discountBySeller != null && Number(r.discountBySeller) !== 0 ? `₹${Number(r.discountBySeller).toLocaleString('en-IN')}` : '0'}</td>
-                        <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.PaymentOptionDiscountByBadho != null && Number(r.PaymentOptionDiscountByBadho) !== 0 ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN')}` : '0'}</td>
-                        <td className="px-2 py-1.5 text-right text-cyan-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{formatNumber(r.appliedWalletAmount)}</td>
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.PaymentOption || '—'}</td>
-                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.awbNumber || '—'}</td>
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.courierName || '—'}</td>
-                        <td className="px-2 py-1.5 text-right text-amber-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{formatNumber(r.codAmountToBeCollected)}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap border-r border-purple-500/10">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-fuchsia-500/15 text-fuchsia-200">{r.reason_category || '—'}</span>
-                        </td>
-                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.sellerPhone || '—'}</td>
-                        <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">{r.sellerBusinessName || '—'}</td>
-                        <td className="px-2 py-1.5 text-purple-100 whitespace-nowrap border-r border-purple-500/10">{r.buyerBusinessName || '—'}</td>
-                        <td className="px-2 py-1.5 text-purple-200 tabular-nums whitespace-nowrap border-r border-purple-500/10">{r.buyerPhone || '—'}</td>
-                        <td className="px-2 py-1.5 text-purple-200 max-w-md border-r border-purple-500/10" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
-                          {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (
-                            <div className="whitespace-normal break-words">
-                              {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}
-                            </div>
-                          ) : (
-                            <span className="text-purple-500/40 italic">—</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{formatDate(r.paymentDate)}</td>
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.paymentEvent || '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap border-r border-purple-500/10">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/15 text-cyan-200">{r.deliveryStatusDv || '—'}</span>
-                        </td>
-                        <td className="px-2 py-1.5 text-orange-200 whitespace-nowrap border-r border-purple-500/10">{formatDate(r.RefundIntiatedTime)}</td>
-                        <td className="px-2 py-1.5 text-emerald-200 whitespace-nowrap border-r border-purple-500/10">{formatDate(r.RefundCompletedTime)}</td>
-                        <td className="px-2 py-1.5 text-rose-200 max-w-[240px] border-r border-purple-500/10" title={r.rejectReason || ''}>
-                          <div className="line-clamp-2">{r.rejectReason || '—'}</div>
-                        </td>
-                        <td className="px-2 py-1.5 text-purple-200 whitespace-nowrap border-r border-purple-500/10">{r.rejectedBy || '—'}</td>
-                        <td className="px-2 py-1.5 text-amber-200 max-w-[240px] border-r border-purple-500/10" title={r.reasonAddedByBadhoTeam || ''}>
-                          <div className="line-clamp-2">{r.reasonAddedByBadhoTeam || '—'}</div>
-                        </td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-500/15 text-violet-200">{r.deliveryStatusPo || '—'}</span>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredModalData.slice(0, 2000).map((r, idx) => {
+                      const buyerAddr = [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_');
+                      return (
+                        <tr
+                          key={`${r.poNumber}-${idx}`}
+                          className={`border-b border-slate-100 align-top transition-colors hover:bg-purple-50/70 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
+                        >
+                          <td className="px-2.5 py-2 text-slate-900 tabular-nums font-bold whitespace-nowrap">{r.poNumber || '—'}</td>
+                          <td className="px-2.5 py-2 whitespace-nowrap">
+                            {onViewItems && r.poNumber ? (
+                              <button
+                                onClick={() => onViewItems(r.poNumber)}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[11px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
+                                title="View items in this PO"
+                              >
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                  <line x1="12" y1="22.08" x2="12" y2="12" />
+                                </svg>
+                                View Items
+                              </button>
+                            ) : <span className="text-slate-400">—</span>}
+                          </td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime)}</td>
+                          <td className="px-2.5 py-2 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">{r.orderStatus || '—'}</span>
+                          </td>
+                          <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount != null && Number(r.CoupanAmount) !== 0 ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller != null && Number(r.discountBySeller) !== 0 ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho != null && Number(r.PaymentOptionDiscountByBadho) !== 0 ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount != null && Number(r.appliedWalletAmount) !== 0 ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null && Number(r.codAmountToBeCollected) !== 0 ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200">{r.reason_category || '—'}</span>
+                          </td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-900 font-medium">{r.buyerBusinessName || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={buyerAddr}>
+                            {buyerAddr ? <div className="whitespace-normal break-words">{buyerAddr}</div> : <span className="text-slate-400">—</span>}
+                          </td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDate(r.paymentDate)}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 whitespace-nowrap">
+                            {r.deliveryStatusDv ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatusDv}</span> : <span className="text-slate-400">—</span>}
+                          </td>
+                          <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{formatDate(r.RefundIntiatedTime)}</td>
+                          <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{formatDate(r.RefundCompletedTime)}</td>
+                          <td className="px-2.5 py-2 text-rose-700 max-w-[260px] truncate bg-rose-50/60" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/60">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-rose-700 max-w-[260px] truncate bg-rose-50/60" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 whitespace-nowrap">
+                            {r.deliveryStatusPo ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">{r.deliveryStatusPo}</span> : <span className="text-slate-400">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
             </div>
 
             {modalData && filteredModalData && filteredModalData.length > 2000 && (
-              <div className="px-6 py-2 border-t border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs">
+              <div className="px-4 py-2 border-t border-amber-300 bg-amber-50 text-amber-700 text-xs">
                 Showing first 2,000 of {filteredModalData.length.toLocaleString()} rows — CSV includes everything.
               </div>
             )}

@@ -2667,7 +2667,7 @@ export default function OrderStatusDashboard() {
 
         {/* Rejection Reason Breakdown Pivot Table */}
         <div className="mt-8 mb-8">
-          <RejectionReasonPivotTable />
+          <RejectionReasonPivotTable onViewItems={openPoItemsModal} />
         </div>
 
         {/* MonthWiseOrder funnel — rows = months desc, cols = totals + 5 stages */}

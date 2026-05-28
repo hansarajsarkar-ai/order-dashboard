@@ -80,6 +80,60 @@ const GRAN_LABEL: Record<Granularity, string> = {
   year: 'Yearly',
 };
 
+function csvEscape(v: string | number): string {
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function buildCsv(data: ApiResponse): string {
+  const periodLabels = data.periods.map((p) => fmtPeriod(p, data.granularity));
+  const header1 = ['Status'];
+  const header2 = [''];
+  periodLabels.forEach((label) => {
+    header1.push(`${label} - Amount`, `${label} - Orders`);
+    header2.push('Amount (INR)', 'Orders');
+  });
+  header1.push('Total - Amount', 'Total - Orders');
+  header2.push('Amount (INR)', 'Orders');
+
+  const lines: string[] = [];
+  lines.push(header1.map(csvEscape).join(','));
+
+  for (const row of data.data) {
+    const cols: (string | number)[] = [row.status];
+    for (const p of data.periods) {
+      const c = row.cells[p];
+      cols.push(c ? c.amount : 0, c ? c.count : 0);
+    }
+    cols.push(row.total.amount, row.total.count);
+    lines.push(cols.map(csvEscape).join(','));
+  }
+
+  const totalCols: (string | number)[] = ['Total'];
+  for (const p of data.periods) {
+    const c = data.totals.byPeriod[p];
+    totalCols.push(c ? c.amount : 0, c ? c.count : 0);
+  }
+  totalCols.push(data.totals.grand.amount, data.totals.grand.count);
+  lines.push(totalCols.map(csvEscape).join(','));
+
+  return lines.join('\n');
+}
+
+function downloadCsv(data: ApiResponse) {
+  const csv = buildCsv(data);
+  const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `kapila-dashboard-${data.granularity}-${ts}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function KapilaDashboardPage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
@@ -204,6 +258,19 @@ export default function KapilaDashboardPage() {
                   </button>
                 ))}
               </div>
+              <button
+                onClick={() => pivotData && downloadCsv(pivotData)}
+                disabled={!pivotData || loading}
+                title="Download current view as CSV"
+                className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/30 text-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Download CSV
+              </button>
               {loading && <span className="text-xs text-purple-300">Loading…</span>}
             </div>
           </div>

@@ -40,6 +40,7 @@ interface Row {
   seller_city: string | null;
   seller_state: string | null;
   created_at: string;
+  statusMarkedTime: string | null;
   statusDurationSec: number | null;
 }
 
@@ -114,6 +115,18 @@ export async function GET(req: NextRequest) {
         s."city" AS seller_city,
         s."state" AS seller_state,
         po."created_at" AS created_at,
+        CASE po."status"
+          WHEN 'REJECTED'    THEN po."markedRejectedTime"
+          WHEN 'CANCELLED'   THEN po."markedCancelledTime"
+          WHEN 'DELIVERED'   THEN po."markedDeliveredTime"
+          WHEN 'COMPLETED'   THEN po."markedCompletedTime"
+          WHEN 'DISPATCHED'  THEN po."markedDispatchedTime"
+          WHEN 'IN_TRANSIT'  THEN po."markedInTransitTime"
+          WHEN 'IN_PROGRESS' THEN po."markedInProgressTime"
+          WHEN 'INPROGRESS'  THEN po."markedInProgressTime"
+          WHEN 'PARTIAL'     THEN po."markedPartialTime"
+          ELSE NULL
+        END AS "statusMarkedTime",
         EXTRACT(EPOCH FROM (
           CASE po."status"
             WHEN 'REJECTED'    THEN po."markedRejectedTime"
@@ -217,6 +230,7 @@ export async function GET(req: NextRequest) {
       sellerAddress: [r.seller_address_line1, r.seller_city, r.seller_state].filter(Boolean).join(', '),
       markedPendingTime: r.MarkedpendingTime,
       createdAt: r.created_at,
+      statusMarkedTime: r.statusMarkedTime,
       statusDurationSec: r.statusDurationSec != null ? Number(r.statusDurationSec) : null,
     }));
 

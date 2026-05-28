@@ -67,6 +67,7 @@ interface OrderDetail {
   deliveryStatusPo: string | null;
   reason_category: string;
   pushedStatus: string | null;
+  statusMarkedTime: string | null;
   statusDurationSec: number | null;
 }
 
@@ -228,6 +229,7 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
       case 'rejectedBy': return r.rejectedBy ?? '';
       case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
       case 'statusDuration': return r.statusDurationSec ?? null;
+      case 'statusMarkedTime': return dt(r.statusMarkedTime);
       default: return '';
     }
   };
@@ -1019,7 +1021,6 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                             </th>
                             <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                             <SortTh k="status" label="Order Status" />
-                            <SortTh k="statusDuration" label="Status Duration" />
                             <SortTh k="poAmount" label="PO Amount" />
                             <SortTh k="paidAmount" label="Paid Amount" />
                             <SortTh k="coupon" label="Coupon Amount" />
@@ -1038,7 +1039,9 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                             <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                             <SortTh k="sellerPhone" label="Seller Phone" />
                             <SortTh k="sellerBusiness" label="Seller Business" />
-                            <SortTh k="markedPending" label="Marked Pending" />
+                            <SortTh k="markedPending" label="Marked Pending" cls="text-slate-700 bg-amber-50/60" />
+                            <SortTh k="statusMarkedTime" label="Status Marked Time" cls="text-slate-700 bg-amber-50/60" />
+                            <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                             <SortTh k="refundInit" label="Refund Initiated" />
                             <SortTh k="refundDone" label="Refund Completed" />
                             <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50/60" />
@@ -1102,7 +1105,6 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                             ) : <span className="text-slate-400">—</span>}
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                           <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount != null && Number(r.CoupanAmount) !== 0 ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
@@ -1125,7 +1127,9 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime)}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{formatDateTime(r.MarkedpendingTime)}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                           <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{formatDate(r.RefundIntiatedTime)}</td>
                           <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{formatDate(r.RefundCompletedTime)}</td>
                           <td className="px-2.5 py-2 text-rose-700 max-w-[260px] truncate bg-rose-50/60" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400">—</span>}</td>

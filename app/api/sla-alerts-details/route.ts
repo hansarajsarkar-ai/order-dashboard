@@ -31,6 +31,7 @@ interface Row {
   rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
+  statusMarkedTime: string | null;
   statusDurationSec: number | null;
   buyer_address_line1: string | null;
   buyer_landmark: string | null;
@@ -94,6 +95,18 @@ export async function GET(req: NextRequest) {
           po."rejectReason",
           po."rejectedBy",
           po."reasonAddedByBadhoTeam",
+          CASE po."status"
+            WHEN 'REJECTED'    THEN po."markedRejectedTime"
+            WHEN 'CANCELLED'   THEN po."markedCancelledTime"
+            WHEN 'DELIVERED'   THEN po."markedDeliveredTime"
+            WHEN 'COMPLETED'   THEN po."markedCompletedTime"
+            WHEN 'DISPATCHED'  THEN po."markedDispatchedTime"
+            WHEN 'IN_TRANSIT'  THEN po."markedInTransitTime"
+            WHEN 'IN_PROGRESS' THEN po."markedInProgressTime"
+            WHEN 'INPROGRESS'  THEN po."markedInProgressTime"
+            WHEN 'PARTIAL'     THEN po."markedPartialTime"
+            ELSE NULL
+          END                                                                AS "statusMarkedTime",
           EXTRACT(EPOCH FROM (
             CASE po."status"
               WHEN 'REJECTED'    THEN po."markedRejectedTime"
@@ -230,6 +243,7 @@ export async function GET(req: NextRequest) {
       rejectReason: r.rejectReason,
       rejectedBy: r.rejectedBy,
       reasonAddedByBadhoTeam: r.reasonAddedByBadhoTeam,
+      statusMarkedTime: r.statusMarkedTime,
       statusDurationSec: r.statusDurationSec != null ? Number(r.statusDurationSec) : null,
       buyerAddressLine1: r.buyer_address_line1,
       buyerLandmark: r.buyer_landmark,

@@ -38,6 +38,7 @@ interface OrderDetailRow {
   deliveryStatusPo: string | null;
   reason_category: string;
   pushedStatus: string;
+  statusMarkedTime: string | null;
   statusDurationSec: number | null;
 }
 
@@ -157,6 +158,18 @@ export async function GET(req: NextRequest) {
         po."deliveryStatus"                                                                   AS "deliveryStatusPo",
         ${REASON_CASE}                                                                        AS reason_category,
         CASE WHEN dv."deliveryId" IS NOT NULL THEN 'Pushed' ELSE 'Not Pushed' END             AS "pushedStatus",
+        CASE po."status"
+          WHEN 'REJECTED'    THEN po."markedRejectedTime"
+          WHEN 'CANCELLED'   THEN po."markedCancelledTime"
+          WHEN 'DELIVERED'   THEN po."markedDeliveredTime"
+          WHEN 'COMPLETED'   THEN po."markedCompletedTime"
+          WHEN 'DISPATCHED'  THEN po."markedDispatchedTime"
+          WHEN 'IN_TRANSIT'  THEN po."markedInTransitTime"
+          WHEN 'IN_PROGRESS' THEN po."markedInProgressTime"
+          WHEN 'INPROGRESS'  THEN po."markedInProgressTime"
+          WHEN 'PARTIAL'     THEN po."markedPartialTime"
+          ELSE NULL
+        END                                                                                   AS "statusMarkedTime",
         EXTRACT(EPOCH FROM (
           CASE po."status"
             WHEN 'REJECTED'    THEN po."markedRejectedTime"

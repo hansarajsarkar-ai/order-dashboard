@@ -54,6 +54,7 @@ interface OrderListRow {
   reasonAddedByBadhoTeam?: string | null;
   markedPendingTime: string | null;
   createdAt: string;
+  statusMarkedTime?: string | null;
   statusDurationSec?: number | null;
 }
 
@@ -533,6 +534,7 @@ export default function OrderStatusDashboard() {
     createdAt: string;
     category: string;
     slaBreachAt: string;
+    statusMarkedTime: string | null;
     statusDurationSec: number | null;
   }
   const [alertModalCategory, setAlertModalCategory] = useState<string | null>(null);
@@ -580,6 +582,7 @@ export default function OrderStatusDashboard() {
       case 'inProgress': return dt(r.markedInProgressTime);
       case 'slaBreach': return dt(r.slaBreachAt);
       case 'statusDuration': return r.statusDurationSec ?? null;
+      case 'statusMarkedTime': return dt(r.statusMarkedTime);
       default: return '';
     }
   };
@@ -1904,6 +1907,7 @@ export default function OrderStatusDashboard() {
       case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
       case 'buyerFullAddress': return r.buyerFullAddress ?? '';
       case 'statusDuration': return r.statusDurationSec ?? null;
+      case 'statusMarkedTime': return dt(r.statusMarkedTime);
       default: return '';
     }
   };
@@ -6322,7 +6326,6 @@ export default function OrderStatusDashboard() {
                           </th>
                           <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                           <SortTh k="status" label="Order Status" />
-                          <SortTh k="statusDuration" label="Status Duration" />
                           <SortTh k="poAmount" label="PO Amount" />
                           <SortTh k="paidAmount" label="Paid Amount" />
                           <SortTh k="coupon" label="Coupon Amount" />
@@ -6341,7 +6344,9 @@ export default function OrderStatusDashboard() {
                           <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                           <SortTh k="sellerPhone" label="Seller Phone" />
                           <SortTh k="sellerBusiness" label="Seller Business" />
-                          <SortTh k="markedPending" label="Marked Pending" />
+                          <SortTh k="markedPending" label="Marked Pending" cls="text-slate-700 bg-amber-50/60" />
+                          <SortTh k="statusMarkedTime" label="Status Marked Time" cls="text-slate-700 bg-amber-50/60" />
+                          <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="refundInit" label="Refund Initiated" />
                           <SortTh k="refundDone" label="Refund Completed" />
                           {/* SLA-specific trailing columns */}
@@ -6398,7 +6403,6 @@ export default function OrderStatusDashboard() {
                                 </button>
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                               <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
@@ -6421,7 +6425,9 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime)}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{formatDateTime(r.MarkedpendingTime)}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                               <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400">—</span>}</td>
                               {/* SLA-specific trailing columns */}
@@ -6697,7 +6703,6 @@ export default function OrderStatusDashboard() {
                               </th>
                               <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                               <SortTh k="status" label="Order Status" />
-                              <SortTh k="statusDuration" label="Status Duration" />
                               <SortTh k="poAmount" label="PO Amount" align="right" />
                               <SortTh k="paidAmount" label="Paid Amount" align="right" />
                               <SortTh k="coupon" label="Coupon Amount" align="right" />
@@ -6716,7 +6721,9 @@ export default function OrderStatusDashboard() {
                               <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
-                              <SortTh k="markedPending" label="Marked Pending" />
+                              <SortTh k="markedPending" label="Marked Pending" cls="text-slate-700 bg-amber-50/60" />
+                              <SortTh k="statusMarkedTime" label="Status Marked Time" cls="text-slate-700 bg-amber-50/60" />
+                              <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                               <SortTh k="refundInit" label="Refund Initiated" />
                               <SortTh k="refundDone" label="Refund Completed" />
                               {pivotDrillStatus === 'REJECTED' && (
@@ -6778,7 +6785,6 @@ export default function OrderStatusDashboard() {
                             </button>
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                           <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
@@ -6807,7 +6813,9 @@ export default function OrderStatusDashboard() {
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                           <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400">—</span>}</td>
                           {pivotDrillStatus === 'REJECTED' && (

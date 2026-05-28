@@ -6913,23 +6913,21 @@ export default function OrderStatusDashboard() {
               });
               return (
                 <div
-                  className="relative w-[34vw] max-w-md max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 border border-fuchsia-400/30 shadow-[0_30px_80px_-20px_rgba(217,70,239,0.55),0_0_80px_-10px_rgba(99,102,241,0.4)] animate-modal-scale"
+                  className="relative w-[34vw] max-w-md max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-white text-slate-900 border border-slate-200 shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45),0_0_60px_-10px_rgba(168,85,247,0.3)] animate-modal-scale"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="absolute -top-24 -right-24 w-64 h-64 bg-fuchsia-500/20 rounded-full blur-3xl pointer-events-none" />
-                  <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute -top-24 -right-24 w-64 h-64 bg-fuchsia-200/40 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-200/40 rounded-full blur-3xl pointer-events-none" />
 
-                  <header className="relative px-5 py-4 border-b border-white/10">
+                  <header className="relative px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-fuchsia-50 via-white to-indigo-50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_-2px_rgba(217,70,239,0.6)]">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <line x1="12" y1="2" x2="12" y2="22" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                          </svg>
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(217,70,239,0.55)]">
+                          <span className="text-white font-extrabold text-base leading-none">₹</span>
                         </div>
                         <div>
-                          <div className="text-[10px] uppercase tracking-[0.25em] text-purple-300/80 font-semibold">Price Breakup</div>
-                          <div className="text-white font-bold text-sm leading-tight">PO {poItemsModal}</div>
+                          <div className="text-[10px] uppercase tracking-[0.25em] text-purple-600 font-bold">Price Breakup</div>
+                          <div className="text-slate-900 font-bold text-sm leading-tight">PO {poItemsModal}</div>
                         </div>
                       </div>
                     </div>
@@ -6939,39 +6937,39 @@ export default function OrderStatusDashboard() {
                     {lines.map((ln) => (
                       <div
                         key={ln.key}
-                        className="group relative flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/15 transition-all"
+                        className="group relative flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 transition-all"
                       >
                         <div className={`shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br ${ln.iconBg} flex items-center justify-center ${ln.iconRing}`}>
                           {ln.icon}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold text-white truncate">{ln.label}</div>
-                          {ln.sub && <div className="text-[10px] text-purple-300/70 truncate">{ln.sub}</div>}
+                          <div className="text-xs font-semibold text-slate-800 truncate">{ln.label}</div>
+                          {ln.sub && <div className="text-[10px] text-slate-500 truncate">{ln.sub}</div>}
                         </div>
-                        <div className={`tabular-nums font-extrabold text-base ${ln.sign === 'minus' ? 'text-rose-300' : 'text-white'}`}>
-                          {ln.sign === 'minus' && ln.value > 0 ? '−' : ''}{fmt(ln.value)}
+                        <div className={`tabular-nums font-extrabold text-base ${ln.sign === 'minus' ? 'text-rose-600' : 'text-slate-900'}`}>
+                          {ln.sign === 'minus' && ln.value > 0 ? '− ' : ''}{fmt(ln.value)}
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <footer className="relative px-5 py-4 border-t border-white/10 bg-gradient-to-r from-emerald-500/10 via-emerald-500/15 to-emerald-500/10">
+                  <footer className="relative px-5 py-4 border-t border-slate-200 bg-gradient-to-r from-emerald-50 via-emerald-100/60 to-emerald-50">
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)] animate-pulse" />
-                        <span className="text-[10px] uppercase tracking-[0.25em] text-emerald-300 font-bold">Net Payable</span>
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.7)] animate-pulse" />
+                        <span className="text-[10px] uppercase tracking-[0.25em] text-emerald-700 font-bold">Net Payable</span>
                       </div>
-                      <span className="tabular-nums text-2xl font-extrabold bg-gradient-to-r from-emerald-200 via-emerald-100 to-emerald-200 bg-clip-text text-transparent">
+                      <span className="tabular-nums text-2xl font-extrabold bg-gradient-to-r from-emerald-700 via-emerald-600 to-emerald-700 bg-clip-text text-transparent">
                         {fmt(net)}
                       </span>
                     </div>
                     {paid > 0 && (
                       <div className="flex items-center justify-between gap-3 mt-1 text-xs">
-                        <span className="text-purple-300/80">Already paid</span>
-                        <span className="tabular-nums font-bold text-emerald-200">{fmt(paid)}</span>
+                        <span className="text-slate-600">Already paid</span>
+                        <span className="tabular-nums font-bold text-emerald-700">{fmt(paid)}</span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between gap-3 mt-1 text-[10px] text-purple-300/60">
+                    <div className="flex items-center justify-between gap-3 mt-1 text-[10px] text-slate-500">
                       <span>Total deductions</span>
                       <span className="tabular-nums">{fmt(totalDeductions)}</span>
                     </div>

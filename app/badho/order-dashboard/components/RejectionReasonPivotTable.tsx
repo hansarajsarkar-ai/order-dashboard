@@ -992,7 +992,7 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                           <>
                             <th
                               onClick={() => toggleModalSort('pushed')}
-                              className="sticky left-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
+                              className="sticky left-0 z-20 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
                             >
                               <span className="inline-flex items-center">Pushed{arrowFor('pushed')}</span>
                             </th>
@@ -1043,7 +1043,7 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                           key={`${r.poNumber}-${idx}`}
                           className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}
                         >
-                          <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap`}>
+                          <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2 whitespace-nowrap`}>
                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isPushed ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${isPushed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]' : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'}`} />
                               {r.pushedStatus || 'Not Pushed'}

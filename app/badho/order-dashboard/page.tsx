@@ -6699,28 +6699,28 @@ export default function OrderStatusDashboard() {
                   const SortTh = ({ k, label, cls = '' }: { k: string; label: string; cls?: string }) => (
                     <th
                       onClick={() => toggleAlertSort(k)}
-                      className={`px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200/80 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-700'}`}
+                      className={`sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200/80 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-700'}`}
                     >
                       <span className="inline-flex items-center">{label}{arrowFor(k)}</span>
                     </th>
                   );
                   return (
                     <table className="w-full text-xs">
-                      <thead className="sticky top-0 bg-slate-100 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
+                      <thead className="shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                         <tr className="border-b border-slate-200">
                           <th
                             onClick={() => toggleAlertSort('pushed')}
-                            className="sticky left-0 z-20 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
+                            className="sticky top-0 left-0 z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
                           >
                             <span className="inline-flex items-center">Pushed{arrowFor('pushed')}</span>
                           </th>
                           <th
                             onClick={() => toggleAlertSort('poNumber')}
-                            className="sticky left-[120px] z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                            className="sticky top-0 left-[120px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
                           >
                             <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
                           </th>
-                          <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                           <SortTh k="status" label="Order Status" />
                           <SortTh k="poAmount" label="PO Amount" />
                           <SortTh k="paidAmount" label="Paid Amount" />
@@ -6737,7 +6737,7 @@ export default function OrderStatusDashboard() {
                           <SortTh k="deliveryStatus" label="Delivery Status" />
                           <SortTh k="buyerBusiness" label="Buyer Business" />
                           <SortTh k="buyerPhone" label="Buyer Phone" />
-                          <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                           <SortTh k="sellerPhone" label="Seller Phone" />
                           <SortTh k="sellerBusiness" label="Seller Business" />
                           <SortTh k="markedPending" label="Marked Pending" cls="text-slate-700 bg-amber-50/60" />
@@ -7154,7 +7154,7 @@ export default function OrderStatusDashboard() {
                   <div className="px-6 py-12 text-center text-slate-500">No matches for &ldquo;{pivotDrillSearch}&rdquo;</div>
                 ) : (
                   <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-slate-100 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
+                    <thead className="shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                       <tr className="border-b border-slate-200">
                         {(() => {
                           const arrowFor = (k: string) => {
@@ -7169,7 +7169,7 @@ export default function OrderStatusDashboard() {
                           const SortTh = ({ k, label, align = 'left', cls = '' }: { k: string; label: string; align?: 'left' | 'right'; cls?: string }) => (
                             <th
                               onClick={() => togglePivotSort(k)}
-                              className={`px-2.5 py-2.5 text-${align} text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200/80 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-700'}`}
+                              className={`sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-${align} text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200/80 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-700'}`}
                             >
                               <span className={`inline-flex items-center ${align === 'right' ? 'justify-end w-full' : ''}`}>
                                 {label}
@@ -7181,17 +7181,17 @@ export default function OrderStatusDashboard() {
                             <>
                               <th
                                 onClick={() => togglePivotSort('pushed')}
-                                className="sticky left-0 z-20 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
+                                className="sticky top-0 left-0 z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
                               >
                                 <span className="inline-flex items-center">Pushed{arrowFor('pushed')}</span>
                               </th>
                               <th
                                 onClick={() => togglePivotSort('poNumber')}
-                                className="sticky left-[120px] z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                                className="sticky top-0 left-[120px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
                               >
                                 <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
                               </th>
-                              <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
+                              <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                               <SortTh k="status" label="Order Status" />
                               <SortTh k="poAmount" label="PO Amount" align="right" />
                               <SortTh k="paidAmount" label="Paid Amount" align="right" />
@@ -7208,7 +7208,7 @@ export default function OrderStatusDashboard() {
                               <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="buyerBusiness" label="Buyer Business" />
                               <SortTh k="buyerPhone" label="Buyer Phone" />
-                              <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
+                              <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
                               <SortTh k="markedPending" label="Marked Pending" cls="text-slate-700 bg-amber-50/60" />

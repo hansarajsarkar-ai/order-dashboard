@@ -542,6 +542,7 @@ export default function OrderStatusDashboard() {
   }
   const [alertModalCategory, setAlertModalCategory] = useState<string | null>(null);
   const [alertModalSeller, setAlertModalSeller] = useState<string | null>(null);
+  const [alertModalSource, setAlertModalSource] = useState<'sla' | 'aging'>('sla');
   const [alertModalData, setAlertModalData] = useState<AlertDetailRow[] | null>(null);
   const [alertModalLoading, setAlertModalLoading] = useState(false);
   const [alertModalError, setAlertModalError] = useState<string | null>(null);
@@ -613,37 +614,12 @@ export default function OrderStatusDashboard() {
   const [alertBrandError, setAlertBrandError] = useState<string | null>(null);
   const [alertBrandSearch, setAlertBrandSearch] = useState('');
 
-  // Alert tab — InProgress aging by brand
+  // Alert tab — InProgress aging by brand (drill-down reuses the SLA Breach modal)
   interface AgingRow {
     brand: string;
     poCount: number;
     orderAmount: number;
     buckets: Record<'1-2 days' | '2-3 days' | '3+ days', number>;
-  }
-  interface AgingDetailRow {
-    orderDateTime: string | null;
-    inProgressDateTime: string | null;
-    itlDateTime: string | null;
-    poNumber: string;
-    poStatus: string;
-    daysInProgress: number | null;
-    orderAmount: number | null;
-    couponValue: number;
-    paymentMode: string | null;
-    brandName: string | null;
-    shipmentStatus: string | null;
-    awbNumber: string | null;
-    logisticName: string | null;
-    codCollect: number;
-    buyerName: string | null;
-    buyerBusinessName: string | null;
-    buyerPhone: string | null;
-    buyerFullAddress: string | null;
-    buyerLongitude: string | null;
-    buyerLatitude: string | null;
-    sellerName: string | null;
-    sellerPhone: string | null;
-    bucket: string;
   }
   const AGING_BUCKETS = ['1-2 days', '2-3 days', '3+ days'] as const;
   const [agingData, setAgingData] = useState<{
@@ -653,12 +629,6 @@ export default function OrderStatusDashboard() {
   const [agingLoading, setAgingLoading] = useState(false);
   const [agingError, setAgingError] = useState<string | null>(null);
   const [agingSearch, setAgingSearch] = useState('');
-  const [agingModalBrand, setAgingModalBrand] = useState<string | null>(null);
-  const [agingModalBucket, setAgingModalBucket] = useState<string | null>(null);
-  const [agingModalData, setAgingModalData] = useState<AgingDetailRow[] | null>(null);
-  const [agingModalLoading, setAgingModalLoading] = useState(false);
-  const [agingModalError, setAgingModalError] = useState<string | null>(null);
-  const [agingModalSearch, setAgingModalSearch] = useState('');
 
   // RTO tab
   interface RtoMonth { month: number; count: number; amount: number; }
@@ -1214,17 +1184,31 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openAlertModal = async (category: string, sellerBusinessName?: string) => {
+  const openAlertModal = async (category: string, sellerBusinessName?: string, source: 'sla' | 'aging' = 'sla') => {
+    setAlertModalSource(source);
     setAlertModalCategory(category);
     setAlertModalSeller(sellerBusinessName || null);
     setAlertModalSearch('');
+    setAlertModalPushedFilter('all');
+    setAlertModalPaymentFilter('all');
+    setAlertModalCourierFilter('all');
+    setAlertModalDeliveryFilter('all');
+    setAlertModalSort(null);
     setAlertModalData(null);
     setAlertModalError(null);
     setAlertModalLoading(true);
     try {
-      const params = new URLSearchParams({ category });
-      if (sellerBusinessName) params.set('sellerBusinessName', sellerBusinessName);
-      const res = await fetch(`/api/sla-alerts-details?${params.toString()}`);
+      let url: string;
+      if (source === 'aging') {
+        const params = new URLSearchParams({ bucket: category });
+        if (sellerBusinessName) params.set('brand', sellerBusinessName);
+        url = `/api/inprogress-aging-details?${params.toString()}`;
+      } else {
+        const params = new URLSearchParams({ category });
+        if (sellerBusinessName) params.set('sellerBusinessName', sellerBusinessName);
+        url = `/api/sla-alerts-details?${params.toString()}`;
+      }
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch alert details');
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -1239,6 +1223,7 @@ export default function OrderStatusDashboard() {
   const closeAlertModal = () => {
     setAlertModalCategory(null);
     setAlertModalSeller(null);
+    setAlertModalSource('sla');
     setAlertModalData(null);
     setAlertModalSearch('');
     setAlertModalPushedFilter('all');
@@ -1278,43 +1263,6 @@ export default function OrderStatusDashboard() {
     if (agingData === null) fetchAgingByBrand();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
-
-  const openAgingModal = async (brand: string | null, bucket: string) => {
-    setAgingModalBrand(brand);
-    setAgingModalBucket(bucket);
-    setAgingModalSearch('');
-    setAgingModalData(null);
-    setAgingModalError(null);
-    setAgingModalLoading(true);
-    try {
-      const params = new URLSearchParams({ bucket });
-      if (brand) params.set('brand', brand);
-      const res = await fetch(`/api/inprogress-aging-details?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch aging details');
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      setAgingModalData(json.data);
-    } catch (err) {
-      setAgingModalError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setAgingModalLoading(false);
-    }
-  };
-
-  const closeAgingModal = () => {
-    setAgingModalBrand(null);
-    setAgingModalBucket(null);
-    setAgingModalData(null);
-    setAgingModalSearch('');
-    setAgingModalError(null);
-  };
-
-  useEffect(() => {
-    if (!agingModalBucket) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeAgingModal(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [agingModalBucket]);
 
   // GMV Goal ACHIEVED modal — fetch + ESC
   const fetchGoalModalData = async () => {
@@ -6125,7 +6073,7 @@ export default function OrderStatusDashboard() {
                       {filtered.map((row) => (
                         <tr key={row.brand} className="border-b border-white/5 hover:bg-amber-500/10 group">
                           <td
-                            onClick={() => row.poCount > 0 && openAgingModal(row.brand, 'all')}
+                            onClick={() => row.poCount > 0 && openAlertModal('all', row.brand, 'aging')}
                             className="px-4 py-2.5 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 text-white font-semibold cursor-pointer"
                           >
                             {row.brand}
@@ -6142,7 +6090,7 @@ export default function OrderStatusDashboard() {
                             return (
                               <td
                                 key={b}
-                                onClick={() => has && openAgingModal(row.brand, b)}
+                                onClick={() => has && openAlertModal(b, row.brand, 'aging')}
                                 className={`group/cell px-3 py-2.5 text-right tabular-nums border-r border-white/10 ${bucketBg[b]} ${has ? 'cursor-pointer' : ''}`}
                               >
                                 {has ? (
@@ -6172,7 +6120,7 @@ export default function OrderStatusDashboard() {
                           return (
                             <td
                               key={b}
-                              onClick={() => t > 0 && openAgingModal(null, b)}
+                              onClick={() => t > 0 && openAlertModal(b, undefined, 'aging')}
                               className={`group/cell px-3 py-3 text-right text-white tabular-nums border-r border-white/10 ${bucketBg[b]} ${t > 0 ? 'cursor-pointer' : ''}`}
                             >
                               {t > 0 ? (
@@ -6200,156 +6148,6 @@ export default function OrderStatusDashboard() {
           </div>
         )}
 
-        {/* InProgress Aging drill-down modal */}
-        {agingModalBucket && (
-          <div
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gradient-to-br from-slate-950/85 via-amber-950/70 to-orange-950/70 backdrop-blur-lg"
-            onClick={closeAgingModal}
-          >
-            <div
-              className="relative bg-white text-slate-900 rounded-2xl w-[96vw] max-w-7xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(245,158,11,0.45)] border border-slate-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <header className="px-6 py-4 bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 text-white flex items-center justify-between gap-4">
-                <div className="flex items-baseline gap-3 min-w-0">
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-semibold">InProgress Aging</span>
-                  <h3 className="text-lg font-extrabold truncate">
-                    {agingModalBrand || 'All brands'}
-                  </h3>
-                  <span className="px-2 py-0.5 rounded-full bg-white/20 text-xs font-bold">
-                    {agingModalBucket === 'all' ? 'All buckets' : agingModalBucket}
-                  </span>
-                  {agingModalData && (
-                    <span className="text-sm text-white/85">{agingModalData.length} order{agingModalData.length === 1 ? '' : 's'}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      if (!agingModalData) return;
-                      const headers = ['Order Date','InProgress Date','ITL Date','PO Number','PO Status','Days In Progress','Order Amount','Coupon Value','Payment Mode','Brand','Shipment Status','AWB','Logistic','COD Collect','Buyer Name','Buyer Business','Buyer Phone','Buyer Address','Buyer Longitude','Buyer Latitude','Seller Name','Seller Phone','Bucket'];
-                      const esc = (v: unknown) => {
-                        const s = v == null ? '' : String(v);
-                        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-                      };
-                      const lines = [headers.join(',')];
-                      for (const r of agingModalData) {
-                        lines.push([
-                          r.orderDateTime, r.inProgressDateTime, r.itlDateTime, r.poNumber, r.poStatus,
-                          r.daysInProgress, r.orderAmount ?? 0, r.couponValue, r.paymentMode, r.brandName,
-                          r.shipmentStatus, r.awbNumber, r.logisticName, r.codCollect, r.buyerName,
-                          r.buyerBusinessName, r.buyerPhone, r.buyerFullAddress, r.buyerLongitude, r.buyerLatitude,
-                          r.sellerName, r.sellerPhone, r.bucket,
-                        ].map(esc).join(','));
-                      }
-                      const blob = new Blob([`﻿${lines.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `inprogress-aging-${agingModalBrand || 'all'}-${agingModalBucket}.csv`;
-                      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                      URL.revokeObjectURL(url);
-                    }}
-                    disabled={!agingModalData || agingModalData.length === 0}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/15 hover:bg-white/25 border border-white/30 disabled:opacity-40"
-                  >
-                    Download CSV
-                  </button>
-                  <button onClick={closeAgingModal} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/15 hover:bg-white/25 border border-white/30">
-                    Close
-                  </button>
-                </div>
-              </header>
-              <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
-                <input
-                  type="text"
-                  value={agingModalSearch}
-                  onChange={(e) => setAgingModalSearch(e.target.value)}
-                  placeholder="Search PO / buyer / AWB / phone…"
-                  className="px-3 py-1.5 text-sm bg-white border border-slate-300 text-slate-800 placeholder-slate-400 rounded-lg w-72 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                />
-              </div>
-              <div className="flex-1 overflow-auto">
-                {agingModalLoading ? (
-                  <div className="px-8 py-16 text-center text-slate-500">Loading orders…</div>
-                ) : agingModalError ? (
-                  <div className="px-8 py-12 text-center text-rose-600">Error: {agingModalError}</div>
-                ) : !agingModalData || agingModalData.length === 0 ? (
-                  <div className="px-8 py-12 text-center text-slate-500">No orders match this selection.</div>
-                ) : (() => {
-                  const q = agingModalSearch.trim().toLowerCase();
-                  const rows = q
-                    ? agingModalData.filter((r) =>
-                        (r.poNumber || '').toLowerCase().includes(q) ||
-                        (r.buyerName || '').toLowerCase().includes(q) ||
-                        (r.buyerBusinessName || '').toLowerCase().includes(q) ||
-                        (r.buyerPhone || '').toLowerCase().includes(q) ||
-                        (r.awbNumber || '').toLowerCase().includes(q) ||
-                        (r.logisticName || '').toLowerCase().includes(q) ||
-                        (r.sellerName || '').toLowerCase().includes(q)
-                      )
-                    : agingModalData;
-                  return (
-                    <table className="w-full text-xs">
-                      <thead className="bg-slate-100 sticky top-0 z-10">
-                        <tr className="text-left text-slate-700">
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Order Date</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">InProgress Date</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">ITL Date</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">PO Number</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Status</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap text-right">Days</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap text-right">Order Amount</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap text-right">Coupon</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Payment Mode</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Brand</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Shipment</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">AWB</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Logistic</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap text-right">COD</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Buyer</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Buyer Business</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Buyer Phone</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Buyer Address</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Seller</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Seller Phone</th>
-                          <th className="px-3 py-2 font-semibold whitespace-nowrap">Bucket</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((r) => (
-                          <tr key={r.poNumber} className="border-t border-slate-200 hover:bg-amber-50">
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.orderDateTime || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.inProgressDateTime || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.itlDateTime || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap font-semibold text-slate-900">{r.poNumber}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-amber-700 font-medium">{r.poStatus}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-right tabular-nums">{r.daysInProgress != null ? r.daysInProgress.toFixed(2) : '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-right tabular-nums">{r.orderAmount != null ? `₹${r.orderAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-right tabular-nums">{r.couponValue ? `₹${r.couponValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.paymentMode || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.brandName || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.shipmentStatus || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.awbNumber || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.logisticName || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-right tabular-nums">{r.codCollect ? `₹${r.codCollect.toLocaleString('en-IN')}` : '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.buyerName || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.buyerBusinessName || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.buyerPhone || '—'}</td>
-                            <td className="px-3 py-1.5 text-slate-700 max-w-[260px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.sellerName || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700">{r.sellerPhone || '—'}</td>
-                            <td className="px-3 py-1.5 whitespace-nowrap font-semibold text-rose-600">{r.bucket}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* PO Items Modal — opens from "View Items" button */}
         {poItemsModal && (
@@ -6627,9 +6425,13 @@ export default function OrderStatusDashboard() {
                 <div className="min-w-0">
                   <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900 truncate">
                     <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse shrink-0" />
-                    <span>SLA Breach Alerts</span>
+                    <span>{alertModalSource === 'aging' ? 'InProgress Aging' : 'SLA Breach Alerts'}</span>
                     <span className="text-slate-400 text-sm font-normal mx-1">·</span>
-                    <span className="text-purple-700 text-sm font-bold">{alertModalCategory === 'all' ? 'All Categories' : alertModalCategory}</span>
+                    <span className="text-purple-700 text-sm font-bold">
+                      {alertModalSource === 'aging'
+                        ? (alertModalCategory === 'all' ? 'All buckets' : alertModalCategory)
+                        : (alertModalCategory === 'all' ? 'All Categories' : alertModalCategory)}
+                    </span>
                     {alertModalSeller && (
                       <>
                         <span className="text-slate-400 text-sm font-normal mx-1">·</span>
@@ -6641,7 +6443,7 @@ export default function OrderStatusDashboard() {
                     {alertModalLoading
                       ? 'Loading…'
                       : alertModalData
-                      ? <span className="text-slate-900 font-semibold">{alertModalData.length} order{alertModalData.length === 1 ? '' : 's'} past SLA deadline</span>
+                      ? <span className="text-slate-900 font-semibold">{alertModalData.length} order{alertModalData.length === 1 ? '' : 's'} {alertModalSource === 'aging' ? 'stuck in InProgress' : 'past SLA deadline'}</span>
                       : ''}
                   </p>
                 </div>

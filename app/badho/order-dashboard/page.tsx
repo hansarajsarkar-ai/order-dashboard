@@ -1641,10 +1641,10 @@ export default function OrderStatusDashboard() {
     setPivotDrillError(null);
     setPivotDrillSearch('');
     setPivotDrillPushedFilter('all');
-    setPivotDrillRejectReasonFilter('all');
-    setPivotDrillPaymentFilter('all');
-    setPivotDrillCourierFilter('all');
-    setPivotDrillDeliveryFilter('all');
+    setPivotDrillRejectReasonFilter(new Set());
+    setPivotDrillPaymentFilter(new Set());
+    setPivotDrillCourierFilter(new Set());
+    setPivotDrillDeliveryFilter(new Set());
     setPivotDrillSort(null);
     setPivotDrillPage(1);
     setPivotDrillLoading(true);

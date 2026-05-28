@@ -344,9 +344,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
     setModalData(null);
     setModalSearch('');
     setModalPushedFilter('all');
-    setModalPaymentFilter('all');
-    setModalCourierFilter('all');
-    setModalDeliveryFilter('all');
+    setModalPaymentFilter(new Set());
+    setModalCourierFilter(new Set());
+    setModalDeliveryFilter(new Set());
     setModalSort(null);
   };
 

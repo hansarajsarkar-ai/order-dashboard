@@ -38,6 +38,7 @@ interface OrderDetailRow {
   deliveryStatusPo: string | null;
   reason_category: string;
   pushedStatus: string;
+  statusDurationSec: number | null;
 }
 
 const REASON_CASE = `
@@ -155,7 +156,23 @@ export async function GET(req: NextRequest) {
         po."reasonAddedByBadhoTeam",
         po."deliveryStatus"                                                                   AS "deliveryStatusPo",
         ${REASON_CASE}                                                                        AS reason_category,
-        CASE WHEN dv."deliveryId" IS NOT NULL THEN 'Pushed' ELSE 'Not Pushed' END             AS "pushedStatus"
+        CASE WHEN dv."deliveryId" IS NOT NULL THEN 'Pushed' ELSE 'Not Pushed' END             AS "pushedStatus",
+        EXTRACT(EPOCH FROM (
+          CASE po."status"
+            WHEN 'REJECTED'    THEN po."markedRejectedTime"
+            WHEN 'CANCELLED'   THEN po."markedCancelledTime"
+            WHEN 'DELIVERED'   THEN po."markedDeliveredTime"
+            WHEN 'COMPLETED'   THEN po."markedCompletedTime"
+            WHEN 'DISPATCHED'  THEN po."markedDispatchedTime"
+            WHEN 'IN_TRANSIT'  THEN po."markedInTransitTime"
+            WHEN 'IN_PROGRESS' THEN po."markedInProgressTime"
+            WHEN 'INPROGRESS'  THEN po."markedInProgressTime"
+            WHEN 'PARTIAL'     THEN po."markedPartialTime"
+            WHEN 'PENDING'     THEN NOW()
+            ELSE NOW()
+          END
+          - po."markedPendingTime"
+        ))::float AS "statusDurationSec"
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"

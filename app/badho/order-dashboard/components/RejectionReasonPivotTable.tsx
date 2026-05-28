@@ -67,6 +67,7 @@ interface OrderDetail {
   deliveryStatusPo: string | null;
   reason_category: string;
   pushedStatus: string | null;
+  statusDurationSec: number | null;
 }
 
 interface ModalFilters {
@@ -80,6 +81,19 @@ interface ModalFilters {
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Compact human-readable duration: 1.5h / 3d / 12d 4h
+const formatDuration = (seconds: number | null | undefined): string => {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '—';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = seconds / 60;
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  const hours = minutes / 60;
+  if (hours < 24) return `${hours.toFixed(1)}h`;
+  const days = Math.floor(hours / 24);
+  const remHours = Math.round(hours - days * 24);
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+};
 
 const formatAmount = (n: number) => {
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
@@ -213,6 +227,7 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
       case 'rejectReason': return r.rejectReason ?? '';
       case 'rejectedBy': return r.rejectedBy ?? '';
       case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
+      case 'statusDuration': return r.statusDurationSec ?? null;
       default: return '';
     }
   };
@@ -1004,6 +1019,7 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                             </th>
                             <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                             <SortTh k="status" label="Order Status" />
+                            <SortTh k="statusDuration" label="Status Duration" />
                             <SortTh k="poAmount" label="PO Amount" />
                             <SortTh k="paidAmount" label="Paid Amount" />
                             <SortTh k="coupon" label="Coupon Amount" />
@@ -1086,6 +1102,7 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                             ) : <span className="text-slate-400">—</span>}
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                           <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount != null && Number(r.CoupanAmount) !== 0 ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>

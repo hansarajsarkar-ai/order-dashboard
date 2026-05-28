@@ -40,6 +40,7 @@ interface Row {
   seller_city: string | null;
   seller_state: string | null;
   created_at: string;
+  statusDurationSec: number | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -112,7 +113,23 @@ export async function GET(req: NextRequest) {
         s."addressLine1" AS seller_address_line1,
         s."city" AS seller_city,
         s."state" AS seller_state,
-        po."created_at" AS created_at
+        po."created_at" AS created_at,
+        EXTRACT(EPOCH FROM (
+          CASE po."status"
+            WHEN 'REJECTED'    THEN po."markedRejectedTime"
+            WHEN 'CANCELLED'   THEN po."markedCancelledTime"
+            WHEN 'DELIVERED'   THEN po."markedDeliveredTime"
+            WHEN 'COMPLETED'   THEN po."markedCompletedTime"
+            WHEN 'DISPATCHED'  THEN po."markedDispatchedTime"
+            WHEN 'IN_TRANSIT'  THEN po."markedInTransitTime"
+            WHEN 'IN_PROGRESS' THEN po."markedInProgressTime"
+            WHEN 'INPROGRESS'  THEN po."markedInProgressTime"
+            WHEN 'PARTIAL'     THEN po."markedPartialTime"
+            WHEN 'PENDING'     THEN NOW()
+            ELSE NOW()
+          END
+          - po."markedPendingTime"
+        ))::float AS "statusDurationSec"
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
@@ -200,6 +217,7 @@ export async function GET(req: NextRequest) {
       sellerAddress: [r.seller_address_line1, r.seller_city, r.seller_state].filter(Boolean).join(', '),
       markedPendingTime: r.MarkedpendingTime,
       createdAt: r.created_at,
+      statusDurationSec: r.statusDurationSec != null ? Number(r.statusDurationSec) : null,
     }));
 
     return NextResponse.json({

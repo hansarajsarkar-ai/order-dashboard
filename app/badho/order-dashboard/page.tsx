@@ -54,6 +54,7 @@ interface OrderListRow {
   reasonAddedByBadhoTeam?: string | null;
   markedPendingTime: string | null;
   createdAt: string;
+  statusDurationSec?: number | null;
 }
 
 interface RevenueGoal {
@@ -277,6 +278,19 @@ const formatAmount = (n: number): string => {
   if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
   if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
   return `₹${n.toFixed(0)}`;
+};
+
+// Compact human-readable duration: 1.5h / 3d / 12d 4h
+const formatDuration = (seconds: number | null | undefined): string => {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '—';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = seconds / 60;
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  const hours = minutes / 60;
+  if (hours < 24) return `${hours.toFixed(1)}h`;
+  const days = Math.floor(hours / 24);
+  const remHours = Math.round(hours - days * 24);
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -519,6 +533,7 @@ export default function OrderStatusDashboard() {
     createdAt: string;
     category: string;
     slaBreachAt: string;
+    statusDurationSec: number | null;
   }
   const [alertModalCategory, setAlertModalCategory] = useState<string | null>(null);
   const [alertModalSeller, setAlertModalSeller] = useState<string | null>(null);
@@ -564,6 +579,7 @@ export default function OrderStatusDashboard() {
       case 'category': return r.category ?? '';
       case 'inProgress': return dt(r.markedInProgressTime);
       case 'slaBreach': return dt(r.slaBreachAt);
+      case 'statusDuration': return r.statusDurationSec ?? null;
       default: return '';
     }
   };
@@ -1887,6 +1903,7 @@ export default function OrderStatusDashboard() {
       case 'rejectedBy': return r.rejectedBy ?? '';
       case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
       case 'buyerFullAddress': return r.buyerFullAddress ?? '';
+      case 'statusDuration': return r.statusDurationSec ?? null;
       default: return '';
     }
   };
@@ -6305,6 +6322,7 @@ export default function OrderStatusDashboard() {
                           </th>
                           <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                           <SortTh k="status" label="Order Status" />
+                          <SortTh k="statusDuration" label="Status Duration" />
                           <SortTh k="poAmount" label="PO Amount" />
                           <SortTh k="paidAmount" label="Paid Amount" />
                           <SortTh k="coupon" label="Coupon Amount" />
@@ -6380,6 +6398,7 @@ export default function OrderStatusDashboard() {
                                 </button>
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                               <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
@@ -6678,6 +6697,7 @@ export default function OrderStatusDashboard() {
                               </th>
                               <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                               <SortTh k="status" label="Order Status" />
+                              <SortTh k="statusDuration" label="Status Duration" />
                               <SortTh k="poAmount" label="PO Amount" align="right" />
                               <SortTh k="paidAmount" label="Paid Amount" align="right" />
                               <SortTh k="coupon" label="Coupon Amount" align="right" />
@@ -6758,6 +6778,7 @@ export default function OrderStatusDashboard() {
                             </button>
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                           <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>

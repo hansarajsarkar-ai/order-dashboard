@@ -2177,7 +2177,7 @@ export default function OrderStatusDashboard() {
                   <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <button
                       type="button"
-                      onClick={() => setGoalModalOpen(true)}
+                      onClick={() => openPivotDrill('DELIVERED,COMPLETED', undefined, now.getMonth() + 1)}
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{currentMonth} Achieved</p>
@@ -6475,7 +6475,7 @@ export default function OrderStatusDashboard() {
                 <div>
                   <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900">
                     <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse" />
-                    <span>{pivotDrillStatus}</span>
+                    <span>{pivotDrillStatus.includes(',') ? `Achieved · ${pivotDrillStatus.split(',').join(' + ')}` : pivotDrillStatus}</span>
                     {pivotDrillDelivery !== undefined && (
                       <span className="text-slate-400 text-sm font-normal mx-1">→</span>
                     )}

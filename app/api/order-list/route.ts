@@ -57,7 +57,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const params: (string | number)[] = [year, status];
+    // status can be a single value ('REJECTED') or comma-separated
+    // ('DELIVERED,COMPLETED') for multi-status filters like the GMV
+    // Achieved tile.
+    const statusValues = status.split(',').map((s) => s.trim()).filter(Boolean);
+    const params: (string | number)[] = [year, ...statusValues];
+    const statusPlaceholders = statusValues.map((_, i) => `$${i + 2}`).join(', ');
     let monthFilter = '';
     if (monthParam) {
       const month = parseInt(monthParam);
@@ -174,7 +179,7 @@ export async function GET(req: NextRequest) {
         AND po."isFalseOrder"    = FALSE
         AND po."status" != 'DRAFT'
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
-        AND po."status" = $2
+        AND po."status" IN (${statusPlaceholders})
         ${monthFilter}
         ${deliveryFilter}
       ORDER BY "MarkedpendingTime" DESC NULLS LAST

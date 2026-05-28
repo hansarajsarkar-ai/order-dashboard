@@ -954,6 +954,8 @@ export default function OrderStatusDashboard() {
     buyerFullAddress: string | null;
     buyerLongitude: number | null;
     buyerLatitude: number | null;
+    paidAmount: number | null;
+    appliedWalletAmount: number | null;
   }
   interface HubData {
     data: HubRow[];
@@ -4764,7 +4766,7 @@ export default function OrderStatusDashboard() {
                             'Reached At Destination Time', 'Reached At Destination Place',
                             'Days Since Reached At Destination',
                             'Latest Scan Time', 'Latest Scan Place', 'Still In Destination Hub',
-                            'PO Number', 'PO Status', 'Order Value', 'Coupon Value', 'Payment Mode',
+                            'PO Number', 'PO Status', 'Order Value', 'Paid Amount', 'Applied Wallet Amount', 'Coupon Value', 'Payment Mode',
                             'Brand Name', 'Shipment Status', 'Delivery Attempt',
                             'Attempt 1 Time', 'Attempt 1 Remarks',
                             'Attempt 2 Time', 'Attempt 2 Remarks',
@@ -4781,7 +4783,7 @@ export default function OrderStatusDashboard() {
                             r.reachedAtDestinationTime, r.reachedAtDestinationPlace,
                             r.daysSinceReachedAtDestination,
                             r.latestScanTime, r.latestScanPlace, r.stillInDestinationHub,
-                            r.poNumber, r.poStatus, r.orderValue, r.couponValue, r.paymentMode,
+                            r.poNumber, r.poStatus, r.orderValue, r.paidAmount, r.appliedWalletAmount, r.couponValue, r.paymentMode,
                             r.brandName, r.shipmentStatus, r.deliveryAttempt,
                             r.attempts[0]?.time, r.attempts[0]?.remarks,
                             r.attempts[1]?.time, r.attempts[1]?.remarks,
@@ -4912,6 +4914,8 @@ export default function OrderStatusDashboard() {
                           <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Brand</th>
                           <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Shipment</th>
                           <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Order ₹</th>
+                          <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-emerald-300/80 font-bold uppercase tracking-wider">Paid ₹</th>
+                          <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-cyan-300/80 font-bold uppercase tracking-wider">Wallet ₹</th>
                           <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Coupon ₹</th>
                           <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Payment</th>
                           <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">COD ₹</th>
@@ -4942,11 +4946,43 @@ export default function OrderStatusDashboard() {
                                 <td className="px-3 py-1.5 text-center border-b border-white/5">
                                   <span className="text-[11px] text-purple-300">{isOpen ? '▾' : '▸'}</span>
                                 </td>
-                                <td className="px-3 py-1.5 border-b border-white/5"><span className="text-xs font-extrabold tabular-nums text-fuchsia-200">#{r.poNumber}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs font-extrabold tabular-nums text-fuchsia-200">#{r.poNumber}</span>
+                                    <a
+                                      href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-fuchsia-200 bg-fuchsia-500/15 hover:bg-fuchsia-500/30 border border-fuchsia-400/40 transition-all"
+                                      title="Open in D2R Support Dashboard"
+                                    >
+                                      Details
+                                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <path d="M7 17L17 7" />
+                                        <polyline points="7 7 17 7 17 17" />
+                                      </svg>
+                                    </a>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); openPoItemsModal(r.poNumber); }}
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 transition-all"
+                                      title="View items + price breakup"
+                                    >
+                                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                        <line x1="12" y1="22.08" x2="12" y2="12" />
+                                      </svg>
+                                      Items
+                                    </button>
+                                  </div>
+                                </td>
                                 <td className="px-3 py-1.5 border-b border-white/5"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/15 bg-white/10 text-white">{r.poStatus}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5"><span className="text-xs font-semibold text-purple-100">{r.brandName ?? '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-400/30 bg-amber-500/15 text-amber-200">{r.shipmentStatus ?? '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className="text-xs font-extrabold tabular-nums text-white">{formatAmount(r.orderValue)}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className={`text-xs font-bold tabular-nums ${r.paidAmount != null && r.paidAmount > 0 ? 'text-emerald-200' : 'text-white/40'}`}>{r.paidAmount != null && r.paidAmount > 0 ? formatAmount(r.paidAmount) : '—'}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className={`text-xs font-bold tabular-nums ${r.appliedWalletAmount != null && r.appliedWalletAmount > 0 ? 'text-cyan-200' : 'text-white/40'}`}>{r.appliedWalletAmount != null && r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className={`text-xs font-bold tabular-nums ${r.couponValue > 0 ? 'text-fuchsia-200' : 'text-white/40'}`}>{r.couponValue > 0 ? formatAmount(r.couponValue) : '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${r.paymentMode ? 'bg-sky-500/15 text-sky-200 border-sky-400/30' : 'bg-white/5 text-white/40 border-white/10'}`}>{r.paymentMode ?? '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className={`text-xs font-bold tabular-nums ${r.codCollect > 0 ? 'text-emerald-200' : 'text-white/40'}`}>{r.codCollect > 0 ? formatAmount(r.codCollect) : '—'}</span></td>

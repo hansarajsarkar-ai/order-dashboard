@@ -40,6 +40,8 @@ interface Row {
   buyer_full_address: string | null;
   buyer_longitude: string | null;
   buyer_latitude: string | null;
+  paid_amount: string | null;
+  applied_wallet_amount: string | null;
 }
 
 export async function GET(_req: NextRequest) {
@@ -112,7 +114,9 @@ export async function GET(_req: NextRequest) {
           b."pincode"
         ) AS buyer_full_address,
         b."longitude"::text AS buyer_longitude,
-        b."lattitude"::text AS buyer_latitude
+        b."lattitude"::text AS buyer_latitude,
+        pop."paidAmount"::text          AS paid_amount,
+        pop."appliedWalletAmount"::text AS applied_wallet_amount
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "deliveries"."intercityDelivery" di
         ON po."id" = di."purchaseOrderId"
@@ -329,6 +333,16 @@ export async function GET(_req: NextRequest) {
           ) deduped
         ) final_scans
       ) attempt_data ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT "paidAmount", "appliedWalletAmount"
+        FROM "purchaseOrder"."purchaseOrderPayment"
+        WHERE "purchaseOrderId" = po."id"
+          AND "status" = 'COMPLETED'
+          AND "event"  IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
+        ORDER BY "created_at" DESC
+        LIMIT 1
+      ) pop ON TRUE
+
       JOIN "users"."buyer" b
         ON b."id" = po."buyerId"
       JOIN "users"."seller" s
@@ -387,6 +401,8 @@ export async function GET(_req: NextRequest) {
       buyerFullAddress: r.buyer_full_address,
       buyerLongitude: r.buyer_longitude != null ? parseFloat(r.buyer_longitude) : null,
       buyerLatitude: r.buyer_latitude != null ? parseFloat(r.buyer_latitude) : null,
+      paidAmount: r.paid_amount != null ? parseFloat(r.paid_amount) : null,
+      appliedWalletAmount: r.applied_wallet_amount != null ? parseFloat(r.applied_wallet_amount) : null,
     }));
 
     // Pre-compute filter facets so the UI can build dropdowns without re-scanning.

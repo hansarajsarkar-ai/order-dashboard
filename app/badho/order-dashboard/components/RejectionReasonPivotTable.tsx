@@ -1054,6 +1054,12 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                             <SortTh k="badhoDiscount" label="Payment Option Badho Discount" />
                             <SortTh k="cod" label="COD Amount" />
                             <SortTh k="deliveryStatus" label="Delivery Status" />
+                            <SortTh k="paidAmount" label="Paid Amount" />
+                            <SortTh k="paymentOption" label="Payment Option" />
+                            <SortTh k="awb" label="AWB Number" />
+                            <SortTh k="courier" label="Courier Name" />
+                            <SortTh k="paymentDate" label="Payment Date" />
+                            <SortTh k="paymentEvent" label="Payment Event" />
                             <SortTh k="buyerBusiness" label="Buyer Business" />
                             <SortTh k="buyerPhone" label="Buyer Phone" />
                             <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
@@ -1152,6 +1158,12 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {r.deliveryStatusDv ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatusDv}</span> : <span className="text-slate-400">—</span>}
                           </td>
+                          <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDate(r.paymentDate)}</td>
+                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 font-medium">
                             {r.buyerBusinessName ? (
                               onBuyerClick ? (

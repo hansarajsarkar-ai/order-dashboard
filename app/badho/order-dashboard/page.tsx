@@ -6931,12 +6931,13 @@ export default function OrderStatusDashboard() {
                           <div className="text-slate-900 font-bold text-sm leading-tight truncate">PO {poItemsModal}</div>
                         </div>
                       </div>
-                      {priceBreakup.paymentOption && (() => {
-                        const opt = String(priceBreakup.paymentOption);
+                      {(() => {
+                        const opt = priceBreakup.paymentOption ? String(priceBreakup.paymentOption) : 'PENDING';
                         const styles: Record<string, string> = {
                           FULLY_PAID:     'bg-emerald-100 text-emerald-700 border-emerald-300',
                           PARTIALLY_PAID: 'bg-amber-100 text-amber-700 border-amber-300',
                           COD:            'bg-cyan-100 text-cyan-700 border-cyan-300',
+                          PENDING:        'bg-rose-100 text-rose-700 border-rose-300',
                         };
                         const cls = styles[opt] || 'bg-slate-100 text-slate-700 border-slate-300';
                         return (
@@ -6983,17 +6984,15 @@ export default function OrderStatusDashboard() {
                       </span>
                     </div>
                     {paid > 0 && (
-                      <>
-                        <div className="flex items-center justify-between gap-3 mt-1 text-xs">
-                          <span className="text-slate-600">{priceBreakup.paymentOption === 'PARTIALLY_PAID' ? 'Partial paid' : 'Already paid'}</span>
-                          <span className="tabular-nums font-bold text-emerald-700">−{fmt(paid)}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-emerald-200 text-sm">
-                          <span className="text-slate-700 font-semibold">To be paid</span>
-                          <span className="tabular-nums font-extrabold text-amber-700">{fmt(Math.max(0, net - paid))}</span>
-                        </div>
-                      </>
+                      <div className="flex items-center justify-between gap-3 mt-1 text-xs">
+                        <span className="text-slate-600">{priceBreakup.paymentOption === 'PARTIALLY_PAID' ? 'Partial paid' : 'Already paid'}</span>
+                        <span className="tabular-nums font-bold text-emerald-700">−{fmt(paid)}</span>
+                      </div>
                     )}
+                    <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-emerald-200 text-sm">
+                      <span className="text-slate-700 font-semibold">To be paid</span>
+                      <span className="tabular-nums font-extrabold text-amber-700">{fmt(Math.max(0, net - paid))}</span>
+                    </div>
                     <div className="flex items-center justify-between gap-3 mt-1 text-[10px] text-slate-500">
                       <span>Total deductions</span>
                       <span className="tabular-nums">{fmt(totalDeductions)}</span>

@@ -50,8 +50,6 @@ export async function GET(req: NextRequest) {
       LEFT JOIN "brands"."brandSKU" bsku
              ON bsku."id" = poi."brandSKUId"
       WHERE po."poNumber"::text = $1
-        AND poi."status" != 'DRAFT'
-        AND poi."comboBrandSKUPOItemId" IS NULL
         AND COALESCE(poi."isArchived", FALSE) = FALSE
       ORDER BY poi."created_at" ASC;
     `;

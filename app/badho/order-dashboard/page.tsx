@@ -468,6 +468,7 @@ export default function OrderStatusDashboard() {
     appliedWalletAmount: number | null;
     paidAmount?: number | null;
     sellerDiscount?: number | null;
+    paymentOption?: string | null;
   }
   const [priceBreakup, setPriceBreakup] = useState<PriceBreakup | null>(null);
 
@@ -6920,16 +6921,34 @@ export default function OrderStatusDashboard() {
                   <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-200/40 rounded-full blur-3xl pointer-events-none" />
 
                   <header className="relative px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-fuchsia-50 via-white to-indigo-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(217,70,239,0.55)]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(217,70,239,0.55)]">
                           <span className="text-white font-extrabold text-base leading-none">₹</span>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-[10px] uppercase tracking-[0.25em] text-purple-600 font-bold">Price Breakup</div>
-                          <div className="text-slate-900 font-bold text-sm leading-tight">PO {poItemsModal}</div>
+                          <div className="text-slate-900 font-bold text-sm leading-tight truncate">PO {poItemsModal}</div>
                         </div>
                       </div>
+                      {priceBreakup.paymentOption && (() => {
+                        const opt = String(priceBreakup.paymentOption);
+                        const styles: Record<string, string> = {
+                          FULLY_PAID:     'bg-emerald-100 text-emerald-700 border-emerald-300',
+                          PARTIALLY_PAID: 'bg-amber-100 text-amber-700 border-amber-300',
+                          COD:            'bg-cyan-100 text-cyan-700 border-cyan-300',
+                        };
+                        const cls = styles[opt] || 'bg-slate-100 text-slate-700 border-slate-300';
+                        return (
+                          <div className="shrink-0 text-right">
+                            <div className="text-[9px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-0.5">Payment</div>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${cls}`}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+                              {opt}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </header>
 
@@ -6964,10 +6983,16 @@ export default function OrderStatusDashboard() {
                       </span>
                     </div>
                     {paid > 0 && (
-                      <div className="flex items-center justify-between gap-3 mt-1 text-xs">
-                        <span className="text-slate-600">Already paid</span>
-                        <span className="tabular-nums font-bold text-emerald-700">{fmt(paid)}</span>
-                      </div>
+                      <>
+                        <div className="flex items-center justify-between gap-3 mt-1 text-xs">
+                          <span className="text-slate-600">{priceBreakup.paymentOption === 'PARTIALLY_PAID' ? 'Partial paid' : 'Already paid'}</span>
+                          <span className="tabular-nums font-bold text-emerald-700">−{fmt(paid)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-emerald-200 text-sm">
+                          <span className="text-slate-700 font-semibold">To be paid</span>
+                          <span className="tabular-nums font-extrabold text-amber-700">{fmt(Math.max(0, net - paid))}</span>
+                        </div>
+                      </>
                     )}
                     <div className="flex items-center justify-between gap-3 mt-1 text-[10px] text-slate-500">
                       <span>Total deductions</span>
@@ -7349,6 +7374,7 @@ export default function OrderStatusDashboard() {
                                     appliedWalletAmount: r.appliedWalletAmount != null ? Number(r.appliedWalletAmount) : null,
                                     paidAmount: r.paidAmount != null ? Number(r.paidAmount) : null,
                                     sellerDiscount: r.discountBySeller != null ? Number(r.discountBySeller) : null,
+                                    paymentOption: r.PaymentOption,
                                   })}
                                   className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[11px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
                                   title="View items in this PO"
@@ -7894,6 +7920,7 @@ export default function OrderStatusDashboard() {
                                 appliedWalletAmount: r.appliedWalletAmount != null ? Number(r.appliedWalletAmount) : null,
                                 paidAmount: r.paidAmount != null ? Number(r.paidAmount) : null,
                                 sellerDiscount: r.discountBySeller != null ? Number(r.discountBySeller) : null,
+                                paymentOption: r.PaymentOption,
                               })}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[11px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
                               title="View items in this PO"

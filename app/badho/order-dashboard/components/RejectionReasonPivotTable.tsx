@@ -186,8 +186,10 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSearch, setModalSearch] = useState('');
-  const [colFilters, setColFilters] = useState<Record<string, Set<string>>>({});
-  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [modalPushedFilter, setModalPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
+  const [modalPaymentFilter, setModalPaymentFilter] = useState<string>('all');
+  const [modalCourierFilter, setModalCourierFilter] = useState<string>('all');
+  const [modalDeliveryFilter, setModalDeliveryFilter] = useState<string>('all');
   const [modalSort, setModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
 
@@ -299,21 +301,12 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
     setModalFilters(null);
     setModalData(null);
     setModalSearch('');
-    setColFilters({});
-    setOpenFilter(null);
+    setModalPushedFilter('all');
+    setModalPaymentFilter('all');
+    setModalCourierFilter('all');
+    setModalDeliveryFilter('all');
     setModalSort(null);
   };
-
-  useEffect(() => {
-    if (!openFilter) return;
-    const onMouseDown = (e: MouseEvent) => {
-      if (filterBarRef.current && !filterBarRef.current.contains(e.target as Node)) {
-        setOpenFilter(null);
-      }
-    };
-    document.addEventListener('mousedown', onMouseDown);
-    return () => document.removeEventListener('mousedown', onMouseDown);
-  }, [openFilter]);
 
   const toggleExpand = (reason: string) => {
     const next = new Set(expandedReasons);
@@ -341,35 +334,27 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
     setModalSearch('');
   };
 
-  const FILTER_DEFS: { key: string; label: string }[] = [
-    { key: 'orderStatus', label: 'Order Status' },
-    { key: 'deliveryStatusDv', label: 'Delivery' },
-    { key: 'PaymentOption', label: 'Payment' },
-    { key: 'courierName', label: 'Courier' },
-    { key: 'reason_category', label: 'Reason' },
-    { key: 'refundStatus', label: 'Refund' },
-  ];
-
-  const valueForFilterKey = (r: OrderDetail, key: string): string => {
-    if (key === 'refundStatus') {
-      if (r.RefundCompletedTime) return 'Completed';
-      if (r.RefundIntiatedTime) return 'Initiated';
-      return 'None';
-    }
-    const v = (r as unknown as Record<string, unknown>)[key];
-    const s = v == null ? '' : String(v).trim();
-    return s || '—';
-  };
-
-  const filterColumnTallies = (key: string): [string, number][] => {
-    const map = new Map<string, number>();
-    if (!modalData) return [];
+  // Build a generic option list (value, label, count) from a row accessor
+  const buildOpts = (accessor: (r: OrderDetail) => string | null | undefined) => {
+    if (!modalData) return [] as Array<{ value: string; label: string; count: number }>;
+    const counts = new Map<string, number>();
     for (const r of modalData) {
-      const v = valueForFilterKey(r, key);
-      map.set(v, (map.get(v) || 0) + 1);
+      const k = accessor(r) || '__NONE__';
+      counts.set(k, (counts.get(k) || 0) + 1);
     }
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+    return Array.from(counts.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([value, count]) => ({ value, label: value === '__NONE__' ? 'Unspecified' : value, count }));
   };
+  const modalPaymentOpts  = buildOpts((r) => r.PaymentOption);
+  const modalCourierOpts  = buildOpts((r) => r.courierName);
+  const modalDeliveryOpts = buildOpts((r) => r.deliveryStatusDv);
+  const modalPushedCounts = (() => {
+    const total = modalData?.length ?? 0;
+    let pushed = 0;
+    if (modalData) for (const r of modalData) if ((r.pushedStatus || 'Not Pushed') === 'Pushed') pushed++;
+    return { all: total, pushed, notPushed: total - pushed };
+  })();
 
   let filteredModalData: OrderDetail[] | null = modalData;
   if (filteredModalData && modalSearch.trim()) {
@@ -394,11 +379,17 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
       (r.deliveryStatusDv || '').toLowerCase().includes(q)
     ));
   }
-  if (filteredModalData) {
-    for (const [key, set] of Object.entries(colFilters)) {
-      if (!set || set.size === 0) continue;
-      filteredModalData = filteredModalData.filter((r) => set.has(valueForFilterKey(r, key)));
-    }
+  if (filteredModalData && modalPushedFilter !== 'all') {
+    filteredModalData = filteredModalData.filter((r) => (r.pushedStatus || 'Not Pushed') === modalPushedFilter);
+  }
+  if (filteredModalData && modalPaymentFilter !== 'all') {
+    filteredModalData = filteredModalData.filter((r) => (r.PaymentOption || '__NONE__') === modalPaymentFilter);
+  }
+  if (filteredModalData && modalCourierFilter !== 'all') {
+    filteredModalData = filteredModalData.filter((r) => (r.courierName || '__NONE__') === modalCourierFilter);
+  }
+  if (filteredModalData && modalDeliveryFilter !== 'all') {
+    filteredModalData = filteredModalData.filter((r) => (r.deliveryStatusDv || '__NONE__') === modalDeliveryFilter);
   }
   if (filteredModalData && modalSort) {
     const { key, direction } = modalSort;
@@ -415,32 +406,19 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
     });
   }
 
-  const activeFilterCount = Object.values(colFilters).reduce((s, set) => s + set.size, 0);
-
-  const toggleFilterValue = (key: string, value: string) => {
-    setColFilters((prev) => {
-      const next = { ...prev };
-      const set = new Set(next[key] || []);
-      if (set.has(value)) set.delete(value);
-      else set.add(value);
-      if (set.size === 0) delete next[key];
-      else next[key] = set;
-      return next;
-    });
-  };
-
-  const clearFilterKey = (key: string) => {
-    setColFilters((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  };
+  const modalHasActiveFilters =
+    modalSearch.trim() !== '' ||
+    modalPushedFilter !== 'all' ||
+    modalPaymentFilter !== 'all' ||
+    modalCourierFilter !== 'all' ||
+    modalDeliveryFilter !== 'all';
 
   const clearAllModalFilters = () => {
-    setColFilters({});
     setModalSearch('');
-    setOpenFilter(null);
+    setModalPushedFilter('all');
+    setModalPaymentFilter('all');
+    setModalCourierFilter('all');
+    setModalDeliveryFilter('all');
   };
 
   return (
@@ -903,66 +881,67 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                     </button>
                   )}
                 </div>
-                {modalData && FILTER_DEFS.map(({ key, label }) => {
-                  const selected = colFilters[key] || new Set<string>();
-                  const options = filterColumnTallies(key);
-                  if (options.length === 0) return null;
-                  const isOpen = openFilter === key;
-                  return (
-                    <div key={key} className="relative">
-                      <button
-                        onClick={() => setOpenFilter(isOpen ? null : key)}
-                        className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap flex items-center gap-1 ${
-                          selected.size > 0
-                            ? 'bg-purple-500 text-white border border-purple-600'
-                            : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span>{label}</span>
-                        {selected.size > 0 && (
-                          <span className="px-1 rounded bg-white/30 text-[10px] tabular-nums">{selected.size}</span>
-                        )}
-                        <span className="opacity-70 text-[9px]">▾</span>
-                      </button>
-                      {isOpen && (
-                        <div className="absolute z-40 mt-1 left-0 min-w-[220px] max-h-72 overflow-auto bg-white border border-slate-300 rounded-lg shadow-xl">
-                          <div className="sticky top-0 px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase tracking-wide">
-                            <span>{label} · {options.length}</span>
-                            {selected.size > 0 && (
-                              <button
-                                onClick={() => clearFilterKey(key)}
-                                className="text-purple-600 hover:text-purple-800 normal-case font-semibold"
-                              >
-                                Clear
-                              </button>
-                            )}
-                          </div>
-                          {options.map(([val, count]) => {
-                            const checked = selected.has(val);
-                            return (
-                              <label
-                                key={val}
-                                className="flex items-center gap-2 px-3 py-1.5 hover:bg-purple-50 cursor-pointer text-xs select-none border-b border-slate-100 last:border-b-0"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={() => toggleFilterValue(key, val)}
-                                  className="accent-purple-500 cursor-pointer"
-                                />
-                                <span className="flex-1 text-slate-700 truncate" title={val}>{val}</span>
-                                <span className="text-slate-500 tabular-nums text-[10px]">
-                                  {count.toLocaleString()}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {(activeFilterCount > 0 || modalSearch.trim()) && (
+                {modalData && (
+                  <div role="group" aria-label="Filter by pushed status" className="inline-flex rounded-md border border-slate-300 overflow-hidden text-xs bg-white shrink-0">
+                    {([
+                      { value: 'all' as const, label: 'All', count: modalPushedCounts.all },
+                      { value: 'Pushed' as const, label: 'Pushed', count: modalPushedCounts.pushed },
+                      { value: 'Not Pushed' as const, label: 'Not Pushed', count: modalPushedCounts.notPushed },
+                    ]).map((opt, idx) => {
+                      const active = modalPushedFilter === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setModalPushedFilter(opt.value)}
+                          className={`px-2.5 py-1.5 whitespace-nowrap transition-colors font-medium ${idx > 0 ? 'border-l border-slate-300' : ''} ${active ? 'bg-purple-500 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
+                        >
+                          {opt.label}<span className={`ml-1 text-[10px] tabular-nums ${active ? 'text-white/90' : 'text-slate-500'}`}>{opt.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {modalPaymentOpts.length > 1 && (
+                  <select
+                    value={modalPaymentFilter}
+                    onChange={(e) => setModalPaymentFilter(e.target.value)}
+                    title="Filter by payment option"
+                    className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
+                  >
+                    <option value="all">All payments ({(modalData?.length ?? 0).toLocaleString()})</option>
+                    {modalPaymentOpts.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
+                    ))}
+                  </select>
+                )}
+                {modalCourierOpts.length > 1 && (
+                  <select
+                    value={modalCourierFilter}
+                    onChange={(e) => setModalCourierFilter(e.target.value)}
+                    title="Filter by courier"
+                    className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
+                  >
+                    <option value="all">All couriers ({(modalData?.length ?? 0).toLocaleString()})</option>
+                    {modalCourierOpts.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
+                    ))}
+                  </select>
+                )}
+                {modalDeliveryOpts.length > 1 && (
+                  <select
+                    value={modalDeliveryFilter}
+                    onChange={(e) => setModalDeliveryFilter(e.target.value)}
+                    title="Filter by delivery status"
+                    className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
+                  >
+                    <option value="all">All delivery ({(modalData?.length ?? 0).toLocaleString()})</option>
+                    {modalDeliveryOpts.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
+                    ))}
+                  </select>
+                )}
+                {modalHasActiveFilters && (
                   <button
                     onClick={clearAllModalFilters}
                     className="ml-auto text-[11px] font-semibold text-purple-600 hover:text-purple-700 underline underline-offset-2"
@@ -1056,7 +1035,14 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                     {filteredModalData.slice(0, 2000).map((r, idx) => {
                       const buyerAddr = [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_');
                       const isPushed = r.pushedStatus === 'Pushed';
-                      const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                      const paid = Number(r.paidAmount ?? 0);
+                      const isFullyPaid = r.PaymentOption === 'FULLY_PAID' && paid > 0;
+                      const isPartialPaid = r.PaymentOption === 'PARTIALLY_PAID' && paid > 0;
+                      const rowBg = isFullyPaid
+                        ? 'bg-emerald-50'
+                        : isPartialPaid
+                        ? 'bg-violet-50'
+                        : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50');
                       return (
                         <tr
                           key={`${r.poNumber}-${idx}`}

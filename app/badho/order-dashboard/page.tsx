@@ -355,6 +355,8 @@ export default function OrderStatusDashboard() {
   const [pivotDrillPushedFilter, setPivotDrillPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
   const [pivotDrillRejectReasonFilter, setPivotDrillRejectReasonFilter] = useState<string>('all');
   const [pivotDrillPaymentFilter, setPivotDrillPaymentFilter] = useState<string>('all');
+  const [pivotDrillCourierFilter, setPivotDrillCourierFilter] = useState<string>('all');
+  const [pivotDrillDeliveryFilter, setPivotDrillDeliveryFilter] = useState<string>('all');
   const [pivotDrillSort, setPivotDrillSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [pivotDrillPage, setPivotDrillPage] = useState(1);
   const [goalData, setGoalData] = useState<RevenueGoal | null>(null);
@@ -544,6 +546,10 @@ export default function OrderStatusDashboard() {
   const [alertModalLoading, setAlertModalLoading] = useState(false);
   const [alertModalError, setAlertModalError] = useState<string | null>(null);
   const [alertModalSearch, setAlertModalSearch] = useState('');
+  const [alertModalPushedFilter, setAlertModalPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
+  const [alertModalPaymentFilter, setAlertModalPaymentFilter] = useState<string>('all');
+  const [alertModalCourierFilter, setAlertModalCourierFilter] = useState<string>('all');
+  const [alertModalDeliveryFilter, setAlertModalDeliveryFilter] = useState<string>('all');
   const [alertModalSort, setAlertModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const toggleAlertSort = (key: string) => {
     setAlertModalSort((prev) => {
@@ -1188,6 +1194,10 @@ export default function OrderStatusDashboard() {
     setAlertModalSeller(null);
     setAlertModalData(null);
     setAlertModalSearch('');
+    setAlertModalPushedFilter('all');
+    setAlertModalPaymentFilter('all');
+    setAlertModalCourierFilter('all');
+    setAlertModalDeliveryFilter('all');
     setAlertModalError(null);
     setAlertModalSort(null);
   };
@@ -1415,6 +1425,8 @@ export default function OrderStatusDashboard() {
     setPivotDrillPushedFilter('all');
     setPivotDrillRejectReasonFilter('all');
     setPivotDrillPaymentFilter('all');
+    setPivotDrillCourierFilter('all');
+    setPivotDrillDeliveryFilter('all');
     setPivotDrillSort(null);
     setPivotDrillPage(1);
     setPivotDrillLoading(true);
@@ -1719,7 +1731,7 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => { setDrillPage(1); }, [drillStatus, drillMonth, drillSearch]);
-  useEffect(() => { setPivotDrillPage(1); }, [pivotDrillStatus, pivotDrillDelivery, pivotDrillMonth, pivotDrillSearch, pivotDrillPushedFilter, pivotDrillRejectReasonFilter, pivotDrillPaymentFilter, pivotDrillSort]);
+  useEffect(() => { setPivotDrillPage(1); }, [pivotDrillStatus, pivotDrillDelivery, pivotDrillMonth, pivotDrillSearch, pivotDrillPushedFilter, pivotDrillRejectReasonFilter, pivotDrillPaymentFilter, pivotDrillCourierFilter, pivotDrillDeliveryFilter, pivotDrillSort]);
   useEffect(() => { setSellerTablePage(1); }, [sellerSearch]);
   useEffect(() => { setSellerDrillPage(1); }, [sellerDrillId, sellerDrillStartDate, sellerDrillEndDate, sellerDrillStatus, sellerDrillPo]);
 
@@ -1943,12 +1955,12 @@ export default function OrderStatusDashboard() {
     return { all: total, pushed, notPushed: total - pushed };
   })();
 
-  // Payment options present in the current drill set, ordered by frequency
-  const pivotPaymentOptions = (() => {
-    if (!pivotDrillRows) return [] as Array<{ value: string; label: string; count: number }>;
+  // Build a generic option list (value, label, count) from a row accessor
+  const buildOptions = <T,>(rows: T[] | null, accessor: (r: T) => string | null | undefined) => {
+    if (!rows) return [] as Array<{ value: string; label: string; count: number }>;
     const counts = new Map<string, number>();
-    for (const r of pivotDrillRows) {
-      const k = r.PaymentOption || '__NONE__';
+    for (const r of rows) {
+      const k = accessor(r) || '__NONE__';
       counts.set(k, (counts.get(k) || 0) + 1);
     }
     return Array.from(counts.entries())
@@ -1958,19 +1970,26 @@ export default function OrderStatusDashboard() {
         label: value === '__NONE__' ? 'Unspecified' : value,
         count,
       }));
-  })();
+  };
+  const pivotPaymentOptions  = buildOptions(pivotDrillRows, (r) => r.PaymentOption);
+  const pivotCourierOptions  = buildOptions(pivotDrillRows, (r) => r.courierName);
+  const pivotDeliveryOptions = buildOptions(pivotDrillRows, (r) => r.deliveryStatus);
 
   const pivotDrillHasActiveFilters =
     pivotDrillSearch.trim() !== '' ||
     pivotDrillPushedFilter !== 'all' ||
     pivotDrillRejectReasonFilter !== 'all' ||
-    pivotDrillPaymentFilter !== 'all';
+    pivotDrillPaymentFilter !== 'all' ||
+    pivotDrillCourierFilter !== 'all' ||
+    pivotDrillDeliveryFilter !== 'all';
 
   const resetPivotDrillFilters = () => {
     setPivotDrillSearch('');
     setPivotDrillPushedFilter('all');
     setPivotDrillRejectReasonFilter('all');
     setPivotDrillPaymentFilter('all');
+    setPivotDrillCourierFilter('all');
+    setPivotDrillDeliveryFilter('all');
     setPivotDrillSort(null);
   };
 
@@ -1994,6 +2013,12 @@ export default function OrderStatusDashboard() {
     }
     if (pivotDrillPaymentFilter !== 'all') {
       rows = rows.filter((r) => (r.PaymentOption || '__NONE__') === pivotDrillPaymentFilter);
+    }
+    if (pivotDrillCourierFilter !== 'all') {
+      rows = rows.filter((r) => (r.courierName || '__NONE__') === pivotDrillCourierFilter);
+    }
+    if (pivotDrillDeliveryFilter !== 'all') {
+      rows = rows.filter((r) => (r.deliveryStatus || '__NONE__') === pivotDrillDeliveryFilter);
     }
     if (pivotDrillSort) {
       const { key, direction } = pivotDrillSort;
@@ -6247,33 +6272,116 @@ export default function OrderStatusDashboard() {
                 </div>
               </div>
               {/* Compact toolbar — matches pivot drill modal */}
-              <div className="relative px-4 py-2 border-b border-slate-200 bg-slate-50/80">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="relative w-64 max-w-full">
-                    <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <circle cx="11" cy="11" r="7" />
-                      <path d="m20 20-3.5-3.5" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={alertModalSearch}
-                      onChange={(e) => setAlertModalSearch(e.target.value)}
-                      placeholder="Search PO, buyer, seller…"
-                      className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
-                    />
-                    {alertModalSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setAlertModalSearch('')}
-                        aria-label="Clear search"
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 inline-flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700 text-xs"
-                      >
-                        ×
-                      </button>
-                    )}
+              {(() => {
+                const rows = alertModalData ?? [];
+                const total = rows.length;
+                let pushedCount = 0;
+                for (const r of rows) if ((r.pushedStatus || 'Not Pushed') === 'Pushed') pushedCount++;
+                const buildOpts = (acc: (r: AlertDetailRow) => string | null | undefined) => {
+                  const counts = new Map<string, number>();
+                  for (const r of rows) {
+                    const k = acc(r) || '__NONE__';
+                    counts.set(k, (counts.get(k) || 0) + 1);
+                  }
+                  return Array.from(counts.entries())
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([value, count]) => ({ value, label: value === '__NONE__' ? 'Unspecified' : value, count }));
+                };
+                const paymentOpts  = buildOpts((r) => r.PaymentOption);
+                const courierOpts  = buildOpts((r) => r.courierName);
+                const deliveryOpts = buildOpts((r) => r.deliveryStatus);
+                return (
+                  <div className="relative px-4 py-2 border-b border-slate-200 bg-slate-50/80">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="relative w-64 max-w-full">
+                        <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <circle cx="11" cy="11" r="7" />
+                          <path d="m20 20-3.5-3.5" />
+                        </svg>
+                        <input
+                          type="text"
+                          value={alertModalSearch}
+                          onChange={(e) => setAlertModalSearch(e.target.value)}
+                          placeholder="Search PO, buyer, seller…"
+                          className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
+                        />
+                        {alertModalSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setAlertModalSearch('')}
+                            aria-label="Clear search"
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 inline-flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700 text-xs"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+
+                      <div role="group" aria-label="Filter by pushed status" className="inline-flex rounded-md border border-slate-300 overflow-hidden text-xs bg-white shrink-0">
+                        {([
+                          { value: 'all' as const, label: 'All', count: total },
+                          { value: 'Pushed' as const, label: 'Pushed', count: pushedCount },
+                          { value: 'Not Pushed' as const, label: 'Not Pushed', count: total - pushedCount },
+                        ]).map((opt, idx) => {
+                          const active = alertModalPushedFilter === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setAlertModalPushedFilter(opt.value)}
+                              className={`px-2.5 py-1.5 whitespace-nowrap transition-colors font-medium ${idx > 0 ? 'border-l border-slate-300' : ''} ${active ? 'bg-purple-500 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
+                            >
+                              {opt.label}<span className={`ml-1 text-[10px] tabular-nums ${active ? 'text-white/90' : 'text-slate-500'}`}>{opt.count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {paymentOpts.length > 1 && (
+                        <select
+                          value={alertModalPaymentFilter}
+                          onChange={(e) => setAlertModalPaymentFilter(e.target.value)}
+                          title="Filter by payment option"
+                          className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
+                        >
+                          <option value="all">All payments ({total.toLocaleString()})</option>
+                          {paymentOpts.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
+                          ))}
+                        </select>
+                      )}
+
+                      {courierOpts.length > 1 && (
+                        <select
+                          value={alertModalCourierFilter}
+                          onChange={(e) => setAlertModalCourierFilter(e.target.value)}
+                          title="Filter by courier"
+                          className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
+                        >
+                          <option value="all">All couriers ({total.toLocaleString()})</option>
+                          {courierOpts.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
+                          ))}
+                        </select>
+                      )}
+
+                      {deliveryOpts.length > 1 && (
+                        <select
+                          value={alertModalDeliveryFilter}
+                          onChange={(e) => setAlertModalDeliveryFilter(e.target.value)}
+                          title="Filter by delivery status"
+                          className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
+                        >
+                          <option value="all">All delivery ({total.toLocaleString()})</option>
+                          {deliveryOpts.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
               <div className="relative flex-1 overflow-auto">
                 {alertModalLoading ? (
                   <div className="px-6 py-12 text-center text-slate-500">Loading orders…</div>
@@ -6283,7 +6391,7 @@ export default function OrderStatusDashboard() {
                   <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
                 ) : (() => {
                   const q = alertModalSearch.trim().toLowerCase();
-                  let filtered = q
+                  let filtered: AlertDetailRow[] = q
                     ? alertModalData.filter((r) =>
                         (r.poNumber || '').toLowerCase().includes(q) ||
                         (r.buyerPhone || '').toLowerCase().includes(q) ||
@@ -6295,6 +6403,18 @@ export default function OrderStatusDashboard() {
                         (r.courierName || '').toLowerCase().includes(q)
                       )
                     : alertModalData;
+                  if (alertModalPushedFilter !== 'all') {
+                    filtered = filtered.filter((r) => (r.pushedStatus || 'Not Pushed') === alertModalPushedFilter);
+                  }
+                  if (alertModalPaymentFilter !== 'all') {
+                    filtered = filtered.filter((r) => (r.PaymentOption || '__NONE__') === alertModalPaymentFilter);
+                  }
+                  if (alertModalCourierFilter !== 'all') {
+                    filtered = filtered.filter((r) => (r.courierName || '__NONE__') === alertModalCourierFilter);
+                  }
+                  if (alertModalDeliveryFilter !== 'all') {
+                    filtered = filtered.filter((r) => (r.deliveryStatus || '__NONE__') === alertModalDeliveryFilter);
+                  }
                   if (alertModalSort) {
                     const { key, direction } = alertModalSort;
                     filtered = [...filtered].sort((a, b) => {
@@ -6382,7 +6502,14 @@ export default function OrderStatusDashboard() {
                       <tbody>
                         {filtered.slice(0, 2000).map((r, idx) => {
                           const isPushed = r.pushedStatus === 'Pushed';
-                          const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                          const paid = Number(r.paidAmount ?? 0);
+                          const isFullyPaid = r.PaymentOption === 'FULLY_PAID' && paid > 0;
+                          const isPartialPaid = r.PaymentOption === 'PARTIALLY_PAID' && paid > 0;
+                          const rowBg = isFullyPaid
+                            ? 'bg-emerald-50'
+                            : isPartialPaid
+                            ? 'bg-violet-50'
+                            : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50');
                           return (
                             <tr
                               key={r.poNumber}
@@ -6620,10 +6747,46 @@ export default function OrderStatusDashboard() {
                       value={pivotDrillPaymentFilter}
                       onChange={(e) => setPivotDrillPaymentFilter(e.target.value)}
                       title="Filter by payment option"
-                      className="w-44 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
+                      className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
                     >
                       <option value="all">All payments ({(pivotDrillRows?.length ?? 0).toLocaleString()})</option>
                       {pivotPaymentOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label} ({opt.count.toLocaleString()})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Courier — narrow dropdown */}
+                  {pivotCourierOptions.length > 1 && (
+                    <select
+                      id="pivot-drill-courier"
+                      value={pivotDrillCourierFilter}
+                      onChange={(e) => setPivotDrillCourierFilter(e.target.value)}
+                      title="Filter by courier"
+                      className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
+                    >
+                      <option value="all">All couriers ({(pivotDrillRows?.length ?? 0).toLocaleString()})</option>
+                      {pivotCourierOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label} ({opt.count.toLocaleString()})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Delivery status — narrow dropdown */}
+                  {pivotDeliveryOptions.length > 1 && (
+                    <select
+                      id="pivot-drill-delivery-status"
+                      value={pivotDrillDeliveryFilter}
+                      onChange={(e) => setPivotDrillDeliveryFilter(e.target.value)}
+                      title="Filter by delivery status"
+                      className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
+                    >
+                      <option value="all">All delivery ({(pivotDrillRows?.length ?? 0).toLocaleString()})</option>
+                      {pivotDeliveryOptions.map((opt) => (
                         <option key={opt.value} value={opt.value}>
                           {opt.label} ({opt.count.toLocaleString()})
                         </option>
@@ -6682,6 +6845,28 @@ export default function OrderStatusDashboard() {
                         <span>Payment: {pivotDrillPaymentFilter === '__NONE__' ? 'Unspecified' : pivotDrillPaymentFilter}</span>
                         <span aria-hidden className="text-slate-500">×</span>
                         <span className="sr-only">Remove payment filter</span>
+                      </button>
+                    )}
+                    {pivotDrillCourierFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setPivotDrillCourierFilter('all')}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] border border-slate-300 font-medium"
+                      >
+                        <span>Courier: {pivotDrillCourierFilter === '__NONE__' ? 'Unspecified' : pivotDrillCourierFilter}</span>
+                        <span aria-hidden className="text-slate-500">×</span>
+                        <span className="sr-only">Remove courier filter</span>
+                      </button>
+                    )}
+                    {pivotDrillDeliveryFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setPivotDrillDeliveryFilter('all')}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] border border-slate-300 font-medium"
+                      >
+                        <span>Delivery: {pivotDrillDeliveryFilter === '__NONE__' ? 'Unspecified' : pivotDrillDeliveryFilter}</span>
+                        <span aria-hidden className="text-slate-500">×</span>
+                        <span className="sr-only">Remove delivery filter</span>
                       </button>
                     )}
                     {pivotDrillRejectReasonFilter !== 'all' && (

@@ -4,6 +4,8 @@ import { query } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 interface Row {
+  sellerBusinessName: string;
+  sellerPhone: string | null;
   brand: string;
   poCount: string;
   orderAmount: string;
@@ -17,8 +19,10 @@ export async function GET() {
     const sql = `
       WITH raw AS (
         SELECT
-          TRIM(SPLIT_PART(s."businessName", '-', 1)) AS "brand",
-          po."amount" AS "amount",
+          s."businessName"                              AS "sellerBusinessName",
+          s."phone"                                     AS "sellerPhone",
+          TRIM(SPLIT_PART(s."businessName", '-', 1))    AS "brand",
+          po."amount"                                   AS "amount",
           GREATEST(
             EXTRACT(EPOCH FROM (NOW() - po."markedInProgressTime"))
             - COALESCE((
@@ -61,6 +65,8 @@ export async function GET() {
       ),
       bucketed AS (
         SELECT
+          "sellerBusinessName",
+          "sellerPhone",
           "brand",
           "amount",
           CASE
@@ -72,7 +78,9 @@ export async function GET() {
         FROM raw
       )
       SELECT
-        "brand",
+        "sellerBusinessName",
+        MAX("sellerPhone")                                                   AS "sellerPhone",
+        MAX("brand")                                                         AS "brand",
         COUNT(*)::text                                                       AS "poCount",
         SUM(COALESCE("amount", 0))::text                                     AS "orderAmount",
         COUNT(*) FILTER (WHERE "bucket" = '12')::text                        AS "c12",
@@ -80,13 +88,15 @@ export async function GET() {
         COUNT(*) FILTER (WHERE "bucket" = '3plus')::text                     AS "c3plus"
       FROM bucketed
       WHERE "bucket" <> '<1'
-      GROUP BY "brand"
-      ORDER BY "brand" ASC;
+      GROUP BY "sellerBusinessName"
+      ORDER BY "sellerBusinessName" ASC;
     `;
 
     const rows = await query<Row>(sql, []);
 
     const data = rows.map((r) => ({
+      sellerBusinessName: r.sellerBusinessName || '(unknown)',
+      sellerPhone: r.sellerPhone,
       brand: r.brand || '(unknown)',
       poCount: parseInt(r.poCount, 10) || 0,
       orderAmount: parseFloat(r.orderAmount) || 0,

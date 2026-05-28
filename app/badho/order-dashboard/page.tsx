@@ -614,8 +614,10 @@ export default function OrderStatusDashboard() {
   const [alertBrandError, setAlertBrandError] = useState<string | null>(null);
   const [alertBrandSearch, setAlertBrandSearch] = useState('');
 
-  // Alert tab — InProgress aging by brand (drill-down reuses the SLA Breach modal)
+  // Alert tab — InProgress aging by seller (drill-down reuses the SLA Breach modal)
   interface AgingRow {
+    sellerBusinessName: string;
+    sellerPhone: string | null;
     brand: string;
     poCount: number;
     orderAmount: number;
@@ -1201,7 +1203,7 @@ export default function OrderStatusDashboard() {
       let url: string;
       if (source === 'aging') {
         const params = new URLSearchParams({ bucket: category });
-        if (sellerBusinessName) params.set('brand', sellerBusinessName);
+        if (sellerBusinessName) params.set('sellerBusinessName', sellerBusinessName);
         url = `/api/inprogress-aging-details?${params.toString()}`;
       } else {
         const params = new URLSearchParams({ category });
@@ -6006,7 +6008,7 @@ export default function OrderStatusDashboard() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-orange-200 to-amber-200">
-                    InProgress Aging by Brand
+                    InProgress Aging by Seller
                   </h2>
                   <p className="text-amber-200/80 text-sm mt-1">
                     INPROGRESS POs stuck &gt; 1 working day (Sundays excluded) · click any cell to drill down
@@ -6018,7 +6020,7 @@ export default function OrderStatusDashboard() {
                   type="text"
                   value={agingSearch}
                   onChange={(e) => setAgingSearch(e.target.value)}
-                  placeholder="Search brand…"
+                  placeholder="Search seller…"
                   className="px-3 py-2 text-sm bg-white/10 border border-amber-400/40 text-white placeholder-amber-200/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 w-56"
                 />
                 <button
@@ -6042,7 +6044,13 @@ export default function OrderStatusDashboard() {
                 <div className="px-8 py-12 text-center text-amber-200/80">No InProgress aging beyond 1 day right now.</div>
               ) : (() => {
                 const q = agingSearch.trim().toLowerCase();
-                const filtered = q ? agingData.data.filter((r) => r.brand.toLowerCase().includes(q)) : agingData.data;
+                const filtered = q
+                  ? agingData.data.filter((r) =>
+                      r.sellerBusinessName.toLowerCase().includes(q) ||
+                      r.brand.toLowerCase().includes(q) ||
+                      (r.sellerPhone || '').toLowerCase().includes(q)
+                    )
+                  : agingData.data;
                 const bucketBg: Record<string, string> = {
                   '1-2 days': 'bg-amber-500/10',
                   '2-3 days': 'bg-orange-500/10',
@@ -6057,8 +6065,8 @@ export default function OrderStatusDashboard() {
                   <table className="w-full text-sm">
                     <thead className="bg-white/5 border-b border-white/10">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-amber-200 uppercase tracking-wide sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[240px]">
-                          Brand
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-amber-200 uppercase tracking-wide sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[280px]">
+                          Seller (Brand)
                         </th>
                         <th className="px-3 py-3 text-right text-xs font-semibold text-amber-200 uppercase tracking-wide bg-white/[0.03]">PO Count</th>
                         <th className="px-3 py-3 text-right text-xs font-semibold text-amber-200 uppercase tracking-wide bg-white/[0.03] border-r border-white/10">Order Amount</th>
@@ -6071,12 +6079,15 @@ export default function OrderStatusDashboard() {
                     </thead>
                     <tbody>
                       {filtered.map((row) => (
-                        <tr key={row.brand} className="border-b border-white/5 hover:bg-amber-500/10 group">
+                        <tr key={row.sellerBusinessName} className="border-b border-white/5 hover:bg-amber-500/10 group">
                           <td
-                            onClick={() => row.poCount > 0 && openAlertModal('all', row.brand, 'aging')}
-                            className="px-4 py-2.5 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 text-white font-semibold cursor-pointer"
+                            onClick={() => row.poCount > 0 && openAlertModal('all', row.sellerBusinessName, 'aging')}
+                            className="px-4 py-2.5 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 cursor-pointer"
                           >
-                            {row.brand}
+                            <div className="text-white font-semibold text-sm leading-tight">{row.sellerBusinessName}</div>
+                            <div className="text-[10px] text-purple-300 tabular-nums leading-tight">
+                              {row.sellerPhone || '—'} · <span className="text-fuchsia-300">{row.brand}</span>
+                            </div>
                           </td>
                           <td className="px-3 py-2.5 text-right text-white tabular-nums bg-white/[0.03]">
                             {row.poCount.toLocaleString()}
@@ -6090,7 +6101,7 @@ export default function OrderStatusDashboard() {
                             return (
                               <td
                                 key={b}
-                                onClick={() => has && openAlertModal(b, row.brand, 'aging')}
+                                onClick={() => has && openAlertModal(b, row.sellerBusinessName, 'aging')}
                                 className={`group/cell px-3 py-2.5 text-right tabular-nums border-r border-white/10 ${bucketBg[b]} ${has ? 'cursor-pointer' : ''}`}
                               >
                                 {has ? (
@@ -6140,7 +6151,7 @@ export default function OrderStatusDashboard() {
             {agingData && (
               <div className="px-8 py-3 border-t border-white/10 bg-white/5 text-xs text-amber-200/70 flex items-center justify-between">
                 <span>
-                  {agingData.data.length} brands · {agingData.grand.poCount.toLocaleString()} stuck orders
+                  {agingData.data.length} sellers · {agingData.grand.poCount.toLocaleString()} stuck orders
                 </span>
                 <span>Last updated: {new Date().toLocaleString()}</span>
               </div>

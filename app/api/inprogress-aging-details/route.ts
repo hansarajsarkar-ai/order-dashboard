@@ -57,6 +57,7 @@ const BUCKET_FILTERS: Record<string, string> = {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  const sellerBusinessName = searchParams.get('sellerBusinessName');
   const brand = searchParams.get('brand');
   const bucket = searchParams.get('bucket') || 'all';
 
@@ -64,10 +65,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const params: (string | number)[] = [];
-    let brandClause = '';
-    if (brand) {
+    let sellerClause = '';
+    if (sellerBusinessName) {
+      params.push(sellerBusinessName);
+      sellerClause = `AND s."businessName" = $${params.length}`;
+    } else if (brand) {
       params.push(brand);
-      brandClause = `AND TRIM(SPLIT_PART(s."businessName", '-', 1)) = $${params.length}`;
+      sellerClause = `AND TRIM(SPLIT_PART(s."businessName", '-', 1)) = $${params.length}`;
     }
 
     const sql = `
@@ -157,7 +161,7 @@ export async function GET(req: NextRequest) {
           AND s."businessName" NOT ILIKE '%test%'
           AND po."status"               = 'INPROGRESS'
           AND po."markedInProgressTime" IS NOT NULL
-          ${brandClause}
+          ${sellerClause}
       ),
       dedup AS (
         SELECT DISTINCT ON ("poNumber") *

@@ -3000,7 +3000,11 @@ export default function OrderStatusDashboard() {
 
         {/* Rejection Reason Breakdown Pivot Table */}
         <div className="mt-8 mb-8">
-          <RejectionReasonPivotTable onViewItems={openPoItemsModal} />
+          <RejectionReasonPivotTable
+            onViewItems={openPoItemsModal}
+            onBuyerClick={openBuyerModal}
+            onSellerClick={openSellerModal}
+          />
         </div>
 
         {/* MonthWiseOrder funnel — rows = months desc, cols = totals + 5 stages */}
@@ -6055,9 +6059,26 @@ export default function OrderStatusDashboard() {
                       {filteredRows.map((row) => (
                         <tr key={row.sellerBusinessName} className="border-b border-white/5 hover:bg-fuchsia-500/10 group">
                           <td className="px-4 py-2.5 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90">
-                            <div className="text-white font-semibold text-sm leading-tight">{row.sellerBusinessName}</div>
+                            <button
+                              type="button"
+                              onClick={() => openSellerModal({ phone: row.sellerPhone, businessName: row.sellerBusinessName })}
+                              className="text-white font-semibold text-sm leading-tight hover:text-fuchsia-300 hover:underline cursor-pointer text-left"
+                              title="View seller details"
+                            >
+                              {row.sellerBusinessName}
+                            </button>
                             <div className="text-[10px] text-purple-300 tabular-nums leading-tight">
-                              {row.sellerPhone || '—'} · <span className="text-fuchsia-300">{row.brand}</span>
+                              {row.sellerPhone ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openSellerModal({ phone: row.sellerPhone, businessName: row.sellerBusinessName })}
+                                  className="hover:text-fuchsia-300 hover:underline cursor-pointer"
+                                  title="View seller details"
+                                >
+                                  {row.sellerPhone}
+                                </button>
+                              ) : '—'}
+                              {' · '}<span className="text-fuchsia-300">{row.brand}</span>
                             </div>
                           </td>
                           {alertBrandData.categories.map((c) => {
@@ -6250,7 +6271,25 @@ export default function OrderStatusDashboard() {
                           >
                             <div className="text-white font-semibold text-sm leading-tight">{row.sellerBusinessName}</div>
                             <div className="text-[10px] text-purple-300 tabular-nums leading-tight">
-                              {row.sellerPhone || '—'} · <span className="text-fuchsia-300">{row.brand}</span>
+                              {row.sellerPhone ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); openSellerModal({ phone: row.sellerPhone, businessName: row.sellerBusinessName }); }}
+                                  className="hover:text-fuchsia-300 hover:underline cursor-pointer"
+                                  title="View seller details"
+                                >
+                                  {row.sellerPhone}
+                                </button>
+                              ) : '—'}
+                              {' · '}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); openSellerModal({ phone: row.sellerPhone, businessName: row.sellerBusinessName }); }}
+                                className="text-fuchsia-300 hover:text-fuchsia-200 hover:underline cursor-pointer"
+                                title="View seller details"
+                              >
+                                {row.brand}
+                              </button>
                             </div>
                           </td>
                           <td

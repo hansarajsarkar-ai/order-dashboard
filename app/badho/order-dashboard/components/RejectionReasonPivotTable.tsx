@@ -150,6 +150,8 @@ const periodLabel = (key: string, granularity: 'month' | 'week' | 'day', dayMont
 
 interface RejectionReasonPivotTableProps {
   onViewItems?: (poNumber: string) => void;
+  onBuyerClick?: (lookup: { phone?: string | null; businessName?: string | null }) => void;
+  onSellerClick?: (lookup: { phone?: string | null; businessName?: string | null }) => void;
 }
 
 const formatDateTime = (s: string | null | undefined) => {
@@ -171,7 +173,7 @@ const formatDateTime = (s: string | null | undefined) => {
   }
 };
 
-export default function RejectionReasonPivotTable({ onViewItems }: RejectionReasonPivotTableProps = {}) {
+export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, onSellerClick }: RejectionReasonPivotTableProps = {}) {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1106,13 +1108,81 @@ export default function RejectionReasonPivotTable({ onViewItems }: RejectionReas
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {r.deliveryStatusDv ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatusDv}</span> : <span className="text-slate-400">—</span>}
                           </td>
-                          <td className="px-2.5 py-2 text-slate-900 font-medium">{r.buyerBusinessName || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 font-medium">
+                            {r.buyerBusinessName ? (
+                              onBuyerClick ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onBuyerClick({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
+                                  className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                  title="View buyer details"
+                                >
+                                  {r.buyerBusinessName}
+                                </button>
+                              ) : (
+                                <span className="text-slate-900">{r.buyerBusinessName}</span>
+                              )
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                            {r.buyerPhone ? (
+                              onBuyerClick ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onBuyerClick({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
+                                  className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                  title="View buyer details"
+                                >
+                                  {r.buyerPhone}
+                                </button>
+                              ) : (
+                                <span className="text-slate-700">{r.buyerPhone}</span>
+                              )
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={buyerAddr}>
                             {buyerAddr ? <div className="whitespace-normal break-words">{buyerAddr}</div> : <span className="text-slate-400">—</span>}
                           </td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                            {r.sellerPhone ? (
+                              onSellerClick ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onSellerClick({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                  className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                  title="View seller details"
+                                >
+                                  {r.sellerPhone}
+                                </button>
+                              ) : (
+                                <span className="text-slate-700">{r.sellerPhone}</span>
+                              )
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-2.5 py-2 font-medium">
+                            {r.sellerBusinessName ? (
+                              onSellerClick ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onSellerClick({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                  className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                  title="View seller details"
+                                >
+                                  {r.sellerBusinessName}
+                                </button>
+                              ) : (
+                                <span className="text-slate-900">{r.sellerBusinessName}</span>
+                              )
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{formatDateTime(r.MarkedpendingTime)}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>

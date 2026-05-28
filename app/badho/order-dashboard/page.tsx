@@ -7211,7 +7211,7 @@ export default function OrderStatusDashboard() {
                                   <button
                                     type="button"
                                     onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
-                                    className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                    className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer text-left"
                                     title="View buyer details"
                                   >
                                     {r.buyerBusinessName}
@@ -7225,7 +7225,7 @@ export default function OrderStatusDashboard() {
                                   <button
                                     type="button"
                                     onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
-                                    className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                    className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
                                     title="View buyer details"
                                   >
                                     {r.buyerPhone}
@@ -7242,7 +7242,7 @@ export default function OrderStatusDashboard() {
                                   <button
                                     type="button"
                                     onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
-                                    className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                    className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
                                     title="View seller details"
                                   >
                                     {r.sellerPhone}
@@ -7256,7 +7256,7 @@ export default function OrderStatusDashboard() {
                                   <button
                                     type="button"
                                     onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
-                                    className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                    className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer text-left"
                                     title="View seller details"
                                   >
                                     {r.sellerBusinessName}
@@ -7749,7 +7749,7 @@ export default function OrderStatusDashboard() {
                               <button
                                 type="button"
                                 onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
-                                className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer text-left"
                                 title="View buyer details"
                               >
                                 {r.buyerBusinessName}
@@ -7763,7 +7763,7 @@ export default function OrderStatusDashboard() {
                               <button
                                 type="button"
                                 onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
-                                className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
                                 title="View buyer details"
                               >
                                 {r.buyerPhone}
@@ -7786,7 +7786,7 @@ export default function OrderStatusDashboard() {
                               <button
                                 type="button"
                                 onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
-                                className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
                                 title="View seller details"
                               >
                                 {r.sellerPhone}
@@ -7800,7 +7800,7 @@ export default function OrderStatusDashboard() {
                               <button
                                 type="button"
                                 onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
-                                className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer text-left"
                                 title="View seller details"
                               >
                                 {r.sellerBusinessName}
@@ -8510,13 +8510,57 @@ export default function OrderStatusDashboard() {
                             <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{formatAmount(r.amount)}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.markedPendingTime || '—'}</td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.markedDeliveredTime || '—'}</td>
-                            <td className="px-3 py-2 text-slate-800">
-                              <div className="font-medium leading-tight">{r.sellerBusinessName || '—'}</div>
-                              <div className="text-[10px] text-slate-500 tabular-nums leading-tight">{r.sellerPhone || '—'}</div>
+                            <td className="px-3 py-2">
+                              {r.sellerBusinessName ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                  className="font-medium leading-tight text-slate-800 hover:text-purple-700 hover:underline transition-colors block text-left cursor-pointer"
+                                  title="View seller details"
+                                >
+                                  {r.sellerBusinessName}
+                                </button>
+                              ) : (
+                                <div className="font-medium leading-tight text-slate-400">—</div>
+                              )}
+                              {r.sellerPhone ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                  className="text-[10px] text-slate-500 tabular-nums leading-tight hover:text-purple-700 hover:underline transition-colors block text-left cursor-pointer"
+                                  title="View seller details"
+                                >
+                                  {r.sellerPhone}
+                                </button>
+                              ) : (
+                                <div className="text-[10px] text-slate-400 tabular-nums leading-tight">—</div>
+                              )}
                             </td>
-                            <td className="px-3 py-2 text-slate-800">
-                              <div className="font-medium leading-tight">{r.buyerBusinessName || '—'}</div>
-                              <div className="text-[10px] text-slate-500 tabular-nums leading-tight">{r.buyerPhone || '—'}</div>
+                            <td className="px-3 py-2">
+                              {r.buyerBusinessName ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
+                                  className="font-medium leading-tight text-slate-800 hover:text-purple-700 hover:underline transition-colors block text-left cursor-pointer"
+                                  title="View buyer details"
+                                >
+                                  {r.buyerBusinessName}
+                                </button>
+                              ) : (
+                                <div className="font-medium leading-tight text-slate-400">—</div>
+                              )}
+                              {r.buyerPhone ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
+                                  className="text-[10px] text-slate-500 tabular-nums leading-tight hover:text-purple-700 hover:underline transition-colors block text-left cursor-pointer"
+                                  title="View buyer details"
+                                >
+                                  {r.buyerPhone}
+                                </button>
+                              ) : (
+                                <div className="text-[10px] text-slate-400 tabular-nums leading-tight">—</div>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                               {[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}

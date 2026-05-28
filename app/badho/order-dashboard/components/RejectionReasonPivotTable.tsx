@@ -1114,7 +1114,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                                 <button
                                   type="button"
                                   onClick={() => onBuyerClick({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
-                                  className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                  className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer text-left"
                                   title="View buyer details"
                                 >
                                   {r.buyerBusinessName}
@@ -1132,7 +1132,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                                 <button
                                   type="button"
                                   onClick={() => onBuyerClick({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
-                                  className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                  className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
                                   title="View buyer details"
                                 >
                                   {r.buyerPhone}
@@ -1153,7 +1153,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                                 <button
                                   type="button"
                                   onClick={() => onSellerClick({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
-                                  className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                  className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
                                   title="View seller details"
                                 >
                                   {r.sellerPhone}
@@ -1171,7 +1171,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                                 <button
                                   type="button"
                                   onClick={() => onSellerClick({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
-                                  className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                  className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer text-left"
                                   title="View seller details"
                                 >
                                   {r.sellerBusinessName}

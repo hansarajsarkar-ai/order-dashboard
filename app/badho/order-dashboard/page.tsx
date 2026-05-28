@@ -6089,11 +6089,21 @@ export default function OrderStatusDashboard() {
                               {row.sellerPhone || '—'} · <span className="text-fuchsia-300">{row.brand}</span>
                             </div>
                           </td>
-                          <td className="px-3 py-2.5 text-right text-white tabular-nums bg-white/[0.03]">
-                            {row.poCount.toLocaleString()}
+                          <td
+                            onClick={() => row.poCount > 0 && openAlertModal('all', row.sellerBusinessName, 'aging')}
+                            className={`group/cell px-3 py-2.5 text-right text-white tabular-nums bg-white/[0.03] ${row.poCount > 0 ? 'cursor-pointer' : ''}`}
+                          >
+                            <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.25] group-hover/cell:font-extrabold group-hover/cell:text-white group-hover/cell:[text-shadow:0_0_14px_rgba(251,146,60,0.95),0_0_28px_rgba(245,158,11,0.6)]">
+                              {row.poCount.toLocaleString()}
+                            </span>
                           </td>
-                          <td className="px-3 py-2.5 text-right text-amber-200 tabular-nums bg-white/[0.03] border-r border-white/10">
-                            {formatAmount(row.orderAmount)}
+                          <td
+                            onClick={() => row.poCount > 0 && openAlertModal('all', row.sellerBusinessName, 'aging')}
+                            className={`group/cell px-3 py-2.5 text-right text-amber-200 tabular-nums bg-white/[0.03] border-r border-white/10 ${row.poCount > 0 ? 'cursor-pointer' : ''}`}
+                          >
+                            <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.25] group-hover/cell:font-bold group-hover/cell:text-amber-100">
+                              {formatAmount(row.orderAmount)}
+                            </span>
                           </td>
                           {AGING_BUCKETS.map((b) => {
                             const v = row.buckets[b];
@@ -6117,14 +6127,27 @@ export default function OrderStatusDashboard() {
                         </tr>
                       ))}
                       <tr className="bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-rose-500/20 border-t-2 border-amber-500/50 font-bold">
-                        <td className="px-4 py-3 sticky left-0 bg-slate-900/95 z-10 border-r border-white/10 text-white">
+                        <td
+                          onClick={() => agingData.grand.poCount > 0 && openAlertModal('all', undefined, 'aging')}
+                          className={`px-4 py-3 sticky left-0 bg-slate-900/95 z-10 border-r border-white/10 text-white ${agingData.grand.poCount > 0 ? 'cursor-pointer' : ''}`}
+                        >
                           Grand Total
                         </td>
-                        <td className="px-3 py-3 text-right text-white tabular-nums">
-                          {agingData.grand.poCount.toLocaleString()}
+                        <td
+                          onClick={() => agingData.grand.poCount > 0 && openAlertModal('all', undefined, 'aging')}
+                          className={`group/cell px-3 py-3 text-right text-white tabular-nums ${agingData.grand.poCount > 0 ? 'cursor-pointer' : ''}`}
+                        >
+                          <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.25]">
+                            {agingData.grand.poCount.toLocaleString()}
+                          </span>
                         </td>
-                        <td className="px-3 py-3 text-right text-amber-200 tabular-nums border-r border-white/10">
-                          {formatAmount(agingData.grand.orderAmount)}
+                        <td
+                          onClick={() => agingData.grand.poCount > 0 && openAlertModal('all', undefined, 'aging')}
+                          className={`group/cell px-3 py-3 text-right text-amber-200 tabular-nums border-r border-white/10 ${agingData.grand.poCount > 0 ? 'cursor-pointer' : ''}`}
+                        >
+                          <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.25] group-hover/cell:text-amber-100">
+                            {formatAmount(agingData.grand.orderAmount)}
+                          </span>
                         </td>
                         {AGING_BUCKETS.map((b) => {
                           const t = agingData.grand.buckets[b] || 0;

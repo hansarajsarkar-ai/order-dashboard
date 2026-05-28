@@ -6715,14 +6715,20 @@ export default function OrderStatusDashboard() {
                       <thead className="shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                         <tr className="border-b border-slate-200">
                           <th
+                            onClick={() => toggleAlertSort('markedPending')}
+                            className="sticky top-0 left-0 z-30 bg-amber-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-amber-100 whitespace-nowrap uppercase tracking-wider text-amber-800"
+                          >
+                            <span className="inline-flex items-center">Marked Pending{arrowFor('markedPending')}</span>
+                          </th>
+                          <th
                             onClick={() => toggleAlertSort('pushed')}
-                            className="sticky top-0 left-0 z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
+                            className="sticky top-0 left-[160px] z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
                           >
                             <span className="inline-flex items-center">Pushed{arrowFor('pushed')}</span>
                           </th>
                           <th
                             onClick={() => toggleAlertSort('poNumber')}
-                            className="sticky top-0 left-[120px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                            className="sticky top-0 left-[280px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
                           >
                             <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
                           </th>
@@ -6746,7 +6752,6 @@ export default function OrderStatusDashboard() {
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                           <SortTh k="sellerPhone" label="Seller Phone" />
                           <SortTh k="sellerBusiness" label="Seller Business" />
-                          <SortTh k="markedPending" label="Marked Pending" cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="statusMarkedTime" label="Status Marked Time" cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="refundInit" label="Refund Initiated" />
@@ -6773,13 +6778,16 @@ export default function OrderStatusDashboard() {
                               key={r.poNumber}
                               className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}
                             >
-                              <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2 whitespace-nowrap`}>
+                              <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2 whitespace-nowrap text-amber-800 font-medium`}>
+                                {formatDateTime(r.MarkedpendingTime)}
+                              </td>
+                              <td className={`sticky left-[160px] z-10 ${rowBg} group-hover:bg-purple-50 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2 whitespace-nowrap`}>
                                 <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isPushed ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
                                   <span className={`w-1.5 h-1.5 rounded-full ${isPushed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]' : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'}`} />
                                   {r.pushedStatus || 'Not Pushed'}
                                 </span>
                               </td>
-                              <td className={`sticky left-[120px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
+                              <td className={`sticky left-[280px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                                 <div className="inline-flex items-center gap-2">
                                   <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
                                   <a
@@ -6834,7 +6842,6 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{formatDateTime(r.MarkedpendingTime)}</td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                               <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>
@@ -7186,14 +7193,20 @@ export default function OrderStatusDashboard() {
                           return (
                             <>
                               <th
+                                onClick={() => togglePivotSort('markedPending')}
+                                className="sticky top-0 left-0 z-30 bg-amber-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-amber-100 whitespace-nowrap uppercase tracking-wider text-amber-800"
+                              >
+                                <span className="inline-flex items-center">Marked Pending{arrowFor('markedPending')}</span>
+                              </th>
+                              <th
                                 onClick={() => togglePivotSort('pushed')}
-                                className="sticky top-0 left-0 z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
+                                className="sticky top-0 left-[160px] z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
                               >
                                 <span className="inline-flex items-center">Pushed{arrowFor('pushed')}</span>
                               </th>
                               <th
                                 onClick={() => togglePivotSort('poNumber')}
-                                className="sticky top-0 left-[120px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                                className="sticky top-0 left-[280px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
                               >
                                 <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
                               </th>
@@ -7217,7 +7230,6 @@ export default function OrderStatusDashboard() {
                               <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
-                              <SortTh k="markedPending" label="Marked Pending" cls="text-slate-700 bg-amber-50/60" />
                               <SortTh k="statusMarkedTime" label="Status Marked Time" cls="text-slate-700 bg-amber-50/60" />
                               <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                               <SortTh k="refundInit" label="Refund Initiated" />
@@ -7249,13 +7261,16 @@ export default function OrderStatusDashboard() {
                           key={r.poNumber}
                           className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}
                         >
-                          <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2 whitespace-nowrap`}>
+                          <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2 whitespace-nowrap text-amber-800 font-medium`}>
+                            {formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}
+                          </td>
+                          <td className={`sticky left-[160px] z-10 ${rowBg} group-hover:bg-purple-50 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2 whitespace-nowrap`}>
                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${r.pushedStatus === 'Pushed' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]' : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'}`} />
                               {r.pushedStatus || 'Not Pushed'}
                             </span>
                           </td>
-                          <td className={`sticky left-[120px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
+                          <td className={`sticky left-[280px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                             <div className="inline-flex items-center gap-2">
                               <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
                               <a
@@ -7316,7 +7331,6 @@ export default function OrderStatusDashboard() {
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                           <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>

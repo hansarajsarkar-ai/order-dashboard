@@ -1857,6 +1857,25 @@ export default function OrderStatusDashboard() {
     }
   };
 
+  // Map an order status to the underlying DB column that backs "statusMarkedTime".
+  // Mirrors the CASE in app/api/sla-alerts-details/route.ts and inprogress-aging-details/route.ts.
+  const statusMarkedFieldFor = (status: string | null | undefined): string => {
+    switch ((status || '').toUpperCase()) {
+      case 'REJECTED':    return 'markedRejectedTime';
+      case 'CANCELLED':   return 'markedCancelledTime';
+      case 'DELIVERED':   return 'markedDeliveredTime';
+      case 'COMPLETED':   return 'markedCompletedTime';
+      case 'DISPATCHED':  return 'markedDispatchedTime';
+      case 'IN_TRANSIT':
+      case 'INTRANSIT':   return 'markedInTransitTime';
+      case 'IN_PROGRESS':
+      case 'INPROGRESS':  return 'markedInProgressTime';
+      case 'PARTIAL':     return 'markedPartialTime';
+      case 'PENDING':     return 'markedPendingTime';
+      default:            return 'statusMarkedTime';
+    }
+  };
+
   const openSellerDrill = async (seller: SellerRow) => {
     setSellerDrillId(seller.sellerId);
     setSellerDrillName(seller.sellerBusinessName || '—');
@@ -6842,7 +6861,10 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 whitespace-nowrap bg-amber-50/40">
+                                <div className="text-[9px] font-mono text-amber-700/90 leading-tight">{statusMarkedFieldFor(r.orderStatus)}</div>
+                                <div className="text-slate-700 mt-0.5">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</div>
+                              </td>
                               <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                               <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400">—</span>}</td>
@@ -7331,7 +7353,10 @@ export default function OrderStatusDashboard() {
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 whitespace-nowrap bg-amber-50/40">
+                            <div className="text-[9px] font-mono text-amber-700/90 leading-tight">{statusMarkedFieldFor(r.orderStatus ?? r.status)}</div>
+                            <div className="text-slate-700 mt-0.5">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</div>
+                          </td>
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                           <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400">—</span>}</td>

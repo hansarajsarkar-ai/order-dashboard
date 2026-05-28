@@ -614,6 +614,66 @@ export default function OrderStatusDashboard() {
   const [alertBrandError, setAlertBrandError] = useState<string | null>(null);
   const [alertBrandSearch, setAlertBrandSearch] = useState('');
 
+  // Buyer details modal — opens when clicking a "Buyer Business" cell in any drill modal
+  interface BuyerDetailsRow {
+    id: string;
+    name: string | null;
+    businessName: string | null;
+    phone: string | null;
+    email: string | null;
+    gstNumber: string | null;
+    businessPanNumber: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    landmark: string | null;
+    pincode: string | null;
+    city: string | null;
+    tehsil: string | null;
+    district: string | null;
+    state: string | null;
+    longitude: string | null;
+    lattitude: string | null;
+    fullAddress: string;
+  }
+  const [buyerModalOpen, setBuyerModalOpen] = useState(false);
+  const [buyerModalData, setBuyerModalData] = useState<BuyerDetailsRow | null>(null);
+  const [buyerModalLoading, setBuyerModalLoading] = useState(false);
+  const [buyerModalError, setBuyerModalError] = useState<string | null>(null);
+  const [buyerModalLookup, setBuyerModalLookup] = useState<string>('');
+
+  const openBuyerModal = async (lookup: { phone?: string | null; businessName?: string | null }) => {
+    setBuyerModalOpen(true);
+    setBuyerModalData(null);
+    setBuyerModalError(null);
+    setBuyerModalLoading(true);
+    const params = new URLSearchParams();
+    if (lookup.phone) params.set('phone', lookup.phone);
+    else if (lookup.businessName) params.set('businessName', lookup.businessName);
+    setBuyerModalLookup(lookup.phone || lookup.businessName || '');
+    try {
+      const res = await fetch(`/api/buyer-details?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setBuyerModalData(json.data as BuyerDetailsRow);
+    } catch (err) {
+      setBuyerModalError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setBuyerModalLoading(false);
+    }
+  };
+  const closeBuyerModal = () => {
+    setBuyerModalOpen(false);
+    setBuyerModalData(null);
+    setBuyerModalError(null);
+    setBuyerModalLookup('');
+  };
+  useEffect(() => {
+    if (!buyerModalOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeBuyerModal(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [buyerModalOpen]);
+
   // Alert tab — InProgress aging by seller (drill-down reuses the SLA Breach modal)
   interface AgingRow {
     sellerBusinessName: string;
@@ -6223,6 +6283,87 @@ export default function OrderStatusDashboard() {
         )}
 
 
+        {/* Buyer Details Modal — opens when clicking a Buyer Business cell in any drill modal */}
+        {buyerModalOpen && (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md"
+            onClick={closeBuyerModal}
+          >
+            <div
+              className="relative bg-white text-slate-900 rounded-2xl w-[92vw] max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45)] border border-slate-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <header className="px-6 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-semibold">Buyer Details</div>
+                  <h3 className="text-lg font-extrabold truncate mt-0.5">
+                    {buyerModalData?.businessName || buyerModalLookup || 'Loading…'}
+                  </h3>
+                </div>
+                <button
+                  onClick={closeBuyerModal}
+                  className="shrink-0 w-8 h-8 rounded-lg bg-white/15 hover:bg-white/30 text-white text-lg leading-none transition-all hover:rotate-90"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </header>
+              <div className="flex-1 overflow-auto">
+                {buyerModalLoading ? (
+                  <div className="px-6 py-12 text-center text-slate-500">Loading buyer details…</div>
+                ) : buyerModalError ? (
+                  <div className="px-6 py-12 text-center text-rose-600">Error: {buyerModalError}</div>
+                ) : !buyerModalData ? (
+                  <div className="px-6 py-12 text-center text-slate-500">No data.</div>
+                ) : (
+                  <dl className="divide-y divide-slate-100">
+                    {([
+                      { label: 'Buyer Name',     value: buyerModalData.name },
+                      { label: 'Business Name',  value: buyerModalData.businessName },
+                      { label: 'Phone',          value: buyerModalData.phone, mono: true },
+                      { label: 'Email',          value: buyerModalData.email, mono: true, copy: true },
+                      { label: 'GST Number',     value: buyerModalData.gstNumber, mono: true, copy: true },
+                      { label: 'PAN',            value: buyerModalData.businessPanNumber, mono: true },
+                      { label: 'City',           value: buyerModalData.city },
+                      { label: 'District',       value: buyerModalData.district },
+                      { label: 'State',          value: buyerModalData.state },
+                      { label: 'Pincode',        value: buyerModalData.pincode, mono: true },
+                      { label: 'Full Address',   value: buyerModalData.fullAddress, wrap: true },
+                      { label: 'Landmark',       value: buyerModalData.landmark },
+                    ] as { label: string; value: string | null; mono?: boolean; wrap?: boolean; copy?: boolean }[]).map((row) => (
+                      <div key={row.label} className="grid grid-cols-3 gap-4 px-6 py-3 hover:bg-slate-50">
+                        <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 self-center">{row.label}</dt>
+                        <dd className={`col-span-2 text-sm text-slate-900 ${row.mono ? 'font-mono tabular-nums' : ''} ${row.wrap ? 'whitespace-normal' : 'whitespace-nowrap'} break-words`}>
+                          {row.value ? (
+                            <span>{row.value}</span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </dd>
+                      </div>
+                    ))}
+                    {(buyerModalData.longitude || buyerModalData.lattitude) && (
+                      <div className="grid grid-cols-3 gap-4 px-6 py-3 hover:bg-slate-50">
+                        <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 self-center">Map</dt>
+                        <dd className="col-span-2 text-sm">
+                          <a
+                            href={`https://www.google.com/maps?q=${buyerModalData.lattitude},${buyerModalData.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold"
+                          >
+                            Open in Google Maps
+                          </a>
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* PO Items Modal — opens from "View Items" button */}
         {poItemsModal && (
           <div
@@ -6869,7 +7010,20 @@ export default function OrderStatusDashboard() {
                               <td className="px-2.5 py-2 whitespace-nowrap">
                                 {r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : <span className="text-slate-400">—</span>}
                               </td>
-                              <td className="px-2.5 py-2 text-slate-900 font-medium">{r.buyerBusinessName || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 font-medium">
+                                {r.buyerBusinessName ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
+                                    className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                    title="View buyer details"
+                                  >
+                                    {r.buyerBusinessName}
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
                               <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={r.buyerFullAddress}>
                                 {r.buyerFullAddress ? <div className="whitespace-normal break-words">{r.buyerFullAddress}</div> : <span className="text-slate-400">—</span>}
@@ -7355,7 +7509,20 @@ export default function OrderStatusDashboard() {
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : <span className="text-slate-400">—</span>}
                           </td>
-                          <td className="px-2.5 py-2 text-slate-900 font-medium">{r.buyerBusinessName || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 font-medium">
+                            {r.buyerBusinessName ? (
+                              <button
+                                type="button"
+                                onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
+                                className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                title="View buyer details"
+                              >
+                                {r.buyerBusinessName}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
                             {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (

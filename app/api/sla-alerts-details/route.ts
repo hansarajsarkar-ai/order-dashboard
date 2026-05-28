@@ -26,6 +26,7 @@ interface Row {
   deliveryStatus: string | null;
   RefundIntiatedTime: string | null;
   RefundCompletedTime: string | null;
+  RefundAmount: string | null;
   codAmountToBeCollected: string | null;
   pushedStatus: string;
   rejectReason: string | null;
@@ -90,6 +91,7 @@ export async function GET(req: NextRequest) {
           dv."status"            AS "deliveryStatus",
           pf."markedStatusInitiatedTime"  AS "RefundIntiatedTime",
           pf."markedStatusCompletedTime"  AS "RefundCompletedTime",
+          pf."refundAmount"::text         AS "RefundAmount",
           dv."codAmountToBeCollected"::text     AS "codAmountToBeCollected",
           CASE WHEN dv."deliveryId" IS NOT NULL THEN 'Pushed' ELSE 'Not Pushed' END AS "pushedStatus",
           po."rejectReason",
@@ -238,6 +240,7 @@ export async function GET(req: NextRequest) {
       deliveryStatus: r.deliveryStatus,
       RefundIntiatedTime: r.RefundIntiatedTime,
       RefundCompletedTime: r.RefundCompletedTime,
+      RefundAmount: r.RefundAmount != null ? parseFloat(r.RefundAmount) : null,
       codAmountToBeCollected: r.codAmountToBeCollected != null ? parseFloat(r.codAmountToBeCollected) : null,
       pushedStatus: r.pushedStatus,
       rejectReason: r.rejectReason,

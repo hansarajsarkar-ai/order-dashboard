@@ -60,6 +60,7 @@ interface OrderDetail {
   deliveryStatusDv: string | null;
   RefundIntiatedTime: string | null;
   RefundCompletedTime: string | null;
+  RefundAmount: string | number | null;
   codAmountToBeCollected: string | number | null;
   rejectReason: string | null;
   rejectedBy: string | null;
@@ -181,6 +182,35 @@ const formatDateTime = (s: string | null | undefined) => {
   }
 };
 
+const statusMarkedFieldFor = (status: string | null | undefined): string => {
+  switch ((status || '').toUpperCase()) {
+    case 'REJECTED':    return 'markedRejectedTime';
+    case 'CANCELLED':   return 'markedCancelledTime';
+    case 'DELIVERED':   return 'markedDeliveredTime';
+    case 'COMPLETED':   return 'markedCompletedTime';
+    case 'DISPATCHED':  return 'markedDispatchedTime';
+    case 'IN_TRANSIT':
+    case 'INTRANSIT':   return 'markedInTransitTime';
+    case 'IN_PROGRESS':
+    case 'INPROGRESS':  return 'markedInProgressTime';
+    case 'PARTIAL':     return 'markedPartialTime';
+    case 'PENDING':     return 'markedPendingTime';
+    default:            return 'statusMarkedTime';
+  }
+};
+
+const statusMarkedHeaderFor = (rows: Array<{ orderStatus?: string | null }> | null | undefined): string => {
+  if (!rows || rows.length === 0) return 'Status Marked Time';
+  const set = new Set<string>();
+  for (const r of rows) {
+    const s = (r.orderStatus ?? '').toUpperCase();
+    if (s) set.add(s);
+    if (set.size > 1) return 'Status Marked Time';
+  }
+  if (set.size === 1) return statusMarkedFieldFor([...set][0]);
+  return 'Status Marked Time';
+};
+
 export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, onSellerClick }: RejectionReasonPivotTableProps = {}) {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -237,6 +267,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
       case 'markedPending': return dt(r.MarkedpendingTime);
       case 'refundInit': return dt(r.RefundIntiatedTime);
       case 'refundDone': return dt(r.RefundCompletedTime);
+      case 'refundAmount': return num(r.RefundAmount);
       case 'rejectReason': return r.rejectReason ?? '';
       case 'rejectedBy': return r.rejectedBy ?? '';
       case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
@@ -989,7 +1020,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                         const SortTh = ({ k, label, cls = '' }: { k: string; label: string; cls?: string }) => (
                           <th
                             onClick={() => toggleModalSort(k)}
-                            className={`px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200/80 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-700'}`}
+                            className={`sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200/80 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-700'}`}
                           >
                             <span className="inline-flex items-center">{label}{arrowFor(k)}</span>
                           </th>
@@ -997,42 +1028,42 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                         return (
                           <>
                             <th
+                              onClick={() => toggleModalSort('markedPending')}
+                              className="sticky top-0 left-0 z-30 bg-amber-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-amber-100 whitespace-nowrap uppercase tracking-wider text-amber-800"
+                            >
+                              <span className="inline-flex items-center">Marked Pending{arrowFor('markedPending')}</span>
+                            </th>
+                            <th
                               onClick={() => toggleModalSort('pushed')}
-                              className="sticky left-0 z-20 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
+                              className="sticky top-0 left-[160px] z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
                             >
                               <span className="inline-flex items-center">Pushed{arrowFor('pushed')}</span>
                             </th>
                             <th
                               onClick={() => toggleModalSort('poNumber')}
-                              className="sticky left-[120px] z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                              className="sticky top-0 left-[280px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
                             >
                               <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
                             </th>
-                            <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
+                            <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                             <SortTh k="status" label="Order Status" />
                             <SortTh k="poAmount" label="PO Amount" />
-                            <SortTh k="paidAmount" label="Paid Amount" />
                             <SortTh k="coupon" label="Coupon Amount" />
-                            <SortTh k="sellerDiscount" label="Seller Discount" />
                             <SortTh k="wallet" label="Applied Wallet Amount" />
-                            <SortTh k="paymentOption" label="Payment Option" />
-                            <SortTh k="awb" label="AWB Number" />
-                            <SortTh k="courier" label="Courier Name" />
-                            <SortTh k="cod" label="COD Amount" />
+                            <SortTh k="sellerDiscount" label="Seller Discount" />
                             <SortTh k="badhoDiscount" label="Payment Option Badho Discount" />
-                            <SortTh k="paymentDate" label="Payment Date" />
-                            <SortTh k="paymentEvent" label="Payment Event" />
+                            <SortTh k="cod" label="COD Amount" />
                             <SortTh k="deliveryStatus" label="Delivery Status" />
                             <SortTh k="buyerBusiness" label="Buyer Business" />
                             <SortTh k="buyerPhone" label="Buyer Phone" />
-                            <th className="px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
-                            <SortTh k="sellerPhone" label="Seller Phone" />
+                            <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                             <SortTh k="sellerBusiness" label="Seller Business" />
-                            <SortTh k="markedPending" label="Marked Pending" cls="text-slate-700 bg-amber-50/60" />
-                            <SortTh k="statusMarkedTime" label="Status Marked Time" cls="text-slate-700 bg-amber-50/60" />
+                            <SortTh k="sellerPhone" label="Seller Phone" />
+                            <SortTh k="statusMarkedTime" label={statusMarkedHeaderFor(filteredModalData)} cls="text-slate-700 bg-amber-50/60" />
                             <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                             <SortTh k="refundInit" label="Refund Initiated" />
                             <SortTh k="refundDone" label="Refund Completed" />
+                            <SortTh k="refundAmount" label="Refund Amount" />
                             <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50/60" />
                             <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50/60" />
                             <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50/60" />
@@ -1058,13 +1089,16 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           key={`${r.poNumber}-${idx}`}
                           className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}
                         >
-                          <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2 whitespace-nowrap`}>
+                          <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2 whitespace-nowrap text-amber-800 font-medium`}>
+                            {formatDateTime(r.MarkedpendingTime)}
+                          </td>
+                          <td className={`sticky left-[160px] z-10 ${rowBg} group-hover:bg-purple-50 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2 whitespace-nowrap`}>
                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isPushed ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${isPushed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]' : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'}`} />
                               {r.pushedStatus || 'Not Pushed'}
                             </span>
                           </td>
-                          <td className={`sticky left-[120px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
+                          <td className={`sticky left-[280px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                             {r.poNumber ? (
                               <div className="inline-flex items-center gap-2">
                                 <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
@@ -1110,17 +1144,11 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount != null && Number(r.CoupanAmount) !== 0 ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller != null && Number(r.discountBySeller) !== 0 ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount != null && Number(r.appliedWalletAmount) !== 0 ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null && Number(r.codAmountToBeCollected) !== 0 ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller != null && Number(r.discountBySeller) !== 0 ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho != null && Number(r.PaymentOptionDiscountByBadho) !== 0 ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDate(r.paymentDate)}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null && Number(r.codAmountToBeCollected) !== 0 ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {r.deliveryStatusDv ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatusDv}</span> : <span className="text-slate-400">—</span>}
                           </td>
@@ -1163,24 +1191,6 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={buyerAddr}>
                             {buyerAddr ? <div className="whitespace-normal break-words">{buyerAddr}</div> : <span className="text-slate-400">—</span>}
                           </td>
-                          <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
-                            {r.sellerPhone ? (
-                              onSellerClick ? (
-                                <button
-                                  type="button"
-                                  onClick={() => onSellerClick({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
-                                  className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
-                                  title="View seller details"
-                                >
-                                  {r.sellerPhone}
-                                </button>
-                              ) : (
-                                <span className="text-slate-700">{r.sellerPhone}</span>
-                              )
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
                           <td className="px-2.5 py-2 font-medium">
                             {r.sellerBusinessName ? (
                               onSellerClick ? (
@@ -1199,14 +1209,35 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                               <span className="text-slate-400">—</span>
                             )}
                           </td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{formatDateTime(r.MarkedpendingTime)}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                            {r.sellerPhone ? (
+                              onSellerClick ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onSellerClick({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                  className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
+                                  title="View seller details"
+                                >
+                                  {r.sellerPhone}
+                                </button>
+                              ) : (
+                                <span className="text-slate-700">{r.sellerPhone}</span>
+                              )
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-2.5 py-2 whitespace-nowrap bg-amber-50/40">
+                            <div className="text-[9px] font-mono text-amber-700/90 leading-tight">{statusMarkedFieldFor(r.orderStatus)}</div>
+                            <div className="text-slate-700 mt-0.5">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</div>
+                          </td>
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                           <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{formatDate(r.RefundIntiatedTime)}</td>
                           <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{formatDate(r.RefundCompletedTime)}</td>
-                          <td className="px-2.5 py-2 text-rose-700 max-w-[260px] truncate bg-rose-50/60" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/60">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-rose-700 max-w-[260px] truncate bg-rose-50/60" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.RefundAmount != null ? `₹${Number(r.RefundAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason ? <div className="whitespace-normal break-words">{r.rejectReason}</div> : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam ? <div className="whitespace-normal break-words">{r.reasonAddedByBadhoTeam}</div> : <span className="text-slate-400">—</span>}</td>
                         </tr>
                       );
                     })}

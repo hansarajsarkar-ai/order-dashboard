@@ -33,6 +33,7 @@ interface OrderListRow {
   courierName?: string | null;
   RefundIntiatedTime?: string | null;
   RefundCompletedTime?: string | null;
+  RefundAmount?: number | null;
   codAmountToBeCollected?: number | null;
   pushedStatus?: string;
   MarkedpendingTime?: string | null;
@@ -542,6 +543,7 @@ export default function OrderStatusDashboard() {
     deliveryStatus: string | null;
     RefundIntiatedTime: string | null;
     RefundCompletedTime: string | null;
+    RefundAmount: number | null;
     codAmountToBeCollected: number | null;
     pushedStatus: string;
     rejectReason: string | null;
@@ -609,6 +611,7 @@ export default function OrderStatusDashboard() {
       case 'markedPending': return dt(r.MarkedpendingTime);
       case 'refundInit': return dt(r.RefundIntiatedTime);
       case 'refundDone': return dt(r.RefundCompletedTime);
+      case 'refundAmount': return r.RefundAmount ?? null;
       case 'category': return r.category ?? '';
       case 'inProgress': return dt(r.markedInProgressTime);
       case 'slaBreach': return dt(r.slaBreachAt);
@@ -2160,6 +2163,7 @@ export default function OrderStatusDashboard() {
       case 'markedPending': return dt(r.MarkedpendingTime ?? r.markedPendingTime);
       case 'refundInit': return dt(r.RefundIntiatedTime);
       case 'refundDone': return dt(r.RefundCompletedTime);
+      case 'refundAmount': return num(r.RefundAmount);
       case 'rejectReason': return r.rejectReason ?? '';
       case 'rejectedBy': return r.rejectedBy ?? '';
       case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
@@ -7303,31 +7307,25 @@ export default function OrderStatusDashboard() {
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                           <SortTh k="status" label="Order Status" />
                           <SortTh k="poAmount" label="PO Amount" />
-                          <SortTh k="paidAmount" label="Paid Amount" />
                           <SortTh k="coupon" label="Coupon Amount" />
-                          <SortTh k="sellerDiscount" label="Seller Discount" />
                           <SortTh k="wallet" label="Applied Wallet Amount" />
-                          <SortTh k="paymentOption" label="Payment Option" />
-                          <SortTh k="awb" label="AWB Number" />
-                          <SortTh k="courier" label="Courier Name" />
-                          <SortTh k="cod" label="COD Amount" />
+                          <SortTh k="sellerDiscount" label="Seller Discount" />
                           <SortTh k="badhoDiscount" label="Payment Option Badho Discount" />
-                          <SortTh k="paymentDate" label="Payment Date" />
-                          <SortTh k="paymentEvent" label="Payment Event" />
+                          <SortTh k="cod" label="COD Amount" />
                           <SortTh k="deliveryStatus" label="Delivery Status" />
                           <SortTh k="buyerBusiness" label="Buyer Business" />
                           <SortTh k="buyerPhone" label="Buyer Phone" />
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
-                          <SortTh k="sellerPhone" label="Seller Phone" />
                           <SortTh k="sellerBusiness" label="Seller Business" />
+                          <SortTh k="sellerPhone" label="Seller Phone" />
                           <SortTh k="statusMarkedTime" label={statusMarkedHeaderFor(alertModalData)} cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="refundInit" label="Refund Initiated" />
                           <SortTh k="refundDone" label="Refund Completed" />
-                          {/* SLA-specific trailing columns */}
-                          <SortTh k="category" label="Payment Category" cls="text-slate-700 bg-purple-50/60" />
-                          <SortTh k="inProgress" label="Marked In Progress" cls="text-slate-700 bg-purple-50/60" />
-                          <SortTh k="slaBreach" label="SLA Breach At" cls="text-rose-700 bg-rose-50/60" />
+                          <SortTh k="refundAmount" label="Refund Amount" />
+                          <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50" />
+                          <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50" />
+                          <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50" />
                         </tr>
                       </thead>
                       <tbody>
@@ -7397,17 +7395,11 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 whitespace-nowrap">
                                 {r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : <span className="text-slate-400">—</span>}
                               </td>
@@ -7442,20 +7434,6 @@ export default function OrderStatusDashboard() {
                               <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={r.buyerFullAddress}>
                                 {r.buyerFullAddress ? <div className="whitespace-normal break-words">{r.buyerFullAddress}</div> : <span className="text-slate-400">—</span>}
                               </td>
-                              <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
-                                {r.sellerPhone ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
-                                    className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
-                                    title="View seller details"
-                                  >
-                                    {r.sellerPhone}
-                                  </button>
-                                ) : (
-                                  <span className="text-slate-400">—</span>
-                                )}
-                              </td>
                               <td className="px-2.5 py-2 font-medium">
                                 {r.sellerBusinessName ? (
                                   <button
@@ -7470,6 +7448,20 @@ export default function OrderStatusDashboard() {
                                   <span className="text-slate-400">—</span>
                                 )}
                               </td>
+                              <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                                {r.sellerPhone ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                    className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
+                                    title="View seller details"
+                                  >
+                                    {r.sellerPhone}
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
                               <td className="px-2.5 py-2 whitespace-nowrap bg-amber-50/40">
                                 <div className="text-[9px] font-mono text-amber-700/90 leading-tight">{statusMarkedFieldFor(r.orderStatus)}</div>
                                 <div className="text-slate-700 mt-0.5">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</div>
@@ -7477,14 +7469,10 @@ export default function OrderStatusDashboard() {
                               <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                               <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400">—</span>}</td>
-                              {/* SLA-specific trailing columns */}
-                              <td className="px-2.5 py-2 whitespace-nowrap bg-purple-50/40">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${paymentCatColor[r.category] || 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
-                                  {r.category}
-                                </span>
-                              </td>
-                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-purple-50/40">{r.markedInProgressTime ? formatDateTime(r.markedInProgressTime) : <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap font-semibold bg-rose-50/60">{formatDateTime(r.slaBreachAt)}</td>
+                              <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.RefundAmount != null ? `₹${Number(r.RefundAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason ? <div className="whitespace-normal break-words">{r.rejectReason}</div> : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam ? <div className="whitespace-normal break-words">{r.reasonAddedByBadhoTeam}</div> : <span className="text-slate-400">—</span>}</td>
                             </tr>
                           );
                         })}
@@ -7844,34 +7832,25 @@ export default function OrderStatusDashboard() {
                               <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                               <SortTh k="status" label="Order Status" />
                               <SortTh k="poAmount" label="PO Amount" align="right" />
-                              <SortTh k="paidAmount" label="Paid Amount" align="right" />
                               <SortTh k="coupon" label="Coupon Amount" align="right" />
-                              <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
                               <SortTh k="wallet" label="Applied Wallet Amount" align="right" />
-                              <SortTh k="paymentOption" label="Payment Option" />
-                              <SortTh k="awb" label="AWB Number" />
-                              <SortTh k="courier" label="Courier Name" />
-                              <SortTh k="cod" label="COD Amount" align="right" />
+                              <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
                               <SortTh k="badhoDiscount" label="Payment Option Badho Discount" align="right" />
-                              <SortTh k="paymentDate" label="Payment Date" />
-                              <SortTh k="paymentEvent" label="Payment Event" />
+                              <SortTh k="cod" label="COD Amount" align="right" />
                               <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="buyerBusiness" label="Buyer Business" />
                               <SortTh k="buyerPhone" label="Buyer Phone" />
                               <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
-                              <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
+                              <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="statusMarkedTime" label={statusMarkedHeaderFor(filteredPivotDrillRows)} cls="text-slate-700 bg-amber-50/60" />
                               <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                               <SortTh k="refundInit" label="Refund Initiated" />
                               <SortTh k="refundDone" label="Refund Completed" />
-                              {pivotDrillStatus === 'REJECTED' && (
-                                <>
-                                  <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50" />
-                                  <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50" />
-                                  <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50" />
-                                </>
-                              )}
+                              <SortTh k="refundAmount" label="Refund Amount" align="right" />
+                              <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50" />
+                              <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50" />
+                              <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50" />
                             </>
                           );
                         })()}
@@ -7943,17 +7922,11 @@ export default function OrderStatusDashboard() {
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
                           <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : <span className="text-slate-400">—</span>}
                           </td>
@@ -7994,20 +7967,6 @@ export default function OrderStatusDashboard() {
                               <span className="text-slate-400">—</span>
                             )}
                           </td>
-                          <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
-                            {r.sellerPhone ? (
-                              <button
-                                type="button"
-                                onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
-                                className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
-                                title="View seller details"
-                              >
-                                {r.sellerPhone}
-                              </button>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
                           <td className="px-2.5 py-2 font-medium">
                             {r.sellerBusinessName ? (
                               <button
@@ -8022,6 +7981,20 @@ export default function OrderStatusDashboard() {
                               <span className="text-slate-400">—</span>
                             )}
                           </td>
+                          <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                            {r.sellerPhone ? (
+                              <button
+                                type="button"
+                                onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer"
+                                title="View seller details"
+                              >
+                                {r.sellerPhone}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="px-2.5 py-2 whitespace-nowrap bg-amber-50/40">
                             <div className="text-[9px] font-mono text-amber-700/90 leading-tight">{statusMarkedFieldFor(r.orderStatus ?? r.status)}</div>
                             <div className="text-slate-700 mt-0.5">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</div>
@@ -8029,13 +8002,10 @@ export default function OrderStatusDashboard() {
                           <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                           <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400">—</span>}</td>
-                          {pivotDrillStatus === 'REJECTED' && (
-                            <>
-                              <td className="px-2.5 py-2 text-rose-700 max-w-[260px] truncate bg-rose-50/60" title={r.rejectReason || ''}>{r.rejectReason || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/60">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-rose-700 max-w-[260px] truncate bg-rose-50/60" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam || <span className="text-slate-400">—</span>}</td>
-                            </>
-                          )}
+                          <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.RefundAmount != null ? `₹${Number(r.RefundAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason ? <div className="whitespace-normal break-words">{r.rejectReason}</div> : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam ? <div className="whitespace-normal break-words">{r.reasonAddedByBadhoTeam}</div> : <span className="text-slate-400">—</span>}</td>
                         </tr>
                         );
                       })}

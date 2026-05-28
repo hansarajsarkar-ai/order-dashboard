@@ -31,6 +31,7 @@ interface OrderDetailRow {
   deliveryStatusDv: string | null;
   RefundIntiatedTime: string | null;
   RefundCompletedTime: string | null;
+  RefundAmount: string | null;
   codAmountToBeCollected: string | null;
   rejectReason: string | null;
   rejectedBy: string | null;
@@ -151,6 +152,7 @@ export async function GET(req: NextRequest) {
         dv."status"                                                                           AS "deliveryStatusDv",
         pf."markedStatusInitiatedTime"                                                        AS "RefundIntiatedTime",
         pf."markedStatusCompletedTime"                                                        AS "RefundCompletedTime",
+        pf."refundAmount"::text                                                               AS "RefundAmount",
         dv."codAmountToBeCollected",
         po."rejectReason",
         po."rejectedBy",

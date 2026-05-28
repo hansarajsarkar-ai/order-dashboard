@@ -460,11 +460,23 @@ export default function OrderStatusDashboard() {
   const [poItemsSort, setPoItemsSort] = useState<'amount' | 'qty' | 'name'>('amount');
   const [poItemsStatusFilter, setPoItemsStatusFilter] = useState<string>('all');
 
-  const openPoItemsModal = async (poNumber: string) => {
+  // Price Breakup panel — opens alongside the PO Items modal when "View Items" is clicked
+  interface PriceBreakup {
+    orderAmount: number | null;
+    couponAmount: number | null;
+    badhoDiscount: number | null;
+    appliedWalletAmount: number | null;
+    paidAmount?: number | null;
+    sellerDiscount?: number | null;
+  }
+  const [priceBreakup, setPriceBreakup] = useState<PriceBreakup | null>(null);
+
+  const openPoItemsModal = async (poNumber: string, breakup?: PriceBreakup) => {
     setPoItemsModal(poNumber);
     setPoItemsData(null);
     setPoItemsTotals(null);
     setPoItemsError(null);
+    setPriceBreakup(breakup ?? null);
     setPoItemsLoading(true);
     try {
       const res = await fetch(`/api/po-items?poNumber=${encodeURIComponent(poNumber)}`);
@@ -487,6 +499,7 @@ export default function OrderStatusDashboard() {
     setPoItemsSearch('');
     setPoItemsSort('amount');
     setPoItemsStatusFilter('all');
+    setPriceBreakup(null);
   };
   useEffect(() => {
     if (!poItemsModal) return;
@@ -6563,11 +6576,11 @@ export default function OrderStatusDashboard() {
         {/* PO Items Modal — opens from "View Items" button */}
         {poItemsModal && (
           <div
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gradient-to-br from-slate-950/85 via-indigo-950/85 to-purple-950/85 backdrop-blur-lg animate-modal-fade"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gradient-to-br from-slate-950/85 via-indigo-950/85 to-purple-950/85 backdrop-blur-lg animate-modal-fade gap-4"
             onClick={closePoItemsModal}
           >
             <div
-              className="relative bg-white text-slate-900 rounded-2xl w-[94vw] max-w-5xl max-h-[88vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45),0_0_60px_-10px_rgba(168,85,247,0.3)] border border-slate-200 animate-modal-scale"
+              className={`relative bg-white text-slate-900 rounded-2xl ${priceBreakup ? 'w-[60vw] max-w-3xl' : 'w-[94vw] max-w-5xl'} max-h-[88vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45),0_0_60px_-10px_rgba(168,85,247,0.3)] border border-slate-200 animate-modal-scale`}
               onClick={(e) => e.stopPropagation()}
             >
 
@@ -6813,6 +6826,159 @@ export default function OrderStatusDashboard() {
                 </footer>
               )}
             </div>
+
+            {/* Price Breakup — sleek companion panel on the right */}
+            {priceBreakup && (() => {
+              const order = priceBreakup.orderAmount ?? 0;
+              const coupon = priceBreakup.couponAmount ?? 0;
+              const badho = priceBreakup.badhoDiscount ?? 0;
+              const wallet = priceBreakup.appliedWalletAmount ?? 0;
+              const sellerDisc = priceBreakup.sellerDiscount ?? 0;
+              const paid = priceBreakup.paidAmount ?? 0;
+              const totalDeductions = coupon + badho + wallet + sellerDisc;
+              const net = order - totalDeductions;
+              const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: n % 1 === 0 ? 0 : 2 })}`;
+              type Line = { key: string; label: string; sub?: string; value: number; sign: 'plus' | 'minus' | 'total'; iconBg: string; iconRing: string; icon: React.ReactNode };
+              const lines: Line[] = [
+                {
+                  key: 'order',
+                  label: 'Order Amount',
+                  sub: 'Sum of items',
+                  value: order,
+                  sign: 'plus',
+                  iconBg: 'from-indigo-500 to-violet-600',
+                  iconRing: 'shadow-[0_0_20px_-2px_rgba(99,102,241,0.55)]',
+                  icon: (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M3 7h18l-2 12H5L3 7Z" /><path d="M16 11a4 4 0 0 1-8 0" /><path d="M8 7V5a4 4 0 0 1 8 0v2" />
+                    </svg>
+                  ),
+                },
+                {
+                  key: 'coupon',
+                  label: 'Coupon Applied',
+                  sub: 'Offer discount',
+                  value: coupon,
+                  sign: 'minus',
+                  iconBg: 'from-fuchsia-500 to-pink-600',
+                  iconRing: 'shadow-[0_0_20px_-2px_rgba(217,70,239,0.55)]',
+                  icon: (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M20 12V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v5a2 2 0 0 1 0 4v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2 2 0 0 1 0-4Z" /><line x1="9" y1="9" x2="9" y2="9.01" /><line x1="15" y1="15" x2="15" y2="15.01" /><line x1="15" y1="9" x2="9" y2="15" />
+                    </svg>
+                  ),
+                },
+                {
+                  key: 'badho',
+                  label: 'Badho Discount',
+                  sub: 'Payment-method discount',
+                  value: badho,
+                  sign: 'minus',
+                  iconBg: 'from-amber-500 to-orange-600',
+                  iconRing: 'shadow-[0_0_20px_-2px_rgba(245,158,11,0.55)]',
+                  icon: (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polygon points="12 2 15 8.5 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 8.5 12 2" />
+                    </svg>
+                  ),
+                },
+                {
+                  key: 'wallet',
+                  label: 'Wallet Applied',
+                  sub: 'Buyer wallet credit',
+                  value: wallet,
+                  sign: 'minus',
+                  iconBg: 'from-cyan-500 to-teal-600',
+                  iconRing: 'shadow-[0_0_20px_-2px_rgba(6,182,212,0.55)]',
+                  icon: (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M20 12V8H6a2 2 0 0 1 0-4h12v4" /><path d="M4 6v12a2 2 0 0 0 2 2h14v-4" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+                    </svg>
+                  ),
+                },
+              ];
+              if (sellerDisc > 0) lines.push({
+                key: 'sellerDisc',
+                label: 'Seller Discount',
+                sub: 'Discount by seller',
+                value: sellerDisc,
+                sign: 'minus',
+                iconBg: 'from-rose-500 to-red-600',
+                iconRing: 'shadow-[0_0_20px_-2px_rgba(244,63,94,0.55)]',
+                icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <line x1="19" y1="5" x2="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" />
+                  </svg>
+                ),
+              });
+              return (
+                <div
+                  className="relative w-[34vw] max-w-md max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 border border-fuchsia-400/30 shadow-[0_30px_80px_-20px_rgba(217,70,239,0.55),0_0_80px_-10px_rgba(99,102,241,0.4)] animate-modal-scale"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="absolute -top-24 -right-24 w-64 h-64 bg-fuchsia-500/20 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+
+                  <header className="relative px-5 py-4 border-b border-white/10">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_-2px_rgba(217,70,239,0.6)]">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <line x1="12" y1="2" x2="12" y2="22" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.25em] text-purple-300/80 font-semibold">Price Breakup</div>
+                          <div className="text-white font-bold text-sm leading-tight">PO {poItemsModal}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </header>
+
+                  <div className="relative flex-1 overflow-y-auto px-5 py-4 space-y-2">
+                    {lines.map((ln) => (
+                      <div
+                        key={ln.key}
+                        className="group relative flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/15 transition-all"
+                      >
+                        <div className={`shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br ${ln.iconBg} flex items-center justify-center ${ln.iconRing}`}>
+                          {ln.icon}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-white truncate">{ln.label}</div>
+                          {ln.sub && <div className="text-[10px] text-purple-300/70 truncate">{ln.sub}</div>}
+                        </div>
+                        <div className={`tabular-nums font-extrabold text-base ${ln.sign === 'minus' ? 'text-rose-300' : 'text-white'}`}>
+                          {ln.sign === 'minus' && ln.value > 0 ? '−' : ''}{fmt(ln.value)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <footer className="relative px-5 py-4 border-t border-white/10 bg-gradient-to-r from-emerald-500/10 via-emerald-500/15 to-emerald-500/10">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)] animate-pulse" />
+                        <span className="text-[10px] uppercase tracking-[0.25em] text-emerald-300 font-bold">Net Payable</span>
+                      </div>
+                      <span className="tabular-nums text-2xl font-extrabold bg-gradient-to-r from-emerald-200 via-emerald-100 to-emerald-200 bg-clip-text text-transparent">
+                        {fmt(net)}
+                      </span>
+                    </div>
+                    {paid > 0 && (
+                      <div className="flex items-center justify-between gap-3 mt-1 text-xs">
+                        <span className="text-purple-300/80">Already paid</span>
+                        <span className="tabular-nums font-bold text-emerald-200">{fmt(paid)}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-3 mt-1 text-[10px] text-purple-300/60">
+                      <span>Total deductions</span>
+                      <span className="tabular-nums">{fmt(totalDeductions)}</span>
+                    </div>
+                  </footer>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -7178,7 +7344,14 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className="px-2.5 py-2 whitespace-nowrap">
                                 <button
-                                  onClick={() => openPoItemsModal(r.poNumber)}
+                                  onClick={() => openPoItemsModal(r.poNumber, {
+                                    orderAmount: r.poAmount != null ? Number(r.poAmount) : null,
+                                    couponAmount: r.CoupanAmount != null ? Number(r.CoupanAmount) : null,
+                                    badhoDiscount: r.PaymentOptionDiscountByBadho != null ? Number(r.PaymentOptionDiscountByBadho) : null,
+                                    appliedWalletAmount: r.appliedWalletAmount != null ? Number(r.appliedWalletAmount) : null,
+                                    paidAmount: r.paidAmount != null ? Number(r.paidAmount) : null,
+                                    sellerDiscount: r.discountBySeller != null ? Number(r.discountBySeller) : null,
+                                  })}
                                   className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[11px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
                                   title="View items in this PO"
                                 >
@@ -7716,7 +7889,14 @@ export default function OrderStatusDashboard() {
                           </td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             <button
-                              onClick={() => openPoItemsModal(r.poNumber)}
+                              onClick={() => openPoItemsModal(r.poNumber, {
+                                orderAmount: r.poAmount != null ? Number(r.poAmount) : null,
+                                couponAmount: r.CoupanAmount != null ? Number(r.CoupanAmount) : null,
+                                badhoDiscount: r.PaymentOptionDiscountByBadho != null ? Number(r.PaymentOptionDiscountByBadho) : null,
+                                appliedWalletAmount: r.appliedWalletAmount != null ? Number(r.appliedWalletAmount) : null,
+                                paidAmount: r.paidAmount != null ? Number(r.paidAmount) : null,
+                                sellerDiscount: r.discountBySeller != null ? Number(r.discountBySeller) : null,
+                              })}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[11px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
                               title="View items in this PO"
                             >

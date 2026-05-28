@@ -149,7 +149,14 @@ const periodLabel = (key: string, granularity: 'month' | 'week' | 'day', dayMont
 };
 
 interface RejectionReasonPivotTableProps {
-  onViewItems?: (poNumber: string) => void;
+  onViewItems?: (poNumber: string, breakup?: {
+    orderAmount: number | null;
+    couponAmount: number | null;
+    badhoDiscount: number | null;
+    appliedWalletAmount: number | null;
+    paidAmount?: number | null;
+    sellerDiscount?: number | null;
+  }) => void;
   onBuyerClick?: (lookup: { phone?: string | null; businessName?: string | null }) => void;
   onSellerClick?: (lookup: { phone?: string | null; businessName?: string | null }) => void;
 }
@@ -1079,7 +1086,14 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {onViewItems && r.poNumber ? (
                               <button
-                                onClick={() => onViewItems(r.poNumber)}
+                                onClick={() => onViewItems(r.poNumber, {
+                                  orderAmount: r.poAmount != null ? Number(r.poAmount) : null,
+                                  couponAmount: r.CoupanAmount != null ? Number(r.CoupanAmount) : null,
+                                  badhoDiscount: r.PaymentOptionDiscountByBadho != null ? Number(r.PaymentOptionDiscountByBadho) : null,
+                                  appliedWalletAmount: r.appliedWalletAmount != null ? Number(r.appliedWalletAmount) : null,
+                                  paidAmount: r.paidAmount != null ? Number(r.paidAmount) : null,
+                                  sellerDiscount: r.discountBySeller != null ? Number(r.discountBySeller) : null,
+                                })}
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[11px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
                                 title="View items in this PO"
                               >

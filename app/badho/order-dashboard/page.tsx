@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useRef, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -10,6 +10,7 @@ import {
   ComposedChart, Bar, BarChart,
 } from 'recharts';
 import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
+import MultiSelectFilter from './components/MultiSelectFilter';
 import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
 import RejectionReasonPivotTable from './components/RejectionReasonPivotTable';
 import CountdownCalendar from './components/CountdownCalendar';
@@ -354,10 +355,10 @@ export default function OrderStatusDashboard() {
   const [pivotDrillError, setPivotDrillError] = useState<string | null>(null);
   const [pivotDrillSearch, setPivotDrillSearch] = useState('');
   const [pivotDrillPushedFilter, setPivotDrillPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
-  const [pivotDrillRejectReasonFilter, setPivotDrillRejectReasonFilter] = useState<string>('all');
-  const [pivotDrillPaymentFilter, setPivotDrillPaymentFilter] = useState<string>('all');
-  const [pivotDrillCourierFilter, setPivotDrillCourierFilter] = useState<string>('all');
-  const [pivotDrillDeliveryFilter, setPivotDrillDeliveryFilter] = useState<string>('all');
+  const [pivotDrillRejectReasonFilter, setPivotDrillRejectReasonFilter] = useState<Set<string>>(new Set());
+  const [pivotDrillPaymentFilter, setPivotDrillPaymentFilter] = useState<Set<string>>(new Set());
+  const [pivotDrillCourierFilter, setPivotDrillCourierFilter] = useState<Set<string>>(new Set());
+  const [pivotDrillDeliveryFilter, setPivotDrillDeliveryFilter] = useState<Set<string>>(new Set());
   const [pivotDrillSort, setPivotDrillSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [pivotDrillPage, setPivotDrillPage] = useState(1);
   const [goalData, setGoalData] = useState<RevenueGoal | null>(null);
@@ -573,9 +574,9 @@ export default function OrderStatusDashboard() {
   const [alertModalError, setAlertModalError] = useState<string | null>(null);
   const [alertModalSearch, setAlertModalSearch] = useState('');
   const [alertModalPushedFilter, setAlertModalPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
-  const [alertModalPaymentFilter, setAlertModalPaymentFilter] = useState<string>('all');
-  const [alertModalCourierFilter, setAlertModalCourierFilter] = useState<string>('all');
-  const [alertModalDeliveryFilter, setAlertModalDeliveryFilter] = useState<string>('all');
+  const [alertModalPaymentFilter, setAlertModalPaymentFilter] = useState<Set<string>>(new Set());
+  const [alertModalCourierFilter, setAlertModalCourierFilter] = useState<Set<string>>(new Set());
+  const [alertModalDeliveryFilter, setAlertModalDeliveryFilter] = useState<Set<string>>(new Set());
   const [alertModalSort, setAlertModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const toggleAlertSort = (key: string) => {
     setAlertModalSort((prev) => {
@@ -1346,9 +1347,9 @@ export default function OrderStatusDashboard() {
     setAlertModalSeller(sellerBusinessName || null);
     setAlertModalSearch('');
     setAlertModalPushedFilter('all');
-    setAlertModalPaymentFilter('all');
-    setAlertModalCourierFilter('all');
-    setAlertModalDeliveryFilter('all');
+    setAlertModalPaymentFilter(new Set());
+    setAlertModalCourierFilter(new Set());
+    setAlertModalDeliveryFilter(new Set());
     setAlertModalSort(null);
     setAlertModalData(null);
     setAlertModalError(null);
@@ -1383,9 +1384,9 @@ export default function OrderStatusDashboard() {
     setAlertModalData(null);
     setAlertModalSearch('');
     setAlertModalPushedFilter('all');
-    setAlertModalPaymentFilter('all');
-    setAlertModalCourierFilter('all');
-    setAlertModalDeliveryFilter('all');
+    setAlertModalPaymentFilter(new Set());
+    setAlertModalCourierFilter(new Set());
+    setAlertModalDeliveryFilter(new Set());
     setAlertModalError(null);
     setAlertModalSort(null);
   };
@@ -2187,13 +2188,15 @@ export default function OrderStatusDashboard() {
   };
 
   const pivotRejectReasonOptions = (() => {
-    if (!pivotDrillRows) return [] as string[];
-    const set = new Set<string>();
+    if (!pivotDrillRows) return [] as Array<{ value: string; label: string; count: number }>;
+    const counts = new Map<string, number>();
     for (const r of pivotDrillRows) {
       const v = (r.rejectReason || '').trim();
-      if (v) set.add(v);
+      if (v) counts.set(v, (counts.get(v) || 0) + 1);
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    return Array.from(counts.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([value, count]) => ({ value, label: value, count }));
   })();
 
   const pivotPushedCounts = (() => {
@@ -2230,18 +2233,18 @@ export default function OrderStatusDashboard() {
   const pivotDrillHasActiveFilters =
     pivotDrillSearch.trim() !== '' ||
     pivotDrillPushedFilter !== 'all' ||
-    pivotDrillRejectReasonFilter !== 'all' ||
-    pivotDrillPaymentFilter !== 'all' ||
-    pivotDrillCourierFilter !== 'all' ||
-    pivotDrillDeliveryFilter !== 'all';
+    pivotDrillRejectReasonFilter.size > 0 ||
+    pivotDrillPaymentFilter.size > 0 ||
+    pivotDrillCourierFilter.size > 0 ||
+    pivotDrillDeliveryFilter.size > 0;
 
   const resetPivotDrillFilters = () => {
     setPivotDrillSearch('');
     setPivotDrillPushedFilter('all');
-    setPivotDrillRejectReasonFilter('all');
-    setPivotDrillPaymentFilter('all');
-    setPivotDrillCourierFilter('all');
-    setPivotDrillDeliveryFilter('all');
+    setPivotDrillRejectReasonFilter(new Set());
+    setPivotDrillPaymentFilter(new Set());
+    setPivotDrillCourierFilter(new Set());
+    setPivotDrillDeliveryFilter(new Set());
     setPivotDrillSort(null);
   };
 
@@ -2260,17 +2263,17 @@ export default function OrderStatusDashboard() {
     if (pivotDrillPushedFilter !== 'all') {
       rows = rows.filter((r) => (r.pushedStatus || 'Not Pushed') === pivotDrillPushedFilter);
     }
-    if (pivotDrillRejectReasonFilter !== 'all') {
-      rows = rows.filter((r) => (r.rejectReason || '').trim() === pivotDrillRejectReasonFilter);
+    if (pivotDrillRejectReasonFilter.size > 0) {
+      rows = rows.filter((r) => pivotDrillRejectReasonFilter.has((r.rejectReason || '').trim()));
     }
-    if (pivotDrillPaymentFilter !== 'all') {
-      rows = rows.filter((r) => (r.PaymentOption || '__NONE__') === pivotDrillPaymentFilter);
+    if (pivotDrillPaymentFilter.size > 0) {
+      rows = rows.filter((r) => pivotDrillPaymentFilter.has(r.PaymentOption || '__NONE__'));
     }
-    if (pivotDrillCourierFilter !== 'all') {
-      rows = rows.filter((r) => (r.courierName || '__NONE__') === pivotDrillCourierFilter);
+    if (pivotDrillCourierFilter.size > 0) {
+      rows = rows.filter((r) => pivotDrillCourierFilter.has(r.courierName || '__NONE__'));
     }
-    if (pivotDrillDeliveryFilter !== 'all') {
-      rows = rows.filter((r) => (r.deliveryStatus || '__NONE__') === pivotDrillDeliveryFilter);
+    if (pivotDrillDeliveryFilter.size > 0) {
+      rows = rows.filter((r) => pivotDrillDeliveryFilter.has(r.deliveryStatus || '__NONE__'));
     }
     if (pivotDrillSort) {
       const { key, direction } = pivotDrillSort;
@@ -7243,45 +7246,36 @@ export default function OrderStatusDashboard() {
                       </div>
 
                       {paymentOpts.length > 1 && (
-                        <select
-                          value={alertModalPaymentFilter}
-                          onChange={(e) => setAlertModalPaymentFilter(e.target.value)}
-                          title="Filter by payment option"
-                          className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
-                        >
-                          <option value="all">All payments ({total.toLocaleString()})</option>
-                          {paymentOpts.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
-                          ))}
-                        </select>
+                        <MultiSelectFilter
+                          label="Payment"
+                          allLabel="All payments"
+                          options={paymentOpts}
+                          selected={alertModalPaymentFilter}
+                          onChange={setAlertModalPaymentFilter}
+                          widthClass="w-44"
+                        />
                       )}
 
                       {courierOpts.length > 1 && (
-                        <select
-                          value={alertModalCourierFilter}
-                          onChange={(e) => setAlertModalCourierFilter(e.target.value)}
-                          title="Filter by courier"
-                          className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
-                        >
-                          <option value="all">All couriers ({total.toLocaleString()})</option>
-                          {courierOpts.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
-                          ))}
-                        </select>
+                        <MultiSelectFilter
+                          label="Courier"
+                          allLabel="All couriers"
+                          options={courierOpts}
+                          selected={alertModalCourierFilter}
+                          onChange={setAlertModalCourierFilter}
+                          widthClass="w-44"
+                        />
                       )}
 
                       {deliveryOpts.length > 1 && (
-                        <select
-                          value={alertModalDeliveryFilter}
-                          onChange={(e) => setAlertModalDeliveryFilter(e.target.value)}
-                          title="Filter by delivery status"
-                          className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
-                        >
-                          <option value="all">All delivery ({total.toLocaleString()})</option>
-                          {deliveryOpts.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
-                          ))}
-                        </select>
+                        <MultiSelectFilter
+                          label="Delivery"
+                          allLabel="All delivery"
+                          options={deliveryOpts}
+                          selected={alertModalDeliveryFilter}
+                          onChange={setAlertModalDeliveryFilter}
+                          widthClass="w-44"
+                        />
                       )}
                     </div>
                   </div>
@@ -7311,14 +7305,14 @@ export default function OrderStatusDashboard() {
                   if (alertModalPushedFilter !== 'all') {
                     filtered = filtered.filter((r) => (r.pushedStatus || 'Not Pushed') === alertModalPushedFilter);
                   }
-                  if (alertModalPaymentFilter !== 'all') {
-                    filtered = filtered.filter((r) => (r.PaymentOption || '__NONE__') === alertModalPaymentFilter);
+                  if (alertModalPaymentFilter.size > 0) {
+                    filtered = filtered.filter((r) => alertModalPaymentFilter.has(r.PaymentOption || '__NONE__'));
                   }
-                  if (alertModalCourierFilter !== 'all') {
-                    filtered = filtered.filter((r) => (r.courierName || '__NONE__') === alertModalCourierFilter);
+                  if (alertModalCourierFilter.size > 0) {
+                    filtered = filtered.filter((r) => alertModalCourierFilter.has(r.courierName || '__NONE__'));
                   }
-                  if (alertModalDeliveryFilter !== 'all') {
-                    filtered = filtered.filter((r) => (r.deliveryStatus || '__NONE__') === alertModalDeliveryFilter);
+                  if (alertModalDeliveryFilter.size > 0) {
+                    filtered = filtered.filter((r) => alertModalDeliveryFilter.has(r.deliveryStatus || '__NONE__'));
                   }
                   if (alertModalSort) {
                     const { key, direction } = alertModalSort;
@@ -7711,74 +7705,48 @@ export default function OrderStatusDashboard() {
                     })}
                   </div>
 
-                  {/* Payment option — narrow dropdown, only shown when >1 option */}
                   {pivotPaymentOptions.length > 1 && (
-                    <select
-                      id="pivot-drill-payment"
-                      value={pivotDrillPaymentFilter}
-                      onChange={(e) => setPivotDrillPaymentFilter(e.target.value)}
-                      title="Filter by payment option"
-                      className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
-                    >
-                      <option value="all">All payments ({(pivotDrillRows?.length ?? 0).toLocaleString()})</option>
-                      {pivotPaymentOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label} ({opt.count.toLocaleString()})
-                        </option>
-                      ))}
-                    </select>
+                    <MultiSelectFilter
+                      label="Payment"
+                      allLabel="All payments"
+                      options={pivotPaymentOptions}
+                      selected={pivotDrillPaymentFilter}
+                      onChange={setPivotDrillPaymentFilter}
+                      widthClass="w-44"
+                    />
                   )}
 
-                  {/* Courier — narrow dropdown */}
                   {pivotCourierOptions.length > 1 && (
-                    <select
-                      id="pivot-drill-courier"
-                      value={pivotDrillCourierFilter}
-                      onChange={(e) => setPivotDrillCourierFilter(e.target.value)}
-                      title="Filter by courier"
-                      className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
-                    >
-                      <option value="all">All couriers ({(pivotDrillRows?.length ?? 0).toLocaleString()})</option>
-                      {pivotCourierOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label} ({opt.count.toLocaleString()})
-                        </option>
-                      ))}
-                    </select>
+                    <MultiSelectFilter
+                      label="Courier"
+                      allLabel="All couriers"
+                      options={pivotCourierOptions}
+                      selected={pivotDrillCourierFilter}
+                      onChange={setPivotDrillCourierFilter}
+                      widthClass="w-44"
+                    />
                   )}
 
-                  {/* Delivery status — narrow dropdown */}
                   {pivotDeliveryOptions.length > 1 && (
-                    <select
-                      id="pivot-drill-delivery-status"
-                      value={pivotDrillDeliveryFilter}
-                      onChange={(e) => setPivotDrillDeliveryFilter(e.target.value)}
-                      title="Filter by delivery status"
-                      className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
-                    >
-                      <option value="all">All delivery ({(pivotDrillRows?.length ?? 0).toLocaleString()})</option>
-                      {pivotDeliveryOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label} ({opt.count.toLocaleString()})
-                        </option>
-                      ))}
-                    </select>
+                    <MultiSelectFilter
+                      label="Delivery"
+                      allLabel="All delivery"
+                      options={pivotDeliveryOptions}
+                      selected={pivotDrillDeliveryFilter}
+                      onChange={setPivotDrillDeliveryFilter}
+                      widthClass="w-44"
+                    />
                   )}
 
-                  {/* Reject reason — narrow dropdown */}
                   {pivotRejectReasonOptions.length > 0 && (
-                    <select
-                      id="pivot-drill-reject-reason"
-                      value={pivotDrillRejectReasonFilter}
-                      onChange={(e) => setPivotDrillRejectReasonFilter(e.target.value)}
-                      title={`Filter by reject reason (${pivotRejectReasonOptions.length})`}
-                      className="w-44 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
-                    >
-                      <option value="all">All reasons ({pivotRejectReasonOptions.length})</option>
-                      {pivotRejectReasonOptions.map((reason) => (
-                        <option key={reason} value={reason}>{reason.length > 50 ? `${reason.slice(0, 50)}…` : reason}</option>
-                      ))}
-                    </select>
+                    <MultiSelectFilter
+                      label="Reason"
+                      allLabel="All reasons"
+                      options={pivotRejectReasonOptions}
+                      selected={pivotDrillRejectReasonFilter}
+                      onChange={setPivotDrillRejectReasonFilter}
+                      widthClass="w-48"
+                    />
                   )}
                 </div>
 
@@ -7807,49 +7775,44 @@ export default function OrderStatusDashboard() {
                         <span className="sr-only">Remove pushed filter</span>
                       </button>
                     )}
-                    {pivotDrillPaymentFilter !== 'all' && (
+                    {pivotDrillPaymentFilter.size > 0 && (
                       <button
                         type="button"
-                        onClick={() => setPivotDrillPaymentFilter('all')}
+                        onClick={() => setPivotDrillPaymentFilter(new Set())}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] border border-slate-300 font-medium"
                       >
-                        <span>Payment: {pivotDrillPaymentFilter === '__NONE__' ? 'Unspecified' : pivotDrillPaymentFilter}</span>
+                        <span>Payment: {pivotDrillPaymentFilter.size} selected</span>
                         <span aria-hidden className="text-slate-500">×</span>
-                        <span className="sr-only">Remove payment filter</span>
                       </button>
                     )}
-                    {pivotDrillCourierFilter !== 'all' && (
+                    {pivotDrillCourierFilter.size > 0 && (
                       <button
                         type="button"
-                        onClick={() => setPivotDrillCourierFilter('all')}
+                        onClick={() => setPivotDrillCourierFilter(new Set())}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] border border-slate-300 font-medium"
                       >
-                        <span>Courier: {pivotDrillCourierFilter === '__NONE__' ? 'Unspecified' : pivotDrillCourierFilter}</span>
+                        <span>Courier: {pivotDrillCourierFilter.size} selected</span>
                         <span aria-hidden className="text-slate-500">×</span>
-                        <span className="sr-only">Remove courier filter</span>
                       </button>
                     )}
-                    {pivotDrillDeliveryFilter !== 'all' && (
+                    {pivotDrillDeliveryFilter.size > 0 && (
                       <button
                         type="button"
-                        onClick={() => setPivotDrillDeliveryFilter('all')}
+                        onClick={() => setPivotDrillDeliveryFilter(new Set())}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] border border-slate-300 font-medium"
                       >
-                        <span>Delivery: {pivotDrillDeliveryFilter === '__NONE__' ? 'Unspecified' : pivotDrillDeliveryFilter}</span>
+                        <span>Delivery: {pivotDrillDeliveryFilter.size} selected</span>
                         <span aria-hidden className="text-slate-500">×</span>
-                        <span className="sr-only">Remove delivery filter</span>
                       </button>
                     )}
-                    {pivotDrillRejectReasonFilter !== 'all' && (
+                    {pivotDrillRejectReasonFilter.size > 0 && (
                       <button
                         type="button"
-                        onClick={() => setPivotDrillRejectReasonFilter('all')}
+                        onClick={() => setPivotDrillRejectReasonFilter(new Set())}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] border border-slate-300 font-medium"
-                        title={pivotDrillRejectReasonFilter}
                       >
-                        <span>Reason: {pivotDrillRejectReasonFilter.length > 30 ? `${pivotDrillRejectReasonFilter.slice(0, 30)}…` : pivotDrillRejectReasonFilter}</span>
+                        <span>Reason: {pivotDrillRejectReasonFilter.size} selected</span>
                         <span aria-hidden className="text-slate-500">×</span>
-                        <span className="sr-only">Remove reject reason filter</span>
                       </button>
                     )}
                     <button

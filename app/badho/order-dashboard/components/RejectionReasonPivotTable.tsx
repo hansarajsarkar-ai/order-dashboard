@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, Fragment, useRef } from 'react';
+import MultiSelectFilter from './MultiSelectFilter';
 
 interface DrilldownCell {
   count: number;
@@ -227,9 +228,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSearch, setModalSearch] = useState('');
   const [modalPushedFilter, setModalPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
-  const [modalPaymentFilter, setModalPaymentFilter] = useState<string>('all');
-  const [modalCourierFilter, setModalCourierFilter] = useState<string>('all');
-  const [modalDeliveryFilter, setModalDeliveryFilter] = useState<string>('all');
+  const [modalPaymentFilter, setModalPaymentFilter] = useState<Set<string>>(new Set());
+  const [modalCourierFilter, setModalCourierFilter] = useState<Set<string>>(new Set());
+  const [modalDeliveryFilter, setModalDeliveryFilter] = useState<Set<string>>(new Set());
   const [modalSort, setModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
 
@@ -423,14 +424,14 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
   if (filteredModalData && modalPushedFilter !== 'all') {
     filteredModalData = filteredModalData.filter((r) => (r.pushedStatus || 'Not Pushed') === modalPushedFilter);
   }
-  if (filteredModalData && modalPaymentFilter !== 'all') {
-    filteredModalData = filteredModalData.filter((r) => (r.PaymentOption || '__NONE__') === modalPaymentFilter);
+  if (filteredModalData && modalPaymentFilter.size > 0) {
+    filteredModalData = filteredModalData.filter((r) => modalPaymentFilter.has(r.PaymentOption || '__NONE__'));
   }
-  if (filteredModalData && modalCourierFilter !== 'all') {
-    filteredModalData = filteredModalData.filter((r) => (r.courierName || '__NONE__') === modalCourierFilter);
+  if (filteredModalData && modalCourierFilter.size > 0) {
+    filteredModalData = filteredModalData.filter((r) => modalCourierFilter.has(r.courierName || '__NONE__'));
   }
-  if (filteredModalData && modalDeliveryFilter !== 'all') {
-    filteredModalData = filteredModalData.filter((r) => (r.deliveryStatusDv || '__NONE__') === modalDeliveryFilter);
+  if (filteredModalData && modalDeliveryFilter.size > 0) {
+    filteredModalData = filteredModalData.filter((r) => modalDeliveryFilter.has(r.deliveryStatusDv || '__NONE__'));
   }
   if (filteredModalData && modalSort) {
     const { key, direction } = modalSort;
@@ -450,16 +451,16 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
   const modalHasActiveFilters =
     modalSearch.trim() !== '' ||
     modalPushedFilter !== 'all' ||
-    modalPaymentFilter !== 'all' ||
-    modalCourierFilter !== 'all' ||
-    modalDeliveryFilter !== 'all';
+    modalPaymentFilter.size > 0 ||
+    modalCourierFilter.size > 0 ||
+    modalDeliveryFilter.size > 0;
 
   const clearAllModalFilters = () => {
     setModalSearch('');
     setModalPushedFilter('all');
-    setModalPaymentFilter('all');
-    setModalCourierFilter('all');
-    setModalDeliveryFilter('all');
+    setModalPaymentFilter(new Set());
+    setModalCourierFilter(new Set());
+    setModalDeliveryFilter(new Set());
   };
 
   return (
@@ -944,43 +945,34 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                   </div>
                 )}
                 {modalPaymentOpts.length > 1 && (
-                  <select
-                    value={modalPaymentFilter}
-                    onChange={(e) => setModalPaymentFilter(e.target.value)}
-                    title="Filter by payment option"
-                    className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
-                  >
-                    <option value="all">All payments ({(modalData?.length ?? 0).toLocaleString()})</option>
-                    {modalPaymentOpts.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
-                    ))}
-                  </select>
+                  <MultiSelectFilter
+                    label="Payment"
+                    allLabel="All payments"
+                    options={modalPaymentOpts}
+                    selected={modalPaymentFilter}
+                    onChange={setModalPaymentFilter}
+                    widthClass="w-44"
+                  />
                 )}
                 {modalCourierOpts.length > 1 && (
-                  <select
-                    value={modalCourierFilter}
-                    onChange={(e) => setModalCourierFilter(e.target.value)}
-                    title="Filter by courier"
-                    className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
-                  >
-                    <option value="all">All couriers ({(modalData?.length ?? 0).toLocaleString()})</option>
-                    {modalCourierOpts.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
-                    ))}
-                  </select>
+                  <MultiSelectFilter
+                    label="Courier"
+                    allLabel="All couriers"
+                    options={modalCourierOpts}
+                    selected={modalCourierFilter}
+                    onChange={setModalCourierFilter}
+                    widthClass="w-44"
+                  />
                 )}
                 {modalDeliveryOpts.length > 1 && (
-                  <select
-                    value={modalDeliveryFilter}
-                    onChange={(e) => setModalDeliveryFilter(e.target.value)}
-                    title="Filter by delivery status"
-                    className="w-40 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
-                  >
-                    <option value="all">All delivery ({(modalData?.length ?? 0).toLocaleString()})</option>
-                    {modalDeliveryOpts.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label} ({opt.count.toLocaleString()})</option>
-                    ))}
-                  </select>
+                  <MultiSelectFilter
+                    label="Delivery"
+                    allLabel="All delivery"
+                    options={modalDeliveryOpts}
+                    selected={modalDeliveryFilter}
+                    onChange={setModalDeliveryFilter}
+                    widthClass="w-44"
+                  />
                 )}
                 {modalHasActiveFilters && (
                   <button

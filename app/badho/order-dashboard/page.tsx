@@ -354,6 +354,7 @@ export default function OrderStatusDashboard() {
   const [pivotDrillSearch, setPivotDrillSearch] = useState('');
   const [pivotDrillPushedFilter, setPivotDrillPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
   const [pivotDrillRejectReasonFilter, setPivotDrillRejectReasonFilter] = useState<string>('all');
+  const [pivotDrillPaymentFilter, setPivotDrillPaymentFilter] = useState<string>('all');
   const [pivotDrillSort, setPivotDrillSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [pivotDrillPage, setPivotDrillPage] = useState(1);
   const [goalData, setGoalData] = useState<RevenueGoal | null>(null);
@@ -1413,6 +1414,7 @@ export default function OrderStatusDashboard() {
     setPivotDrillSearch('');
     setPivotDrillPushedFilter('all');
     setPivotDrillRejectReasonFilter('all');
+    setPivotDrillPaymentFilter('all');
     setPivotDrillSort(null);
     setPivotDrillPage(1);
     setPivotDrillLoading(true);
@@ -1717,7 +1719,7 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => { setDrillPage(1); }, [drillStatus, drillMonth, drillSearch]);
-  useEffect(() => { setPivotDrillPage(1); }, [pivotDrillStatus, pivotDrillDelivery, pivotDrillMonth, pivotDrillSearch, pivotDrillPushedFilter, pivotDrillRejectReasonFilter, pivotDrillSort]);
+  useEffect(() => { setPivotDrillPage(1); }, [pivotDrillStatus, pivotDrillDelivery, pivotDrillMonth, pivotDrillSearch, pivotDrillPushedFilter, pivotDrillRejectReasonFilter, pivotDrillPaymentFilter, pivotDrillSort]);
   useEffect(() => { setSellerTablePage(1); }, [sellerSearch]);
   useEffect(() => { setSellerDrillPage(1); }, [sellerDrillId, sellerDrillStartDate, sellerDrillEndDate, sellerDrillStatus, sellerDrillPo]);
 
@@ -1941,15 +1943,34 @@ export default function OrderStatusDashboard() {
     return { all: total, pushed, notPushed: total - pushed };
   })();
 
+  // Payment options present in the current drill set, ordered by frequency
+  const pivotPaymentOptions = (() => {
+    if (!pivotDrillRows) return [] as Array<{ value: string; label: string; count: number }>;
+    const counts = new Map<string, number>();
+    for (const r of pivotDrillRows) {
+      const k = r.PaymentOption || '__NONE__';
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([value, count]) => ({
+        value,
+        label: value === '__NONE__' ? 'Unspecified' : value,
+        count,
+      }));
+  })();
+
   const pivotDrillHasActiveFilters =
     pivotDrillSearch.trim() !== '' ||
     pivotDrillPushedFilter !== 'all' ||
-    pivotDrillRejectReasonFilter !== 'all';
+    pivotDrillRejectReasonFilter !== 'all' ||
+    pivotDrillPaymentFilter !== 'all';
 
   const resetPivotDrillFilters = () => {
     setPivotDrillSearch('');
     setPivotDrillPushedFilter('all');
     setPivotDrillRejectReasonFilter('all');
+    setPivotDrillPaymentFilter('all');
     setPivotDrillSort(null);
   };
 
@@ -1970,6 +1991,9 @@ export default function OrderStatusDashboard() {
     }
     if (pivotDrillRejectReasonFilter !== 'all') {
       rows = rows.filter((r) => (r.rejectReason || '').trim() === pivotDrillRejectReasonFilter);
+    }
+    if (pivotDrillPaymentFilter !== 'all') {
+      rows = rows.filter((r) => (r.PaymentOption || '__NONE__') === pivotDrillPaymentFilter);
     }
     if (pivotDrillSort) {
       const { key, direction } = pivotDrillSort;
@@ -6589,6 +6613,24 @@ export default function OrderStatusDashboard() {
                     })}
                   </div>
 
+                  {/* Payment option — narrow dropdown, only shown when >1 option */}
+                  {pivotPaymentOptions.length > 1 && (
+                    <select
+                      id="pivot-drill-payment"
+                      value={pivotDrillPaymentFilter}
+                      onChange={(e) => setPivotDrillPaymentFilter(e.target.value)}
+                      title="Filter by payment option"
+                      className="w-44 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 shrink-0"
+                    >
+                      <option value="all">All payments ({(pivotDrillRows?.length ?? 0).toLocaleString()})</option>
+                      {pivotPaymentOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label} ({opt.count.toLocaleString()})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
                   {/* Reject reason — narrow dropdown */}
                   {pivotRejectReasonOptions.length > 0 && (
                     <select
@@ -6629,6 +6671,17 @@ export default function OrderStatusDashboard() {
                         <span>Pushed: {pivotDrillPushedFilter}</span>
                         <span aria-hidden className="text-slate-500">×</span>
                         <span className="sr-only">Remove pushed filter</span>
+                      </button>
+                    )}
+                    {pivotDrillPaymentFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setPivotDrillPaymentFilter('all')}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] border border-slate-300 font-medium"
+                      >
+                        <span>Payment: {pivotDrillPaymentFilter === '__NONE__' ? 'Unspecified' : pivotDrillPaymentFilter}</span>
+                        <span aria-hidden className="text-slate-500">×</span>
+                        <span className="sr-only">Remove payment filter</span>
                       </button>
                     )}
                     {pivotDrillRejectReasonFilter !== 'all' && (
@@ -6740,7 +6793,14 @@ export default function OrderStatusDashboard() {
                     </thead>
                     <tbody>
                       {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r, idx) => {
-                        const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                        const paid = Number(r.paidAmount ?? 0);
+                        const isFullyPaid = r.PaymentOption === 'FULLY_PAID' && paid > 0;
+                        const isPartialPaid = r.PaymentOption === 'PARTIALLY_PAID' && paid > 0;
+                        const rowBg = isFullyPaid
+                          ? 'bg-emerald-50'
+                          : isPartialPaid
+                          ? 'bg-violet-50'
+                          : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50');
                         return (
                         <tr
                           key={r.poNumber}

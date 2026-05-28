@@ -911,6 +911,8 @@ export default function OrderStatusDashboard() {
     buyerFullAddress: string | null;
     buyerLongitude: string | null;
     buyerLatitude: string | null;
+    paidAmount: number | null;
+    appliedWalletAmount: number | null;
   }
   const [rtoListData, setRtoListData] = useState<RtoOrderRow[] | null>(null);
   const [rtoListLoading, setRtoListLoading] = useState(false);
@@ -4442,7 +4444,8 @@ export default function OrderStatusDashboard() {
                       onClick={() => {
                         const rows = filteredRtoListRows || [];
                         const headers = [
-                          'Brand Name', 'PO Number', 'Order Value', 'Marked Rejected Time',
+                          'Brand Name', 'PO Number', 'Order Value', 'Paid Amount', 'Applied Wallet Amount',
+                          'Marked Rejected Time',
                           'ITL Date & Time', 'Shipment Status', 'Buyer Phone', 'Buyer Business Name',
                           'Order Date & Time', 'Latest Attempt Time',
                           'Coupon Value', 'Payment Mode',
@@ -4459,7 +4462,8 @@ export default function OrderStatusDashboard() {
                           'PO Status',
                         ];
                         const csvRows: CsvCell[][] = rows.map((r) => [
-                          r.brandName, r.poNumber, r.orderValue, r.markedRejectedTime,
+                          r.brandName, r.poNumber, r.orderValue, r.paidAmount, r.appliedWalletAmount,
+                          r.markedRejectedTime,
                           r.itlDate, r.shipmentStatus, r.buyerPhone, r.buyerBusinessName,
                           r.orderDate, r.latestAttemptTime,
                           r.couponValue, r.paymentMode,
@@ -4582,6 +4586,8 @@ export default function OrderStatusDashboard() {
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">Brand</th>
                         <th className="px-3 py-3 text-left font-semibold text-purple-200 whitespace-nowrap">PO Number</th>
                         <th className="px-3 py-3 text-right font-semibold text-purple-200 whitespace-nowrap">Order Value</th>
+                        <th className="px-3 py-3 text-right font-semibold text-emerald-200 whitespace-nowrap">Paid Amount</th>
+                        <th className="px-3 py-3 text-right font-semibold text-cyan-200 whitespace-nowrap">Applied Wallet Amount</th>
                         <th className="px-3 py-3 text-left font-semibold text-rose-200 whitespace-nowrap" title="Sorted newest first">
                           Marked Rejected <span className="text-rose-300">↓</span>
                         </th>
@@ -4622,8 +4628,39 @@ export default function OrderStatusDashboard() {
                         return (
                           <tr key={r.poNumber} className="border-b border-white/5 hover:bg-white/5 align-top">
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap font-medium">{r.brandName || '—'}</td>
-                            <td className="px-3 py-2.5 text-white tabular-nums font-semibold whitespace-nowrap">{r.poNumber}</td>
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-white tabular-nums font-semibold">{r.poNumber}</span>
+                                <a
+                                  href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-fuchsia-200 bg-fuchsia-500/15 hover:bg-fuchsia-500/30 border border-fuchsia-400/40 transition-all"
+                                  title="Open in D2R Support Dashboard"
+                                >
+                                  Details
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M7 17L17 7" />
+                                    <polyline points="7 7 17 7 17 17" />
+                                  </svg>
+                                </a>
+                                <button
+                                  onClick={() => openPoItemsModal(r.poNumber)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 transition-all"
+                                  title="View items + price breakup"
+                                >
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                    <line x1="12" y1="22.08" x2="12" y2="12" />
+                                  </svg>
+                                  Items
+                                </button>
+                              </div>
+                            </td>
                             <td className="px-3 py-2.5 text-right text-white tabular-nums whitespace-nowrap">{formatAmount(r.orderValue)}</td>
+                            <td className="px-3 py-2.5 text-right text-emerald-200 tabular-nums whitespace-nowrap">{r.paidAmount != null ? formatAmount(r.paidAmount) : '—'}</td>
+                            <td className="px-3 py-2.5 text-right text-cyan-200 tabular-nums whitespace-nowrap">{r.appliedWalletAmount != null && r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : '—'}</td>
                             <td className="px-3 py-2.5 text-rose-200 whitespace-nowrap">{r.markedRejectedTime || '—'}</td>
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.itlDate || '—'}</td>
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap">{r.shipmentStatus || '—'}</td>

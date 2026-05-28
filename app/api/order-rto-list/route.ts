@@ -39,6 +39,8 @@ interface Row {
   buyer_full_address: string | null;
   buyer_longitude: string | null;
   buyer_latitude: string | null;
+  paid_amount: string | null;
+  applied_wallet_amount: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -119,7 +121,9 @@ export async function GET(req: NextRequest) {
           b."pincode"
         )                                                          AS buyer_full_address,
         b."longitude"::text                                        AS buyer_longitude,
-        b."lattitude"::text                                        AS buyer_latitude
+        b."lattitude"::text                                        AS buyer_latitude,
+        pop."paidAmount"::text                                     AS paid_amount,
+        pop."appliedWalletAmount"::text                            AS applied_wallet_amount
 
       FROM "purchaseOrder"."purchaseOrder" po
 
@@ -220,6 +224,16 @@ export async function GET(req: NextRequest) {
         ) final_inner
       ) attempt_data ON TRUE
 
+      LEFT JOIN LATERAL (
+        SELECT "paidAmount", "appliedWalletAmount"
+        FROM "purchaseOrder"."purchaseOrderPayment"
+        WHERE "purchaseOrderId" = po."id"
+          AND "status" = 'COMPLETED'
+          AND "event"  IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
+        ORDER BY "created_at" DESC
+        LIMIT 1
+      ) pop ON TRUE
+
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
 
@@ -276,6 +290,8 @@ export async function GET(req: NextRequest) {
       buyerFullAddress: r.buyer_full_address,
       buyerLongitude: r.buyer_longitude,
       buyerLatitude: r.buyer_latitude,
+      paidAmount: r.paid_amount != null ? parseFloat(r.paid_amount) : null,
+      appliedWalletAmount: r.applied_wallet_amount != null ? parseFloat(r.applied_wallet_amount) : null,
     }));
 
     return NextResponse.json({

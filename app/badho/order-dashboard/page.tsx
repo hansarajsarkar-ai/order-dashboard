@@ -1876,6 +1876,21 @@ export default function OrderStatusDashboard() {
     }
   };
 
+  // Header label for the Status Marked Time column. If every visible row shares
+  // one status, use that exact DB column name; otherwise fall back to the
+  // generic "Status Marked Time".
+  const statusMarkedHeaderFor = (rows: Array<{ orderStatus?: string | null; status?: string | null }> | null | undefined): string => {
+    if (!rows || rows.length === 0) return 'Status Marked Time';
+    const set = new Set<string>();
+    for (const r of rows) {
+      const s = (r.orderStatus ?? r.status ?? '').toUpperCase();
+      if (s) set.add(s);
+      if (set.size > 1) return 'Status Marked Time';
+    }
+    if (set.size === 1) return statusMarkedFieldFor([...set][0]);
+    return 'Status Marked Time';
+  };
+
   const openSellerDrill = async (seller: SellerRow) => {
     setSellerDrillId(seller.sellerId);
     setSellerDrillName(seller.sellerBusinessName || '—');
@@ -6771,7 +6786,7 @@ export default function OrderStatusDashboard() {
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                           <SortTh k="sellerPhone" label="Seller Phone" />
                           <SortTh k="sellerBusiness" label="Seller Business" />
-                          <SortTh k="statusMarkedTime" label="Status Marked Time" cls="text-slate-700 bg-amber-50/60" />
+                          <SortTh k="statusMarkedTime" label={statusMarkedHeaderFor(alertModalData)} cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="refundInit" label="Refund Initiated" />
                           <SortTh k="refundDone" label="Refund Completed" />
@@ -7252,7 +7267,7 @@ export default function OrderStatusDashboard() {
                               <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                               <SortTh k="sellerPhone" label="Seller Phone" />
                               <SortTh k="sellerBusiness" label="Seller Business" />
-                              <SortTh k="statusMarkedTime" label="Status Marked Time" cls="text-slate-700 bg-amber-50/60" />
+                              <SortTh k="statusMarkedTime" label={statusMarkedHeaderFor(filteredPivotDrillRows)} cls="text-slate-700 bg-amber-50/60" />
                               <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                               <SortTh k="refundInit" label="Refund Initiated" />
                               <SortTh k="refundDone" label="Refund Completed" />

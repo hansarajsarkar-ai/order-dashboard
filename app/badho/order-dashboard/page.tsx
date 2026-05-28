@@ -479,6 +479,15 @@ export default function OrderStatusDashboard() {
     setPoItemsError(null);
     setPriceBreakup(breakup ?? null);
     setPoItemsLoading(true);
+    // Auto-fetch the breakup when caller didn't pass one (e.g. RTO / Goal modals).
+    if (!breakup) {
+      fetch(`/api/po-financials?poNumber=${encodeURIComponent(poNumber)}`)
+        .then((r) => r.json())
+        .then((json) => {
+          if (json?.data) setPriceBreakup(json.data as PriceBreakup);
+        })
+        .catch(() => { /* keep priceBreakup null; modal still usable */ });
+    }
     try {
       const res = await fetch(`/api/po-items?poNumber=${encodeURIComponent(poNumber)}`);
       if (!res.ok) throw new Error('Failed to fetch items');
@@ -8549,7 +8558,23 @@ export default function OrderStatusDashboard() {
                         {filtered.map((r) => (
                           <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-rose-50/40 align-top">
                             <td className="px-3 py-2 text-slate-800 whitespace-nowrap font-medium">{r.brandName || '—'}</td>
-                            <td className="px-3 py-2 text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poNumber}</td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              <div className="inline-flex items-center gap-2">
+                                <span className="text-slate-900 tabular-nums font-semibold">{r.poNumber}</span>
+                                <button
+                                  onClick={() => openPoItemsModal(r.poNumber)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[10px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
+                                  title="View items + price breakup"
+                                >
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                    <line x1="12" y1="22.08" x2="12" y2="12" />
+                                  </svg>
+                                  Items
+                                </button>
+                              </div>
+                            </td>
                             <td className="px-3 py-2 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
                             <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{formatAmount(r.orderValue)}</td>
                             <td className="px-3 py-2 text-rose-700 whitespace-nowrap">{r.markedRejectedTime || '—'}</td>
@@ -8696,7 +8721,23 @@ export default function OrderStatusDashboard() {
                       <tbody>
                         {filtered.slice(0, 2000).map((r) => (
                           <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-emerald-50/40 align-top">
-                            <td className="px-3 py-2 text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poNumber}</td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              <div className="inline-flex items-center gap-2">
+                                <span className="text-slate-900 tabular-nums font-semibold">{r.poNumber}</span>
+                                <button
+                                  onClick={() => openPoItemsModal(r.poNumber)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[10px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
+                                  title="View items + price breakup"
+                                >
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                    <line x1="12" y1="22.08" x2="12" y2="12" />
+                                  </svg>
+                                  Items
+                                </button>
+                              </div>
+                            </td>
                             <td className="px-3 py-2">
                               <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                                 r.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'

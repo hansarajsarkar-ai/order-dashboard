@@ -674,6 +674,70 @@ export default function OrderStatusDashboard() {
     return () => window.removeEventListener('keydown', onKey);
   }, [buyerModalOpen]);
 
+  // Seller details modal — opens when clicking a "Seller Business" or "Seller Phone" cell
+  interface SellerDetailsRow {
+    id: string;
+    name: string | null;
+    businessName: string | null;
+    phone: string | null;
+    whatsappNumber: string | null;
+    email: string | null;
+    gstNumber: string | null;
+    businessPanNumber: string | null;
+    fssaiNumber: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    landmark: string | null;
+    pincode: string | null;
+    city: string | null;
+    tehsil: string | null;
+    district: string | null;
+    state: string | null;
+    longitude: string | null;
+    lattitude: string | null;
+    isD2RBrandSeller: boolean | null;
+    isBadhoVerified: boolean | null;
+    fullAddress: string;
+  }
+  const [sellerModalOpen, setSellerModalOpen] = useState(false);
+  const [sellerModalData, setSellerModalData] = useState<SellerDetailsRow | null>(null);
+  const [sellerModalLoading, setSellerModalLoading] = useState(false);
+  const [sellerModalError, setSellerModalError] = useState<string | null>(null);
+  const [sellerModalLookup, setSellerModalLookup] = useState<string>('');
+
+  const openSellerModal = async (lookup: { phone?: string | null; businessName?: string | null }) => {
+    setSellerModalOpen(true);
+    setSellerModalData(null);
+    setSellerModalError(null);
+    setSellerModalLoading(true);
+    const params = new URLSearchParams();
+    if (lookup.phone) params.set('phone', lookup.phone);
+    else if (lookup.businessName) params.set('businessName', lookup.businessName);
+    setSellerModalLookup(lookup.phone || lookup.businessName || '');
+    try {
+      const res = await fetch(`/api/seller-details?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setSellerModalData(json.data as SellerDetailsRow);
+    } catch (err) {
+      setSellerModalError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setSellerModalLoading(false);
+    }
+  };
+  const closeSellerModal = () => {
+    setSellerModalOpen(false);
+    setSellerModalData(null);
+    setSellerModalError(null);
+    setSellerModalLookup('');
+  };
+  useEffect(() => {
+    if (!sellerModalOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeSellerModal(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sellerModalOpen]);
+
   // Alert tab — InProgress aging by seller (drill-down reuses the SLA Breach modal)
   interface AgingRow {
     sellerBusinessName: string;
@@ -6364,6 +6428,99 @@ export default function OrderStatusDashboard() {
           </div>
         )}
 
+        {/* Seller Details Modal — opens when clicking a Seller Business or Seller Phone cell */}
+        {sellerModalOpen && (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md"
+            onClick={closeSellerModal}
+          >
+            <div
+              className="relative bg-white text-slate-900 rounded-2xl w-[92vw] max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(217,70,239,0.45)] border border-slate-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <header className="px-6 py-4 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-600 text-white flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-semibold">Seller Details</div>
+                  <h3 className="text-lg font-extrabold truncate mt-0.5">
+                    {sellerModalData?.businessName || sellerModalLookup || 'Loading…'}
+                  </h3>
+                </div>
+                <button
+                  onClick={closeSellerModal}
+                  className="shrink-0 w-8 h-8 rounded-lg bg-white/15 hover:bg-white/30 text-white text-lg leading-none transition-all hover:rotate-90"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </header>
+              <div className="flex-1 overflow-auto">
+                {sellerModalLoading ? (
+                  <div className="px-6 py-12 text-center text-slate-500">Loading seller details…</div>
+                ) : sellerModalError ? (
+                  <div className="px-6 py-12 text-center text-rose-600">Error: {sellerModalError}</div>
+                ) : !sellerModalData ? (
+                  <div className="px-6 py-12 text-center text-slate-500">No data.</div>
+                ) : (
+                  <dl className="divide-y divide-slate-100">
+                    {([
+                      { label: 'Seller Name',     value: sellerModalData.name },
+                      { label: 'Business Name',   value: sellerModalData.businessName },
+                      { label: 'Phone',           value: sellerModalData.phone, mono: true },
+                      { label: 'WhatsApp',        value: sellerModalData.whatsappNumber, mono: true },
+                      { label: 'Email',           value: sellerModalData.email, mono: true },
+                      { label: 'GST Number',      value: sellerModalData.gstNumber, mono: true },
+                      { label: 'PAN',             value: sellerModalData.businessPanNumber, mono: true },
+                      { label: 'FSSAI',           value: sellerModalData.fssaiNumber, mono: true },
+                      { label: 'City',            value: sellerModalData.city },
+                      { label: 'District',        value: sellerModalData.district },
+                      { label: 'State',           value: sellerModalData.state },
+                      { label: 'Pincode',         value: sellerModalData.pincode, mono: true },
+                      { label: 'Full Address',    value: sellerModalData.fullAddress, wrap: true },
+                      { label: 'Landmark',        value: sellerModalData.landmark },
+                    ] as { label: string; value: string | null; mono?: boolean; wrap?: boolean }[]).map((row) => (
+                      <div key={row.label} className="grid grid-cols-3 gap-4 px-6 py-3 hover:bg-slate-50">
+                        <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 self-center">{row.label}</dt>
+                        <dd className={`col-span-2 text-sm text-slate-900 ${row.mono ? 'font-mono tabular-nums' : ''} ${row.wrap ? 'whitespace-normal' : 'whitespace-nowrap'} break-words`}>
+                          {row.value ? <span>{row.value}</span> : <span className="text-slate-400">—</span>}
+                        </dd>
+                      </div>
+                    ))}
+                    <div className="grid grid-cols-3 gap-4 px-6 py-3 hover:bg-slate-50">
+                      <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 self-center">Flags</dt>
+                      <dd className="col-span-2 text-sm flex flex-wrap gap-1.5">
+                        {sellerModalData.isD2RBrandSeller && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200">D2R Brand</span>
+                        )}
+                        {sellerModalData.isBadhoVerified && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">Badho Verified</span>
+                        )}
+                        {!sellerModalData.isD2RBrandSeller && !sellerModalData.isBadhoVerified && (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </dd>
+                    </div>
+                    {(sellerModalData.longitude || sellerModalData.lattitude) && (
+                      <div className="grid grid-cols-3 gap-4 px-6 py-3 hover:bg-slate-50">
+                        <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 self-center">Map</dt>
+                        <dd className="col-span-2 text-sm">
+                          <a
+                            href={`https://www.google.com/maps?q=${sellerModalData.lattitude},${sellerModalData.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold"
+                          >
+                            Open in Google Maps
+                          </a>
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* PO Items Modal — opens from "View Items" button */}
         {poItemsModal && (
           <div
@@ -7024,12 +7181,51 @@ export default function OrderStatusDashboard() {
                                   <span className="text-slate-400">—</span>
                                 )}
                               </td>
-                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                                {r.buyerPhone ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
+                                    className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                    title="View buyer details"
+                                  >
+                                    {r.buyerPhone}
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
                               <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={r.buyerFullAddress}>
                                 {r.buyerFullAddress ? <div className="whitespace-normal break-words">{r.buyerFullAddress}</div> : <span className="text-slate-400">—</span>}
                               </td>
-                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                                {r.sellerPhone ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                    className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                    title="View seller details"
+                                  >
+                                    {r.sellerPhone}
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
+                              <td className="px-2.5 py-2 font-medium">
+                                {r.sellerBusinessName ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                    className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                    title="View seller details"
+                                  >
+                                    {r.sellerBusinessName}
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
                               <td className="px-2.5 py-2 whitespace-nowrap bg-amber-50/40">
                                 <div className="text-[9px] font-mono text-amber-700/90 leading-tight">{statusMarkedFieldFor(r.orderStatus)}</div>
                                 <div className="text-slate-700 mt-0.5">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</div>
@@ -7523,7 +7719,20 @@ export default function OrderStatusDashboard() {
                               <span className="text-slate-400">—</span>
                             )}
                           </td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                            {r.buyerPhone ? (
+                              <button
+                                type="button"
+                                onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
+                                className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                title="View buyer details"
+                              >
+                                {r.buyerPhone}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_')}>
                             {[r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').length > 0 ? (
                               <div className="whitespace-normal break-words">
@@ -7533,8 +7742,34 @@ export default function OrderStatusDashboard() {
                               <span className="text-slate-400">—</span>
                             )}
                           </td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-900">{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                            {r.sellerPhone ? (
+                              <button
+                                type="button"
+                                onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                title="View seller details"
+                              >
+                                {r.sellerPhone}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-2.5 py-2 font-medium">
+                            {r.sellerBusinessName ? (
+                              <button
+                                type="button"
+                                onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })}
+                                className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer text-left"
+                                title="View seller details"
+                              >
+                                {r.sellerBusinessName}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="px-2.5 py-2 whitespace-nowrap bg-amber-50/40">
                             <div className="text-[9px] font-mono text-amber-700/90 leading-tight">{statusMarkedFieldFor(r.orderStatus ?? r.status)}</div>
                             <div className="text-slate-700 mt-0.5">{r.statusMarkedTime ? formatDateTime(r.statusMarkedTime) : <span className="text-slate-400">—</span>}</div>

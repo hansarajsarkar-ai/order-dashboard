@@ -4946,35 +4946,37 @@ export default function OrderStatusDashboard() {
                                 <td className="px-3 py-1.5 text-center border-b border-white/5">
                                   <span className="text-[11px] text-purple-300">{isOpen ? '▾' : '▸'}</span>
                                 </td>
-                                <td className="px-3 py-1.5 border-b border-white/5">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                <td className="px-3 py-1.5 border-b border-white/5 min-w-[180px]">
+                                  <div className="flex flex-col items-start gap-1">
                                     <span className="text-xs font-extrabold tabular-nums text-fuchsia-200">#{r.poNumber}</span>
-                                    <a
-                                      href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-fuchsia-200 bg-fuchsia-500/15 hover:bg-fuchsia-500/30 border border-fuchsia-400/40 transition-all"
-                                      title="Open in D2R Support Dashboard"
-                                    >
-                                      Details
-                                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                        <path d="M7 17L17 7" />
-                                        <polyline points="7 7 17 7 17 17" />
-                                      </svg>
-                                    </a>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); openPoItemsModal(r.poNumber); }}
-                                      className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 transition-all"
-                                      title="View items + price breakup"
-                                    >
-                                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                                        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                                        <line x1="12" y1="22.08" x2="12" y2="12" />
-                                      </svg>
-                                      Items
-                                    </button>
+                                    <div className="flex items-center gap-1.5">
+                                      <a
+                                        href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-fuchsia-200 bg-fuchsia-500/20 hover:bg-fuchsia-500/40 border border-fuchsia-400/50 transition-all whitespace-nowrap"
+                                        title="Open in D2R Support Dashboard"
+                                      >
+                                        Details
+                                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                          <path d="M7 17L17 7" />
+                                          <polyline points="7 7 17 7 17 17" />
+                                        </svg>
+                                      </a>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); openPoItemsModal(r.poNumber); }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-emerald-200 bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-400/50 transition-all whitespace-nowrap"
+                                        title="View items + price breakup"
+                                      >
+                                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                          <line x1="12" y1="22.08" x2="12" y2="12" />
+                                        </svg>
+                                        Items
+                                      </button>
+                                    </div>
                                   </div>
                                 </td>
                                 <td className="px-3 py-1.5 border-b border-white/5"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/15 bg-white/10 text-white">{r.poStatus}</span></td>

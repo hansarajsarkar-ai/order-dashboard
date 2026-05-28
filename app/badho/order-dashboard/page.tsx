@@ -1266,6 +1266,12 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
+  // Pre-fetch aging count on mount so the tab badge reflects it immediately
+  useEffect(() => {
+    if (agingData === null) fetchAgingByBrand();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // GMV Goal ACHIEVED modal — fetch + ESC
   const fetchGoalModalData = async () => {
     try {
@@ -2179,7 +2185,7 @@ export default function OrderStatusDashboard() {
           ] as const).map((tab) => {
             const active = activeTab === tab.key;
             const isAlert = tab.key === 'alert';
-            const alertCount = alertBrandData?.grandTotal?.count ?? 0;
+            const alertCount = (alertBrandData?.grandTotal?.count ?? 0) + (agingData?.grand?.poCount ?? 0);
             const hasAlerts = isAlert && alertCount > 0;
 
             if (isAlert) {

@@ -40,6 +40,8 @@ interface SummaryRow {
   first_order: string | null;
   last_order: string | null;
   days_since_last: number | null;
+  last_marked_pending: string | null;
+  days_since_last_marked_pending: number | null;
   completed_gmv: string;
   rejected_gmv: string;
   cancelled_gmv: string;
@@ -93,6 +95,8 @@ export async function GET(req: NextRequest) {
         MIN(${ORDER_TS})::text                                                  AS first_order,
         MAX(${ORDER_TS})::text                                                  AS last_order,
         EXTRACT(DAY FROM NOW() - MAX(${ORDER_TS}))::int                         AS days_since_last,
+        MAX(po."markedPendingTime")::text                                       AS last_marked_pending,
+        EXTRACT(DAY FROM NOW() - MAX(po."markedPendingTime"))::int              AS days_since_last_marked_pending,
         COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS completed_gmv,
         COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'REJECTED'), 0)::text   AS rejected_gmv,
         COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'CANCELLED'), 0)::text  AS cancelled_gmv,
@@ -189,6 +193,8 @@ export async function GET(req: NextRequest) {
       firstOrder: s.first_order,
       lastOrder: s.last_order,
       daysSinceLast: s.days_since_last == null ? null : Number(s.days_since_last),
+      lastMarkedPending: s.last_marked_pending,
+      daysSinceLastMarkedPending: s.days_since_last_marked_pending == null ? null : Number(s.days_since_last_marked_pending),
       completedGmv: parseFloat(s.completed_gmv) || 0,
       rejectedGmv: parseFloat(s.rejected_gmv) || 0,
       cancelledGmv: parseFloat(s.cancelled_gmv) || 0,

@@ -753,6 +753,8 @@ export default function OrderStatusDashboard() {
       firstOrder: string | null;
       lastOrder: string | null;
       daysSinceLast: number | null;
+      lastMarkedPending: string | null;
+      daysSinceLastMarkedPending: number | null;
       completedGmv: number;
       rejectedGmv: number;
       cancelledGmv: number;
@@ -7591,6 +7593,17 @@ export default function OrderStatusDashboard() {
                             <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
                               <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Last Order</div>
                               <div className="text-sm font-bold text-slate-900 mt-0.5">{formatDateShort(buyerHistory.summary.lastOrder)}</div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2.5">
+                              <div className="text-[10px] uppercase tracking-wider font-semibold text-emerald-600">Last Marked Pending</div>
+                              <div className="text-sm font-bold text-slate-900 mt-0.5">{formatDateShort(buyerHistory.summary.lastMarkedPending)}</div>
+                            </div>
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2.5">
+                              <div className="text-[10px] uppercase tracking-wider font-semibold text-emerald-600">Days Since Marked Pending</div>
+                              <div className="text-sm font-bold text-slate-900 mt-0.5">{buyerHistory.summary.daysSinceLastMarkedPending != null ? `${buyerHistory.summary.daysSinceLastMarkedPending}d ago` : '—'}</div>
                             </div>
                           </div>
 

@@ -8,6 +8,7 @@ import {
   RadialBarChart, RadialBar, PolarAngleAxis,
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, LabelList,
   ComposedChart, Bar, BarChart,
+  PieChart, Pie, Cell,
 } from 'recharts';
 import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
 import MultiSelectFilter from './components/MultiSelectFilter';
@@ -3741,6 +3742,188 @@ export default function OrderStatusDashboard() {
 
         {activeTab === 'trend' && (
         <>
+        {/* ── BA Insights: KPI strip · status-mix donuts · revenue & growth trend ── */}
+        {monthlyData && monthlyData.data.length > 0 && (() => {
+          const STATUS_COLORS: Record<string, string> = {
+            COMPLETED: '#22c55e',
+            DISPATCHED: '#6366f1',
+            INPROGRESS: '#d946ef',
+            PENDING: '#f59e0b',
+            REJECTED: '#ef4444',
+            CANCELLED: '#64748b',
+            DRAFT: '#475569',
+          };
+          const FALLBACK = ['#06b6d4', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#eab308'];
+          const colorFor = (status: string, i: number) => STATUS_COLORS[status] || FALLBACK[i % FALLBACK.length];
+
+          const grand = monthlyData.totals.grand;
+          const statusRows = [...monthlyData.data].sort((a, b) => b.total.count - a.total.count);
+
+          const activeMonths: number[] = [];
+          for (let m = 1; m <= 12; m++) {
+            const c = monthlyData.totals.byMonth[m];
+            if (c && c.count > 0) activeMonths.push(m);
+          }
+          const monthlyTrend = activeMonths.map((m, i) => {
+            const cur = monthlyData.totals.byMonth[m];
+            const prev = i > 0 ? monthlyData.totals.byMonth[activeMonths[i - 1]] : null;
+            const growth = prev && prev.amount > 0 ? ((cur.amount - prev.amount) / prev.amount) * 100 : null;
+            const ordGrowth = prev && prev.count > 0 ? ((cur.count - prev.count) / prev.count) * 100 : null;
+            return { month: `${MONTH_NAMES[m - 1]}`, revenue: cur.amount, orders: cur.count, growth, ordGrowth };
+          });
+
+          const aov = grand.count > 0 ? grand.amount / grand.count : 0;
+          const completed = statusRows.find((r) => r.status === 'COMPLETED')?.total.count || 0;
+          const completionRate = grand.count > 0 ? (completed / grand.count) * 100 : 0;
+          const rejected = statusRows.find((r) => r.status === 'REJECTED')?.total.count || 0;
+          const rejectRate = grand.count > 0 ? (rejected / grand.count) * 100 : 0;
+          const last = monthlyTrend[monthlyTrend.length - 1];
+          const momRev = last?.growth ?? null;
+          const momOrders = last?.ordGrowth ?? null;
+          const peak = monthlyTrend.length ? [...monthlyTrend].sort((a, b) => b.revenue - a.revenue)[0] : null;
+
+          const countMix = statusRows.map((r) => ({ name: r.status, value: r.total.count }));
+          const revMix = [...statusRows].sort((a, b) => b.total.amount - a.total.amount).map((r) => ({ name: r.status, value: r.total.amount }));
+
+          const pct = (v: number, t: number) => (t > 0 ? (v / t) * 100 : 0);
+          const fmtSignedPct = (n: number | null) => (n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`);
+          const trendTone = (n: number | null) => (n === null ? 'text-white/40' : n >= 0 ? 'text-emerald-400' : 'text-rose-400');
+
+          const kpis = [
+            { label: 'Total Orders', value: grand.count.toLocaleString('en-IN'), sub: `${activeMonths.length} active months`, tone: 'text-white' },
+            { label: 'Total Revenue', value: formatAmount(grand.amount), sub: `${currentYear} YTD`, tone: 'text-white' },
+            { label: 'Avg Order Value', value: formatAmount(aov), sub: 'revenue ÷ orders', tone: 'text-white' },
+            { label: 'Completion Rate', value: `${completionRate.toFixed(1)}%`, sub: `${completed.toLocaleString('en-IN')} completed`, tone: 'text-emerald-300' },
+            { label: 'Rejection Rate', value: `${rejectRate.toFixed(1)}%`, sub: `${rejected.toLocaleString('en-IN')} rejected`, tone: 'text-rose-300' },
+            { label: 'MoM Revenue', value: fmtSignedPct(momRev), sub: last ? `${last.month} vs prev` : '—', tone: trendTone(momRev) },
+          ];
+
+          const renderDonut = (title: string, subtitle: string, data: { name: string; value: number }[], total: number, fmt: (v: number) => string) => (
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
+              <div className="px-6 py-5 border-b border-white/10 bg-white/5">
+                <h3 className="text-lg font-bold text-white">{title}</h3>
+                <p className="text-purple-300 text-xs mt-0.5">{subtitle}</p>
+              </div>
+              <div className="p-5 flex flex-col sm:flex-row items-center gap-4">
+                <div className="relative shrink-0" style={{ width: 200, height: 200 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={62} outerRadius={92} paddingAngle={2} stroke="none" isAnimationActive={false}>
+                        {data.map((d, i) => <Cell key={d.name} fill={colorFor(d.name, i)} />)}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}
+                        formatter={(value) => { const n = Number(value); return [`${fmt(n)} (${pct(n, total).toFixed(1)}%)`, '']; }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-[10px] uppercase tracking-widest text-purple-300/70">Total</span>
+                    <span className="text-xl font-extrabold text-white">{fmt(total)}</span>
+                  </div>
+                </div>
+                <div className="flex-1 w-full space-y-1.5">
+                  {data.map((d, i) => (
+                    <div key={d.name} className="flex items-center gap-2 text-xs">
+                      <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: colorFor(d.name, i) }} />
+                      <span className="text-white/80 font-medium w-24 truncate">{d.name}</span>
+                      <span className="text-white/50 tabular-nums ml-auto">{fmt(d.value)}</span>
+                      <span className="text-white font-semibold tabular-nums w-14 text-right">{pct(d.value, total).toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+
+          return (
+            <div className="mb-8 space-y-6">
+              {/* KPI strip */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {kpis.map((k) => (
+                  <div key={k.label} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/40">
+                    <div className="text-[11px] uppercase tracking-wider text-purple-300/80 font-semibold">{k.label}</div>
+                    <div className={`text-2xl font-extrabold mt-1 tabular-nums ${k.tone}`}>{k.value}</div>
+                    <div className="text-[11px] text-white/50 mt-0.5">{k.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Status-mix donuts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {renderDonut('Order Mix by Status', `Share of ${grand.count.toLocaleString('en-IN')} orders · ${currentYear}`, countMix, grand.count, (v) => Math.round(v).toLocaleString('en-IN'))}
+                {renderDonut('Revenue Mix by Status', `Share of ${formatAmount(grand.amount)} revenue · ${currentYear}`, revMix, grand.amount, formatAmount)}
+              </div>
+
+              {/* Monthly Revenue & MoM Growth */}
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
+                <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">Monthly Revenue & Orders</h3>
+                    <p className="text-purple-300 text-sm mt-1">Revenue bars with order-volume trend line — {currentYear}</p>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs">
+                    {peak && (
+                      <div className="px-3 py-2 rounded-xl bg-slate-900/70 border border-white/10">
+                        <div className="text-purple-300/70 uppercase tracking-wide text-[10px]">Peak month</div>
+                        <div className="text-white font-bold mt-0.5">{peak.month} · {formatAmount(peak.revenue)}</div>
+                      </div>
+                    )}
+                    <div className="px-3 py-2 rounded-xl bg-slate-900/70 border border-white/10">
+                      <div className="text-purple-300/70 uppercase tracking-wide text-[10px]">MoM orders</div>
+                      <div className={`font-bold mt-0.5 ${trendTone(momOrders)}`}>{fmtSignedPct(momOrders)}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <ResponsiveContainer width="100%" height={360}>
+                    <ComposedChart data={monthlyTrend} margin={{ top: 16, right: 16, left: 8, bottom: 8 }}>
+                      <defs>
+                        <linearGradient id="gradRevBar" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#a855f7" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="#6366f1" stopOpacity={0.55} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <XAxis dataKey="month" tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} />
+                      <YAxis
+                        yAxisId="left"
+                        tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                        tickFormatter={(v: number) => {
+                          if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+                          if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
+                          if (v >= 1000) return `₹${(v / 1000).toFixed(0)}K`;
+                          return `₹${v}`;
+                        }}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fill: 'rgba(103,232,249,0.8)', fontSize: 11 }}
+                        tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : `${v}`)}
+                        width={50}
+                      />
+                      <Tooltip
+                        contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}
+                        labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
+                        formatter={(value, name) => {
+                          const n = Number(value);
+                          if (name === 'Revenue') return [formatAmount(n), 'Revenue'];
+                          if (name === 'Orders') return [n.toLocaleString('en-IN'), 'Orders'];
+                          return [String(value), String(name)];
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 12, color: '#e9d5ff' }} />
+                      <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill="url(#gradRevBar)" radius={[6, 6, 0, 0]} maxBarSize={48} />
+                      <Line yAxisId="right" dataKey="orders" name="Orders" stroke="#22d3ee" strokeWidth={2.5} dot={{ r: 3, fill: '#22d3ee' }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Daily Order Trend — line chart */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">

@@ -247,6 +247,16 @@ interface SellerOrderRow {
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Fixed display order for status breakdown rows (lifecycle, not volume). Unknown statuses fall to the end.
+const STATUS_DISPLAY_ORDER = ['PENDING', 'CANCELLED', 'REJECTED', 'INPROGRESS', 'DISPATCHED', 'COMPLETED'];
+const byStatusOrder = <T extends { status: string }>(rows: T[]): T[] => {
+  const idx = (s: string) => {
+    const i = STATUS_DISPLAY_ORDER.indexOf(s);
+    return i === -1 ? STATUS_DISPLAY_ORDER.length : i;
+  };
+  return [...rows].sort((a, b) => idx(a.status) - idx(b.status));
+};
+
 const PAGE_SIZE = 50;
 
 type CsvCell = string | number | null | undefined;
@@ -2711,7 +2721,7 @@ export default function OrderStatusDashboard() {
                   onClick={() => {
                     const headers = ['Status', 'Delivery Status', ...MONTH_NAMES.flatMap((m) => [`${m} Count`, `${m} Amount`]), 'Total Count', 'Total Amount'];
                     const rows: CsvCell[][] = [];
-                    pivotData.data.forEach((row) => {
+                    byStatusOrder(pivotData.data).forEach((row) => {
                       const parentCells = MONTH_NAMES.flatMap((_, i) => {
                         const c = row.months[i + 1];
                         return [c?.count ?? 0, c?.amount ?? 0];
@@ -2748,7 +2758,7 @@ export default function OrderStatusDashboard() {
                     const weeks = pivotWeekData.weeks;
                     const headers = ['Status', 'Delivery Status', ...weeks.flatMap((w) => [`W${w} Count`, `W${w} Amount`]), 'Total Count', 'Total Amount'];
                     const rows: CsvCell[][] = [];
-                    pivotWeekData.data.forEach((row) => {
+                    byStatusOrder(pivotWeekData.data).forEach((row) => {
                       const parentCells = weeks.flatMap((w) => { const c = row.weeks[w]; return [c?.count ?? 0, c?.amount ?? 0]; });
                       rows.push([row.status, '(all)', ...parentCells, row.total.count, row.total.amount]);
                       row.deliveryStatuses.forEach((sub) => {
@@ -2777,7 +2787,7 @@ export default function OrderStatusDashboard() {
                     const days = Array.from({ length: pivotDayData.daysInMonth }, (_, i) => i + 1);
                     const headers = ['Status', 'Delivery Status', ...days.flatMap((d) => [`Day ${d} Count`, `Day ${d} Amount`]), 'Total Count', 'Total Amount'];
                     const rows: CsvCell[][] = [];
-                    pivotDayData.data.forEach((row) => {
+                    byStatusOrder(pivotDayData.data).forEach((row) => {
                       const parentCells = days.flatMap((d) => { const c = row.days[d]; return [c?.count ?? 0, c?.amount ?? 0]; });
                       rows.push([row.status, '(all)', ...parentCells, row.total.count, row.total.amount]);
                       row.deliveryStatuses.forEach((sub) => {
@@ -2827,7 +2837,7 @@ export default function OrderStatusDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pivotData.data.map((row) => {
+                  {byStatusOrder(pivotData.data).map((row) => {
                     const expanded = expandedStatuses.has(row.status);
                     return (
                       <Fragment key={row.status}>
@@ -2999,7 +3009,7 @@ export default function OrderStatusDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pivotWeekData.data.map((row) => {
+                    {byStatusOrder(pivotWeekData.data).map((row) => {
                       const expanded = expandedStatuses.has(row.status);
                       return (
                         <Fragment key={row.status}>
@@ -3091,7 +3101,7 @@ export default function OrderStatusDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pivotDayData.data.map((row) => {
+                    {byStatusOrder(pivotDayData.data).map((row) => {
                       const expanded = expandedStatuses.has(row.status);
                       return (
                         <Fragment key={row.status}>

@@ -3352,7 +3352,7 @@ export default function OrderStatusDashboard() {
                             const cell = row.months[b];
                             const hasData = cell && (cell.covered > 0 || cell.count > 0);
                             const click = hasData ? () => openGeoPinModal(b, bucketFullLabel(b)) : undefined;
-                            const clk = hasData ? 'cursor-pointer hover:bg-fuchsia-500/20' : '';
+                            const clk = hasData ? 'cursor-pointer hover:bg-fuchsia-500/40 hover:text-white hover:underline decoration-fuchsia-300 underline-offset-2' : '';
                             return (
                               <Fragment key={b}>
                                 <td onClick={click} title={hasData ? 'View pincode breakdown' : undefined} className={`px-2 py-3 text-right tabular-nums transition-colors ${clk} ${hasData ? 'text-fuchsia-200 font-semibold' : 'text-white/30'}`}>
@@ -3367,13 +3367,13 @@ export default function OrderStatusDashboard() {
                               </Fragment>
                             );
                           })}
-                          <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className="px-2 py-3 text-right tabular-nums font-bold text-fuchsia-100 bg-purple-500/10 cursor-pointer hover:bg-purple-500/25 transition-colors">
+                          <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className="px-2 py-3 text-right tabular-nums font-bold text-fuchsia-100 bg-purple-500/10 cursor-pointer hover:bg-fuchsia-500/40 hover:text-white hover:underline decoration-fuchsia-200 underline-offset-2 transition-colors">
                             {row.total.covered.toLocaleString()}
                           </td>
-                          <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10 cursor-pointer hover:bg-purple-500/25 transition-colors">
+                          <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10 cursor-pointer hover:bg-fuchsia-500/40 hover:text-white hover:underline decoration-fuchsia-200 underline-offset-2 transition-colors">
                             {row.total.count.toLocaleString()}
                           </td>
-                          <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10 cursor-pointer hover:bg-purple-500/25 transition-colors">
+                          <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10 cursor-pointer hover:bg-fuchsia-500/40 hover:text-white hover:underline decoration-fuchsia-200 underline-offset-2 transition-colors">
                             {formatAmount(row.total.amount)}
                           </td>
                         </tr>
@@ -3388,7 +3388,7 @@ export default function OrderStatusDashboard() {
                         const cell = geoCoverageData.totals.byMonth[b];
                         const hasData = cell && cell.count > 0;
                         const click = hasData ? () => openGeoPinModal(b, bucketFullLabel(b)) : undefined;
-                        const clk = hasData ? 'cursor-pointer hover:bg-fuchsia-500/20' : '';
+                        const clk = hasData ? 'cursor-pointer hover:bg-fuchsia-500/40 hover:text-white hover:underline decoration-fuchsia-300 underline-offset-2' : '';
                         return (
                           <Fragment key={b}>
                             <td className="px-2 py-3 text-right tabular-nums text-white/40">—</td>
@@ -3402,10 +3402,10 @@ export default function OrderStatusDashboard() {
                         );
                       })}
                       <td className="px-2 py-3 text-right tabular-nums text-white/40 bg-purple-500/30">—</td>
-                      <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30 cursor-pointer hover:bg-purple-500/45 transition-colors">
+                      <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30 cursor-pointer hover:bg-fuchsia-500/50 hover:text-white hover:underline decoration-fuchsia-200 underline-offset-2 transition-colors">
                         {geoCoverageData.totals.grand.count.toLocaleString()}
                       </td>
-                      <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10 cursor-pointer hover:bg-purple-500/45 transition-colors">
+                      <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10 cursor-pointer hover:bg-fuchsia-500/50 hover:text-white hover:underline decoration-fuchsia-200 underline-offset-2 transition-colors">
                         {formatAmount(geoCoverageData.totals.grand.amount)}
                       </td>
                     </tr>

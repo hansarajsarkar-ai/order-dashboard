@@ -9,6 +9,7 @@ interface Row {
   district: string | null;
   state: string | null;
   count: string;
+  buyers: string;
   amount: string;
 }
 
@@ -82,6 +83,7 @@ export async function GET(req: NextRequest) {
       SELECT
         ${selectKeys},
         COUNT(*)                                     AS count,
+        COUNT(DISTINCT po."buyerId")                 AS buyers,
         COALESCE(SUM(po."amount"::numeric), 0)::text AS amount
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
@@ -112,12 +114,15 @@ export async function GET(req: NextRequest) {
       district: r.district,
       state: r.state,
       count: parseInt(r.count),
+      buyers: parseInt(r.buyers) || 0,
       amount: parseFloat(r.amount),
     }));
 
+    // Each buyer falls into exactly one geo group (grouped by the buyer's own
+    // geo attribute), so summing per-row distinct buyers is the true total.
     const grand = data.reduce(
-      (acc, r) => ({ count: acc.count + r.count, amount: acc.amount + r.amount }),
-      { count: 0, amount: 0 }
+      (acc, r) => ({ count: acc.count + r.count, buyers: acc.buyers + r.buyers, amount: acc.amount + r.amount }),
+      { count: 0, buyers: 0, amount: 0 }
     );
 
     return NextResponse.json({

@@ -386,12 +386,12 @@ export default function OrderStatusDashboard() {
   // Geo drill-down modal (opens when clicking any number in the Geo Coverage table).
   // The breakdown level mirrors the clicked row: pincode/city/district/state.
   type GeoLevel = 'pincode' | 'city' | 'district' | 'state';
-  interface GeoPinRow { pincode: string | null; city: string | null; district: string | null; state: string | null; count: number; amount: number }
+  interface GeoPinRow { pincode: string | null; city: string | null; district: string | null; state: string | null; count: number; buyers: number; amount: number }
   const [geoPinOpen, setGeoPinOpen] = useState(false);
   const [geoPinGeo, setGeoPinGeo] = useState<GeoLevel>('pincode');
   const [geoPinLabel, setGeoPinLabel] = useState('');
   const [geoPinRows, setGeoPinRows] = useState<GeoPinRow[] | null>(null);
-  const [geoPinGrand, setGeoPinGrand] = useState<{ count: number; amount: number }>({ count: 0, amount: 0 });
+  const [geoPinGrand, setGeoPinGrand] = useState<{ count: number; buyers: number; amount: number }>({ count: 0, buyers: 0, amount: 0 });
   const [geoPinLoading, setGeoPinLoading] = useState(false);
   const [geoPinError, setGeoPinError] = useState<string | null>(null);
   const [geoPinSearch, setGeoPinSearch] = useState('');
@@ -3524,6 +3524,7 @@ export default function OrderStatusDashboard() {
                 <div className="px-6 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-5 text-sm">
                     <div><span className="text-slate-500">{({ pincode: 'Pincodes', city: 'Cities', district: 'Districts', state: 'States' } as const)[geoPinGeo]}</span> <span className="font-bold tabular-nums">{geoPinRows.length.toLocaleString()}</span></div>
+                    <div><span className="text-slate-500">Buyers</span> <span className="font-bold tabular-nums">{geoPinGrand.buyers.toLocaleString()}</span></div>
                     <div><span className="text-slate-500">Orders</span> <span className="font-bold tabular-nums">{geoPinGrand.count.toLocaleString()}</span></div>
                     <div><span className="text-slate-500">Sale</span> <span className="font-bold tabular-nums">{formatAmount(geoPinGrand.amount)}</span></div>
                   </div>
@@ -3564,6 +3565,7 @@ export default function OrderStatusDashboard() {
                             {geoCols.map((c, ci) => (
                               <th key={c.key} className={`${ci === 0 ? 'px-5' : 'px-3'} py-2.5 font-semibold`}>{c.label}</th>
                             ))}
+                            <th className="px-5 py-2.5 font-semibold text-right">Buyers</th>
                             <th className="px-5 py-2.5 font-semibold text-right">Orders</th>
                             <th className="px-5 py-2.5 font-semibold text-right">Order Value</th>
                           </tr>
@@ -3576,6 +3578,7 @@ export default function OrderStatusDashboard() {
                                   {(r[c.key] as string) || '—'}
                                 </td>
                               ))}
+                              <td className="px-5 py-2.5 text-right tabular-nums font-semibold text-emerald-700">{r.buyers.toLocaleString()}</td>
                               <td className="px-5 py-2.5 text-right tabular-nums font-semibold text-slate-900">{r.count.toLocaleString()}</td>
                               <td className="px-5 py-2.5 text-right tabular-nums text-indigo-700 font-semibold">{formatAmount(r.amount)}</td>
                             </tr>

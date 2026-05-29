@@ -7417,23 +7417,37 @@ export default function OrderStatusDashboard() {
             onClick={closeBuyerModal}
           >
             <div
-              className="relative bg-white text-slate-900 rounded-2xl w-[92vw] max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45)] border border-slate-200"
+              className="relative bg-white text-slate-900 rounded-2xl w-[94vw] max-w-5xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45)] border border-slate-200 animate-modal-scale"
               onClick={(e) => e.stopPropagation()}
             >
-              <header className="px-6 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-semibold">Buyer Details</div>
-                  <h3 className="text-lg font-extrabold truncate mt-0.5">
-                    {buyerModalData?.businessName || buyerModalLookup || 'Loading…'}
-                  </h3>
+              <header className="relative px-6 py-5 bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white overflow-hidden">
+                <div className="pointer-events-none absolute -top-16 -right-12 w-56 h-56 rounded-full bg-white/10 blur-2xl" />
+                <div className="pointer-events-none absolute -bottom-24 left-1/4 w-52 h-52 rounded-full bg-fuchsia-300/20 blur-3xl" />
+                <div className="relative flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="shrink-0 w-14 h-14 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center text-xl font-black ring-1 ring-white/30">
+                      {(buyerModalData?.businessName || buyerModalData?.name || buyerModalLookup || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?'}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-[0.25em] text-white/70 font-semibold">Buyer Details</div>
+                      <h3 className="text-xl font-extrabold truncate mt-0.5 leading-tight">
+                        {buyerModalData?.businessName || buyerModalLookup || 'Loading…'}
+                      </h3>
+                      {buyerModalData && (buyerModalData.city || buyerModalData.state) && (
+                        <div className="text-xs text-white/75 font-medium truncate mt-0.5">
+                          {[buyerModalData.city, buyerModalData.state].filter(Boolean).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={closeBuyerModal}
+                    className="shrink-0 w-9 h-9 rounded-xl bg-white/15 hover:bg-white/30 text-white text-xl leading-none transition-all hover:rotate-90"
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
                 </div>
-                <button
-                  onClick={closeBuyerModal}
-                  className="shrink-0 w-8 h-8 rounded-lg bg-white/15 hover:bg-white/30 text-white text-lg leading-none transition-all hover:rotate-90"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
               </header>
               <div className="flex-1 overflow-auto">
                 {buyerModalLoading ? (
@@ -7443,167 +7457,187 @@ export default function OrderStatusDashboard() {
                 ) : !buyerModalData ? (
                   <div className="px-6 py-12 text-center text-slate-500">No data.</div>
                 ) : (
-                  <>
-                  <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-br from-indigo-50/70 via-white to-fuchsia-50/50 space-y-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] font-bold text-indigo-600">Order History</div>
-                      {buyerHistory && buyerHistory.summary.daysSinceLast != null && (
-                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
-                          buyerHistory.summary.daysSinceLast <= 30 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : buyerHistory.summary.daysSinceLast <= 90 ? 'bg-amber-50 text-amber-700 border-amber-200'
-                          : 'bg-rose-50 text-rose-700 border-rose-200'
-                        }`}>
-                          {buyerHistory.summary.daysSinceLast === 0 ? 'Ordered today' : `${buyerHistory.summary.daysSinceLast}d since last order`}
-                        </span>
-                      )}
-                    </div>
-
-                    {buyerHistoryLoading ? (
-                      <div className="py-6 text-center text-sm text-slate-400">Loading order history…</div>
-                    ) : buyerHistoryError ? (
-                      <div className="py-6 text-center text-sm text-rose-500">History unavailable: {buyerHistoryError}</div>
-                    ) : !buyerHistory || buyerHistory.summary.totalOrders === 0 ? (
-                      <div className="py-6 text-center text-sm text-slate-400">No orders on record for this buyer.</div>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-4 gap-2.5">
+                  <div className="grid lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+                    {/* LEFT — buyer profile */}
+                    <aside className="p-6 space-y-5 bg-white lg:border-r border-slate-100">
+                      <div>
+                        <div className="text-[11px] uppercase tracking-[0.18em] font-bold text-indigo-600 mb-2.5">Contact &amp; Tax</div>
+                        <div className="grid grid-cols-2 gap-2.5">
                           {([
-                            { label: 'Orders',    value: buyerHistory.summary.totalOrders, cls: 'text-slate-900',   bg: 'bg-white border-slate-200' },
-                            { label: 'Completed', value: buyerHistory.summary.completed,   cls: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
-                            { label: 'Rejected',  value: buyerHistory.summary.rejected,    cls: 'text-rose-600',    bg: 'bg-rose-50 border-rose-200' },
-                            { label: 'Cancelled', value: buyerHistory.summary.cancelled,   cls: 'text-amber-600',   bg: 'bg-amber-50 border-amber-200' },
-                          ]).map((t) => (
-                            <div key={t.label} className={`rounded-xl border ${t.bg} px-2 py-2.5 text-center`}>
-                              <div className={`text-2xl font-extrabold tabular-nums ${t.cls}`}>{t.value.toLocaleString('en-IN')}</div>
-                              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-0.5">{t.label}</div>
+                            { label: 'Buyer Name',  value: buyerModalData.name,              wrap: true },
+                            { label: 'Phone',       value: buyerModalData.phone,             mono: true },
+                            { label: 'Email',       value: buyerModalData.email,             mono: true, wrap: true },
+                            { label: 'GST Number',  value: buyerModalData.gstNumber,         mono: true },
+                            { label: 'PAN',         value: buyerModalData.businessPanNumber, mono: true },
+                          ] as { label: string; value: string | null; mono?: boolean; wrap?: boolean }[]).map((f) => (
+                            <div key={f.label} className={`rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 ${f.wrap ? 'col-span-2' : ''}`}>
+                              <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">{f.label}</div>
+                              <div className={`text-sm font-semibold text-slate-900 mt-0.5 break-words ${f.mono ? 'font-mono tabular-nums' : ''}`}>{f.value || <span className="text-slate-300">—</span>}</div>
                             </div>
                           ))}
                         </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
-                          <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5">
-                            <div className="text-base font-extrabold text-indigo-700">{formatAmount(buyerHistory.summary.completedGmv)}</div>
-                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-0.5">Lifetime Value</div>
-                          </div>
-                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                            <div className="text-base font-extrabold text-emerald-600">{buyerHistory.summary.completionRate.toFixed(0)}%</div>
-                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-0.5">Completion</div>
-                          </div>
-                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                            <div className="text-xs font-bold text-slate-900">{formatDateShort(buyerHistory.summary.firstOrder)}</div>
-                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-0.5">First Order</div>
-                          </div>
-                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                            <div className="text-xs font-bold text-slate-900">{formatDateShort(buyerHistory.summary.lastOrder)}</div>
-                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-0.5">Last Order</div>
-                          </div>
-                        </div>
-
-                        {buyerHistory.monthly.length > 1 && (
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1.5">Orders · last 12 months</div>
-                            <div className="h-16 w-full">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={buyerHistory.monthly} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-                                  <XAxis dataKey="ym" hide />
-                                  <Tooltip
-                                    cursor={{ fill: 'rgba(99,102,241,0.08)' }}
-                                    contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                                    labelFormatter={(l) => String(l)}
-                                    formatter={(value) => [Number(value), 'orders']}
-                                  />
-                                  <Bar dataKey="orders" fill="#6366f1" radius={[3, 3, 0, 0]} isAnimationActive={false} />
-                                </BarChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </div>
-                        )}
-
-                        {buyerHistory.topSkus.length > 0 && (() => {
-                          const maxOrd = Math.max(...buyerHistory.topSkus.map((sk) => sk.orderCount), 1);
-                          return (
-                            <div>
-                              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Most Purchased Products</div>
-                              <div className="space-y-1.5">
-                                {buyerHistory.topSkus.map((sk, i) => (
-                                  <div key={i} className="relative rounded-lg bg-white border border-slate-200 px-3 py-2 overflow-hidden">
-                                    <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-fuchsia-100 to-fuchsia-50" style={{ width: `${(sk.orderCount / maxOrd) * 100}%` }} />
-                                    <div className="relative flex items-center justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <div className="text-xs font-semibold text-slate-900 truncate">{sk.sku}</div>
-                                        <div className="text-[10px] text-slate-500 truncate">{sk.brand}</div>
-                                      </div>
-                                      <div className="shrink-0 text-right">
-                                        <div className="text-xs font-bold text-fuchsia-700 tabular-nums">{sk.orderCount} ord</div>
-                                        <div className="text-[10px] text-slate-500 tabular-nums">{sk.qty.toLocaleString('en-IN')} qty</div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {buyerHistory.topBrands.length > 0 && (
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Top Brands</div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {buyerHistory.topBrands.map((br, i) => (
-                                <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700">
-                                  {br.brand}
-                                  <span className="text-[10px] font-bold text-indigo-500 tabular-nums">{br.orderCount}</span>
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  <dl className="divide-y divide-slate-100">
-                    {([
-                      { label: 'Buyer Name',     value: buyerModalData.name },
-                      { label: 'Business Name',  value: buyerModalData.businessName },
-                      { label: 'Phone',          value: buyerModalData.phone, mono: true },
-                      { label: 'Email',          value: buyerModalData.email, mono: true, copy: true },
-                      { label: 'GST Number',     value: buyerModalData.gstNumber, mono: true, copy: true },
-                      { label: 'PAN',            value: buyerModalData.businessPanNumber, mono: true },
-                      { label: 'City',           value: buyerModalData.city },
-                      { label: 'District',       value: buyerModalData.district },
-                      { label: 'State',          value: buyerModalData.state },
-                      { label: 'Pincode',        value: buyerModalData.pincode, mono: true },
-                      { label: 'Full Address',   value: buyerModalData.fullAddress, wrap: true },
-                      { label: 'Landmark',       value: buyerModalData.landmark },
-                    ] as { label: string; value: string | null; mono?: boolean; wrap?: boolean; copy?: boolean }[]).map((row) => (
-                      <div key={row.label} className="grid grid-cols-3 gap-4 px-6 py-3 hover:bg-slate-50">
-                        <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 self-center">{row.label}</dt>
-                        <dd className={`col-span-2 text-sm text-slate-900 ${row.mono ? 'font-mono tabular-nums' : ''} ${row.wrap ? 'whitespace-normal' : 'whitespace-nowrap'} break-words`}>
-                          {row.value ? (
-                            <span>{row.value}</span>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </dd>
                       </div>
-                    ))}
-                    {(buyerModalData.longitude || buyerModalData.lattitude) && (
-                      <div className="grid grid-cols-3 gap-4 px-6 py-3 hover:bg-slate-50">
-                        <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 self-center">Map</dt>
-                        <dd className="col-span-2 text-sm">
+
+                      <div>
+                        <div className="text-[11px] uppercase tracking-[0.18em] font-bold text-indigo-600 mb-2.5">Location</div>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          {([
+                            { label: 'City',         value: buyerModalData.city },
+                            { label: 'District',     value: buyerModalData.district },
+                            { label: 'State',        value: buyerModalData.state },
+                            { label: 'Pincode',      value: buyerModalData.pincode, mono: true },
+                            { label: 'Full Address', value: buyerModalData.fullAddress, wrap: true },
+                            { label: 'Landmark',     value: buyerModalData.landmark, wrap: true },
+                          ] as { label: string; value: string | null; mono?: boolean; wrap?: boolean }[]).map((f) => (
+                            <div key={f.label} className={`rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 ${f.wrap ? 'col-span-2' : ''}`}>
+                              <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">{f.label}</div>
+                              <div className={`text-sm font-semibold text-slate-900 mt-0.5 break-words ${f.mono ? 'font-mono tabular-nums' : ''}`}>{f.value || <span className="text-slate-300">—</span>}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {(buyerModalData.longitude || buyerModalData.lattitude) && (
                           <a
                             href={`https://www.google.com/maps?q=${buyerModalData.lattitude},${buyerModalData.longitude}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold"
+                            className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-sm hover:shadow-md hover:scale-[1.02] transition-all"
                           >
-                            Open in Google Maps
+                            📍 Open in Google Maps
                           </a>
-                        </dd>
+                        )}
                       </div>
-                    )}
-                  </dl>
-                  </>
+                    </aside>
+
+                    {/* RIGHT — order history */}
+                    <section className="p-6 space-y-5 bg-gradient-to-br from-indigo-50/50 via-white to-fuchsia-50/40">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-[11px] uppercase tracking-[0.18em] font-bold text-fuchsia-600">Order Journey</div>
+                        {buyerHistory && buyerHistory.summary.daysSinceLast != null && (
+                          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                            buyerHistory.summary.daysSinceLast <= 30 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : buyerHistory.summary.daysSinceLast <= 90 ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                            {buyerHistory.summary.daysSinceLast === 0 ? 'Ordered today' : `${buyerHistory.summary.daysSinceLast}d since last order`}
+                          </span>
+                        )}
+                      </div>
+
+                      {buyerHistoryLoading ? (
+                        <div className="py-10 text-center text-sm text-slate-400">Loading order history…</div>
+                      ) : buyerHistoryError ? (
+                        <div className="py-10 text-center text-sm text-rose-500">History unavailable: {buyerHistoryError}</div>
+                      ) : !buyerHistory || buyerHistory.summary.totalOrders === 0 ? (
+                        <div className="py-10 text-center text-sm text-slate-400">No orders on record for this buyer.</div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {([
+                              { label: 'Orders',    value: buyerHistory.summary.totalOrders, cls: 'text-slate-900',   bg: 'from-slate-50 to-white border-slate-200' },
+                              { label: 'Completed', value: buyerHistory.summary.completed,   cls: 'text-emerald-600', bg: 'from-emerald-50 to-teal-50 border-emerald-200' },
+                              { label: 'Rejected',  value: buyerHistory.summary.rejected,    cls: 'text-rose-600',    bg: 'from-rose-50 to-pink-50 border-rose-200' },
+                              { label: 'Cancelled', value: buyerHistory.summary.cancelled,   cls: 'text-amber-600',   bg: 'from-amber-50 to-orange-50 border-amber-200' },
+                            ]).map((t) => (
+                              <div key={t.label} className={`rounded-2xl border bg-gradient-to-br ${t.bg} px-2 py-3 text-center shadow-sm`}>
+                                <div className={`text-3xl font-black tabular-nums leading-none ${t.cls}`}>{t.value.toLocaleString('en-IN')}</div>
+                                <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-1.5">{t.label}</div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="relative rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white px-5 py-3.5 flex items-center justify-between overflow-hidden shadow-md">
+                            <div className="pointer-events-none absolute -top-8 -right-6 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+                            <div className="relative">
+                              <div className="text-[10px] uppercase tracking-wider text-white/70 font-bold">Lifetime Value</div>
+                              <div className="text-2xl font-black tabular-nums mt-0.5">{formatAmount(buyerHistory.summary.completedGmv)}</div>
+                            </div>
+                            <div className="relative text-right">
+                              <div className="text-[10px] uppercase tracking-wider text-white/70 font-bold">Completion</div>
+                              <div className="text-2xl font-black tabular-nums mt-0.5">{buyerHistory.summary.completionRate.toFixed(0)}%</div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">First Order</div>
+                              <div className="text-sm font-bold text-slate-900 mt-0.5">{formatDateShort(buyerHistory.summary.firstOrder)}</div>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Last Order</div>
+                              <div className="text-sm font-bold text-slate-900 mt-0.5">{formatDateShort(buyerHistory.summary.lastOrder)}</div>
+                            </div>
+                          </div>
+
+                          {buyerHistory.monthly.length > 1 && (
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1.5">Orders · last 12 months</div>
+                              <div className="h-20 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={buyerHistory.monthly} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                                    <defs>
+                                      <linearGradient id="buyerOrdersGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#818cf8" />
+                                        <stop offset="100%" stopColor="#e879f9" />
+                                      </linearGradient>
+                                    </defs>
+                                    <XAxis dataKey="ym" hide />
+                                    <Tooltip
+                                      cursor={{ fill: 'rgba(99,102,241,0.08)' }}
+                                      contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                                      labelFormatter={(l) => String(l)}
+                                      formatter={(value) => [Number(value), 'orders']}
+                                    />
+                                    <Bar dataKey="orders" fill="url(#buyerOrdersGrad)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                            </div>
+                          )}
+
+                          {buyerHistory.topSkus.length > 0 && (() => {
+                            const maxOrd = Math.max(...buyerHistory.topSkus.map((sk) => sk.orderCount), 1);
+                            return (
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Most Purchased Products</div>
+                                <div className="space-y-1.5">
+                                  {buyerHistory.topSkus.map((sk, i) => (
+                                    <div key={i} className="relative rounded-xl bg-white border border-slate-200 px-3 py-2 overflow-hidden">
+                                      <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-fuchsia-100/80 to-indigo-50/30" style={{ width: `${(sk.orderCount / maxOrd) * 100}%` }} />
+                                      <div className="relative flex items-center gap-2.5">
+                                        <span className="shrink-0 w-5 h-5 rounded-md bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white text-[10px] font-black flex items-center justify-center">{i + 1}</span>
+                                        <div className="min-w-0 flex-1">
+                                          <div className="text-xs font-semibold text-slate-900 truncate">{sk.sku}</div>
+                                          <div className="text-[10px] text-slate-500 truncate">{sk.brand}</div>
+                                        </div>
+                                        <div className="shrink-0 text-right">
+                                          <div className="text-xs font-bold text-fuchsia-700 tabular-nums">{sk.orderCount} ord</div>
+                                          <div className="text-[10px] text-slate-500 tabular-nums">{sk.qty.toLocaleString('en-IN')} qty</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {buyerHistory.topBrands.length > 0 && (
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Top Brands</div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {buyerHistory.topBrands.map((br, i) => (
+                                  <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-indigo-50 to-fuchsia-50 border border-indigo-200 text-xs font-semibold text-indigo-700">
+                                    {br.brand}
+                                    <span className="text-[10px] font-bold text-fuchsia-600 tabular-nums">{br.orderCount}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </section>
+                  </div>
                 )}
               </div>
             </div>

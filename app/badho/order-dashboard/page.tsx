@@ -3195,11 +3195,12 @@ export default function OrderStatusDashboard() {
                           <input
                             type="checkbox"
                             checked={checked}
-                            onChange={() =>
+                            onChange={() => {
                               setGeoCovStatuses((prev) =>
                                 checked ? prev.filter((x) => x !== s) : [...prev, s]
-                              )
-                            }
+                              );
+                              setGeoCovStatusOpen(false);
+                            }}
                             className="accent-fuchsia-500"
                           />
                           {s}

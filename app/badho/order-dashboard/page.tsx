@@ -8520,11 +8520,11 @@ export default function OrderStatusDashboard() {
         {/* RTO KPI tile → orders modal */}
         {rtoKpiModal && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm"
             onClick={() => setRtoKpiModal(null)}
           >
             <div
-              className="bg-white text-slate-900 border border-slate-200 rounded-2xl max-w-7xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl"
+              className="bg-white text-slate-900 border border-slate-200 rounded-2xl w-[97vw] max-w-[97vw] h-[97vh] max-h-[97vh] flex flex-col overflow-hidden shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}

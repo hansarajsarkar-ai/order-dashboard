@@ -3,8 +3,9 @@ import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-interface Row {
-  month: string;
+interface BucketRow {
+  bucket: number;
+  week_start: string | null;
   pincode_covered: string;
   pincode_orders: string;
   pincode_amount: string;
@@ -22,127 +23,145 @@ interface Row {
 type GeoKey = 'pincode' | 'city' | 'district' | 'state';
 type Cell = { covered: number; count: number; amount: number };
 
+const COVERED_SELECT = `
+  COUNT(DISTINCT b."pincode") FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> '')::text AS pincode_covered,
+  COUNT(*) FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> '')::text AS pincode_orders,
+  COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> ''), 0)::text AS pincode_amount,
+
+  COUNT(DISTINCT (b."state", b."city")) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> '')::text AS city_covered,
+  COUNT(*) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> '')::text AS city_orders,
+  COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> ''), 0)::text AS city_amount,
+
+  COUNT(DISTINCT (b."state", b."district")) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> '')::text AS district_covered,
+  COUNT(*) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> '')::text AS district_orders,
+  COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> ''), 0)::text AS district_amount,
+
+  COUNT(DISTINCT b."state") FILTER (WHERE b."state" IS NOT NULL AND b."state" <> '')::text AS state_covered,
+  COUNT(*) FILTER (WHERE b."state" IS NOT NULL AND b."state" <> '')::text AS state_orders,
+  COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."state" IS NOT NULL AND b."state" <> ''), 0)::text AS state_amount
+`;
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const currentYear = new Date().getFullYear();
   const year = parseInt(searchParams.get('year') || String(currentYear));
+  const granularity = (searchParams.get('granularity') || 'month') as 'month' | 'week' | 'day';
+  const dayMonth = parseInt(searchParams.get('month') || String(new Date().getMonth() + 1));
+  const statusesParam = (searchParams.get('statuses') || '').trim();
 
   try {
-    const sql = `
-      SELECT
-        EXTRACT(MONTH FROM po."markedPendingTime")::int AS month,
-
-        COUNT(DISTINCT b."pincode") FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> '')::text AS pincode_covered,
-        COUNT(*) FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> '')::text AS pincode_orders,
-        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> ''), 0)::text AS pincode_amount,
-
-        COUNT(DISTINCT (b."state", b."city")) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> '')::text AS city_covered,
-        COUNT(*) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> '')::text AS city_orders,
-        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> ''), 0)::text AS city_amount,
-
-        COUNT(DISTINCT (b."state", b."district")) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> '')::text AS district_covered,
-        COUNT(*) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> '')::text AS district_orders,
-        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> ''), 0)::text AS district_amount,
-
-        COUNT(DISTINCT b."state") FILTER (WHERE b."state" IS NOT NULL AND b."state" <> '')::text AS state_covered,
-        COUNT(*) FILTER (WHERE b."state" IS NOT NULL AND b."state" <> '')::text AS state_orders,
-        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."state" IS NOT NULL AND b."state" <> ''), 0)::text AS state_amount
-      FROM "purchaseOrder"."purchaseOrder" po
-      JOIN "users"."buyer"  b ON b."id" = po."buyerId"
-      JOIN "users"."seller" s ON s."id" = po."sellerId"
-      WHERE po."isTest"          = FALSE
-        AND po."isFalseOrder"    = FALSE
-        AND b."isTest"           = FALSE
-        AND b."businessName" NOT ILIKE '%test%'
-        AND s."isTest"           = FALSE
-        AND s."businessName" NOT ILIKE '%test%'
-        AND s."isD2RBrandSeller" = TRUE
-        AND po."deliveryNetwork" = 'THIRD_PARTY'
-        AND po."deliveryType"    = 'INTERCITY'
-        AND po."status"         != 'DRAFT'
-        AND po."markedPendingTime" IS NOT NULL
-        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
-      GROUP BY EXTRACT(MONTH FROM po."markedPendingTime")
-      ORDER BY month;
-    `;
-
-    const rows = await query<Row>(sql, [year]);
-
-    // Yearly distinct counts (for the Total column) — need a separate query
-    // because COUNT(DISTINCT) doesn't sum across months.
-    const totalsSql = `
-      SELECT
-        COUNT(DISTINCT b."pincode") FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> '')::text AS pincode_covered,
-        COUNT(DISTINCT (b."state", b."city")) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> '')::text AS city_covered,
-        COUNT(DISTINCT (b."state", b."district")) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> '')::text AS district_covered,
-        COUNT(DISTINCT b."state") FILTER (WHERE b."state" IS NOT NULL AND b."state" <> '')::text AS state_covered
-      FROM "purchaseOrder"."purchaseOrder" po
-      JOIN "users"."buyer"  b ON b."id" = po."buyerId"
-      JOIN "users"."seller" s ON s."id" = po."sellerId"
-      WHERE po."isTest"          = FALSE
-        AND po."isFalseOrder"    = FALSE
-        AND b."isTest"           = FALSE
-        AND b."businessName" NOT ILIKE '%test%'
-        AND s."isTest"           = FALSE
-        AND s."businessName" NOT ILIKE '%test%'
-        AND s."isD2RBrandSeller" = TRUE
-        AND po."deliveryNetwork" = 'THIRD_PARTY'
-        AND po."deliveryType"    = 'INTERCITY'
-        AND po."status"         != 'DRAFT'
-        AND po."markedPendingTime" IS NOT NULL
-        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1;
-    `;
-    const totalsRows = await query<{ pincode_covered: string; city_covered: string; district_covered: string; state_covered: string }>(totalsSql, [year]);
-    const yearlyCovered = totalsRows[0] || { pincode_covered: '0', city_covered: '0', district_covered: '0', state_covered: '0' };
-
-    // months[geoKey][month] = { covered, count, amount }
-    const months: Record<GeoKey, Record<number, Cell>> = {
-      pincode: {}, city: {}, district: {}, state: {},
-    };
-    const totalsByMonth: Record<number, { count: number; amount: number }> = {};
-    const totalByGeo: Record<GeoKey, { count: number; amount: number }> = {
-      pincode: { count: 0, amount: 0 },
-      city:    { count: 0, amount: 0 },
-      district:{ count: 0, amount: 0 },
-      state:   { count: 0, amount: 0 },
-    };
-
-    for (const r of rows) {
-      const m = parseInt(String(r.month));
-      months.pincode[m]  = { covered: parseInt(r.pincode_covered),  count: parseInt(r.pincode_orders),  amount: parseFloat(r.pincode_amount) };
-      months.city[m]     = { covered: parseInt(r.city_covered),     count: parseInt(r.city_orders),     amount: parseFloat(r.city_amount) };
-      months.district[m] = { covered: parseInt(r.district_covered), count: parseInt(r.district_orders), amount: parseFloat(r.district_amount) };
-      months.state[m]    = { covered: parseInt(r.state_covered),    count: parseInt(r.state_orders),    amount: parseFloat(r.state_amount) };
-
-      // Use the pincode row for grand totals (same denominator as count(*))
-      totalsByMonth[m] = { count: parseInt(r.pincode_orders), amount: parseFloat(r.pincode_amount) };
-      (Object.keys(totalByGeo) as GeoKey[]).forEach((k) => {
-        totalByGeo[k].count  += months[k][m].count;
-        totalByGeo[k].amount += months[k][m].amount;
-      });
+    const params: (string | number)[] = [year];
+    let periodFilter = `AND EXTRACT(YEAR FROM po."markedPendingTime") = $1`;
+    if (granularity === 'day') {
+      params.push(dayMonth);
+      periodFilter += ` AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
     }
 
-    const totalCovered: Record<GeoKey, number> = {
-      pincode:  parseInt(yearlyCovered.pincode_covered),
-      city:     parseInt(yearlyCovered.city_covered),
-      district: parseInt(yearlyCovered.district_covered),
-      state:    parseInt(yearlyCovered.state_covered),
+    let statusFilter = '';
+    if (statusesParam) {
+      params.push(statusesParam);
+      statusFilter = ` AND po."status" = ANY(string_to_array($${params.length}, ','))`;
+    }
+
+    const bucketExpr =
+      granularity === 'month' ? `EXTRACT(MONTH FROM po."markedPendingTime")::int`
+      : granularity === 'week' ? `EXTRACT(WEEK FROM po."markedPendingTime")::int`
+      : `EXTRACT(DAY FROM po."markedPendingTime")::int`;
+
+    const weekStartSelect = granularity === 'week'
+      ? `TO_CHAR(MIN(DATE_TRUNC('week', po."markedPendingTime")), 'DD Mon')`
+      : `NULL`;
+
+    const baseWhere = `
+      WHERE po."isTest"          = FALSE
+        AND po."isFalseOrder"    = FALSE
+        AND b."isTest"           = FALSE
+        AND b."businessName" NOT ILIKE '%test%'
+        AND s."isTest"           = FALSE
+        AND s."businessName" NOT ILIKE '%test%'
+        AND s."isD2RBrandSeller" = TRUE
+        AND po."deliveryNetwork" = 'THIRD_PARTY'
+        AND po."deliveryType"    = 'INTERCITY'
+        AND po."status"         != 'DRAFT'
+        AND po."markedPendingTime" IS NOT NULL
+        ${periodFilter}
+        ${statusFilter}
+    `;
+
+    const fromJoin = `
+      FROM "purchaseOrder"."purchaseOrder" po
+      JOIN "users"."buyer"  b ON b."id" = po."buyerId"
+      JOIN "users"."seller" s ON s."id" = po."sellerId"
+    `;
+
+    // Per-bucket aggregates
+    const bucketSql = `
+      SELECT
+        ${bucketExpr} AS bucket,
+        ${weekStartSelect} AS week_start,
+        ${COVERED_SELECT}
+      ${fromJoin}
+      ${baseWhere}
+      GROUP BY ${bucketExpr}
+      ORDER BY bucket;
+    `;
+    const bucketRows = await query<BucketRow>(bucketSql, params);
+
+    // Period totals (the "Total" column) — COUNT(DISTINCT) is not summable across buckets.
+    const totalsSql = `
+      SELECT 0 AS bucket, NULL AS week_start, ${COVERED_SELECT}
+      ${fromJoin}
+      ${baseWhere};
+    `;
+    const totalsRows = await query<BucketRow>(totalsSql, params);
+    const t = totalsRows[0];
+
+    const geos: GeoKey[] = ['pincode', 'city', 'district', 'state'];
+    const cellOf = (r: BucketRow, g: GeoKey): Cell => ({
+      covered: parseInt(r[`${g}_covered` as keyof BucketRow] as string),
+      count: parseInt(r[`${g}_orders` as keyof BucketRow] as string),
+      amount: parseFloat(r[`${g}_amount` as keyof BucketRow] as string),
+    });
+
+    // Determine the ordered bucket list shown as columns.
+    const daysInMonth = new Date(year, dayMonth, 0).getDate();
+    let buckets: number[];
+    if (granularity === 'month') buckets = Array.from({ length: 12 }, (_, i) => i + 1);
+    else if (granularity === 'day') buckets = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+    else buckets = bucketRows.map((r) => Number(r.bucket)).sort((a, b) => a - b);
+
+    const months: Record<GeoKey, Record<number, Cell>> = { pincode: {}, city: {}, district: {}, state: {} };
+    const totalsByBucket: Record<number, { count: number; amount: number }> = {};
+    const weekStartLabels: Record<number, string> = {};
+
+    for (const r of bucketRows) {
+      const bk = Number(r.bucket);
+      for (const g of geos) months[g][bk] = cellOf(r, g);
+      // Grand-total denominator uses the pincode non-null pool (broadest), matching count(*) closely.
+      totalsByBucket[bk] = { count: cellOf(r, 'pincode').count, amount: cellOf(r, 'pincode').amount };
+      if (r.week_start) weekStartLabels[bk] = r.week_start;
+    }
+
+    const total: Record<GeoKey, Cell> = {
+      pincode: cellOf(t, 'pincode'),
+      city: cellOf(t, 'city'),
+      district: cellOf(t, 'district'),
+      state: cellOf(t, 'state'),
     };
 
-    const grand = {
-      count:  totalByGeo.pincode.count,   // pincode row has the broadest non-null pool, but tie all to same total
-      amount: totalByGeo.pincode.amount,
-    };
-
-    const data = (['pincode', 'city', 'district', 'state'] as GeoKey[]).map((geo) => ({
-      geo,
-      months: months[geo],
-      total: { covered: totalCovered[geo], count: totalByGeo[geo].count, amount: totalByGeo[geo].amount },
-    }));
+    const data = geos.map((geo) => ({ geo, months: months[geo], total: total[geo] }));
 
     return NextResponse.json({
+      granularity,
+      buckets,
+      weekStartLabels,
+      daysInMonth,
+      month: dayMonth,
       data,
-      totals: { byMonth: totalsByMonth, grand },
+      totals: {
+        byMonth: totalsByBucket,
+        grand: { count: total.pincode.count, amount: total.pincode.amount },
+      },
       year,
       timestamp: new Date().toISOString(),
     });

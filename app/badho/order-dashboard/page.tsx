@@ -345,16 +345,26 @@ export default function OrderStatusDashboard() {
   const [pivotWeekLoading, setPivotWeekLoading] = useState(false);
   const [pivotDayData, setPivotDayData] = useState<DailyStatusDeliveryData | null>(null);
   const [pivotDayLoading, setPivotDayLoading] = useState(false);
-  // Monthly Geo Coverage pivot — rows = pincode/city/district/state, columns = months
+  // Monthly Geo Coverage pivot — rows = pincode/city/district/state, columns = months/weeks/days
   interface GeoCoverageCell { covered: number; count: number; amount: number }
   type GeoKey = 'pincode' | 'city' | 'district' | 'state';
   interface GeoCoverageData {
+    granularity: 'month' | 'week' | 'day';
+    buckets: number[];
+    weekStartLabels: Record<number, string>;
+    daysInMonth: number;
+    month: number;
     data: { geo: GeoKey; months: Record<number, GeoCoverageCell>; total: GeoCoverageCell }[];
     totals: { byMonth: Record<number, { count: number; amount: number }>; grand: { count: number; amount: number } };
     year: number;
   }
+  const GEO_STATUS_OPTIONS = ['REJECTED', 'COMPLETED', 'DISPATCHED', 'CANCELLED', 'INPROGRESS', 'PENDING'] as const;
   const [geoCoverageData, setGeoCoverageData] = useState<GeoCoverageData | null>(null);
   const [geoCoverageLoading, setGeoCoverageLoading] = useState(true);
+  const [geoCovGranularity, setGeoCovGranularity] = useState<'month' | 'week' | 'day'>('month');
+  const [geoCovDayMonth, setGeoCovDayMonth] = useState<number>(new Date().getMonth() + 1);
+  const [geoCovStatuses, setGeoCovStatuses] = useState<string[]>([]);
+  const [geoCovStatusOpen, setGeoCovStatusOpen] = useState(false);
   // Status × Delivery Status drilldown modal
   const [pivotDrillOpen, setPivotDrillOpen] = useState(false);
   const [pivotDrillStatus, setPivotDrillStatus] = useState<string>('');
@@ -1154,7 +1164,13 @@ export default function OrderStatusDashboard() {
   const fetchGeoCoverage = async () => {
     try {
       setGeoCoverageLoading(true);
-      const response = await fetch(`/api/order-monthly-geo-coverage?year=${currentYear}`);
+      const qs = new URLSearchParams({
+        year: String(currentYear),
+        granularity: geoCovGranularity,
+        month: String(geoCovDayMonth),
+      });
+      if (geoCovStatuses.length) qs.set('statuses', geoCovStatuses.join(','));
+      const response = await fetch(`/api/order-monthly-geo-coverage?${qs.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch geo coverage');
       const result: GeoCoverageData = await response.json();
       setGeoCoverageData(result);
@@ -1168,7 +1184,7 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     fetchGeoCoverage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [geoCovGranularity, geoCovDayMonth, geoCovStatuses]);
 
   const fetchPivotWeekly = async () => {
     try {
@@ -3109,10 +3125,90 @@ export default function OrderStatusDashboard() {
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
           <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Monthly Geo Coverage</h2>
+              <h2 className="text-2xl font-bold text-white">
+                {geoCovGranularity === 'month' ? 'Monthly' : geoCovGranularity === 'week' ? 'Weekly' : 'Daily'} Geo Coverage
+              </h2>
               <p className="text-purple-300 text-sm mt-1">
-                Unique pincodes / cities / districts / states reached per month — {currentYear}
+                {geoCovGranularity === 'day'
+                  ? `Unique pincodes / cities / districts / states reached per day — ${MONTH_NAMES[geoCovDayMonth - 1]} ${currentYear}`
+                  : geoCovGranularity === 'week'
+                  ? `Unique pincodes / cities / districts / states reached per ISO week — ${currentYear}`
+                  : `Unique pincodes / cities / districts / states reached per month — ${currentYear}`}
+                {geoCovStatuses.length > 0 && ` · ${geoCovStatuses.join(', ')}`}
               </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Granularity toggle */}
+              <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                {(['month', 'week', 'day'] as const).map((g) => {
+                  const active = geoCovGranularity === g;
+                  return (
+                    <button
+                      key={g}
+                      onClick={() => setGeoCovGranularity(g)}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        active
+                          ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_18px_rgba(217,70,239,0.5)]'
+                          : 'text-purple-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {g === 'month' ? 'Month' : g === 'week' ? 'Week' : 'Day'}
+                    </button>
+                  );
+                })}
+              </div>
+              {geoCovGranularity === 'day' && (
+                <select
+                  value={geoCovDayMonth}
+                  onChange={(e) => setGeoCovDayMonth(parseInt(e.target.value))}
+                  className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
+                >
+                  {MONTH_NAMES.map((name, i) => (
+                    <option key={i} value={i + 1} className="bg-slate-900">{name} {currentYear}</option>
+                  ))}
+                </select>
+              )}
+              {/* Order-status multi-select */}
+              <div className="relative">
+                <button
+                  onClick={() => setGeoCovStatusOpen((o) => !o)}
+                  className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 transition-all flex items-center gap-2"
+                >
+                  {geoCovStatuses.length === 0 ? 'All Statuses' : `${geoCovStatuses.length} Status${geoCovStatuses.length > 1 ? 'es' : ''}`}
+                  <span className="text-[10px]">▼</span>
+                </button>
+                {geoCovStatusOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-white/15 rounded-xl shadow-2xl z-20 p-2">
+                    <button
+                      onClick={() => setGeoCovStatuses([])}
+                      className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-medium text-purple-300 hover:bg-white/10 transition-colors"
+                    >
+                      Clear (All)
+                    </button>
+                    {GEO_STATUS_OPTIONS.map((s) => {
+                      const checked = geoCovStatuses.includes(s);
+                      return (
+                        <label
+                          key={s}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-white hover:bg-white/10 cursor-pointer transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setGeoCovStatuses((prev) =>
+                                checked ? prev.filter((x) => x !== s) : [...prev, s]
+                              )
+                            }
+                            className="accent-fuchsia-500"
+                          />
+                          {s}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
             {geoCoverageData && (
               <div className="flex items-center gap-6 text-sm">
@@ -3127,16 +3223,20 @@ export default function OrderStatusDashboard() {
                 <button
                   className={DOWNLOAD_BTN_CLASS}
                   onClick={() => {
-                    const headers = ['Geography', ...MONTH_NAMES.flatMap((m) => [`${m} Covered`, `${m} Orders`, `${m} Value`]), 'Total Covered', 'Total Orders', 'Total Value'];
+                    const bucketLabel = (b: number) =>
+                      geoCovGranularity === 'month' ? MONTH_NAMES[b - 1]
+                      : geoCovGranularity === 'week' ? `W${b}${geoCoverageData.weekStartLabels[b] ? ` (${geoCoverageData.weekStartLabels[b]})` : ''}`
+                      : `Day ${b}`;
+                    const headers = ['Geography', ...geoCoverageData.buckets.flatMap((b) => [`${bucketLabel(b)} Covered`, `${bucketLabel(b)} Orders`, `${bucketLabel(b)} Value`]), 'Total Covered', 'Total Orders', 'Total Value'];
                     const rows: CsvCell[][] = geoCoverageData.data.map((row) => {
                       const label = row.geo.charAt(0).toUpperCase() + row.geo.slice(1);
-                      const monthCells = MONTH_NAMES.flatMap((_, i) => {
-                        const c = row.months[i + 1];
+                      const cells = geoCoverageData.buckets.flatMap((b) => {
+                        const c = row.months[b];
                         return [c?.covered ?? 0, c?.count ?? 0, c?.amount ?? 0];
                       });
-                      return [label, ...monthCells, row.total.covered, row.total.count, row.total.amount];
+                      return [label, ...cells, row.total.covered, row.total.count, row.total.amount];
                     });
-                    downloadCSV(`monthly-geo-coverage-${currentYear}.csv`, headers, rows);
+                    downloadCSV(`geo-coverage-${geoCovGranularity}-${currentYear}.csv`, headers, rows);
                   }}
                 >
                   ↓ CSV
@@ -3155,101 +3255,116 @@ export default function OrderStatusDashboard() {
             ) : !geoCoverageData || geoCoverageData.data.length === 0 ? (
               <div className="px-8 py-12 text-center text-purple-300">No data available</div>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-white/5 border-b border-white/10">
-                    <th rowSpan={2} className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[180px]">
-                      Geography
-                    </th>
-                    {MONTH_NAMES.map((m) => (
-                      <th key={m} colSpan={3} className="px-2 py-2 text-center text-xs font-semibold text-purple-200 border-r border-white/10">
-                        {m}
+              (() => {
+                const buckets = geoCoverageData.buckets;
+                const bucketTop = (b: number) =>
+                  geoCovGranularity === 'month' ? MONTH_NAMES[b - 1]
+                  : geoCovGranularity === 'week' ? `W${b}`
+                  : `${b}`;
+                const bucketSub = (b: number) =>
+                  geoCovGranularity === 'week' ? geoCoverageData.weekStartLabels[b]
+                  : geoCovGranularity === 'day' ? MONTH_NAMES[geoCoverageData.month - 1]
+                  : null;
+                return (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th rowSpan={2} className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[180px]">
+                        Geography
                       </th>
-                    ))}
-                    <th colSpan={3} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">Total</th>
-                  </tr>
-                  <tr className="bg-white/5 border-b border-white/10">
-                    {[...Array(13)].map((_, i) => {
-                      const isTotal = i === 12;
+                      {buckets.map((b) => {
+                        const sub = bucketSub(b);
+                        return (
+                          <th key={b} colSpan={3} className="px-2 py-2 text-center text-xs font-semibold text-purple-200 border-r border-white/10">
+                            {bucketTop(b)}
+                            {sub && <span className="block text-[9px] font-normal text-purple-400">{sub}</span>}
+                          </th>
+                        );
+                      })}
+                      <th colSpan={3} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">Total</th>
+                    </tr>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      {[...Array(buckets.length + 1)].map((_, i) => {
+                        const isTotal = i === buckets.length;
+                        return (
+                          <Fragment key={i}>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Covered</th>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Orders</th>
+                            <th className={`px-2 py-2 text-right text-[10px] font-medium border-r border-white/10 ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Value</th>
+                          </Fragment>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {geoCoverageData.data.map((row) => {
+                      const label = row.geo.charAt(0).toUpperCase() + row.geo.slice(1);
                       return (
-                        <Fragment key={i}>
-                          <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Covered</th>
-                          <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Orders</th>
-                          <th className={`px-2 py-2 text-right text-[10px] font-medium border-r border-white/10 ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Value</th>
-                        </Fragment>
+                        <tr key={row.geo} className="border-b border-white/5 hover:bg-fuchsia-500/10 transition-colors">
+                          <td className="px-4 py-3 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 text-white text-sm font-semibold">
+                            {label}
+                          </td>
+                          {buckets.map((b) => {
+                            const cell = row.months[b];
+                            const hasData = cell && (cell.covered > 0 || cell.count > 0);
+                            return (
+                              <Fragment key={b}>
+                                <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-fuchsia-200 font-semibold' : 'text-white/30'}`}>
+                                  {hasData ? cell.covered.toLocaleString() : '—'}
+                                </td>
+                                <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>
+                                  {hasData ? cell.count.toLocaleString() : '—'}
+                                </td>
+                                <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200' : 'text-white/30'}`}>
+                                  {hasData ? formatAmount(cell.amount) : '—'}
+                                </td>
+                              </Fragment>
+                            );
+                          })}
+                          <td className="px-2 py-3 text-right tabular-nums font-bold text-fuchsia-100 bg-purple-500/10">
+                            {row.total.covered.toLocaleString()}
+                          </td>
+                          <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10">
+                            {row.total.count.toLocaleString()}
+                          </td>
+                          <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10">
+                            {formatAmount(row.total.amount)}
+                          </td>
+                        </tr>
                       );
                     })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {geoCoverageData.data.map((row) => {
-                    const label = row.geo.charAt(0).toUpperCase() + row.geo.slice(1);
-                    return (
-                      <tr key={row.geo} className="border-b border-white/5 hover:bg-fuchsia-500/10 transition-colors">
-                        <td className="px-4 py-3 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 text-white text-sm font-semibold">
-                          {label}
-                        </td>
-                        {MONTH_NAMES.map((_, idx) => {
-                          const month = idx + 1;
-                          const cell = row.months[month];
-                          const hasData = cell && (cell.covered > 0 || cell.count > 0);
-                          return (
-                            <Fragment key={month}>
-                              <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-fuchsia-200 font-semibold' : 'text-white/30'}`}>
-                                {hasData ? cell.covered.toLocaleString() : '—'}
-                              </td>
-                              <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>
-                                {hasData ? cell.count.toLocaleString() : '—'}
-                              </td>
-                              <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200' : 'text-white/30'}`}>
-                                {hasData ? formatAmount(cell.amount) : '—'}
-                              </td>
-                            </Fragment>
-                          );
-                        })}
-                        <td className="px-2 py-3 text-right tabular-nums font-bold text-fuchsia-100 bg-purple-500/10">
-                          {row.total.covered.toLocaleString()}
-                        </td>
-                        <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10">
-                          {row.total.count.toLocaleString()}
-                        </td>
-                        <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10">
-                          {formatAmount(row.total.amount)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {/* Grand totals (orders + value only; covered isn't summable across rows) */}
-                  <tr className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-t-2 border-purple-400/40 font-bold">
-                    <td className="px-4 py-3 sticky left-0 bg-slate-900/95 backdrop-blur z-10 border-r border-white/10 text-white">
-                      Total Orders
-                    </td>
-                    {MONTH_NAMES.map((_, idx) => {
-                      const month = idx + 1;
-                      const cell = geoCoverageData.totals.byMonth[month];
-                      const hasData = cell && cell.count > 0;
-                      return (
-                        <Fragment key={month}>
-                          <td className="px-2 py-3 text-right tabular-nums text-white/40">—</td>
-                          <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>
-                            {hasData ? cell.count.toLocaleString() : '—'}
-                          </td>
-                          <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-100' : 'text-white/30'}`}>
-                            {hasData ? formatAmount(cell.amount) : '—'}
-                          </td>
-                        </Fragment>
-                      );
-                    })}
-                    <td className="px-2 py-3 text-right tabular-nums text-white/40 bg-purple-500/30">—</td>
-                    <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30">
-                      {geoCoverageData.totals.grand.count.toLocaleString()}
-                    </td>
-                    <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10">
-                      {formatAmount(geoCoverageData.totals.grand.amount)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                    {/* Grand totals (orders + value only; covered isn't summable across rows) */}
+                    <tr className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-t-2 border-purple-400/40 font-bold">
+                      <td className="px-4 py-3 sticky left-0 bg-slate-900/95 backdrop-blur z-10 border-r border-white/10 text-white">
+                        Total Orders
+                      </td>
+                      {buckets.map((b) => {
+                        const cell = geoCoverageData.totals.byMonth[b];
+                        const hasData = cell && cell.count > 0;
+                        return (
+                          <Fragment key={b}>
+                            <td className="px-2 py-3 text-right tabular-nums text-white/40">—</td>
+                            <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>
+                              {hasData ? cell.count.toLocaleString() : '—'}
+                            </td>
+                            <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-100' : 'text-white/30'}`}>
+                              {hasData ? formatAmount(cell.amount) : '—'}
+                            </td>
+                          </Fragment>
+                        );
+                      })}
+                      <td className="px-2 py-3 text-right tabular-nums text-white/40 bg-purple-500/30">—</td>
+                      <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30">
+                        {geoCoverageData.totals.grand.count.toLocaleString()}
+                      </td>
+                      <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10">
+                        {formatAmount(geoCoverageData.totals.grand.amount)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                );
+              })()
             )}
           </div>
         </div>

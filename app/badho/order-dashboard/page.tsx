@@ -919,6 +919,7 @@ export default function OrderStatusDashboard() {
   const [rtoListLoading, setRtoListLoading] = useState(false);
   const [rtoListSearch, setRtoListSearch] = useState('');
   const [rtoListAttemptFilter, setRtoListAttemptFilter] = useState<Set<string>>(new Set());
+  const [rtoListPaymentFilter, setRtoListPaymentFilter] = useState<Set<string>>(new Set());
   const [rtoListPage, setRtoListPage] = useState(1);
   const [rtoListRange, setRtoListRange] = useState<'year' | 'today' | '7d' | 'custom'>('year');
   const [rtoListCustomFrom, setRtoListCustomFrom] = useState('');
@@ -974,6 +975,7 @@ export default function OrderStatusDashboard() {
   const [hubSearch, setHubSearch] = useState('');
   const [hubShipmentFilter, setHubShipmentFilter] = useState<Set<string>>(new Set());
   const [hubBrandFilter, setHubBrandFilter] = useState<Set<string>>(new Set());
+  const [hubPaymentFilter, setHubPaymentFilter] = useState<Set<string>>(new Set());
   const [hubAttemptFilter, setHubAttemptFilter] = useState<Set<string>>(new Set());
   const [hubStuckOnly, setHubStuckOnly] = useState(false);
   const [hubMinDays, setHubMinDays] = useState<number | ''>('');
@@ -1496,7 +1498,7 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, rtoSubTab, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
 
-  useEffect(() => { setRtoListPage(1); }, [rtoListSearch, rtoListAttemptFilter, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
+  useEffect(() => { setRtoListPage(1); }, [rtoListSearch, rtoListAttemptFilter, rtoListPaymentFilter, rtoListRange, rtoListCustomFrom, rtoListCustomTo]);
 
   // ─── Destination Hub Tracking ────────────────────────────────────────
   const fetchHub = async () => {
@@ -1521,7 +1523,7 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, rtoSubTab]);
 
-  useEffect(() => { setHubPage(1); }, [hubSearch, hubShipmentFilter, hubBrandFilter, hubAttemptFilter, hubStuckOnly, hubMinDays, hubSize]);
+  useEffect(() => { setHubPage(1); }, [hubSearch, hubShipmentFilter, hubBrandFilter, hubPaymentFilter, hubAttemptFilter, hubStuckOnly, hubMinDays, hubSize]);
 
   const filteredHubRows = (() => {
     if (!hubData) return null;
@@ -1547,6 +1549,9 @@ export default function OrderStatusDashboard() {
     }
     if (hubBrandFilter.size > 0) {
       out = out.filter((r) => r.brandName && hubBrandFilter.has(r.brandName));
+    }
+    if (hubPaymentFilter.size > 0) {
+      out = out.filter((r) => hubPaymentFilter.has(r.paymentMode || '__NONE__'));
     }
     if (hubAttemptFilter.size > 0) {
       out = out.filter((r) => {
@@ -1600,6 +1605,10 @@ export default function OrderStatusDashboard() {
         }
         return false;
       });
+    }
+
+    if (rtoListPaymentFilter.size > 0) {
+      filtered = filtered.filter((r) => rtoListPaymentFilter.has(r.paymentMode || '__NONE__'));
     }
 
     // Stable sort by markedRejectedTime DESC. Falls back to 0 epoch for any nulls.
@@ -4567,6 +4576,31 @@ export default function OrderStatusDashboard() {
                     clear
                   </button>
                 )}
+                {rtoListData && rtoListData.length > 0 && (() => {
+                  const counts = new Map<string, number>();
+                  for (const r of rtoListData) {
+                    const k = r.paymentMode || '__NONE__';
+                    counts.set(k, (counts.get(k) || 0) + 1);
+                  }
+                  const opts = Array.from(counts.entries())
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([value, count]) => ({ value, label: value === '__NONE__' ? 'Unspecified' : value, count }));
+                  if (opts.length <= 1) return null;
+                  return (
+                    <>
+                      <div className="h-5 w-px bg-white/15 mx-2"></div>
+                      <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Payment</span>
+                      <MultiSelectFilter
+                        label="Payment"
+                        allLabel="All payments"
+                        options={opts}
+                        selected={rtoListPaymentFilter}
+                        onChange={setRtoListPaymentFilter}
+                        widthClass="w-44"
+                      />
+                    </>
+                  );
+                })()}
               </div>
               <div className="px-8 py-3 border-b border-white/10 bg-white/5">
                 <input
@@ -4872,6 +4906,29 @@ export default function OrderStatusDashboard() {
                       </div>
                     </div>
                   )}
+                  {hubData && hubData.facets.paymentMode.length > 0 && (() => {
+                    const counts = new Map<string, number>();
+                    for (const r of hubData.data) {
+                      const k = r.paymentMode || '__NONE__';
+                      counts.set(k, (counts.get(k) || 0) + 1);
+                    }
+                    const opts = Array.from(counts.entries())
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([value, count]) => ({ value, label: value === '__NONE__' ? 'Unspecified' : value, count }));
+                    return (
+                      <div className="flex items-start gap-2 flex-wrap">
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-purple-300/70 mt-1.5 w-20 shrink-0">Payment</span>
+                        <MultiSelectFilter
+                          label="Payment"
+                          allLabel="All payments"
+                          options={opts}
+                          selected={hubPaymentFilter}
+                          onChange={setHubPaymentFilter}
+                          widthClass="w-44"
+                        />
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-start gap-2 flex-wrap">
                     <span className="text-[10px] uppercase tracking-wider font-bold text-purple-300/70 mt-1.5 w-20 shrink-0">Attempts</span>
                     <div className="flex flex-wrap gap-1.5">

@@ -41,6 +41,20 @@ interface Row {
   buyer_latitude: string | null;
   paid_amount: string | null;
   applied_wallet_amount: string | null;
+  pushed_status: string | null;
+  seller_business_name: string | null;
+  seller_phone: string | null;
+  discount_by_seller: string | null;
+  payment_option_badho_discount: string | null;
+  payment_date: string | null;
+  payment_event: string | null;
+  refund_initiated_time: string | null;
+  refund_completed_time: string | null;
+  refund_amount: string | null;
+  reject_reason: string | null;
+  rejected_by: string | null;
+  reason_added_by_badho_team: string | null;
+  status_duration_sec: number | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -123,7 +137,24 @@ export async function GET(req: NextRequest) {
         b."longitude"::text                                        AS buyer_longitude,
         b."lattitude"::text                                        AS buyer_latitude,
         pop."paidAmount"::text                                     AS paid_amount,
-        pop."appliedWalletAmount"::text                            AS applied_wallet_amount
+        pop."appliedWalletAmount"::text                            AS applied_wallet_amount,
+        CASE WHEN di."trackingInfo"->>'awbNumber' IS NOT NULL
+             THEN 'Pushed' ELSE 'Not Pushed' END                   AS pushed_status,
+        s."businessName"                                           AS seller_business_name,
+        s."phone"                                                  AS seller_phone,
+        COALESCE((pop."breakup"->>'discount_on_payment_preference_for_seller')::float, 0)::text   AS discount_by_seller,
+        COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0)::text   AS payment_option_badho_discount,
+        TO_CHAR(pop."created_at", 'DD Mon YYYY HH12:MI AM')        AS payment_date,
+        pop."event"                                                AS payment_event,
+        TO_CHAR(pf."markedStatusInitiatedTime", 'DD Mon YYYY HH12:MI AM') AS refund_initiated_time,
+        TO_CHAR(pf."markedStatusCompletedTime", 'DD Mon YYYY HH12:MI AM') AS refund_completed_time,
+        pf."refundAmount"::text                                    AS refund_amount,
+        po."rejectReason"                                          AS reject_reason,
+        po."rejectedBy"                                            AS rejected_by,
+        po."reasonAddedByBadhoTeam"                                AS reason_added_by_badho_team,
+        EXTRACT(EPOCH FROM (
+          COALESCE(po."markedRejectedTime", NOW()) - po."markedPendingTime"
+        ))::float                                                  AS status_duration_sec
 
       FROM "purchaseOrder"."purchaseOrder" po
 
@@ -225,7 +256,7 @@ export async function GET(req: NextRequest) {
       ) attempt_data ON TRUE
 
       LEFT JOIN LATERAL (
-        SELECT "paidAmount", "appliedWalletAmount"
+        SELECT "paidAmount", "appliedWalletAmount", "breakup", "event", "created_at"
         FROM "purchaseOrder"."purchaseOrderPayment"
         WHERE "purchaseOrderId" = po."id"
           AND "status" = 'COMPLETED'
@@ -233,6 +264,15 @@ export async function GET(req: NextRequest) {
         ORDER BY "created_at" DESC
         LIMIT 1
       ) pop ON TRUE
+
+      LEFT JOIN LATERAL (
+        SELECT "markedStatusInitiatedTime", "markedStatusCompletedTime", "refundAmount"
+        FROM "payments"."paymentRefundRecord"
+        WHERE "purchaseOrderId" = po."id"
+          AND "status" = 'COMPLETED'
+        ORDER BY "created_at" DESC
+        LIMIT 1
+      ) pf ON TRUE
 
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
@@ -292,6 +332,20 @@ export async function GET(req: NextRequest) {
       buyerLatitude: r.buyer_latitude,
       paidAmount: r.paid_amount != null ? parseFloat(r.paid_amount) : null,
       appliedWalletAmount: r.applied_wallet_amount != null ? parseFloat(r.applied_wallet_amount) : null,
+      pushedStatus: r.pushed_status,
+      sellerBusinessName: r.seller_business_name,
+      sellerPhone: r.seller_phone,
+      discountBySeller: r.discount_by_seller != null ? parseFloat(r.discount_by_seller) : 0,
+      PaymentOptionDiscountByBadho: r.payment_option_badho_discount != null ? parseFloat(r.payment_option_badho_discount) : 0,
+      paymentDate: r.payment_date,
+      paymentEvent: r.payment_event,
+      RefundIntiatedTime: r.refund_initiated_time,
+      RefundCompletedTime: r.refund_completed_time,
+      RefundAmount: r.refund_amount != null ? parseFloat(r.refund_amount) : null,
+      rejectReason: r.reject_reason,
+      rejectedBy: r.rejected_by,
+      reasonAddedByBadhoTeam: r.reason_added_by_badho_team,
+      statusDurationSec: r.status_duration_sec != null ? Number(r.status_duration_sec) : null,
     }));
 
     return NextResponse.json({

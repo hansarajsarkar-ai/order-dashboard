@@ -914,6 +914,20 @@ export default function OrderStatusDashboard() {
     buyerLatitude: string | null;
     paidAmount: number | null;
     appliedWalletAmount: number | null;
+    pushedStatus: string | null;
+    sellerBusinessName: string | null;
+    sellerPhone: string | null;
+    discountBySeller: number;
+    PaymentOptionDiscountByBadho: number;
+    paymentDate: string | null;
+    paymentEvent: string | null;
+    RefundIntiatedTime: string | null;
+    RefundCompletedTime: string | null;
+    RefundAmount: number | null;
+    rejectReason: string | null;
+    rejectedBy: string | null;
+    reasonAddedByBadhoTeam: string | null;
+    statusDurationSec: number | null;
   }
   const [rtoListData, setRtoListData] = useState<RtoOrderRow[] | null>(null);
   const [rtoListLoading, setRtoListLoading] = useState(false);
@@ -8627,53 +8641,156 @@ export default function OrderStatusDashboard() {
                   if (filtered.length === 0) {
                     return <div className="px-8 py-16 text-center text-slate-500">No matches for &ldquo;{rtoKpiModalSearch}&rdquo;</div>;
                   }
+                  const fmtAmt = (n: number | null | undefined) => n != null ? `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—';
+                  const dash = <span className="text-slate-400">—</span>;
                   return (
                     <table className="w-full text-xs">
-                      <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200">
-                        <tr>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Brand</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
-                          <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Order Value</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-rose-600 whitespace-nowrap">Marked Rejected</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Shipment Status</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Business</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Phone</th>
-                          <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Attempts</th>
-                          <th className="px-3 py-2.5 text-left font-semibold text-rose-600 whitespace-nowrap">Final Failure Reason</th>
+                      <thead className="shadow-[0_2px_0_rgba(168,85,247,0.4)]">
+                        <tr className="border-b border-slate-200">
+                          {/* Standardized 25-column header */}
+                          <th className="sticky top-0 left-0 z-30 bg-amber-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-amber-800">Marked Pending</th>
+                          <th className="sticky top-0 left-[160px] z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-700">Pushed</th>
+                          <th className="sticky top-0 left-[280px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">PO Number</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Items</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Order Status</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">PO Amount</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Coupon Amount</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Applied Wallet Amount</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Seller Discount</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Payment Option Badho Discount</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">COD Amount</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Delivery Status</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Paid Amount</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Payment Option</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">AWB Number</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Courier Name</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Payment Date</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Payment Event</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Buyer Business</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Buyer Phone</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Buyer Address</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Seller Business</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Seller Phone</th>
+                          <th className="sticky top-0 z-20 bg-amber-50/60 px-2.5 py-2.5 text-left text-[11px] font-bold text-amber-800 uppercase tracking-wider whitespace-nowrap">markedRejectedTime</th>
+                          <th className="sticky top-0 z-20 bg-amber-50/60 px-2.5 py-2.5 text-left text-[11px] font-bold text-amber-800 uppercase tracking-wider whitespace-nowrap">Status Duration</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Refund Initiated</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Refund Completed</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Refund Amount</th>
+                          <th className="sticky top-0 z-20 bg-rose-50/60 px-2.5 py-2.5 text-left text-[11px] font-bold text-rose-700 uppercase tracking-wider whitespace-nowrap">Reject Reason</th>
+                          <th className="sticky top-0 z-20 bg-rose-50/60 px-2.5 py-2.5 text-left text-[11px] font-bold text-rose-700 uppercase tracking-wider whitespace-nowrap">Rejected By</th>
+                          <th className="sticky top-0 z-20 bg-rose-50/60 px-2.5 py-2.5 text-left text-[11px] font-bold text-rose-700 uppercase tracking-wider whitespace-nowrap">Reason Added By Badho Team</th>
+                          {/* RTO-specific extras */}
+                          <th className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-left text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Brand</th>
+                          <th className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-left text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Latest Attempt</th>
+                          <th className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-left text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Final Failure Reason</th>
+                          <th className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-right text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Attempts</th>
+                          {[1,2,3,4,5,6].map((n) => (
+                            <th key={n} className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-left text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Attempt {n}</th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {filtered.map((r) => (
-                          <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-rose-50/40 align-top">
-                            <td className="px-3 py-2 text-slate-800 whitespace-nowrap font-medium">{r.brandName || '—'}</td>
-                            <td className="px-3 py-2 whitespace-nowrap">
-                              <div className="inline-flex items-center gap-2">
-                                <span className="text-slate-900 tabular-nums font-semibold">{r.poNumber}</span>
+                        {filtered.map((r, idx) => {
+                          const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                          const isPushed = r.pushedStatus === 'Pushed';
+                          const attemptCell = (t: string | null, remark: string | null) => {
+                            if (!t && !remark) return dash;
+                            return (
+                              <div className="min-w-[140px]">
+                                <div className="text-slate-700 whitespace-nowrap">{t || '—'}</div>
+                                <div className="text-[10px] text-slate-500 leading-tight max-w-[200px] truncate" title={remark || ''}>{remark || ''}</div>
+                              </div>
+                            );
+                          };
+                          return (
+                            <tr key={r.poNumber} className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}>
+                              <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2 whitespace-nowrap text-amber-800 font-medium`}>{r.orderDate || dash}</td>
+                              <td className={`sticky left-[160px] z-10 ${rowBg} group-hover:bg-purple-50 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2 whitespace-nowrap`}>
+                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isPushed ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isPushed ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                  {r.pushedStatus || 'Not Pushed'}
+                                </span>
+                              </td>
+                              <td className={`sticky left-[280px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
+                                <div className="inline-flex items-center gap-2">
+                                  <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
+                                  <a
+                                    href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200"
+                                    title="Open in D2R Support Dashboard"
+                                  >Details ↗</a>
+                                </div>
+                              </td>
+                              <td className="px-2.5 py-2 whitespace-nowrap">
                                 <button
                                   onClick={() => openPoItemsModal(r.poNumber)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[10px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold border border-emerald-300"
                                   title="View items + price breakup"
-                                >
-                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                                    <line x1="12" y1="22.08" x2="12" y2="12" />
-                                  </svg>
-                                  Items
-                                </button>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-slate-600 max-w-[320px] truncate" title={r.buyerFullAddress || ''}>{r.buyerFullAddress || '—'}</td>
-                            <td className="px-3 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{formatAmount(r.orderValue)}</td>
-                            <td className="px-3 py-2 text-rose-700 whitespace-nowrap">{r.markedRejectedTime || '—'}</td>
-                            <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.shipmentStatus || '—'}</td>
-                            <td className="px-3 py-2 text-slate-700">{r.buyerBusinessName || '—'}</td>
-                            <td className="px-3 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || '—'}</td>
-                            <td className="px-3 py-2 text-right tabular-nums font-bold text-rose-700">{r.deliveryAttempt || 0}</td>
-                            <td className="px-3 py-2 text-rose-700 max-w-[280px]" title={r.finalFailureReason || ''}>{r.finalFailureReason || <span className="italic text-slate-400">—</span>}</td>
-                          </tr>
-                        ))}
+                                >Items</button>
+                              </td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.poStatus || dash}</td>
+                              <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{fmtAmt(r.orderValue)}</td>
+                              <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.couponValue ? fmtAmt(r.couponValue) : dash}</td>
+                              <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? fmtAmt(r.appliedWalletAmount) : dash}</td>
+                              <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? fmtAmt(r.discountBySeller) : dash}</td>
+                              <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? fmtAmt(r.PaymentOptionDiscountByBadho) : dash}</td>
+                              <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codCollect ? fmtAmt(r.codCollect) : dash}</td>
+                              <td className="px-2.5 py-2 whitespace-nowrap">
+                                {r.shipmentStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.shipmentStatus}</span> : dash}
+                              </td>
+                              <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? fmtAmt(r.paidAmount) : dash}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentMode || dash}</td>
+                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || dash}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.logisticName || dash}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate || dash}</td>
+                              <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || dash}</td>
+                              <td className="px-2.5 py-2 font-medium">
+                                {r.buyerBusinessName ? (
+                                  <button type="button" onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })} className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer text-left" title="View buyer details">{r.buyerBusinessName}</button>
+                                ) : dash}
+                              </td>
+                              <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                                {r.buyerPhone ? (
+                                  <button type="button" onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })} className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer" title="View buyer details">{r.buyerPhone}</button>
+                                ) : dash}
+                              </td>
+                              <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={r.buyerFullAddress || ''}>
+                                {r.buyerFullAddress ? <div className="whitespace-normal break-words">{r.buyerFullAddress}</div> : dash}
+                              </td>
+                              <td className="px-2.5 py-2 font-medium">
+                                {r.sellerBusinessName ? (
+                                  <button type="button" onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })} className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer text-left" title="View seller details">{r.sellerBusinessName}</button>
+                                ) : dash}
+                              </td>
+                              <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                                {r.sellerPhone ? (
+                                  <button type="button" onClick={() => openSellerModal({ phone: r.sellerPhone, businessName: r.sellerBusinessName })} className="text-purple-700 hover:text-purple-900 hover:underline hover:bg-purple-50 px-1 -mx-1 rounded transition-all cursor-pointer" title="View seller details">{r.sellerPhone}</button>
+                                ) : dash}
+                              </td>
+                              <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-amber-50/40">{r.markedRejectedTime || dash}</td>
+                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium">{formatDuration(r.statusDurationSec)}</td>
+                              <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime || dash}</td>
+                              <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime || dash}</td>
+                              <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.RefundAmount != null ? fmtAmt(r.RefundAmount) : dash}</td>
+                              <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason ? <div className="whitespace-normal break-words">{r.rejectReason}</div> : dash}</td>
+                              <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || dash}</td>
+                              <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam ? <div className="whitespace-normal break-words">{r.reasonAddedByBadhoTeam}</div> : dash}</td>
+                              {/* RTO-specific extras */}
+                              <td className="px-2.5 py-2 text-fuchsia-800 whitespace-nowrap font-medium bg-fuchsia-50/20">{r.brandName || dash}</td>
+                              <td className="px-2.5 py-2 text-fuchsia-800 whitespace-nowrap bg-fuchsia-50/20">{r.latestAttemptTime || dash}</td>
+                              <td className="px-2.5 py-2 text-fuchsia-800 max-w-[280px] bg-fuchsia-50/20" title={r.finalFailureReason || ''}>{r.finalFailureReason || dash}</td>
+                              <td className="px-2.5 py-2 text-right tabular-nums font-bold text-rose-700 bg-fuchsia-50/20">{r.deliveryAttempt || 0}</td>
+                              <td className="px-2.5 py-2 bg-fuchsia-50/20">{attemptCell(r.attempt1Time, r.attempt1Remarks)}</td>
+                              <td className="px-2.5 py-2 bg-fuchsia-50/20">{attemptCell(r.attempt2Time, r.attempt2Remarks)}</td>
+                              <td className="px-2.5 py-2 bg-fuchsia-50/20">{attemptCell(r.attempt3Time, r.attempt3Remarks)}</td>
+                              <td className="px-2.5 py-2 bg-fuchsia-50/20">{attemptCell(r.attempt4Time, r.attempt4Remarks)}</td>
+                              <td className="px-2.5 py-2 bg-fuchsia-50/20">{attemptCell(r.attempt5Time, r.attempt5Remarks)}</td>
+                              <td className="px-2.5 py-2 bg-fuchsia-50/20">{attemptCell(r.attempt6Time, r.attempt6Remarks)}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   );

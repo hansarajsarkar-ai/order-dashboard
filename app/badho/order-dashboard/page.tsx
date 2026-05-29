@@ -757,6 +757,9 @@ export default function OrderStatusDashboard() {
       totalGmv: number;
       completionRate: number;
       rejectionRate: number;
+      draftCount: number;
+      lastDraft: string | null;
+      daysSinceLastDraft: number | null;
     };
     topSkus: { brand: string; sku: string; orderCount: number; qty: number; amount: number }[];
     topBrands: { brand: string; orderCount: number; qty: number; amount: number }[];
@@ -7527,22 +7530,33 @@ export default function OrderStatusDashboard() {
                         <div className="py-10 text-center text-sm text-slate-400">Loading order history…</div>
                       ) : buyerHistoryError ? (
                         <div className="py-10 text-center text-sm text-rose-500">History unavailable: {buyerHistoryError}</div>
-                      ) : !buyerHistory || buyerHistory.summary.totalOrders === 0 ? (
+                      ) : !buyerHistory || (buyerHistory.summary.totalOrders === 0 && buyerHistory.summary.draftCount === 0) ? (
                         <div className="py-10 text-center text-sm text-slate-400">No orders on record for this buyer.</div>
                       ) : (
                         <>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {([
-                              { label: 'Orders',    value: buyerHistory.summary.totalOrders, cls: 'text-slate-900',   bg: 'from-slate-50 to-white border-slate-200' },
-                              { label: 'Completed', value: buyerHistory.summary.completed,   cls: 'text-emerald-600', bg: 'from-emerald-50 to-teal-50 border-emerald-200' },
-                              { label: 'Rejected',  value: buyerHistory.summary.rejected,    cls: 'text-rose-600',    bg: 'from-rose-50 to-pink-50 border-rose-200' },
-                              { label: 'Cancelled', value: buyerHistory.summary.cancelled,   cls: 'text-amber-600',   bg: 'from-amber-50 to-orange-50 border-amber-200' },
-                            ]).map((t) => (
-                              <div key={t.label} className={`rounded-2xl border bg-gradient-to-br ${t.bg} px-2 py-3 text-center shadow-sm`}>
-                                <div className={`text-3xl font-black tabular-nums leading-none ${t.cls}`}>{t.value.toLocaleString('en-IN')}</div>
-                                <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-1.5">{t.label}</div>
-                              </div>
-                            ))}
+                          {buyerHistory.summary.totalOrders > 0 && (
+                          <>
+                          {/* Total + full status breakdown — every status, so the parts sum to the total */}
+                          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+                            <div className="flex items-baseline gap-2 mb-3">
+                              <div className="text-4xl font-black tabular-nums leading-none text-slate-900">{buyerHistory.summary.totalOrders.toLocaleString('en-IN')}</div>
+                              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Total Orders Placed</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              {([
+                                { label: 'Completed',   value: buyerHistory.summary.completed,   cls: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
+                                { label: 'Pending',     value: buyerHistory.summary.pending,     cls: 'text-slate-700',   bg: 'bg-slate-50 border-slate-200' },
+                                { label: 'In Progress', value: buyerHistory.summary.inprogress,  cls: 'text-indigo-600',  bg: 'bg-indigo-50 border-indigo-200' },
+                                { label: 'Dispatched',  value: buyerHistory.summary.dispatched,  cls: 'text-sky-600',     bg: 'bg-sky-50 border-sky-200' },
+                                { label: 'Rejected',    value: buyerHistory.summary.rejected,    cls: 'text-rose-600',    bg: 'bg-rose-50 border-rose-200' },
+                                { label: 'Cancelled',   value: buyerHistory.summary.cancelled,   cls: 'text-amber-600',   bg: 'bg-amber-50 border-amber-200' },
+                              ]).map((t) => (
+                                <div key={t.label} className={`rounded-xl border ${t.bg} px-2 py-2 text-center`}>
+                                  <div className={`text-xl font-extrabold tabular-nums leading-none ${t.cls}`}>{t.value.toLocaleString('en-IN')}</div>
+                                  <div className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 mt-1">{t.label}</div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
 
                           <div className="relative rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white px-5 py-3.5 flex items-center justify-between overflow-hidden shadow-md">
@@ -7631,6 +7645,28 @@ export default function OrderStatusDashboard() {
                                     <span className="text-[10px] font-bold text-fuchsia-600 tabular-nums">{br.orderCount}</span>
                                   </span>
                                 ))}
+                              </div>
+                            </div>
+                          )}
+                          </>
+                          )}
+
+                          {buyerHistory.summary.draftCount > 0 && (
+                            <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50/50 px-4 py-3.5 shadow-sm">
+                              <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-violet-600 mb-2.5">Draft Carts · never placed</div>
+                              <div className="grid grid-cols-3 gap-3 text-center">
+                                <div>
+                                  <div className="text-2xl font-black tabular-nums text-violet-700 leading-none">{buyerHistory.summary.draftCount.toLocaleString('en-IN')}</div>
+                                  <div className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 mt-1.5">Drafts Created</div>
+                                </div>
+                                <div>
+                                  <div className="text-sm font-bold text-slate-900 leading-tight">{formatDateShort(buyerHistory.summary.lastDraft)}</div>
+                                  <div className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 mt-1.5">Last Draft</div>
+                                </div>
+                                <div>
+                                  <div className="text-2xl font-black tabular-nums text-violet-700 leading-none">{buyerHistory.summary.daysSinceLastDraft != null ? buyerHistory.summary.daysSinceLastDraft : '—'}<span className="text-xs font-bold">{buyerHistory.summary.daysSinceLastDraft != null ? 'd' : ''}</span></div>
+                                  <div className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 mt-1.5">Since Last Draft</div>
+                                </div>
                               </div>
                             </div>
                           )}

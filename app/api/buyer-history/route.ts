@@ -18,6 +18,17 @@ const BASE_WHERE = `
   AND po."deliveryNetwork" = 'THIRD_PARTY'
 `;
 
+// Drafts are carts that were started but never placed: status = 'DRAFT', so they have
+// no markedPendingTime — created_at is the only timestamp. Same intercity / third-party
+// scope as the rest of the modal.
+const DRAFT_WHERE = `
+  po."isTest"       = FALSE
+  AND po."isFalseOrder" = FALSE
+  AND po."status"   = 'DRAFT'
+  AND po."deliveryType"    = 'INTERCITY'
+  AND po."deliveryNetwork" = 'THIRD_PARTY'
+`;
+
 interface SummaryRow {
   total_orders: string;
   completed: string;
@@ -35,6 +46,7 @@ interface SummaryRow {
 interface SkuRow { brand: string; sku: string; order_count: string; qty: string; amount: string; }
 interface BrandRow { brand: string; order_count: string; qty: string; amount: string; }
 interface MonthRow { ym: string; orders: string; gmv: string; }
+interface DraftRow { draft_count: string; last_draft: string | null; days_since_last_draft: number | null; }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -133,17 +145,28 @@ export async function GET(req: NextRequest) {
       ORDER BY 1;
     `;
 
-    const [summaryRows, skuRows, brandRows, monthRows] = await Promise.all([
+    const draftSql = `
+      SELECT
+        COUNT(*)                                                AS draft_count,
+        MAX(po."created_at")::text                              AS last_draft,
+        EXTRACT(DAY FROM NOW() - MAX(po."created_at"))::int     AS days_since_last_draft
+      FROM "purchaseOrder"."purchaseOrder" po
+      WHERE po."buyerId" = $1 AND ${DRAFT_WHERE};
+    `;
+
+    const [summaryRows, skuRows, brandRows, monthRows, draftRows] = await Promise.all([
       query<SummaryRow>(summarySql, p),
       query<SkuRow>(topSkusSql, p),
       query<BrandRow>(topBrandsSql, p),
       query<MonthRow>(monthlySql, p),
+      query<DraftRow>(draftSql, p),
     ]);
 
     const s = summaryRows[0];
     const total = parseInt(s.total_orders) || 0;
     const completed = parseInt(s.completed) || 0;
     const rejected = parseInt(s.rejected) || 0;
+    const d = draftRows[0];
 
     const summary = {
       totalOrders: total,
@@ -160,6 +183,9 @@ export async function GET(req: NextRequest) {
       totalGmv: parseFloat(s.total_gmv) || 0,
       completionRate: total > 0 ? (completed / total) * 100 : 0,
       rejectionRate: total > 0 ? (rejected / total) * 100 : 0,
+      draftCount: d ? parseInt(d.draft_count) || 0 : 0,
+      lastDraft: d ? d.last_draft : null,
+      daysSinceLastDraft: d && d.days_since_last_draft != null ? Number(d.days_since_last_draft) : null,
     };
 
     const topSkus = skuRows.map((r) => ({

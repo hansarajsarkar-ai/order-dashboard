@@ -3785,6 +3785,34 @@ export default function OrderStatusDashboard() {
           const countMix = statusRows.map((r) => ({ name: r.status, value: r.total.count }));
           const revMix = [...statusRows].sort((a, b) => b.total.amount - a.total.amount).map((r) => ({ name: r.status, value: r.total.amount }));
 
+          const dispatched = statusRows.find((r) => r.status === 'DISPATCHED')?.total.count || 0;
+          const cancelled = statusRows.find((r) => r.status === 'CANCELLED')?.total.count || 0;
+          const fulfilledRate = grand.count > 0 ? ((completed + dispatched) / grand.count) * 100 : 0;
+
+          // Per-month series for AOV trajectory + cumulative revenue (running total).
+          let runRev = 0;
+          let runOrders = 0;
+          const monthSeries = activeMonths.map((m) => {
+            const c = monthlyData.totals.byMonth[m];
+            runRev += c.amount;
+            runOrders += c.count;
+            return {
+              month: MONTH_NAMES[m - 1],
+              revenue: c.amount,
+              orders: c.count,
+              aov: c.count > 0 ? c.amount / c.count : 0,
+              cumRevenue: runRev,
+              cumOrders: runOrders,
+            };
+          });
+          const peakAov = monthSeries.length ? [...monthSeries].sort((a, b) => b.aov - a.aov)[0] : null;
+
+          const gauges = [
+            { label: 'Completion Rate', value: completionRate, color: '#22c55e', sub: `${completed.toLocaleString('en-IN')} completed` },
+            { label: 'Fulfilled', value: fulfilledRate, color: '#6366f1', sub: `${(completed + dispatched).toLocaleString('en-IN')} dispatched + completed` },
+            { label: 'Rejection Rate', value: rejectRate, color: '#ef4444', sub: `${rejected.toLocaleString('en-IN')} rejected` },
+          ];
+
           const pct = (v: number, t: number) => (t > 0 ? (v / t) * 100 : 0);
           const fmtSignedPct = (n: number | null) => (n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`);
           const trendTone = (n: number | null) => (n === null ? 'text-white/40' : n >= 0 ? 'text-emerald-400' : 'text-rose-400');
@@ -3831,6 +3859,26 @@ export default function OrderStatusDashboard() {
                       <span className="text-white font-semibold tabular-nums w-14 text-right">{pct(d.value, total).toFixed(1)}%</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          );
+
+          const renderGauge = (g: { label: string; value: number; color: string; sub: string }) => (
+            <div key={g.label} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
+              <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+                <h3 className="text-base font-bold text-white">{g.label}</h3>
+              </div>
+              <div className="relative" style={{ height: 210 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadialBarChart innerRadius="72%" outerRadius="100%" data={[{ name: g.label, value: Math.min(g.value, 100), fill: g.color }]} startAngle={90} endAngle={-270}>
+                    <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+                    <RadialBar background={{ fill: 'rgba(255,255,255,0.06)' }} dataKey="value" cornerRadius={16} isAnimationActive={false} />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-4 text-center">
+                  <span className="text-4xl font-extrabold tabular-nums" style={{ color: g.color, textShadow: `0 0 18px ${g.color}66` }}>{g.value.toFixed(1)}%</span>
+                  <span className="text-[11px] text-white/50 mt-1.5">{g.sub}</span>
                 </div>
               </div>
             </div>
@@ -3918,6 +3966,99 @@ export default function OrderStatusDashboard() {
                       <Line yAxisId="right" dataKey="orders" name="Orders" stroke="#22d3ee" strokeWidth={2.5} dot={{ r: 3, fill: '#22d3ee' }} activeDot={{ r: 5 }} isAnimationActive={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Health gauges */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                {gauges.map(renderGauge)}
+              </div>
+
+              {/* AOV trend + cumulative revenue */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Average Order Value trend */}
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
+                  <div className="px-6 py-5 border-b border-white/10 bg-white/5 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Average Order Value</h3>
+                      <p className="text-purple-300 text-xs mt-0.5">Revenue ÷ orders, per month · {currentYear}</p>
+                    </div>
+                    {peakAov && (
+                      <div className="px-3 py-2 rounded-xl bg-slate-900/70 border border-white/10 text-right shrink-0">
+                        <div className="text-purple-300/70 uppercase tracking-wide text-[10px]">Peak AOV</div>
+                        <div className="text-fuchsia-300 font-bold mt-0.5">{peakAov.month} · {formatAmount(peakAov.aov)}</div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-5">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <AreaChart data={monthSeries} margin={{ top: 10, right: 12, left: 4, bottom: 4 }}>
+                        <defs>
+                          <linearGradient id="gradAov" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#e879f9" stopOpacity={0.55} />
+                            <stop offset="100%" stopColor="#a855f7" stopOpacity={0.05} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                        <XAxis dataKey="month" tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} />
+                        <YAxis
+                          tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                          width={52}
+                          tickFormatter={(v: number) => (v >= 1000 ? `₹${(v / 1000).toFixed(1)}K` : `₹${Math.round(v)}`)}
+                        />
+                        <Tooltip
+                          contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}
+                          labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
+                          formatter={(value) => [formatAmount(Number(value)), 'Avg Order Value']}
+                        />
+                        <Area dataKey="aov" name="Avg Order Value" stroke="#e879f9" strokeWidth={2.5} fill="url(#gradAov)" dot={{ r: 3, fill: '#e879f9' }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Cumulative revenue */}
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
+                  <div className="px-6 py-5 border-b border-white/10 bg-white/5 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Cumulative Revenue</h3>
+                      <p className="text-purple-300 text-xs mt-0.5">Running total across {currentYear}</p>
+                    </div>
+                    <div className="px-3 py-2 rounded-xl bg-slate-900/70 border border-white/10 text-right shrink-0">
+                      <div className="text-purple-300/70 uppercase tracking-wide text-[10px]">YTD total</div>
+                      <div className="text-cyan-300 font-bold mt-0.5">{formatAmount(grand.amount)}</div>
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <AreaChart data={monthSeries} margin={{ top: 10, right: 12, left: 4, bottom: 4 }}>
+                        <defs>
+                          <linearGradient id="gradCum" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.55} />
+                            <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.05} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                        <XAxis dataKey="month" tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} />
+                        <YAxis
+                          tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                          width={56}
+                          tickFormatter={(v: number) => {
+                            if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+                            if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
+                            if (v >= 1000) return `₹${(v / 1000).toFixed(0)}K`;
+                            return `₹${v}`;
+                          }}
+                        />
+                        <Tooltip
+                          contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}
+                          labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
+                          formatter={(value) => [formatAmount(Number(value)), 'Cumulative']}
+                        />
+                        <Area dataKey="cumRevenue" name="Cumulative" stroke="#22d3ee" strokeWidth={2.5} fill="url(#gradCum)" dot={{ r: 3, fill: '#22d3ee' }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </div>
             </div>

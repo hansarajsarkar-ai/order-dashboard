@@ -831,6 +831,20 @@ export default function OrderStatusDashboard() {
   type RtoKpiKind = 'count' | 'value' | 'rate' | 'avg';
   const [rtoKpiModal, setRtoKpiModal] = useState<RtoKpiKind | null>(null);
   const [rtoKpiModalSearch, setRtoKpiModalSearch] = useState('');
+  const [rtoKpiModalPushedFilter, setRtoKpiModalPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
+  const [rtoKpiModalPaymentFilter, setRtoKpiModalPaymentFilter] = useState<Set<string>>(new Set());
+  const [rtoKpiModalCourierFilter, setRtoKpiModalCourierFilter] = useState<Set<string>>(new Set());
+  const [rtoKpiModalDeliveryFilter, setRtoKpiModalDeliveryFilter] = useState<Set<string>>(new Set());
+  const [rtoKpiModalReasonFilter, setRtoKpiModalReasonFilter] = useState<Set<string>>(new Set());
+  const [rtoKpiModalAttemptFilter, setRtoKpiModalAttemptFilter] = useState<Set<string>>(new Set());
+  const [rtoKpiModalSort, setRtoKpiModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const toggleRtoKpiSort = (key: string) => {
+    setRtoKpiModalSort((prev) => {
+      if (!prev || prev.key !== key) return { key, direction: 'asc' };
+      if (prev.direction === 'asc') return { key, direction: 'desc' };
+      return null;
+    });
+  };
   const [rtoKpiModalData, setRtoKpiModalData] = useState<RtoOrderRow[] | null>(null);
   const [rtoKpiModalLoading, setRtoKpiModalLoading] = useState(false);
   // GMV Goal ACHIEVED tile → orders modal
@@ -1312,10 +1326,17 @@ export default function OrderStatusDashboard() {
     }
   };
 
-  // Open modal → ensure data loaded once
+  // Open modal → ensure data loaded once and reset filters
   useEffect(() => {
     if (!rtoKpiModal) return;
     setRtoKpiModalSearch('');
+    setRtoKpiModalPushedFilter('all');
+    setRtoKpiModalPaymentFilter(new Set());
+    setRtoKpiModalCourierFilter(new Set());
+    setRtoKpiModalDeliveryFilter(new Set());
+    setRtoKpiModalReasonFilter(new Set());
+    setRtoKpiModalAttemptFilter(new Set());
+    setRtoKpiModalSort(null);
     if (!rtoKpiModalData) fetchRtoKpiModalData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rtoKpiModal]);
@@ -8575,18 +8596,44 @@ export default function OrderStatusDashboard() {
                 </div>
               )}
 
-              {/* Search + count + go-to-Details */}
-              <div className="px-6 py-3 border-b border-slate-200 bg-white flex items-center gap-3 flex-wrap">
-                <input
-                  type="text"
-                  value={rtoKpiModalSearch}
-                  onChange={(e) => setRtoKpiModalSearch(e.target.value)}
-                  placeholder="Search PO, brand, buyer, AWB, shipment status…"
-                  className="flex-1 min-w-[240px] px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
-                />
-                {rtoKpiModalData && (() => {
+              {/* Toolbar — search + multi-select filters + sort hints */}
+              {(() => {
+                const rows = rtoKpiModalData ?? [];
+                const total = rows.length;
+                let pushedCount = 0;
+                for (const r of rows) if ((r.pushedStatus || 'Not Pushed') === 'Pushed') pushedCount++;
+                const buildOpts = (acc: (r: RtoOrderRow) => string | null | undefined) => {
+                  const counts = new Map<string, number>();
+                  for (const r of rows) {
+                    const k = acc(r) || '__NONE__';
+                    counts.set(k, (counts.get(k) || 0) + 1);
+                  }
+                  return Array.from(counts.entries())
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([value, count]) => ({ value, label: value === '__NONE__' ? 'Unspecified' : value, count }));
+                };
+                const paymentOpts  = buildOpts((r) => r.paymentMode);
+                const courierOpts  = buildOpts((r) => r.logisticName);
+                const deliveryOpts = buildOpts((r) => r.shipmentStatus);
+                const reasonOpts   = buildOpts((r) => r.finalFailureReason);
+                const attemptCounts = new Map<string, number>();
+                for (const r of rows) {
+                  const a = r.deliveryAttempt || 0;
+                  const k = a >= 5 ? '5+' : String(a);
+                  attemptCounts.set(k, (attemptCounts.get(k) || 0) + 1);
+                }
+                const filtersActive =
+                  rtoKpiModalPushedFilter !== 'all' ||
+                  rtoKpiModalPaymentFilter.size > 0 ||
+                  rtoKpiModalCourierFilter.size > 0 ||
+                  rtoKpiModalDeliveryFilter.size > 0 ||
+                  rtoKpiModalReasonFilter.size > 0 ||
+                  rtoKpiModalAttemptFilter.size > 0 ||
+                  rtoKpiModalSearch.trim() !== '';
+                const filteredCount = (() => {
+                  if (!rtoKpiModalData) return 0;
                   const q = rtoKpiModalSearch.trim().toLowerCase();
-                  const filtered = q
+                  let f: RtoOrderRow[] = q
                     ? rtoKpiModalData.filter((r) =>
                         String(r.poNumber || '').toLowerCase().includes(q) ||
                         (r.brandName || '').toLowerCase().includes(q) ||
@@ -8594,22 +8641,181 @@ export default function OrderStatusDashboard() {
                         (r.buyerName || '').toLowerCase().includes(q) ||
                         (r.buyerBusinessName || '').toLowerCase().includes(q) ||
                         (r.shipmentStatus || '').toLowerCase().includes(q) ||
-                        (r.awbNumber || '').toLowerCase().includes(q)
+                        (r.awbNumber || '').toLowerCase().includes(q) ||
+                        (r.logisticName || '').toLowerCase().includes(q) ||
+                        (r.finalFailureReason || '').toLowerCase().includes(q)
                       )
                     : rtoKpiModalData;
-                  return (
-                    <span className="text-xs text-slate-500 whitespace-nowrap">
-                      {filtered.length.toLocaleString()} of {rtoKpiModalData.length.toLocaleString()} orders
+                  if (rtoKpiModalPushedFilter !== 'all')
+                    f = f.filter((r) => (r.pushedStatus || 'Not Pushed') === rtoKpiModalPushedFilter);
+                  if (rtoKpiModalPaymentFilter.size > 0)
+                    f = f.filter((r) => rtoKpiModalPaymentFilter.has(r.paymentMode || '__NONE__'));
+                  if (rtoKpiModalCourierFilter.size > 0)
+                    f = f.filter((r) => rtoKpiModalCourierFilter.has(r.logisticName || '__NONE__'));
+                  if (rtoKpiModalDeliveryFilter.size > 0)
+                    f = f.filter((r) => rtoKpiModalDeliveryFilter.has(r.shipmentStatus || '__NONE__'));
+                  if (rtoKpiModalReasonFilter.size > 0)
+                    f = f.filter((r) => rtoKpiModalReasonFilter.has(r.finalFailureReason || '__NONE__'));
+                  if (rtoKpiModalAttemptFilter.size > 0)
+                    f = f.filter((r) => {
+                      const a = r.deliveryAttempt || 0;
+                      for (const opt of rtoKpiModalAttemptFilter) {
+                        if (opt === '5+' ? a >= 5 : a === Number(opt)) return true;
+                      }
+                      return false;
+                    });
+                  return f.length;
+                })();
+                return (
+                  <div className="px-6 py-2.5 border-b border-slate-200 bg-slate-50/80 flex items-center gap-2 flex-wrap">
+                    <div className="relative w-64 max-w-full">
+                      <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-3.5-3.5" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={rtoKpiModalSearch}
+                        onChange={(e) => setRtoKpiModalSearch(e.target.value)}
+                        placeholder="Search PO, brand, buyer, AWB, courier, reason…"
+                        className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
+                      />
+                      {rtoKpiModalSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setRtoKpiModalSearch('')}
+                          aria-label="Clear search"
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 inline-flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700 text-xs"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+
+                    <div role="group" aria-label="Filter by pushed status" className="inline-flex rounded-md border border-slate-300 overflow-hidden text-xs bg-white shrink-0">
+                      {([
+                        { value: 'all' as const, label: 'All', count: total },
+                        { value: 'Pushed' as const, label: 'Pushed', count: pushedCount },
+                        { value: 'Not Pushed' as const, label: 'Not Pushed', count: total - pushedCount },
+                      ]).map((opt, idx) => {
+                        const active = rtoKpiModalPushedFilter === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setRtoKpiModalPushedFilter(opt.value)}
+                            className={`px-2.5 py-1.5 whitespace-nowrap transition-colors font-medium ${idx > 0 ? 'border-l border-slate-300' : ''} ${active ? 'bg-purple-500 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
+                          >
+                            {opt.label}<span className={`ml-1 text-[10px] tabular-nums ${active ? 'text-white/90' : 'text-slate-500'}`}>{opt.count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {paymentOpts.length > 1 && (
+                      <MultiSelectFilter
+                        label="Payment"
+                        allLabel="All payments"
+                        options={paymentOpts}
+                        selected={rtoKpiModalPaymentFilter}
+                        onChange={setRtoKpiModalPaymentFilter}
+                        widthClass="w-44"
+                      />
+                    )}
+                    {courierOpts.length > 1 && (
+                      <MultiSelectFilter
+                        label="Courier"
+                        allLabel="All couriers"
+                        options={courierOpts}
+                        selected={rtoKpiModalCourierFilter}
+                        onChange={setRtoKpiModalCourierFilter}
+                        widthClass="w-44"
+                      />
+                    )}
+                    {deliveryOpts.length > 1 && (
+                      <MultiSelectFilter
+                        label="Delivery"
+                        allLabel="All delivery"
+                        options={deliveryOpts}
+                        selected={rtoKpiModalDeliveryFilter}
+                        onChange={setRtoKpiModalDeliveryFilter}
+                        widthClass="w-44"
+                      />
+                    )}
+                    {reasonOpts.length > 1 && (
+                      <MultiSelectFilter
+                        label="Reason"
+                        allLabel="All reasons"
+                        options={reasonOpts}
+                        selected={rtoKpiModalReasonFilter}
+                        onChange={setRtoKpiModalReasonFilter}
+                        widthClass="w-48"
+                      />
+                    )}
+
+                    <div className="inline-flex items-center gap-1 pl-1 border-l border-slate-300">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mr-1">Attempts</span>
+                      {(['0', '1', '2', '3', '4', '5+'] as const).map((opt) => {
+                        const active = rtoKpiModalAttemptFilter.has(opt);
+                        const count = attemptCounts.get(opt) || 0;
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => {
+                              setRtoKpiModalAttemptFilter((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(opt)) next.delete(opt);
+                                else next.add(opt);
+                                return next;
+                              });
+                            }}
+                            disabled={count === 0}
+                            className={`px-2 py-1 rounded text-[11px] font-semibold transition-colors tabular-nums ${
+                              active
+                                ? 'bg-purple-500 text-white border border-purple-500'
+                                : count === 0
+                                ? 'bg-white text-slate-300 border border-slate-200 cursor-not-allowed'
+                                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                            }`}
+                          >
+                            {opt}<span className={`ml-1 text-[9px] ${active ? 'text-white/80' : 'text-slate-400'}`}>{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {filtersActive && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRtoKpiModalSearch('');
+                          setRtoKpiModalPushedFilter('all');
+                          setRtoKpiModalPaymentFilter(new Set());
+                          setRtoKpiModalCourierFilter(new Set());
+                          setRtoKpiModalDeliveryFilter(new Set());
+                          setRtoKpiModalReasonFilter(new Set());
+                          setRtoKpiModalAttemptFilter(new Set());
+                          setRtoKpiModalSort(null);
+                        }}
+                        className="text-[11px] font-semibold text-purple-600 hover:text-purple-800 underline underline-offset-2 whitespace-nowrap"
+                      >
+                        Clear all
+                      </button>
+                    )}
+
+                    <span className="ml-auto text-xs text-slate-500 whitespace-nowrap">
+                      {filteredCount.toLocaleString()} of {total.toLocaleString()} orders
                     </span>
-                  );
-                })()}
-                <button
-                  onClick={() => { setRtoKpiModal(null); setRtoSubTab('details'); }}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white text-xs font-semibold hover:shadow-[0_0_18px_rgba(217,70,239,0.4)]"
-                >
-                  Open full Details tab →
-                </button>
-              </div>
+                    <button
+                      onClick={() => { setRtoKpiModal(null); setRtoSubTab('details'); }}
+                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white text-xs font-semibold hover:shadow-[0_0_18px_rgba(217,70,239,0.4)]"
+                    >
+                      Open full Details tab →
+                    </button>
+                  </div>
+                );
+              })()}
 
               {/* Table */}
               <div className="flex-1 overflow-auto">
@@ -8619,71 +8825,185 @@ export default function OrderStatusDashboard() {
                   <div className="px-8 py-16 text-center text-slate-500">No RTO orders for {currentYear}</div>
                 ) : (() => {
                   const q = rtoKpiModalSearch.trim().toLowerCase();
-                  const sorted = [...rtoKpiModalData].sort((a, b) => {
-                    if (rtoKpiModal === 'value' || rtoKpiModal === 'avg') {
-                      return (b.orderValue || 0) - (a.orderValue || 0);
-                    }
-                    const ta = a.markedRejectedAt ? new Date(a.markedRejectedAt).getTime() : 0;
-                    const tb = b.markedRejectedAt ? new Date(b.markedRejectedAt).getTime() : 0;
-                    return tb - ta;
-                  });
-                  const filtered = q
-                    ? sorted.filter((r) =>
+                  let filtered: RtoOrderRow[] = q
+                    ? rtoKpiModalData.filter((r) =>
                         String(r.poNumber || '').toLowerCase().includes(q) ||
                         (r.brandName || '').toLowerCase().includes(q) ||
                         (r.buyerPhone || '').toLowerCase().includes(q) ||
                         (r.buyerName || '').toLowerCase().includes(q) ||
                         (r.buyerBusinessName || '').toLowerCase().includes(q) ||
                         (r.shipmentStatus || '').toLowerCase().includes(q) ||
-                        (r.awbNumber || '').toLowerCase().includes(q)
+                        (r.awbNumber || '').toLowerCase().includes(q) ||
+                        (r.logisticName || '').toLowerCase().includes(q) ||
+                        (r.finalFailureReason || '').toLowerCase().includes(q)
                       )
-                    : sorted;
+                    : [...rtoKpiModalData];
+                  if (rtoKpiModalPushedFilter !== 'all') {
+                    filtered = filtered.filter((r) => (r.pushedStatus || 'Not Pushed') === rtoKpiModalPushedFilter);
+                  }
+                  if (rtoKpiModalPaymentFilter.size > 0) {
+                    filtered = filtered.filter((r) => rtoKpiModalPaymentFilter.has(r.paymentMode || '__NONE__'));
+                  }
+                  if (rtoKpiModalCourierFilter.size > 0) {
+                    filtered = filtered.filter((r) => rtoKpiModalCourierFilter.has(r.logisticName || '__NONE__'));
+                  }
+                  if (rtoKpiModalDeliveryFilter.size > 0) {
+                    filtered = filtered.filter((r) => rtoKpiModalDeliveryFilter.has(r.shipmentStatus || '__NONE__'));
+                  }
+                  if (rtoKpiModalReasonFilter.size > 0) {
+                    filtered = filtered.filter((r) => rtoKpiModalReasonFilter.has(r.finalFailureReason || '__NONE__'));
+                  }
+                  if (rtoKpiModalAttemptFilter.size > 0) {
+                    filtered = filtered.filter((r) => {
+                      const a = r.deliveryAttempt || 0;
+                      for (const opt of rtoKpiModalAttemptFilter) {
+                        if (opt === '5+' ? a >= 5 : a === Number(opt)) return true;
+                      }
+                      return false;
+                    });
+                  }
+                  // Sort: user-chosen, else fall back to value-DESC for value/avg KPIs, else markedRejectedAt DESC
+                  if (rtoKpiModalSort) {
+                    const { key, direction } = rtoKpiModalSort;
+                    const num = (v: unknown) => (v == null || v === '' ? null : Number(v));
+                    const dt = (v: unknown) => (v == null || v === '' ? null : new Date(v as string).getTime());
+                    const sortVal = (r: RtoOrderRow): number | string | null => {
+                      switch (key) {
+                        case 'markedPending': return dt(r.orderDate);
+                        case 'pushed': return r.pushedStatus ?? '';
+                        case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
+                        case 'status': return r.poStatus ?? '';
+                        case 'poAmount': return num(r.orderValue);
+                        case 'coupon': return num(r.couponValue);
+                        case 'wallet': return num(r.appliedWalletAmount);
+                        case 'sellerDiscount': return num(r.discountBySeller);
+                        case 'badhoDiscount': return num(r.PaymentOptionDiscountByBadho);
+                        case 'cod': return num(r.codCollect);
+                        case 'deliveryStatus': return r.shipmentStatus ?? '';
+                        case 'paidAmount': return num(r.paidAmount);
+                        case 'paymentOption': return r.paymentMode ?? '';
+                        case 'awb': return r.awbNumber ?? '';
+                        case 'courier': return r.logisticName ?? '';
+                        case 'paymentDate': return dt(r.paymentDate);
+                        case 'paymentEvent': return r.paymentEvent ?? '';
+                        case 'buyerBusiness': return r.buyerBusinessName ?? '';
+                        case 'buyerPhone': return r.buyerPhone ?? '';
+                        case 'sellerBusiness': return r.sellerBusinessName ?? '';
+                        case 'sellerPhone': return r.sellerPhone ?? '';
+                        case 'markedRejected': return dt(r.markedRejectedAt);
+                        case 'statusDuration': return r.statusDurationSec ?? null;
+                        case 'refundInit': return dt(r.RefundIntiatedTime);
+                        case 'refundDone': return dt(r.RefundCompletedTime);
+                        case 'refundAmount': return r.RefundAmount ?? null;
+                        case 'rejectReason': return r.rejectReason ?? '';
+                        case 'rejectedBy': return r.rejectedBy ?? '';
+                        case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
+                        case 'brand': return r.brandName ?? '';
+                        case 'latestAttempt': return dt(r.latestAttemptTime);
+                        case 'failureReason': return r.finalFailureReason ?? '';
+                        case 'attempts': return num(r.deliveryAttempt);
+                        default: return '';
+                      }
+                    };
+                    filtered = [...filtered].sort((a, b) => {
+                      const av = sortVal(a);
+                      const bv = sortVal(b);
+                      if (av === null && bv === null) return 0;
+                      if (av === null) return 1;
+                      if (bv === null) return -1;
+                      let cmp = 0;
+                      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
+                      else cmp = String(av).localeCompare(String(bv));
+                      return direction === 'asc' ? cmp : -cmp;
+                    });
+                  } else {
+                    filtered = [...filtered].sort((a, b) => {
+                      if (rtoKpiModal === 'value' || rtoKpiModal === 'avg') {
+                        return (b.orderValue || 0) - (a.orderValue || 0);
+                      }
+                      const ta = a.markedRejectedAt ? new Date(a.markedRejectedAt).getTime() : 0;
+                      const tb = b.markedRejectedAt ? new Date(b.markedRejectedAt).getTime() : 0;
+                      return tb - ta;
+                    });
+                  }
                   if (filtered.length === 0) {
-                    return <div className="px-8 py-16 text-center text-slate-500">No matches for &ldquo;{rtoKpiModalSearch}&rdquo;</div>;
+                    return <div className="px-8 py-16 text-center text-slate-500">No matches for the selected filters</div>;
                   }
                   const fmtAmt = (n: number | null | undefined) => n != null ? `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—';
                   const dash = <span className="text-slate-400">—</span>;
+                  const arrowFor = (k: string) => {
+                    const active = rtoKpiModalSort?.key === k;
+                    const dir = active ? rtoKpiModalSort?.direction : null;
+                    return (
+                      <span className={`ml-1 text-[10px] leading-none ${active ? 'text-purple-600' : 'text-slate-300'}`}>
+                        {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : '⇅'}
+                      </span>
+                    );
+                  };
+                  const SortTh = ({ k, label, cls = '', align = 'left' }: { k: string; label: string; cls?: string; align?: 'left' | 'right' }) => (
+                    <th
+                      onClick={() => toggleRtoKpiSort(k)}
+                      className={`sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-${align} text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200/80 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-700'}`}
+                    >
+                      <span className={`inline-flex items-center ${align === 'right' ? 'justify-end w-full' : ''}`}>{label}{arrowFor(k)}</span>
+                    </th>
+                  );
                   return (
                     <table className="w-full text-xs">
                       <thead className="shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                         <tr className="border-b border-slate-200">
-                          {/* Standardized 25-column header */}
-                          <th className="sticky top-0 left-0 z-30 bg-amber-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-amber-800">Marked Pending</th>
-                          <th className="sticky top-0 left-[160px] z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-700">Pushed</th>
-                          <th className="sticky top-0 left-[280px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">PO Number</th>
+                          {/* Sticky-left sortable header trio */}
+                          <th
+                            onClick={() => toggleRtoKpiSort('markedPending')}
+                            className="sticky top-0 left-0 z-30 bg-amber-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-amber-100 whitespace-nowrap uppercase tracking-wider text-amber-800"
+                          >
+                            <span className="inline-flex items-center">Marked Pending{arrowFor('markedPending')}</span>
+                          </th>
+                          <th
+                            onClick={() => toggleRtoKpiSort('pushed')}
+                            className="sticky top-0 left-[160px] z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
+                          >
+                            <span className="inline-flex items-center">Pushed{arrowFor('pushed')}</span>
+                          </th>
+                          <th
+                            onClick={() => toggleRtoKpiSort('poNumber')}
+                            className="sticky top-0 left-[280px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                          >
+                            <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
+                          </th>
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Items</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Order Status</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">PO Amount</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Coupon Amount</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Applied Wallet Amount</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Seller Discount</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Payment Option Badho Discount</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">COD Amount</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Delivery Status</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Paid Amount</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Payment Option</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">AWB Number</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Courier Name</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Payment Date</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Payment Event</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Buyer Business</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Buyer Phone</th>
+                          <SortTh k="status" label="Order Status" />
+                          <SortTh k="poAmount" label="PO Amount" align="right" />
+                          <SortTh k="coupon" label="Coupon Amount" align="right" />
+                          <SortTh k="wallet" label="Applied Wallet Amount" align="right" />
+                          <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
+                          <SortTh k="badhoDiscount" label="Payment Option Badho Discount" align="right" />
+                          <SortTh k="cod" label="COD Amount" align="right" />
+                          <SortTh k="deliveryStatus" label="Delivery Status" />
+                          <SortTh k="paidAmount" label="Paid Amount" align="right" />
+                          <SortTh k="paymentOption" label="Payment Option" />
+                          <SortTh k="awb" label="AWB Number" />
+                          <SortTh k="courier" label="Courier Name" />
+                          <SortTh k="paymentDate" label="Payment Date" />
+                          <SortTh k="paymentEvent" label="Payment Event" />
+                          <SortTh k="buyerBusiness" label="Buyer Business" />
+                          <SortTh k="buyerPhone" label="Buyer Phone" />
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Buyer Address</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Seller Business</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Seller Phone</th>
-                          <th className="sticky top-0 z-20 bg-amber-50/60 px-2.5 py-2.5 text-left text-[11px] font-bold text-amber-800 uppercase tracking-wider whitespace-nowrap">markedRejectedTime</th>
-                          <th className="sticky top-0 z-20 bg-amber-50/60 px-2.5 py-2.5 text-left text-[11px] font-bold text-amber-800 uppercase tracking-wider whitespace-nowrap">Status Duration</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Refund Initiated</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Refund Completed</th>
-                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Refund Amount</th>
-                          <th className="sticky top-0 z-20 bg-rose-50/60 px-2.5 py-2.5 text-left text-[11px] font-bold text-rose-700 uppercase tracking-wider whitespace-nowrap">Reject Reason</th>
-                          <th className="sticky top-0 z-20 bg-rose-50/60 px-2.5 py-2.5 text-left text-[11px] font-bold text-rose-700 uppercase tracking-wider whitespace-nowrap">Rejected By</th>
-                          <th className="sticky top-0 z-20 bg-rose-50/60 px-2.5 py-2.5 text-left text-[11px] font-bold text-rose-700 uppercase tracking-wider whitespace-nowrap">Reason Added By Badho Team</th>
+                          <SortTh k="sellerBusiness" label="Seller Business" />
+                          <SortTh k="sellerPhone" label="Seller Phone" />
+                          <SortTh k="markedRejected" label="markedRejectedTime" cls="text-amber-800 bg-amber-50/60" />
+                          <SortTh k="statusDuration" label="Status Duration" cls="text-amber-800 bg-amber-50/60" />
+                          <SortTh k="refundInit" label="Refund Initiated" />
+                          <SortTh k="refundDone" label="Refund Completed" />
+                          <SortTh k="refundAmount" label="Refund Amount" align="right" />
+                          <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50/60" />
+                          <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50/60" />
+                          <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50/60" />
                           {/* RTO-specific extras */}
-                          <th className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-left text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Brand</th>
-                          <th className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-left text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Latest Attempt</th>
-                          <th className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-left text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Final Failure Reason</th>
-                          <th className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-right text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Attempts</th>
+                          <SortTh k="brand" label="Brand" cls="text-fuchsia-700 bg-fuchsia-50/70" />
+                          <SortTh k="latestAttempt" label="Latest Attempt" cls="text-fuchsia-700 bg-fuchsia-50/70" />
+                          <SortTh k="failureReason" label="Final Failure Reason" cls="text-fuchsia-700 bg-fuchsia-50/70" />
+                          <SortTh k="attempts" label="Attempts" cls="text-fuchsia-700 bg-fuchsia-50/70" align="right" />
                           {[1,2,3,4,5,6].map((n) => (
                             <th key={n} className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-left text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Attempt {n}</th>
                           ))}

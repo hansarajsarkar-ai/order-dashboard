@@ -7543,9 +7543,15 @@ export default function OrderStatusDashboard() {
                           <>
                           {/* Total + full status breakdown — every status, so the parts sum to the total */}
                           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
-                            <div className="flex items-baseline gap-2 mb-3">
-                              <div className="text-4xl font-black tabular-nums leading-none text-slate-900">{buyerHistory.summary.totalOrders.toLocaleString('en-IN')}</div>
-                              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Total Orders Placed</div>
+                            <div className="flex items-end justify-between gap-2 mb-3">
+                              <div className="flex items-baseline gap-2">
+                                <div className="text-4xl font-black tabular-nums leading-none text-slate-900">{buyerHistory.summary.totalOrders.toLocaleString('en-IN')}</div>
+                                <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Total Orders Placed</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-2xl font-black tabular-nums leading-none text-indigo-600">{formatAmount(buyerHistory.summary.totalGmv)}</div>
+                                <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-1">Total Value</div>
+                              </div>
                             </div>
                             <div className="grid grid-cols-3 gap-2">
                               {([
@@ -7568,7 +7574,7 @@ export default function OrderStatusDashboard() {
                           <div className="relative rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white px-5 py-3.5 flex items-center justify-between overflow-hidden shadow-md">
                             <div className="pointer-events-none absolute -top-8 -right-6 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
                             <div className="relative">
-                              <div className="text-[10px] uppercase tracking-wider text-white/70 font-bold">Lifetime Value</div>
+                              <div className="text-[10px] uppercase tracking-wider text-white/70 font-bold">Completed Value</div>
                               <div className="text-2xl font-black tabular-nums mt-0.5">{formatAmount(buyerHistory.summary.completedGmv)}</div>
                             </div>
                             <div className="relative text-right">

@@ -365,17 +365,21 @@ export default function OrderStatusDashboard() {
   const [geoCovDayMonth, setGeoCovDayMonth] = useState<number>(new Date().getMonth() + 1);
   const [geoCovStatuses, setGeoCovStatuses] = useState<string[]>([]);
   const [geoCovStatusOpen, setGeoCovStatusOpen] = useState(false);
-  // Pincode drill-down modal (opens when clicking any number in the Geo Coverage table)
+  // Geo drill-down modal (opens when clicking any number in the Geo Coverage table).
+  // The breakdown level mirrors the clicked row: pincode/city/district/state.
+  type GeoLevel = 'pincode' | 'city' | 'district' | 'state';
   interface GeoPinRow { pincode: string | null; city: string | null; district: string | null; state: string | null; count: number; amount: number }
   const [geoPinOpen, setGeoPinOpen] = useState(false);
+  const [geoPinGeo, setGeoPinGeo] = useState<GeoLevel>('pincode');
   const [geoPinLabel, setGeoPinLabel] = useState('');
   const [geoPinRows, setGeoPinRows] = useState<GeoPinRow[] | null>(null);
   const [geoPinGrand, setGeoPinGrand] = useState<{ count: number; amount: number }>({ count: 0, amount: 0 });
   const [geoPinLoading, setGeoPinLoading] = useState(false);
   const [geoPinError, setGeoPinError] = useState<string | null>(null);
   const [geoPinSearch, setGeoPinSearch] = useState('');
-  const openGeoPinModal = async (bucket: number | 'total', label: string) => {
+  const openGeoPinModal = async (geo: GeoLevel, bucket: number | 'total', label: string) => {
     setGeoPinOpen(true);
+    setGeoPinGeo(geo);
     setGeoPinLabel(label);
     setGeoPinRows(null);
     setGeoPinError(null);
@@ -387,10 +391,11 @@ export default function OrderStatusDashboard() {
         granularity: geoCovGranularity,
         month: String(geoCovDayMonth),
         bucket: String(bucket),
+        geo,
       });
       if (geoCovStatuses.length) qs.set('statuses', geoCovStatuses.join(','));
       const res = await fetch(`/api/order-geo-pincode-breakdown?${qs.toString()}`);
-      if (!res.ok) throw new Error('Failed to load pincode breakdown');
+      if (!res.ok) throw new Error('Failed to load geo breakdown');
       const json = await res.json();
       setGeoPinRows(json.data);
       setGeoPinGrand(json.grand);
@@ -3354,7 +3359,7 @@ export default function OrderStatusDashboard() {
                           {buckets.map((b) => {
                             const cell = row.months[b];
                             const hasData = cell && (cell.covered > 0 || cell.count > 0);
-                            const click = hasData ? () => openGeoPinModal(b, bucketFullLabel(b)) : undefined;
+                            const click = hasData ? () => openGeoPinModal(row.geo as GeoLevel, b, bucketFullLabel(b)) : undefined;
                             const clk = hasData ? cellHover : '';
                             return (
                               <Fragment key={b}>
@@ -3370,13 +3375,13 @@ export default function OrderStatusDashboard() {
                               </Fragment>
                             );
                           })}
-                          <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className={`px-2 py-3 text-right tabular-nums font-bold text-fuchsia-100 bg-purple-500/10 ${cellHover}`}>
+                          <td onClick={() => openGeoPinModal(row.geo as GeoLevel, 'total', totalLabel)} title="View pincode breakdown" className={`px-2 py-3 text-right tabular-nums font-bold text-fuchsia-100 bg-purple-500/10 ${cellHover}`}>
                             <span className={numHover}>{row.total.covered.toLocaleString()}</span>
                           </td>
-                          <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className={`px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10 ${cellHover}`}>
+                          <td onClick={() => openGeoPinModal(row.geo as GeoLevel, 'total', totalLabel)} title="View pincode breakdown" className={`px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10 ${cellHover}`}>
                             <span className={numHover}>{row.total.count.toLocaleString()}</span>
                           </td>
-                          <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className={`px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10 ${cellHover}`}>
+                          <td onClick={() => openGeoPinModal(row.geo as GeoLevel, 'total', totalLabel)} title="View pincode breakdown" className={`px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10 ${cellHover}`}>
                             <span className={numHover}>{formatAmount(row.total.amount)}</span>
                           </td>
                         </tr>
@@ -3390,7 +3395,7 @@ export default function OrderStatusDashboard() {
                       {buckets.map((b) => {
                         const cell = geoCoverageData.totals.byMonth[b];
                         const hasData = cell && cell.count > 0;
-                        const click = hasData ? () => openGeoPinModal(b, bucketFullLabel(b)) : undefined;
+                        const click = hasData ? () => openGeoPinModal('pincode', b, bucketFullLabel(b)) : undefined;
                         const clk = hasData ? cellHover : '';
                         return (
                           <Fragment key={b}>
@@ -3405,10 +3410,10 @@ export default function OrderStatusDashboard() {
                         );
                       })}
                       <td className="px-2 py-3 text-right tabular-nums text-white/40 bg-purple-500/30">—</td>
-                      <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className={`px-2 py-3 text-right tabular-nums text-white bg-purple-500/30 ${cellHover}`}>
+                      <td onClick={() => openGeoPinModal('pincode', 'total', totalLabel)} title="View pincode breakdown" className={`px-2 py-3 text-right tabular-nums text-white bg-purple-500/30 ${cellHover}`}>
                         <span className={numHover}>{geoCoverageData.totals.grand.count.toLocaleString()}</span>
                       </td>
-                      <td onClick={() => openGeoPinModal('total', totalLabel)} title="View pincode breakdown" className={`px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10 ${cellHover}`}>
+                      <td onClick={() => openGeoPinModal('pincode', 'total', totalLabel)} title="View pincode breakdown" className={`px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10 ${cellHover}`}>
                         <span className={numHover}>{formatAmount(geoCoverageData.totals.grand.amount)}</span>
                       </td>
                     </tr>
@@ -3432,7 +3437,7 @@ export default function OrderStatusDashboard() {
             >
               <header className="px-6 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-semibold">Pincode Breakdown</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-semibold">{geoPinGeo.charAt(0).toUpperCase() + geoPinGeo.slice(1)} Breakdown</div>
                   <h3 className="text-lg font-extrabold truncate mt-0.5">{geoPinLabel}</h3>
                 </div>
                 <button
@@ -3446,7 +3451,7 @@ export default function OrderStatusDashboard() {
               {!geoPinLoading && !geoPinError && geoPinRows && (
                 <div className="px-6 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-5 text-sm">
-                    <div><span className="text-slate-500">Pincodes</span> <span className="font-bold tabular-nums">{geoPinRows.length.toLocaleString()}</span></div>
+                    <div><span className="text-slate-500">{({ pincode: 'Pincodes', city: 'Cities', district: 'Districts', state: 'States' } as const)[geoPinGeo]}</span> <span className="font-bold tabular-nums">{geoPinRows.length.toLocaleString()}</span></div>
                     <div><span className="text-slate-500">Orders</span> <span className="font-bold tabular-nums">{geoPinGrand.count.toLocaleString()}</span></div>
                     <div><span className="text-slate-500">Sale</span> <span className="font-bold tabular-nums">{formatAmount(geoPinGrand.amount)}</span></div>
                   </div>
@@ -3454,14 +3459,14 @@ export default function OrderStatusDashboard() {
                     type="text"
                     value={geoPinSearch}
                     onChange={(e) => setGeoPinSearch(e.target.value)}
-                    placeholder="Search pincode / city / state…"
+                    placeholder={`Search ${geoPinGeo}…`}
                     className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 w-64 max-w-full"
                   />
                 </div>
               )}
               <div className="flex-1 overflow-auto">
                 {geoPinLoading ? (
-                  <div className="px-6 py-12 text-center text-slate-500">Loading pincode breakdown…</div>
+                  <div className="px-6 py-12 text-center text-slate-500">Loading {geoPinGeo} breakdown…</div>
                 ) : geoPinError ? (
                   <div className="px-6 py-12 text-center text-rose-600">Error: {geoPinError}</div>
                 ) : !geoPinRows || geoPinRows.length === 0 ? (
@@ -3473,23 +3478,32 @@ export default function OrderStatusDashboard() {
                       ? geoPinRows.filter((r) =>
                           [r.pincode, r.city, r.district, r.state].some((v) => (v || '').toLowerCase().includes(q)))
                       : geoPinRows;
+                    // Geo columns shown depend on the drilled level (e.g. state view drops pincode/city/district).
+                    const geoCols: { key: keyof GeoPinRow; label: string }[] = (
+                      geoPinGeo === 'state' ? [{ key: 'state', label: 'State' }]
+                      : geoPinGeo === 'district' ? [{ key: 'district', label: 'District' }, { key: 'state', label: 'State' }]
+                      : geoPinGeo === 'city' ? [{ key: 'city', label: 'City' }, { key: 'district', label: 'District' }, { key: 'state', label: 'State' }]
+                      : [{ key: 'pincode', label: 'Pincode' }, { key: 'city', label: 'City' }, { key: 'district', label: 'District' }, { key: 'state', label: 'State' }]
+                    );
                     return (
                       <table className="w-full text-sm">
                         <thead className="sticky top-0 bg-slate-100 z-10">
                           <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
-                            <th className="px-5 py-2.5 font-semibold">Pincode</th>
-                            <th className="px-3 py-2.5 font-semibold">City</th>
-                            <th className="px-3 py-2.5 font-semibold">State</th>
+                            {geoCols.map((c, ci) => (
+                              <th key={c.key} className={`${ci === 0 ? 'px-5' : 'px-3'} py-2.5 font-semibold`}>{c.label}</th>
+                            ))}
                             <th className="px-5 py-2.5 font-semibold text-right">Orders</th>
-                            <th className="px-5 py-2.5 font-semibold text-right">Sale</th>
+                            <th className="px-5 py-2.5 font-semibold text-right">Order Value</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {filtered.map((r, i) => (
-                            <tr key={`${r.pincode}-${i}`} className="hover:bg-indigo-50/60">
-                              <td className="px-5 py-2.5 font-mono font-semibold text-slate-900">{r.pincode || '—'}</td>
-                              <td className="px-3 py-2.5 text-slate-700">{r.city || '—'}</td>
-                              <td className="px-3 py-2.5 text-slate-700">{r.state || '—'}</td>
+                            <tr key={`${geoCols.map((c) => r[c.key]).join('|')}-${i}`} className="hover:bg-indigo-50/60">
+                              {geoCols.map((c, ci) => (
+                                <td key={c.key} className={`${ci === 0 ? 'px-5' : 'px-3'} py-2.5 ${c.key === 'pincode' ? 'font-mono font-semibold text-slate-900' : 'text-slate-700'}`}>
+                                  {(r[c.key] as string) || '—'}
+                                </td>
+                              ))}
                               <td className="px-5 py-2.5 text-right tabular-nums font-semibold text-slate-900">{r.count.toLocaleString()}</td>
                               <td className="px-5 py-2.5 text-right tabular-nums text-indigo-700 font-semibold">{formatAmount(r.amount)}</td>
                             </tr>

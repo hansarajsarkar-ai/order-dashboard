@@ -12,6 +12,8 @@ interface Row {
   amount: string;
 }
 
+type GeoLevel = 'pincode' | 'city' | 'district' | 'state';
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const currentYear = new Date().getFullYear();
@@ -20,6 +22,8 @@ export async function GET(req: NextRequest) {
   const dayMonth = parseInt(searchParams.get('month') || String(new Date().getMonth() + 1));
   const bucketParam = (searchParams.get('bucket') || '').trim(); // '' or 'total' = whole period
   const statusesParam = (searchParams.get('statuses') || '').trim();
+  const geoParam = (searchParams.get('geo') || 'pincode') as GeoLevel;
+  const geo: GeoLevel = ['pincode', 'city', 'district', 'state'].includes(geoParam) ? geoParam : 'pincode';
 
   try {
     const params: (string | number)[] = [year];
@@ -45,12 +49,38 @@ export async function GET(req: NextRequest) {
       statusFilter = ` AND po."status" = ANY(string_to_array($${params.length}, ','))`;
     }
 
+    // Group/select keys vary by the geo level being drilled into. Non-key geo columns
+    // are NULL (or MAX of the parent geo) so the response shape stays consistent.
+    let selectKeys: string;
+    let groupBy: string;
+    let geoNotNull: string;
+    switch (geo) {
+      case 'state':
+        selectKeys = `NULL AS pincode, NULL AS city, NULL AS district, b."state" AS state`;
+        groupBy = `b."state"`;
+        geoNotNull = `AND b."state" IS NOT NULL AND b."state" <> ''`;
+        break;
+      case 'district':
+        selectKeys = `NULL AS pincode, NULL AS city, b."district" AS district, b."state" AS state`;
+        groupBy = `b."state", b."district"`;
+        geoNotNull = `AND b."district" IS NOT NULL AND b."district" <> ''`;
+        break;
+      case 'city':
+        selectKeys = `NULL AS pincode, b."city" AS city, MAX(b."district") AS district, b."state" AS state`;
+        groupBy = `b."state", b."city"`;
+        geoNotNull = `AND b."city" IS NOT NULL AND b."city" <> ''`;
+        break;
+      case 'pincode':
+      default:
+        selectKeys = `b."pincode" AS pincode, MAX(b."city") AS city, MAX(b."district") AS district, MAX(b."state") AS state`;
+        groupBy = `b."pincode"`;
+        geoNotNull = `AND b."pincode" IS NOT NULL AND b."pincode" <> ''`;
+        break;
+    }
+
     const sql = `
       SELECT
-        b."pincode"                                  AS pincode,
-        MAX(b."city")                                AS city,
-        MAX(b."district")                            AS district,
-        MAX(b."state")                               AS state,
+        ${selectKeys},
         COUNT(*)                                     AS count,
         COALESCE(SUM(po."amount"::numeric), 0)::text AS amount
       FROM "purchaseOrder"."purchaseOrder" po
@@ -67,10 +97,10 @@ export async function GET(req: NextRequest) {
         AND po."deliveryType"    = 'INTERCITY'
         AND po."status"         != 'DRAFT'
         AND po."markedPendingTime" IS NOT NULL
-        AND b."pincode" IS NOT NULL AND b."pincode" <> ''
+        ${geoNotNull}
         ${periodFilter}
         ${statusFilter}
-      GROUP BY b."pincode"
+      GROUP BY ${groupBy}
       ORDER BY count DESC, amount DESC;
     `;
 
@@ -93,7 +123,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       data,
       grand,
-      pincodes: data.length,
+      geo,
+      rows: data.length,
       granularity,
       bucket: bucketParam || 'total',
       year,

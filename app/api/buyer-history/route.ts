@@ -8,12 +8,14 @@ export const dynamic = 'force-dynamic';
 // toward the buyer's complete relationship history.
 const ORDER_TS = `COALESCE(po."markedPendingTime", po."created_at")`;
 
-// Scope to genuine, non-test orders. No D2R/delivery restriction here — the modal shows
-// the buyer's full lifetime relationship, not just the dashboard's intercity-D2R universe.
+// Scope to genuine, non-test orders within the dashboard's intercity / third-party
+// universe, so the buyer's history matches the numbers shown in the drill tables.
 const BASE_WHERE = `
   po."isTest"       = FALSE
   AND po."isFalseOrder" = FALSE
   AND po."status"  != 'DRAFT'
+  AND po."deliveryType"    = 'INTERCITY'
+  AND po."deliveryNetwork" = 'THIRD_PARTY'
 `;
 
 interface SummaryRow {

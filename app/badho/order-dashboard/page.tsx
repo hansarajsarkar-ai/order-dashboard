@@ -7475,6 +7475,7 @@ export default function OrderStatusDashboard() {
                         <div className="grid grid-cols-2 gap-2.5">
                           {([
                             { label: 'Buyer Name',  value: buyerModalData.name,              wrap: true },
+                            { label: 'Buyer ID',    value: buyerModalData.id,                mono: true, wrap: true },
                             { label: 'Phone',       value: buyerModalData.phone,             mono: true },
                             { label: 'Email',       value: buyerModalData.email,             mono: true, wrap: true },
                             { label: 'GST Number',  value: buyerModalData.gstNumber,         mono: true },

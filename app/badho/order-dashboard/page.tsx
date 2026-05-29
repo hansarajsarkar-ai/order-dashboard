@@ -3316,7 +3316,7 @@ export default function OrderStatusDashboard() {
                   : `${currentYear} (all ${geoCovGranularity === 'week' ? 'weeks' : 'months'})`) + statusSuffix;
                 // Clickable cells use a group so the inner number can saturate + scale up on hover.
                 const cellHover = 'group cursor-pointer hover:bg-fuchsia-500/15 transition-colors';
-                const numHover = 'inline-block origin-right transition-all duration-150 group-hover:scale-[1.25] group-hover:font-extrabold group-hover:text-fuchsia-400 group-hover:drop-shadow-[0_0_6px_rgba(232,121,249,0.6)]';
+                const numHover = 'inline-block origin-right transition-all duration-150 group-hover:scale-[1.25] group-hover:font-extrabold group-hover:text-cyan-300 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.75)]';
                 return (
                 <table className="w-full text-sm">
                   <thead>

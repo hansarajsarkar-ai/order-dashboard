@@ -294,6 +294,13 @@ const formatAmount = (n: number): string => {
   return `₹${n.toFixed(0)}`;
 };
 
+const formatDateShort = (iso: string | null): string => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
 // Compact human-readable duration: 1.5h / 3d / 12d 4h
 const formatDuration = (seconds: number | null | undefined): string => {
   if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '—';
@@ -733,17 +740,45 @@ export default function OrderStatusDashboard() {
     lattitude: string | null;
     fullAddress: string;
   }
+  interface BuyerHistory {
+    buyerId: string;
+    summary: {
+      totalOrders: number;
+      completed: number;
+      rejected: number;
+      cancelled: number;
+      pending: number;
+      inprogress: number;
+      dispatched: number;
+      firstOrder: string | null;
+      lastOrder: string | null;
+      daysSinceLast: number | null;
+      completedGmv: number;
+      totalGmv: number;
+      completionRate: number;
+      rejectionRate: number;
+    };
+    topSkus: { brand: string; sku: string; orderCount: number; qty: number; amount: number }[];
+    topBrands: { brand: string; orderCount: number; qty: number; amount: number }[];
+    monthly: { ym: string; orders: number; gmv: number }[];
+  }
   const [buyerModalOpen, setBuyerModalOpen] = useState(false);
   const [buyerModalData, setBuyerModalData] = useState<BuyerDetailsRow | null>(null);
   const [buyerModalLoading, setBuyerModalLoading] = useState(false);
   const [buyerModalError, setBuyerModalError] = useState<string | null>(null);
   const [buyerModalLookup, setBuyerModalLookup] = useState<string>('');
+  const [buyerHistory, setBuyerHistory] = useState<BuyerHistory | null>(null);
+  const [buyerHistoryLoading, setBuyerHistoryLoading] = useState(false);
+  const [buyerHistoryError, setBuyerHistoryError] = useState<string | null>(null);
 
   const openBuyerModal = async (lookup: { phone?: string | null; businessName?: string | null }) => {
     setBuyerModalOpen(true);
     setBuyerModalData(null);
     setBuyerModalError(null);
     setBuyerModalLoading(true);
+    setBuyerHistory(null);
+    setBuyerHistoryError(null);
+    setBuyerHistoryLoading(true);
     const params = new URLSearchParams();
     if (lookup.phone) params.set('phone', lookup.phone);
     else if (lookup.businessName) params.set('businessName', lookup.businessName);
@@ -752,11 +787,25 @@ export default function OrderStatusDashboard() {
       const res = await fetch(`/api/buyer-details?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      setBuyerModalData(json.data as BuyerDetailsRow);
+      const buyer = json.data as BuyerDetailsRow;
+      setBuyerModalData(buyer);
+      setBuyerModalLoading(false);
+      // History keyed off the resolved buyerId — buyer "phone" values can be corrupted
+      // (timestamp suffixes), so id is the only reliable join key.
+      try {
+        const hres = await fetch(`/api/buyer-history?buyerId=${encodeURIComponent(buyer.id)}`);
+        const hjson = await hres.json();
+        if (!hres.ok) throw new Error(hjson.error || `HTTP ${hres.status}`);
+        setBuyerHistory(hjson as BuyerHistory);
+      } catch (e) {
+        setBuyerHistoryError(e instanceof Error ? e.message : 'Unknown error');
+      } finally {
+        setBuyerHistoryLoading(false);
+      }
     } catch (err) {
       setBuyerModalError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
       setBuyerModalLoading(false);
+      setBuyerHistoryLoading(false);
     }
   };
   const closeBuyerModal = () => {
@@ -764,6 +813,8 @@ export default function OrderStatusDashboard() {
     setBuyerModalData(null);
     setBuyerModalError(null);
     setBuyerModalLookup('');
+    setBuyerHistory(null);
+    setBuyerHistoryError(null);
   };
   useEffect(() => {
     if (!buyerModalOpen) return;
@@ -7392,6 +7443,124 @@ export default function OrderStatusDashboard() {
                 ) : !buyerModalData ? (
                   <div className="px-6 py-12 text-center text-slate-500">No data.</div>
                 ) : (
+                  <>
+                  <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-br from-indigo-50/70 via-white to-fuchsia-50/50 space-y-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-[11px] uppercase tracking-[0.18em] font-bold text-indigo-600">Order History</div>
+                      {buyerHistory && buyerHistory.summary.daysSinceLast != null && (
+                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                          buyerHistory.summary.daysSinceLast <= 30 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : buyerHistory.summary.daysSinceLast <= 90 ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}>
+                          {buyerHistory.summary.daysSinceLast === 0 ? 'Ordered today' : `${buyerHistory.summary.daysSinceLast}d since last order`}
+                        </span>
+                      )}
+                    </div>
+
+                    {buyerHistoryLoading ? (
+                      <div className="py-6 text-center text-sm text-slate-400">Loading order history…</div>
+                    ) : buyerHistoryError ? (
+                      <div className="py-6 text-center text-sm text-rose-500">History unavailable: {buyerHistoryError}</div>
+                    ) : !buyerHistory || buyerHistory.summary.totalOrders === 0 ? (
+                      <div className="py-6 text-center text-sm text-slate-400">No orders on record for this buyer.</div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-4 gap-2.5">
+                          {([
+                            { label: 'Orders',    value: buyerHistory.summary.totalOrders, cls: 'text-slate-900',   bg: 'bg-white border-slate-200' },
+                            { label: 'Completed', value: buyerHistory.summary.completed,   cls: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
+                            { label: 'Rejected',  value: buyerHistory.summary.rejected,    cls: 'text-rose-600',    bg: 'bg-rose-50 border-rose-200' },
+                            { label: 'Cancelled', value: buyerHistory.summary.cancelled,   cls: 'text-amber-600',   bg: 'bg-amber-50 border-amber-200' },
+                          ]).map((t) => (
+                            <div key={t.label} className={`rounded-xl border ${t.bg} px-2 py-2.5 text-center`}>
+                              <div className={`text-2xl font-extrabold tabular-nums ${t.cls}`}>{t.value.toLocaleString('en-IN')}</div>
+                              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-0.5">{t.label}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                          <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5">
+                            <div className="text-base font-extrabold text-indigo-700">{formatAmount(buyerHistory.summary.completedGmv)}</div>
+                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-0.5">Lifetime Value</div>
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                            <div className="text-base font-extrabold text-emerald-600">{buyerHistory.summary.completionRate.toFixed(0)}%</div>
+                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-0.5">Completion</div>
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                            <div className="text-xs font-bold text-slate-900">{formatDateShort(buyerHistory.summary.firstOrder)}</div>
+                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-0.5">First Order</div>
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                            <div className="text-xs font-bold text-slate-900">{formatDateShort(buyerHistory.summary.lastOrder)}</div>
+                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-0.5">Last Order</div>
+                          </div>
+                        </div>
+
+                        {buyerHistory.monthly.length > 1 && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1.5">Orders · last 12 months</div>
+                            <div className="h-16 w-full">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={buyerHistory.monthly} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                                  <XAxis dataKey="ym" hide />
+                                  <Tooltip
+                                    cursor={{ fill: 'rgba(99,102,241,0.08)' }}
+                                    contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                                    labelFormatter={(l) => String(l)}
+                                    formatter={(value) => [Number(value), 'orders']}
+                                  />
+                                  <Bar dataKey="orders" fill="#6366f1" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        )}
+
+                        {buyerHistory.topSkus.length > 0 && (() => {
+                          const maxOrd = Math.max(...buyerHistory.topSkus.map((sk) => sk.orderCount), 1);
+                          return (
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Most Purchased Products</div>
+                              <div className="space-y-1.5">
+                                {buyerHistory.topSkus.map((sk, i) => (
+                                  <div key={i} className="relative rounded-lg bg-white border border-slate-200 px-3 py-2 overflow-hidden">
+                                    <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-fuchsia-100 to-fuchsia-50" style={{ width: `${(sk.orderCount / maxOrd) * 100}%` }} />
+                                    <div className="relative flex items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-xs font-semibold text-slate-900 truncate">{sk.sku}</div>
+                                        <div className="text-[10px] text-slate-500 truncate">{sk.brand}</div>
+                                      </div>
+                                      <div className="shrink-0 text-right">
+                                        <div className="text-xs font-bold text-fuchsia-700 tabular-nums">{sk.orderCount} ord</div>
+                                        <div className="text-[10px] text-slate-500 tabular-nums">{sk.qty.toLocaleString('en-IN')} qty</div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {buyerHistory.topBrands.length > 0 && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Top Brands</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {buyerHistory.topBrands.map((br, i) => (
+                                <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700">
+                                  {br.brand}
+                                  <span className="text-[10px] font-bold text-indigo-500 tabular-nums">{br.orderCount}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                   <dl className="divide-y divide-slate-100">
                     {([
                       { label: 'Buyer Name',     value: buyerModalData.name },
@@ -7434,6 +7603,7 @@ export default function OrderStatusDashboard() {
                       </div>
                     )}
                   </dl>
+                  </>
                 )}
               </div>
             </div>

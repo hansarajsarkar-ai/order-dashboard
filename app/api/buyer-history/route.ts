@@ -1,0 +1,196 @@
+import { NextResponse, NextRequest } from 'next/server';
+import { query } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+
+// Canonical "order placed" moment: prefer markedPendingTime, fall back to created_at
+// so abandoned/auto-rejected carts (which never get markedPendingTime) still count
+// toward the buyer's complete relationship history.
+const ORDER_TS = `COALESCE(po."markedPendingTime", po."created_at")`;
+
+// Scope to genuine, non-test orders. No D2R/delivery restriction here — the modal shows
+// the buyer's full lifetime relationship, not just the dashboard's intercity-D2R universe.
+const BASE_WHERE = `
+  po."isTest"       = FALSE
+  AND po."isFalseOrder" = FALSE
+  AND po."status"  != 'DRAFT'
+`;
+
+interface SummaryRow {
+  total_orders: string;
+  completed: string;
+  rejected: string;
+  cancelled: string;
+  pending: string;
+  inprogress: string;
+  dispatched: string;
+  first_order: string | null;
+  last_order: string | null;
+  days_since_last: number | null;
+  completed_gmv: string;
+  total_gmv: string;
+}
+interface SkuRow { brand: string; sku: string; order_count: string; qty: string; amount: string; }
+interface BrandRow { brand: string; order_count: string; qty: string; amount: string; }
+interface MonthRow { ym: string; orders: string; gmv: string; }
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  let buyerId = searchParams.get('buyerId');
+  const phone = searchParams.get('phone');
+  const businessName = searchParams.get('businessName');
+
+  try {
+    // Resolve buyerId from phone/businessName if not supplied directly.
+    if (!buyerId) {
+      if (!phone && !businessName) {
+        return NextResponse.json({ error: 'buyerId, phone or businessName required' }, { status: 400 });
+      }
+      const lp: string[] = [];
+      const lw: string[] = [];
+      if (phone) { lp.push(phone); lw.push(`b."phone" = $${lp.length}`); }
+      if (businessName) { lp.push(businessName); lw.push(`b."businessName" = $${lp.length}`); }
+      const found = await query<{ id: string }>(
+        `SELECT b."id"::text AS id FROM "users"."buyer" b WHERE ${lw.join(' AND ')} ORDER BY b."created_at" DESC NULLS LAST LIMIT 1`,
+        lp
+      );
+      if (found.length === 0) {
+        return NextResponse.json({ error: 'Buyer not found' }, { status: 404 });
+      }
+      buyerId = found[0].id;
+    }
+
+    const p = [buyerId];
+
+    const summarySql = `
+      SELECT
+        COUNT(*)                                                                AS total_orders,
+        COUNT(*) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))        AS completed,
+        COUNT(*) FILTER (WHERE po."status" = 'REJECTED')                        AS rejected,
+        COUNT(*) FILTER (WHERE po."status" = 'CANCELLED')                       AS cancelled,
+        COUNT(*) FILTER (WHERE po."status" = 'PENDING')                         AS pending,
+        COUNT(*) FILTER (WHERE po."status" = 'INPROGRESS')                      AS inprogress,
+        COUNT(*) FILTER (WHERE po."status" = 'DISPATCHED')                      AS dispatched,
+        MIN(${ORDER_TS})::text                                                  AS first_order,
+        MAX(${ORDER_TS})::text                                                  AS last_order,
+        EXTRACT(DAY FROM NOW() - MAX(${ORDER_TS}))::int                         AS days_since_last,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS completed_gmv,
+        COALESCE(SUM(po."amount"::numeric), 0)::text                            AS total_gmv
+      FROM "purchaseOrder"."purchaseOrder" po
+      WHERE po."buyerId" = $1 AND ${BASE_WHERE};
+    `;
+
+    const itemJoin = `
+      JOIN "purchaseOrder"."purchaseOrderItem" poi ON poi."purchaseOrderId" = po."id"
+      LEFT JOIN "brands"."brandSKU" bsku ON bsku."id" = poi."brandSKUId"
+    `;
+    const itemFilter = `
+      AND poi."status" != 'DRAFT'
+      AND poi."comboBrandSKUPOItemId" IS NULL
+      AND COALESCE(poi."isArchived", FALSE) = FALSE
+    `;
+
+    const topSkusSql = `
+      SELECT
+        COALESCE(bsku."brandLabel", '—')             AS brand,
+        COALESCE(bsku."label", '—')                  AS sku,
+        COUNT(DISTINCT po."id")                      AS order_count,
+        COALESCE(SUM(poi."quantity"), 0)::text       AS qty,
+        COALESCE(SUM(poi."amount"::numeric), 0)::text AS amount
+      FROM "purchaseOrder"."purchaseOrder" po
+      ${itemJoin}
+      WHERE po."buyerId" = $1 AND ${BASE_WHERE} ${itemFilter}
+      GROUP BY bsku."brandLabel", bsku."label"
+      ORDER BY order_count DESC, qty DESC NULLS LAST
+      LIMIT 6;
+    `;
+
+    const topBrandsSql = `
+      SELECT
+        COALESCE(bsku."brandLabel", '—')             AS brand,
+        COUNT(DISTINCT po."id")                      AS order_count,
+        COALESCE(SUM(poi."quantity"), 0)::text       AS qty,
+        COALESCE(SUM(poi."amount"::numeric), 0)::text AS amount
+      FROM "purchaseOrder"."purchaseOrder" po
+      ${itemJoin}
+      WHERE po."buyerId" = $1 AND ${BASE_WHERE} ${itemFilter}
+      GROUP BY bsku."brandLabel"
+      ORDER BY order_count DESC, qty DESC NULLS LAST
+      LIMIT 5;
+    `;
+
+    const monthlySql = `
+      SELECT
+        to_char(date_trunc('month', ${ORDER_TS}), 'YYYY-MM')                    AS ym,
+        COUNT(*)                                                                AS orders,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS gmv
+      FROM "purchaseOrder"."purchaseOrder" po
+      WHERE po."buyerId" = $1 AND ${BASE_WHERE}
+        AND ${ORDER_TS} >= (NOW() - INTERVAL '12 months')
+      GROUP BY 1
+      ORDER BY 1;
+    `;
+
+    const [summaryRows, skuRows, brandRows, monthRows] = await Promise.all([
+      query<SummaryRow>(summarySql, p),
+      query<SkuRow>(topSkusSql, p),
+      query<BrandRow>(topBrandsSql, p),
+      query<MonthRow>(monthlySql, p),
+    ]);
+
+    const s = summaryRows[0];
+    const total = parseInt(s.total_orders) || 0;
+    const completed = parseInt(s.completed) || 0;
+    const rejected = parseInt(s.rejected) || 0;
+
+    const summary = {
+      totalOrders: total,
+      completed,
+      rejected,
+      cancelled: parseInt(s.cancelled) || 0,
+      pending: parseInt(s.pending) || 0,
+      inprogress: parseInt(s.inprogress) || 0,
+      dispatched: parseInt(s.dispatched) || 0,
+      firstOrder: s.first_order,
+      lastOrder: s.last_order,
+      daysSinceLast: s.days_since_last == null ? null : Number(s.days_since_last),
+      completedGmv: parseFloat(s.completed_gmv) || 0,
+      totalGmv: parseFloat(s.total_gmv) || 0,
+      completionRate: total > 0 ? (completed / total) * 100 : 0,
+      rejectionRate: total > 0 ? (rejected / total) * 100 : 0,
+    };
+
+    const topSkus = skuRows.map((r) => ({
+      brand: r.brand,
+      sku: r.sku,
+      orderCount: parseInt(r.order_count) || 0,
+      qty: parseInt(r.qty) || 0,
+      amount: parseFloat(r.amount) || 0,
+    }));
+
+    const topBrands = brandRows.map((r) => ({
+      brand: r.brand,
+      orderCount: parseInt(r.order_count) || 0,
+      qty: parseInt(r.qty) || 0,
+      amount: parseFloat(r.amount) || 0,
+    }));
+
+    const monthly = monthRows.map((r) => ({
+      ym: r.ym,
+      orders: parseInt(r.orders) || 0,
+      gmv: parseFloat(r.gmv) || 0,
+    }));
+
+    return NextResponse.json({
+      buyerId,
+      summary,
+      topSkus,
+      topBrands,
+      monthly,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err) || 'Unknown error';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}

@@ -754,6 +754,11 @@ export default function OrderStatusDashboard() {
       lastOrder: string | null;
       daysSinceLast: number | null;
       completedGmv: number;
+      rejectedGmv: number;
+      cancelledGmv: number;
+      pendingGmv: number;
+      inprogressGmv: number;
+      dispatchedGmv: number;
       totalGmv: number;
       completionRate: number;
       rejectionRate: number;
@@ -7420,7 +7425,7 @@ export default function OrderStatusDashboard() {
             onClick={closeBuyerModal}
           >
             <div
-              className="relative bg-white text-slate-900 rounded-2xl w-[94vw] max-w-5xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45)] border border-slate-200 animate-modal-scale"
+              className="relative bg-white text-slate-900 rounded-2xl w-[96vw] max-w-6xl max-h-[92vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45)] border border-slate-200 animate-modal-scale"
               onClick={(e) => e.stopPropagation()}
             >
               <header className="relative px-6 py-5 bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white overflow-hidden">
@@ -7544,16 +7549,17 @@ export default function OrderStatusDashboard() {
                             </div>
                             <div className="grid grid-cols-3 gap-2">
                               {([
-                                { label: 'Completed',   value: buyerHistory.summary.completed,   cls: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
-                                { label: 'Pending',     value: buyerHistory.summary.pending,     cls: 'text-slate-700',   bg: 'bg-slate-50 border-slate-200' },
-                                { label: 'In Progress', value: buyerHistory.summary.inprogress,  cls: 'text-indigo-600',  bg: 'bg-indigo-50 border-indigo-200' },
-                                { label: 'Dispatched',  value: buyerHistory.summary.dispatched,  cls: 'text-sky-600',     bg: 'bg-sky-50 border-sky-200' },
-                                { label: 'Rejected',    value: buyerHistory.summary.rejected,    cls: 'text-rose-600',    bg: 'bg-rose-50 border-rose-200' },
-                                { label: 'Cancelled',   value: buyerHistory.summary.cancelled,   cls: 'text-amber-600',   bg: 'bg-amber-50 border-amber-200' },
+                                { label: 'Completed',   value: buyerHistory.summary.completed,   amount: buyerHistory.summary.completedGmv,   cls: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
+                                { label: 'Pending',     value: buyerHistory.summary.pending,     amount: buyerHistory.summary.pendingGmv,     cls: 'text-slate-700',   bg: 'bg-slate-50 border-slate-200' },
+                                { label: 'In Progress', value: buyerHistory.summary.inprogress,  amount: buyerHistory.summary.inprogressGmv,  cls: 'text-indigo-600',  bg: 'bg-indigo-50 border-indigo-200' },
+                                { label: 'Dispatched',  value: buyerHistory.summary.dispatched,  amount: buyerHistory.summary.dispatchedGmv,  cls: 'text-sky-600',     bg: 'bg-sky-50 border-sky-200' },
+                                { label: 'Rejected',    value: buyerHistory.summary.rejected,    amount: buyerHistory.summary.rejectedGmv,    cls: 'text-rose-600',    bg: 'bg-rose-50 border-rose-200' },
+                                { label: 'Cancelled',   value: buyerHistory.summary.cancelled,   amount: buyerHistory.summary.cancelledGmv,   cls: 'text-amber-600',   bg: 'bg-amber-50 border-amber-200' },
                               ]).map((t) => (
-                                <div key={t.label} className={`rounded-xl border ${t.bg} px-2 py-2 text-center`}>
-                                  <div className={`text-xl font-extrabold tabular-nums leading-none ${t.cls}`}>{t.value.toLocaleString('en-IN')}</div>
+                                <div key={t.label} className={`rounded-xl border ${t.bg} px-2 py-2.5 text-center`}>
+                                  <div className={`text-2xl font-extrabold tabular-nums leading-none ${t.cls}`}>{t.value.toLocaleString('en-IN')}</div>
                                   <div className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 mt-1">{t.label}</div>
+                                  <div className="text-[11px] font-bold tabular-nums text-slate-600 mt-1">{formatAmount(t.amount)}</div>
                                 </div>
                               ))}
                             </div>

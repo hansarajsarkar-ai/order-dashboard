@@ -41,6 +41,11 @@ interface SummaryRow {
   last_order: string | null;
   days_since_last: number | null;
   completed_gmv: string;
+  rejected_gmv: string;
+  cancelled_gmv: string;
+  pending_gmv: string;
+  inprogress_gmv: string;
+  dispatched_gmv: string;
   total_gmv: string;
 }
 interface SkuRow { brand: string; sku: string; order_count: string; qty: string; amount: string; }
@@ -89,6 +94,11 @@ export async function GET(req: NextRequest) {
         MAX(${ORDER_TS})::text                                                  AS last_order,
         EXTRACT(DAY FROM NOW() - MAX(${ORDER_TS}))::int                         AS days_since_last,
         COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS completed_gmv,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'REJECTED'), 0)::text   AS rejected_gmv,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'CANCELLED'), 0)::text  AS cancelled_gmv,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'PENDING'), 0)::text    AS pending_gmv,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'INPROGRESS'), 0)::text AS inprogress_gmv,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'DISPATCHED'), 0)::text AS dispatched_gmv,
         COALESCE(SUM(po."amount"::numeric), 0)::text                            AS total_gmv
       FROM "purchaseOrder"."purchaseOrder" po
       WHERE po."buyerId" = $1 AND ${BASE_WHERE};
@@ -180,6 +190,11 @@ export async function GET(req: NextRequest) {
       lastOrder: s.last_order,
       daysSinceLast: s.days_since_last == null ? null : Number(s.days_since_last),
       completedGmv: parseFloat(s.completed_gmv) || 0,
+      rejectedGmv: parseFloat(s.rejected_gmv) || 0,
+      cancelledGmv: parseFloat(s.cancelled_gmv) || 0,
+      pendingGmv: parseFloat(s.pending_gmv) || 0,
+      inprogressGmv: parseFloat(s.inprogress_gmv) || 0,
+      dispatchedGmv: parseFloat(s.dispatched_gmv) || 0,
       totalGmv: parseFloat(s.total_gmv) || 0,
       completionRate: total > 0 ? (completed / total) * 100 : 0,
       rejectionRate: total > 0 ? (rejected / total) * 100 : 0,

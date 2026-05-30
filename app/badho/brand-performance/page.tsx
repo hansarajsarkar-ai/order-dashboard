@@ -9,6 +9,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import IndiaStateMap, { type StateRow } from '../order-dashboard/components/IndiaStateMap';
+import MultiSelectFilter from '../order-dashboard/components/MultiSelectFilter';
 
 // ─── CSV utility ─────────────────────────────────────────────────────────
 type CsvCell = string | number | null | undefined;
@@ -33,6 +34,148 @@ function formatAmount(amount: number): string {
 }
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const MBS_PAGE_SIZE = 50;
+
+function formatDateTime(s: string | null | undefined): string {
+  if (!s) return '—';
+  try {
+    return new Date(s).toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+  } catch { return String(s); }
+}
+
+// Row shape returned by /api/order-list (one row per PO). Mirrors the
+// order-dashboard pivot drill modal so brand-performance can present the same
+// rich column set + filters when drilling Monthly Breakdown by Order Status.
+interface MbsOrderRow {
+  poNumber: string;
+  status: string;
+  orderStatus?: string;
+  deliveryStatus?: string | null;
+  amount: number;
+  poAmount?: number | null;
+  paidAmount?: number | null;
+  CoupanAmount?: number | null;
+  discountBySeller?: number;
+  PaymentOptionDiscountByBadho?: number;
+  appliedWalletAmount?: number | null;
+  PaymentOption?: string | null;
+  paymentDate?: string | null;
+  paymentEvent?: string | null;
+  awbNumber?: string | null;
+  courierName?: string | null;
+  RefundIntiatedTime?: string | null;
+  RefundCompletedTime?: string | null;
+  RefundAmount?: number | null;
+  codAmountToBeCollected?: number | null;
+  pushedStatus?: string;
+  MarkedpendingTime?: string | null;
+  buyerPhone: string | null;
+  buyerBusinessName: string | null;
+  sellerPhone: string | null;
+  sellerBusinessName: string | null;
+  buyerAddress: string;
+  buyerFullAddress?: string;
+  buyerState: string | null;
+  rejectReason?: string | null;
+  rejectedBy?: string | null;
+  reasonAddedByBadhoTeam?: string | null;
+  markedPendingTime: string | null;
+  createdAt: string;
+  statusMarkedTime?: string | null;
+  statusDurationSec?: number | null;
+}
+
+function mbsSortValue(r: MbsOrderRow, key: string): number | string | null {
+  const num = (v: unknown) => (v == null || v === '' ? null : Number(v));
+  const dt  = (v: unknown) => (v == null || v === '' ? null : new Date(v as string).getTime());
+  switch (key) {
+    case 'pushed': return r.pushedStatus ?? '';
+    case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
+    case 'status': return r.orderStatus ?? r.status ?? '';
+    case 'poAmount': return num(r.poAmount);
+    case 'paidAmount': return num(r.paidAmount);
+    case 'coupon': return num(r.CoupanAmount);
+    case 'sellerDiscount': return num(r.discountBySeller);
+    case 'badhoDiscount': return num(r.PaymentOptionDiscountByBadho);
+    case 'wallet': return num(r.appliedWalletAmount);
+    case 'paymentOption': return r.PaymentOption ?? '';
+    case 'paymentDate': return dt(r.paymentDate);
+    case 'paymentEvent': return r.paymentEvent ?? '';
+    case 'awb': return r.awbNumber ?? '';
+    case 'courier': return r.courierName ?? '';
+    case 'deliveryStatus': return r.deliveryStatus ?? '';
+    case 'cod': return num(r.codAmountToBeCollected);
+    case 'buyerPhone': return r.buyerPhone ?? '';
+    case 'buyerBusiness': return r.buyerBusinessName ?? '';
+    case 'sellerPhone': return r.sellerPhone ?? '';
+    case 'sellerBusiness': return r.sellerBusinessName ?? '';
+    case 'markedPending': return dt(r.MarkedpendingTime ?? r.markedPendingTime);
+    case 'refundInit': return dt(r.RefundIntiatedTime);
+    case 'refundDone': return dt(r.RefundCompletedTime);
+    case 'refundAmount': return num(r.RefundAmount);
+    case 'rejectReason': return r.rejectReason ?? '';
+    case 'rejectedBy': return r.rejectedBy ?? '';
+    case 'reasonByBadho': return r.reasonAddedByBadhoTeam ?? '';
+    case 'statusDuration': return r.statusDurationSec ?? null;
+    case 'statusMarkedTime': return dt(r.statusMarkedTime);
+    default: return '';
+  }
+}
+
+function buildMbsOptions(
+  rows: MbsOrderRow[] | null,
+  accessor: (r: MbsOrderRow) => string | null | undefined,
+): Array<{ value: string; label: string; count: number }> {
+  if (!rows) return [];
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const k = accessor(r) || '__NONE__';
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort(([, a], [, b]) => b - a)
+    .map(([value, count]) => ({
+      value,
+      label: value === '__NONE__' ? 'Unspecified' : value,
+      count,
+    }));
+}
+
+// Map an order status to the DB column that backs "statusMarkedTime" — used
+// when labelling the rich drill modal's Status Marked Time column header.
+function statusMarkedFieldFor(status: string | null | undefined): string {
+  switch ((status || '').toUpperCase()) {
+    case 'REJECTED':   return 'markedRejectedTime';
+    case 'CANCELLED':  return 'markedCancelledTime';
+    case 'DELIVERED':  return 'markedDeliveredTime';
+    case 'COMPLETED':  return 'markedCompletedTime';
+    case 'DISPATCHED': return 'markedDispatchedTime';
+    case 'IN_TRANSIT':
+    case 'INTRANSIT':  return 'markedInTransitTime';
+    case 'IN_PROGRESS':
+    case 'INPROGRESS': return 'markedInProgressTime';
+    case 'PARTIAL':    return 'markedPartialTime';
+    case 'PENDING':    return 'markedPendingTime';
+    default:           return 'statusMarkedTime';
+  }
+}
+
+function statusMarkedHeaderFor(rows: MbsOrderRow[] | null | undefined): string {
+  if (!rows || rows.length === 0) return 'Status Marked Time';
+  const set = new Set<string>();
+  for (const r of rows) {
+    const s = (r.orderStatus ?? r.status ?? '').toUpperCase();
+    if (s) set.add(s);
+    if (set.size > 1) return 'Status Marked Time';
+  }
+  if (set.size === 1) return statusMarkedFieldFor([...set][0]);
+  return 'Status Marked Time';
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────
 interface Cell { count: number; amount: number; }
@@ -435,17 +578,9 @@ export default function BrandPerformanceDashboard() {
 
   // Drill-down modal for Monthly Breakdown by Order Status — fires on any
   // numeric cell click (orders / ₹ value / buyers) anywhere in the table.
-  interface MbsDrillItem { label: string | null; qty: number; unitPrice: number | null; amount: number; }
-  interface MbsDrillOrder {
-    poId: string; poNumber: string; pendingAt: string;
-    status: string; deliveryStatus: string | null;
-    orderAmount: number; appliedWalletAmount: number;
-    buyerId: string | null;
-    buyerBusiness: string | null; buyerPhone: string | null; buyerState: string | null; buyerCity: string | null;
-    sellerBusiness: string | null; sellerPhone: string | null;
-    qty: number; itemAmount: number;
-    items: MbsDrillItem[];
-  }
+  // Mirrors the order-dashboard pivot drill modal (rich PO-level columns,
+  // Pushed/Payment/Courier/Delivery/Reason filters, sortable headers, CSV)
+  // so the experience stays consistent across dashboards.
   interface MbsDrillState {
     status: string | null;                      // null = all statuses (footer-total drill)
     deliveryStatus: string | null | undefined; // undefined = no filter, null = literal NULL, string = exact match
@@ -456,12 +591,17 @@ export default function BrandPerformanceDashboard() {
     brandOverride?: string;
   }
   const [mbsDrill, setMbsDrill] = useState<MbsDrillState | null>(null);
-  const [mbsDrillRows, setMbsDrillRows] = useState<MbsDrillOrder[] | null>(null);
-  const [mbsDrillSummary, setMbsDrillSummary] = useState<{ orders: number; orderAmount: number; itemAmount: number; qty: number; buyers: number } | null>(null);
+  const [mbsDrillRows, setMbsDrillRows] = useState<MbsOrderRow[] | null>(null);
   const [mbsDrillLoading, setMbsDrillLoading] = useState(false);
-  const [mbsDrillTruncated, setMbsDrillTruncated] = useState(false);
-  const [mbsDrillExpanded, setMbsDrillExpanded] = useState<Set<string>>(new Set());
+  const [mbsDrillError, setMbsDrillError] = useState<string | null>(null);
   const [mbsDrillSearch, setMbsDrillSearch] = useState('');
+  const [mbsDrillPushedFilter, setMbsDrillPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
+  const [mbsDrillPaymentFilter, setMbsDrillPaymentFilter] = useState<Set<string>>(new Set());
+  const [mbsDrillCourierFilter, setMbsDrillCourierFilter] = useState<Set<string>>(new Set());
+  const [mbsDrillDeliveryFilter, setMbsDrillDeliveryFilter] = useState<Set<string>>(new Set());
+  const [mbsDrillRejectReasonFilter, setMbsDrillRejectReasonFilter] = useState<Set<string>>(new Set());
+  const [mbsDrillSort, setMbsDrillSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [mbsDrillPage, setMbsDrillPage] = useState(1);
 
   // Drill-down modal for Product × Month table (Product wise tab). Fires on any
   // cell click (orders / ₹ value / buyers). Reuses /brand-product-drill API.
@@ -773,18 +913,38 @@ export default function BrandPerformanceDashboard() {
   const openMbsDrill = (state: MbsDrillState) => {
     setMbsDrill(state);
     setMbsDrillRows(null);
-    setMbsDrillSummary(null);
-    setMbsDrillExpanded(new Set());
+    setMbsDrillError(null);
     setMbsDrillSearch('');
+    setMbsDrillPushedFilter('all');
+    setMbsDrillPaymentFilter(new Set());
+    setMbsDrillCourierFilter(new Set());
+    setMbsDrillDeliveryFilter(new Set());
+    setMbsDrillRejectReasonFilter(new Set());
+    setMbsDrillSort(null);
+    setMbsDrillPage(1);
   };
   const closeMbsDrill = () => {
     setMbsDrill(null);
     setMbsDrillRows(null);
-    setMbsDrillSummary(null);
-    setMbsDrillExpanded(new Set());
+    setMbsDrillError(null);
     setMbsDrillSearch('');
   };
-  const toggleMbsDrillRow = (poId: string) => setMbsDrillExpanded((prev) => { const n = new Set(prev); if (n.has(poId)) n.delete(poId); else n.add(poId); return n; });
+  const toggleMbsSort = (key: string) => {
+    setMbsDrillSort((prev) => {
+      if (!prev || prev.key !== key) return { key, direction: 'asc' };
+      if (prev.direction === 'asc') return { key, direction: 'desc' };
+      return null;
+    });
+  };
+  const resetMbsDrillFilters = () => {
+    setMbsDrillSearch('');
+    setMbsDrillPushedFilter('all');
+    setMbsDrillPaymentFilter(new Set());
+    setMbsDrillCourierFilter(new Set());
+    setMbsDrillDeliveryFilter(new Set());
+    setMbsDrillRejectReasonFilter(new Set());
+    setMbsDrillSort(null);
+  };
 
   const openProductDrill = (state: ProductDrillState) => {
     setProductDrill(state);
@@ -839,6 +999,7 @@ export default function BrandPerformanceDashboard() {
     (async () => {
       try {
         setMbsDrillLoading(true);
+        setMbsDrillError(null);
         const params = new URLSearchParams({ year: String(currentYear) });
         if (mbsDrill.status) params.append('status', mbsDrill.status);
         const { startDate, endDate } = resolveRange();
@@ -854,17 +1015,18 @@ export default function BrandPerformanceDashboard() {
           params.append('deliveryStatus', mbsDrill.deliveryStatus ?? '__NULL__');
         }
         if (mbsDrill.month != null) params.append('month', String(mbsDrill.month));
-        const res = await fetch(`/api/brand-performance/status-month-drill?${params.toString()}`);
-        if (!res.ok) throw new Error('failed');
+        // Reuse /api/order-list — same endpoint that backs the order-dashboard
+        // pivot drill, so columns and behaviour stay aligned between dashboards.
+        const res = await fetch(`/api/order-list?${params.toString()}`);
         const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || 'Failed to fetch orders');
         if (cancelled) return;
         setMbsDrillRows(json.data || []);
-        setMbsDrillSummary(json.summary || null);
-        setMbsDrillTruncated(!!json.truncated);
       } catch (err) {
         if (cancelled) return;
         console.error('MBS drill fetch error:', err);
-        setMbsDrillRows([]); setMbsDrillSummary(null); setMbsDrillTruncated(false);
+        setMbsDrillRows([]);
+        setMbsDrillError(err instanceof Error ? err.message : 'Error loading orders');
       } finally {
         if (!cancelled) setMbsDrillLoading(false);
       }
@@ -872,6 +1034,10 @@ export default function BrandPerformanceDashboard() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mbsDrill]);
+
+  useEffect(() => {
+    setMbsDrillPage(1);
+  }, [mbsDrillSearch, mbsDrillPushedFilter, mbsDrillPaymentFilter, mbsDrillCourierFilter, mbsDrillDeliveryFilter, mbsDrillRejectReasonFilter, mbsDrillSort]);
 
   useEffect(() => {
     if (!productDrill) return;
@@ -4280,198 +4446,443 @@ export default function BrandPerformanceDashboard() {
 
       {mbsDrill && (() => {
         const metricLabel = mbsDrill.metric === 'amount' ? '₹ Value' : mbsDrill.metric === 'buyers' ? 'Buyers' : 'Orders';
-        const statusColor: Record<string, { bg: string; text: string }> = t.isDark
-          ? { DELIVERED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, COMPLETED: { bg: 'bg-emerald-500/15', text: 'text-emerald-300' }, DISPATCHED: { bg: 'bg-sky-500/15', text: 'text-sky-300' }, PENDING: { bg: 'bg-sky-500/15', text: 'text-sky-300' }, ACCEPTED: { bg: 'bg-violet-500/15', text: 'text-violet-300' }, INVOICED: { bg: 'bg-fuchsia-500/15', text: 'text-fuchsia-300' }, REJECTED: { bg: 'bg-rose-500/15', text: 'text-rose-300' }, CANCELLED: { bg: 'bg-amber-500/15', text: 'text-amber-300' }, INPROGRESS: { bg: 'bg-slate-500/15', text: 'text-slate-200' } }
-          : { DELIVERED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, COMPLETED: { bg: 'bg-emerald-100', text: 'text-emerald-700' }, DISPATCHED: { bg: 'bg-sky-100', text: 'text-sky-700' }, PENDING: { bg: 'bg-sky-100', text: 'text-sky-700' }, ACCEPTED: { bg: 'bg-violet-100', text: 'text-violet-700' }, INVOICED: { bg: 'bg-fuchsia-100', text: 'text-fuchsia-700' }, REJECTED: { bg: 'bg-rose-100', text: 'text-rose-700' }, CANCELLED: { bg: 'bg-amber-100', text: 'text-amber-700' }, INPROGRESS: { bg: 'bg-slate-100', text: 'text-slate-700' } };
-        return (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={closeMbsDrill}>
-            <div className={`absolute inset-0 ${t.isDark ? 'bg-slate-950/80' : 'bg-slate-900/60'} backdrop-blur-sm`} />
-            <div onClick={(e) => e.stopPropagation()} className={`relative z-10 w-[min(98vw,1600px)] max-h-[92vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl ${t.isDark ? 'bg-slate-950 border border-fuchsia-400/30' : 'bg-white border border-slate-200'}`}>
-              <div className={`absolute inset-x-0 top-0 h-px ${t.isDark ? 'bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent' : 'bg-gradient-to-r from-purple-500 via-fuchsia-500 to-indigo-500'}`} />
+        const sliceLabel = [
+          mbsDrill.status ?? 'All statuses',
+          mbsDrill.deliveryStatus !== undefined ? (mbsDrill.deliveryStatus ?? 'NULL delivery') : null,
+          mbsDrill.month != null ? `${MONTH_NAMES[mbsDrill.month - 1]} ${currentYear}` : `${currentYear}`,
+          mbsDrill.brandOverride ? `Brand: ${mbsDrill.brandOverride}` : (mbsBrands.size > 0 ? `${mbsBrands.size} brand${mbsBrands.size === 1 ? '' : 's'}` : null),
+        ].filter(Boolean).join(' · ');
 
+        // Derived state for filters, sort, pagination.
+        const rows = mbsDrillRows;
+        const totalLoaded = rows?.length ?? 0;
+        const pushedCounts = (() => {
+          let pushed = 0;
+          if (rows) for (const r of rows) if ((r.pushedStatus || 'Not Pushed') === 'Pushed') pushed++;
+          return { all: totalLoaded, pushed, notPushed: totalLoaded - pushed };
+        })();
+        const paymentOptions  = buildMbsOptions(rows, (r) => r.PaymentOption);
+        const courierOptions  = buildMbsOptions(rows, (r) => r.courierName);
+        const deliveryOptions = buildMbsOptions(rows, (r) => r.deliveryStatus);
+        const rejectReasonOptions = (() => {
+          if (!rows) return [] as Array<{ value: string; label: string; count: number }>;
+          const counts = new Map<string, number>();
+          for (const r of rows) {
+            const v = (r.rejectReason || '').trim();
+            if (v) counts.set(v, (counts.get(v) || 0) + 1);
+          }
+          return Array.from(counts.entries())
+            .sort(([, a], [, b]) => b - a)
+            .map(([value, count]) => ({ value, label: value, count }));
+        })();
+        const hasActiveFilters =
+          mbsDrillSearch.trim() !== '' ||
+          mbsDrillPushedFilter !== 'all' ||
+          mbsDrillPaymentFilter.size > 0 ||
+          mbsDrillCourierFilter.size > 0 ||
+          mbsDrillDeliveryFilter.size > 0 ||
+          mbsDrillRejectReasonFilter.size > 0;
+
+        const filteredRows: MbsOrderRow[] | null = (() => {
+          if (!rows) return null;
+          let out: MbsOrderRow[] = rows;
+          const q = mbsDrillSearch.trim().toLowerCase();
+          if (q) {
+            out = out.filter((r) =>
+              (r.poNumber || '').toLowerCase().includes(q) ||
+              (r.buyerPhone || '').toLowerCase().includes(q) ||
+              (r.sellerPhone || '').toLowerCase().includes(q) ||
+              (r.buyerBusinessName || '').toLowerCase().includes(q) ||
+              (r.sellerBusinessName || '').toLowerCase().includes(q)
+            );
+          }
+          if (mbsDrillPushedFilter !== 'all') out = out.filter((r) => (r.pushedStatus || 'Not Pushed') === mbsDrillPushedFilter);
+          if (mbsDrillPaymentFilter.size > 0)  out = out.filter((r) => mbsDrillPaymentFilter.has(r.PaymentOption || '__NONE__'));
+          if (mbsDrillCourierFilter.size > 0)  out = out.filter((r) => mbsDrillCourierFilter.has(r.courierName || '__NONE__'));
+          if (mbsDrillDeliveryFilter.size > 0) out = out.filter((r) => mbsDrillDeliveryFilter.has(r.deliveryStatus || '__NONE__'));
+          if (mbsDrillRejectReasonFilter.size > 0) out = out.filter((r) => mbsDrillRejectReasonFilter.has((r.rejectReason || '').trim()));
+          if (mbsDrillSort) {
+            const { key, direction } = mbsDrillSort;
+            out = [...out].sort((a, b) => {
+              const av = mbsSortValue(a, key);
+              const bv = mbsSortValue(b, key);
+              if (av === null && bv === null) return 0;
+              if (av === null) return 1;
+              if (bv === null) return -1;
+              let cmp = 0;
+              if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
+              else cmp = String(av).localeCompare(String(bv));
+              return direction === 'asc' ? cmp : -cmp;
+            });
+          }
+          return out;
+        })();
+        const filteredCount = filteredRows?.length ?? 0;
+
+        const paged = (() => {
+          if (!filteredRows) return null;
+          const totalPages = Math.max(1, Math.ceil(filteredRows.length / MBS_PAGE_SIZE));
+          const safePage = Math.min(Math.max(1, mbsDrillPage), totalPages);
+          const startIdx = (safePage - 1) * MBS_PAGE_SIZE;
+          const endIdx = Math.min(startIdx + MBS_PAGE_SIZE, filteredRows.length);
+          return { totalPages, safePage, startIdx, endIdx, rows: filteredRows.slice(startIdx, endIdx) };
+        })();
+
+        const arrowFor = (k: string) => {
+          const active = mbsDrillSort?.key === k;
+          const dir = active ? mbsDrillSort?.direction : null;
+          return (
+            <span className={`ml-1 text-[10px] leading-none ${active ? 'text-purple-600' : 'text-slate-300'}`}>
+              {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : '⇅'}
+            </span>
+          );
+        };
+        const SortTh = ({ k, label, align = 'left', cls = '' }: { k: string; label: string; align?: 'left' | 'right'; cls?: string }) => (
+          <th
+            onClick={() => toggleMbsSort(k)}
+            className={`sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-${align} text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200/80 whitespace-nowrap uppercase tracking-wider ${cls || 'text-slate-700'}`}
+          >
+            <span className={`inline-flex items-center ${align === 'right' ? 'justify-end w-full' : ''}`}>{label}{arrowFor(k)}</span>
+          </th>
+        );
+
+        const isRejected = (mbsDrill.status ?? '').toUpperCase() === 'REJECTED';
+
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm"
+            onClick={closeMbsDrill}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white text-slate-900 border border-slate-200 rounded-2xl w-[97vw] max-w-[97vw] h-[95vh] max-h-[95vh] flex flex-col overflow-hidden shadow-2xl"
+            >
               {/* Header */}
-              <div className={`px-6 py-4 flex items-start justify-between gap-4 border-b ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={t.sectionTag('details')}>DRILL · {metricLabel.toUpperCase()}</span>
-                    <h3 className={`text-base font-bold truncate ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Order details</h3>
-                  </div>
-                  {mbsDrillSummary && (
-                    <div className={`text-[11px] mt-1 ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
-                      {mbsDrillSummary.orders.toLocaleString('en-IN')} orders · {formatAmount(mbsDrillSummary.orderAmount)} GMV · {mbsDrillSummary.buyers.toLocaleString('en-IN')} unique buyers
-                    </div>
-                  )}
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-purple-50 to-fuchsia-50">
+                <div className="min-w-0">
+                  <h3 className="text-xl font-bold text-slate-900 truncate">
+                    {mbsDrill.status ?? 'All statuses'}
+                    {mbsDrill.deliveryStatus !== undefined && (
+                      <span className="text-slate-500 text-base font-normal"> · {mbsDrill.deliveryStatus ?? 'NULL delivery'}</span>
+                    )}
+                    <span className="text-slate-500 text-base font-normal"> — {mbsDrill.month != null ? `${MONTH_NAMES[mbsDrill.month - 1]} ${currentYear}` : `${currentYear} (all months)`}</span>
+                  </h3>
+                  <p className="text-slate-500 text-xs mt-0.5 truncate">
+                    {sliceLabel} · drill · {metricLabel}
+                  </p>
                 </div>
-                <button onClick={closeMbsDrill} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold ${t.isDark ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>✕ Close</button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    className="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 border border-purple-600 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_2px_8px_-2px_rgba(168,85,247,0.5)]"
+                    disabled={!filteredRows || filteredRows.length === 0}
+                    onClick={() => {
+                      if (!filteredRows) return;
+                      const headers = [
+                        'Pushed', 'PO Number', 'Order Status', 'Buyer Address', 'PO Amount', 'Paid Amount', 'Coupon Amount',
+                        'Seller Discount', 'Applied Wallet Amount', 'Payment Option',
+                        'AWB Number', 'Courier Name', 'COD Amount', 'Buyer Phone',
+                        'Payment Option Badho Discount', 'Payment Date', 'Payment Event',
+                        'Delivery Status', 'Buyer Business', 'Seller Phone', 'Seller Business',
+                        'Marked Pending', statusMarkedHeaderFor(filteredRows), 'Status Duration (sec)',
+                        'Refund Initiated', 'Refund Completed', 'Refund Amount',
+                        ...(isRejected ? ['Reject Reason', 'Rejected By', 'Reason Added By Badho Team'] : []),
+                      ];
+                      const csvRows: CsvCell[][] = filteredRows.map((r) => [
+                        r.pushedStatus ?? 'Not Pushed', r.poNumber, r.orderStatus ?? r.status, r.buyerFullAddress ?? r.buyerAddress ?? '',
+                        r.poAmount ?? '', r.paidAmount ?? '', r.CoupanAmount ?? '',
+                        r.discountBySeller ?? '', r.appliedWalletAmount ?? '', r.PaymentOption ?? '',
+                        r.awbNumber ?? '', r.courierName ?? '', r.codAmountToBeCollected ?? '', r.buyerPhone ?? '',
+                        r.PaymentOptionDiscountByBadho ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
+                        r.deliveryStatus ?? '', r.buyerBusinessName ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
+                        r.MarkedpendingTime ?? r.markedPendingTime ?? '',
+                        r.statusMarkedTime ?? '', r.statusDurationSec ?? '',
+                        r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '', r.RefundAmount ?? '',
+                        ...(isRejected ? [r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? ''] : []),
+                      ]);
+                      const monthTag = mbsDrill.month ? MONTH_NAMES[mbsDrill.month - 1] : 'all';
+                      const statusTag = mbsDrill.status ?? 'all';
+                      const deliveryTag = mbsDrill.deliveryStatus === undefined ? 'all' : (mbsDrill.deliveryStatus ?? 'null');
+                      const brandTag = mbsDrill.brandOverride || (mbsBrands.size > 0 ? Array.from(mbsBrands).join('+') : 'all-brands');
+                      downloadCSV(`mbs-drill-${statusTag}-${deliveryTag}-${monthTag}-${brandTag}-${currentYear}.csv`, headers, csvRows);
+                    }}
+                  >
+                    ↓ CSV
+                  </button>
+                  <button
+                    onClick={closeMbsDrill}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 text-base font-semibold transition-all hover:rotate-90"
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
 
-              {/* Orders table */}
-              <div className="overflow-auto flex-1">
-                {mbsDrillLoading || !mbsDrillRows ? (
-                  <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading orders…</div>
-                ) : mbsDrillRows.length === 0 ? (
-                  <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No orders in this slice</div>
-                ) : (() => {
-                  const q = mbsDrillSearch.trim().toLowerCase();
-                  const matches = (r: MbsDrillOrder) => {
-                    if (!q) return true;
-                    const hay = [
-                      r.poNumber,
-                      r.status,
-                      r.deliveryStatus ?? '',
-                      r.buyerBusiness ?? '',
-                      r.buyerPhone ?? '',
-                      r.buyerCity ?? '',
-                      r.buyerState ?? '',
-                      r.sellerBusiness ?? '',
-                      r.sellerPhone ?? '',
-                    ].join(' ').toLowerCase();
-                    return hay.includes(q);
-                  };
-                  const filteredRows = mbsDrillRows.filter(matches);
-                  return (
-                  <>
-                  <div className={`sticky top-0 z-20 px-6 py-2 border-b flex items-center gap-3 flex-wrap ${t.isDark ? 'bg-slate-950/95 backdrop-blur border-white/5' : 'bg-white/95 backdrop-blur border-slate-100'}`}>
-                    <div className={`relative flex-1 min-w-[280px] max-w-[520px]`}>
-                      <input
-                        type="text"
-                        autoFocus
-                        value={mbsDrillSearch}
-                        onChange={(e) => setMbsDrillSearch(e.target.value)}
-                        placeholder="Search PO #, buyer / seller name or phone, city, state…"
-                        className={`w-full pl-7 pr-7 py-1.5 text-xs rounded-lg ${t.isDark ? 'bg-white/10 border border-white/15 text-white placeholder-purple-300/50 focus:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 placeholder-slate-400 focus:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-fuchsia-400/60`}
-                      />
-                      <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-[11px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>⌕</span>
-                      {mbsDrillSearch && (
-                        <button type="button" onClick={() => setMbsDrillSearch('')} className={`absolute right-1.5 top-1/2 -translate-y-1/2 px-1.5 leading-none text-[11px] font-bold rounded ${t.isDark ? 'text-purple-300/70 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}>×</button>
-                      )}
-                    </div>
-                    <span className={`text-[11px] font-semibold ${t.isDark ? 'text-purple-200/80' : 'text-slate-600'}`}>
-                      {q
-                        ? <><span className={t.isDark ? 'text-fuchsia-300' : 'text-purple-700'}>{filteredRows.length.toLocaleString('en-IN')}</span> of {mbsDrillRows.length.toLocaleString('en-IN')} matching</>
-                        : <>{mbsDrillRows.length.toLocaleString('en-IN')} order{mbsDrillRows.length === 1 ? '' : 's'}</>}
-                    </span>
+              {/* Toolbar — search + filters */}
+              <div className="relative px-4 py-2 border-b border-slate-200 bg-slate-50/80">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative w-64 max-w-full">
+                    <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="m20 20-3.5-3.5" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={mbsDrillSearch}
+                      onChange={(e) => setMbsDrillSearch(e.target.value)}
+                      placeholder="Search PO, buyer, seller…"
+                      className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
+                    />
+                    {mbsDrillSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setMbsDrillSearch('')}
+                        aria-label="Clear search"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 inline-flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700 text-xs"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
-                  {filteredRows.length === 0 ? (
-                    <div className={`px-8 py-12 text-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
-                      No orders match <span className="font-bold">{mbsDrillSearch}</span>
-                    </div>
-                  ) : (
-                  <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 1500 }}>
-                    <thead className={`sticky top-[44px] z-10 ${t.isDark ? 'bg-slate-900/95 backdrop-blur' : 'bg-white'}`}>
-                      <tr>
-                        <th className={`${t.deliveryHeader} text-center w-6`}></th>
-                        <th className={`${t.deliveryHeader} text-left`}>PO #</th>
-                        <th className={`${t.deliveryHeader} text-left`}>Status</th>
-                        <th className={`${t.deliveryHeader} text-left`}>Delivery</th>
-                        <th className={`${t.deliveryHeader} text-right`}>PO ₹</th>
-                        <th className={`${t.deliveryHeader} text-left`}>Marked pending</th>
-                        <th className={`${t.deliveryHeader} text-left`}>Buyer</th>
-                        <th className={`${t.deliveryHeader} text-left`}>Buyer phone</th>
-                        <th className={`${t.deliveryHeader} text-left`}>Seller</th>
-                        <th className={`${t.deliveryHeader} text-left`}>Seller phone</th>
-                        <th className={`${t.deliveryHeader} text-right`}>Wallet ₹</th>
-                        <th className={`${t.deliveryHeader} text-right`}>Units</th>
-                        <th className={`${t.deliveryHeader} text-right`}>Items</th>
+
+                  <div role="group" aria-label="Filter by pushed status" className="inline-flex rounded-md border border-slate-300 overflow-hidden text-xs bg-white shrink-0">
+                    {([
+                      { value: 'all' as const, label: 'All', count: pushedCounts.all },
+                      { value: 'Pushed' as const, label: 'Pushed', count: pushedCounts.pushed },
+                      { value: 'Not Pushed' as const, label: 'Not Pushed', count: pushedCounts.notPushed },
+                    ]).map((opt, idx) => {
+                      const active = mbsDrillPushedFilter === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setMbsDrillPushedFilter(opt.value)}
+                          aria-pressed={active}
+                          className={`px-2.5 py-1.5 whitespace-nowrap transition-colors font-medium ${idx > 0 ? 'border-l border-slate-300' : ''} ${active ? 'bg-purple-500 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
+                        >
+                          {opt.label}
+                          <span className={`ml-1 text-[10px] tabular-nums ${active ? 'text-white/90' : 'text-slate-500'}`}>{opt.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {paymentOptions.length > 1 && (
+                    <MultiSelectFilter
+                      label="Payment"
+                      allLabel="All payments"
+                      options={paymentOptions}
+                      selected={mbsDrillPaymentFilter}
+                      onChange={setMbsDrillPaymentFilter}
+                      widthClass="w-44"
+                    />
+                  )}
+                  {courierOptions.length > 1 && (
+                    <MultiSelectFilter
+                      label="Courier"
+                      allLabel="All couriers"
+                      options={courierOptions}
+                      selected={mbsDrillCourierFilter}
+                      onChange={setMbsDrillCourierFilter}
+                      widthClass="w-44"
+                    />
+                  )}
+                  {deliveryOptions.length > 1 && (
+                    <MultiSelectFilter
+                      label="Delivery"
+                      allLabel="All delivery"
+                      options={deliveryOptions}
+                      selected={mbsDrillDeliveryFilter}
+                      onChange={setMbsDrillDeliveryFilter}
+                      widthClass="w-44"
+                    />
+                  )}
+                  {rejectReasonOptions.length > 0 && (
+                    <MultiSelectFilter
+                      label="Reason"
+                      allLabel="All reasons"
+                      options={rejectReasonOptions}
+                      selected={mbsDrillRejectReasonFilter}
+                      onChange={setMbsDrillRejectReasonFilter}
+                      widthClass="w-48"
+                    />
+                  )}
+
+                  <span className="ml-auto text-[11px] font-semibold text-slate-600 whitespace-nowrap">
+                    {mbsDrillLoading ? 'Loading…' : `${filteredCount.toLocaleString('en-IN')} of ${totalLoaded.toLocaleString('en-IN')} order${totalLoaded === 1 ? '' : 's'}`}
+                  </span>
+                </div>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={resetMbsDrillFilters}
+                    className="absolute right-4 -bottom-3 text-[11px] font-semibold text-purple-600 hover:text-purple-700 underline underline-offset-2"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              {/* Table */}
+              <div className="relative flex-1 overflow-auto">
+                {mbsDrillLoading ? (
+                  <div className="px-6 py-12 text-center text-slate-500">Loading orders…</div>
+                ) : mbsDrillError ? (
+                  <div className="px-6 py-12 text-center text-rose-600">{mbsDrillError}</div>
+                ) : !rows || rows.length === 0 ? (
+                  <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
+                ) : !filteredRows || filteredRows.length === 0 ? (
+                  <div className="px-6 py-12 text-center text-slate-500">No matches for current filters</div>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead className="shadow-[0_2px_0_rgba(168,85,247,0.4)]">
+                      <tr className="border-b border-slate-200">
+                        <th
+                          onClick={() => toggleMbsSort('markedPending')}
+                          className="sticky top-0 left-0 z-30 bg-amber-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-amber-100 whitespace-nowrap uppercase tracking-wider text-amber-800"
+                        >
+                          <span className="inline-flex items-center">Marked Pending{arrowFor('markedPending')}</span>
+                        </th>
+                        <th
+                          onClick={() => toggleMbsSort('pushed')}
+                          className="sticky top-0 left-[160px] z-30 bg-slate-100 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700"
+                        >
+                          <span className="inline-flex items-center">Pushed{arrowFor('pushed')}</span>
+                        </th>
+                        <th
+                          onClick={() => toggleMbsSort('poNumber')}
+                          className="sticky top-0 left-[280px] z-30 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap uppercase tracking-wider text-slate-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                        >
+                          <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
+                        </th>
+                        <SortTh k="status" label="Order Status" />
+                        <SortTh k="poAmount" label="PO Amount" align="right" />
+                        <SortTh k="coupon" label="Coupon Amount" align="right" />
+                        <SortTh k="wallet" label="Applied Wallet Amount" align="right" />
+                        <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
+                        <SortTh k="badhoDiscount" label="Payment Option Badho Discount" align="right" />
+                        <SortTh k="cod" label="COD Amount" align="right" />
+                        <SortTh k="deliveryStatus" label="Delivery Status" />
+                        <SortTh k="paidAmount" label="Paid Amount" align="right" />
+                        <SortTh k="paymentOption" label="Payment Option" />
+                        <SortTh k="awb" label="AWB Number" />
+                        <SortTh k="courier" label="Courier Name" />
+                        <SortTh k="paymentDate" label="Payment Date" />
+                        <SortTh k="paymentEvent" label="Payment Event" />
+                        <SortTh k="buyerBusiness" label="Buyer Business" />
+                        <SortTh k="buyerPhone" label="Buyer Phone" />
+                        <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
+                        <SortTh k="sellerBusiness" label="Seller Business" />
+                        <SortTh k="sellerPhone" label="Seller Phone" />
+                        <SortTh k="statusMarkedTime" label={statusMarkedHeaderFor(filteredRows)} cls="text-slate-700 bg-amber-50/60" />
+                        <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
+                        <SortTh k="refundInit" label="Refund Initiated" />
+                        <SortTh k="refundDone" label="Refund Completed" />
+                        <SortTh k="refundAmount" label="Refund Amount" align="right" />
+                        <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50" />
+                        <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50" />
+                        <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50" />
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRows.map((r, idx) => {
-                        const sc = statusColor[r.status] ?? { bg: t.isDark ? 'bg-white/10' : 'bg-slate-100', text: t.isDark ? 'text-white' : 'text-slate-700' };
-                        const d = new Date(r.pendingAt);
-                        const isOpen = mbsDrillExpanded.has(r.poId);
+                      {(paged?.rows || filteredRows).map((r, idx) => {
+                        const paid = Number(r.paidAmount ?? 0);
+                        const isFullyPaid   = r.PaymentOption === 'FULLY_PAID' && paid > 0;
+                        const isPartialPaid = r.PaymentOption === 'PARTIALLY_PAID' && paid > 0;
+                        const rowBg = isFullyPaid
+                          ? 'bg-emerald-50'
+                          : isPartialPaid
+                          ? 'bg-violet-50'
+                          : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50');
+                        const fmtAmt = (n: number | null | undefined) => n != null ? `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>;
                         return (
-                          <Fragment key={r.poId}>
-                            <tr
-                              onClick={() => toggleMbsDrillRow(r.poId)}
-                              className={`cursor-pointer ${idx % 2 === 0 ? t.rowEven : t.rowOdd} ${t.rowHover} ${isOpen ? (t.isDark ? 'bg-fuchsia-500/10' : 'bg-purple-50') : ''}`}
-                            >
-                              <td className={t.dataCell.replace('py-3', 'py-1.5').replace('text-right', 'text-center')}>
-                                <span className={`text-[11px] ${t.isDark ? 'text-purple-300' : 'text-slate-400'}`}>{r.items.length > 0 ? (isOpen ? '▾' : '▸') : ''}</span>
-                              </td>
-                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
-                                <span className={`text-xs font-extrabold tabular-nums ${t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}`}>#{r.poNumber}</span>
-                              </td>
-                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${sc.bg} ${sc.text} ${t.isDark ? 'border-white/15' : 'border-slate-200'}`}>{r.status}</span>
-                              </td>
-                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
-                                <span className={`text-[10px] font-semibold ${t.isDark ? 'text-purple-200' : 'text-slate-600'}`}>{r.deliveryStatus ?? '—'}</span>
-                              </td>
-                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
-                                <span className={`text-sm font-extrabold tabular-nums ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(r.orderAmount)}</span>
-                              </td>
-                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
-                                <div className={`text-xs ${t.isDark ? 'text-white' : 'text-slate-800'}`}>{d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</div>
-                                <div className={`text-[10px] ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
-                              </td>
-                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
-                                <div className={`text-xs font-semibold max-w-[200px] truncate ${t.isDark ? 'text-white' : 'text-slate-800'}`} title={r.buyerBusiness ?? ''}>{r.buyerBusiness ?? '—'}</div>
-                                <div className={`text-[10px] truncate ${t.isDark ? 'text-purple-300/60' : 'text-slate-400'}`}>{[r.buyerCity, r.buyerState].filter(Boolean).join(', ') || '—'}</div>
-                              </td>
-                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
-                                <span className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{r.buyerPhone ?? '—'}</span>
-                              </td>
-                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
-                                <span className={`text-xs font-semibold max-w-[200px] truncate inline-block ${t.isDark ? 'text-white' : 'text-slate-800'}`} title={r.sellerBusiness ?? ''}>{r.sellerBusiness ?? '—'}</span>
-                              </td>
-                              <td className={t.dataCell.replace('text-right', 'text-left').replace('py-3', 'py-1.5')}>
-                                <span className={`text-xs font-semibold tabular-nums ${t.isDark ? 'text-sky-200' : 'text-sky-700'}`}>{r.sellerPhone ?? '—'}</span>
-                              </td>
-                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
-                                <span className={`text-xs font-extrabold tabular-nums ${r.appliedWalletAmount > 0 ? (t.isDark ? 'text-amber-200' : 'text-amber-700') : (t.isDark ? 'text-white/40' : 'text-slate-400')}`}>{r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : '—'}</span>
-                              </td>
-                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
-                                <span className={`text-xs font-bold tabular-nums ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>{r.qty.toLocaleString('en-IN')}</span>
-                              </td>
-                              <td className={t.dataCell.replace('py-3', 'py-1.5')}>
-                                <span className={`text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${t.isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 border border-fuchsia-400/30' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
-                                  {r.items.length === 0 ? '0' : isOpen ? 'Hide' : `${r.items.length} item${r.items.length === 1 ? '' : 's'}`}
-                                </span>
-                              </td>
-                            </tr>
-                            {isOpen && r.items.length > 0 && (
-                              <tr className={`${t.isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
-                                <td colSpan={13} className={`${t.isDark ? 'border-b border-fuchsia-400/20' : 'border-b border-purple-200'} px-6 py-3`}>
-                                  <div className="flex items-center justify-between mb-1">
-                                    <div className={`text-[9px] uppercase tracking-wider font-bold ${t.isDark ? 'text-purple-300/60' : 'text-slate-500'}`}>All items ({r.items.length})</div>
-                                    <div className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>Σ {r.qty.toLocaleString('en-IN')} units · {formatAmount(r.itemAmount)}</div>
-                                  </div>
-                                  <table className="w-full text-[11px]">
-                                    <thead>
-                                      <tr className={t.isDark ? 'text-purple-300/70' : 'text-slate-500'}>
-                                        <th className="text-left font-semibold py-1">Item</th>
-                                        <th className="text-right font-semibold py-1 w-24">Unit ₹</th>
-                                        <th className="text-right font-semibold py-1 w-20">Qty</th>
-                                        <th className="text-right font-semibold py-1 w-28">₹</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {r.items.map((it, i) => (
-                                        <tr key={i} className={`${t.isDark ? 'border-t border-white/5 hover:bg-white/5' : 'border-t border-slate-200 hover:bg-white'}`}>
-                                          <td className={`py-1 truncate ${t.isDark ? 'text-white/90' : 'text-slate-800'}`} title={it.label ?? ''}>{it.label ?? '(unnamed)'}</td>
-                                          <td className={`py-1 text-right tabular-nums font-semibold ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`}>{it.unitPrice != null ? `₹${it.unitPrice}` : '—'}</td>
-                                          <td className={`py-1 text-right tabular-nums font-bold ${t.isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>×{it.qty.toLocaleString('en-IN')}</td>
-                                          <td className={`py-1 text-right tabular-nums font-extrabold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>{formatAmount(it.amount)}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
+                          <tr key={r.poNumber} className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}>
+                            <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2 whitespace-nowrap text-amber-800 font-medium`}>
+                              {formatDateTime(r.MarkedpendingTime ?? r.markedPendingTime)}
+                            </td>
+                            <td className={`sticky left-[160px] z-10 ${rowBg} group-hover:bg-purple-50 min-w-[120px] max-w-[120px] w-[120px] px-2.5 py-2 whitespace-nowrap`}>
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${r.pushedStatus === 'Pushed' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]' : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'}`} />
+                                {r.pushedStatus || 'Not Pushed'}
+                              </span>
+                            </td>
+                            <td className={`sticky left-[280px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
+                              <div className="inline-flex items-center gap-2">
+                                <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
+                                <a
+                                  href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 hover:border-purple-300 transition-all"
+                                  title="Open in D2R Support Dashboard"
+                                >
+                                  Details
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M7 17L17 7" />
+                                    <polyline points="7 7 17 7 17 17" />
+                                  </svg>
+                                </a>
+                              </div>
+                            </td>
+                            <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
+                            <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{fmtAmt(r.poAmount)}</td>
+                            <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 whitespace-nowrap">{r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{fmtAmt(r.paidAmount)}</td>
+                            <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-700 font-medium whitespace-nowrap" title={r.buyerBusinessName ?? ''}>{r.buyerBusinessName || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.buyerPhone || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-600 max-w-[260px] truncate" title={r.buyerFullAddress || r.buyerAddress}>{r.buyerFullAddress || r.buyerAddress || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap" title={r.sellerBusinessName ?? ''}>{r.sellerBusinessName || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.sellerPhone || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-amber-800 whitespace-nowrap bg-amber-50/60">{formatDateTime(r.statusMarkedTime)}</td>
+                            <td className="px-2.5 py-2 text-amber-800 tabular-nums whitespace-nowrap bg-amber-50/60">{r.statusDurationSec != null ? `${(r.statusDurationSec / 86400).toFixed(1)}d` : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.RefundAmount != null ? `₹${Number(r.RefundAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/60">{r.rejectReason || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/60">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/60">{r.reasonAddedByBadhoTeam || <span className="text-slate-400">—</span>}</td>
+                          </tr>
                         );
                       })}
                     </tbody>
                   </table>
-                  )}
-                  </>
-                  );
-                })()}
+                )}
               </div>
-              {mbsDrillTruncated && (
-                <div className={t.footnote}>showing latest 300 orders · narrow the slice (status / delivery / month / brand) to see more</div>
+
+              {/* Pagination */}
+              {paged && filteredRows && filteredRows.length > 0 && (
+                <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-sm text-slate-600 flex-wrap gap-2">
+                  <div>
+                    Showing <span className="font-semibold text-slate-900">{paged.startIdx + 1}</span>–<span className="font-semibold text-slate-900">{paged.endIdx}</span> of <span className="font-semibold text-slate-900">{filteredRows.length.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setMbsDrillPage((p) => Math.max(1, p - 1))}
+                      disabled={paged.safePage <= 1}
+                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Prev
+                    </button>
+                    <span className="px-2 text-slate-500">Page <span className="text-slate-900 font-semibold">{paged.safePage}</span> of {paged.totalPages}</span>
+                    <button
+                      onClick={() => setMbsDrillPage((p) => Math.min(paged.totalPages, p + 1))}
+                      disabled={paged.safePage >= paged.totalPages}
+                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>

@@ -50,20 +50,43 @@ export async function GET(req: NextRequest) {
   const currentYear = new Date().getFullYear();
   const year = parseInt(searchParams.get('year') || String(currentYear));
   const monthParam = searchParams.get('month');
-  const status = searchParams.get('status');
+  const status = searchParams.get('status');                  // optional now — when omitted, all non-DRAFT statuses are included
   const deliveryStatusParam = searchParams.get('deliveryStatus'); // value | "__NULL__" | null
-
-  if (!status) {
-    return NextResponse.json({ error: 'status parameter required' }, { status: 400 });
-  }
+  const startDate = searchParams.get('startDate');            // optional YYYY-MM-DD — when set, replaces year-based filter
+  const endDate   = searchParams.get('endDate');              // optional YYYY-MM-DD
+  const brand     = searchParams.get('brand');                // optional comma-separated seller businessName prefixes (matches brand-performance pivot)
 
   try {
-    // status can be a single value ('REJECTED') or comma-separated
+    // status can be a single value ('REJECTED'), comma-separated
     // ('DELIVERED,COMPLETED') for multi-status filters like the GMV
-    // Achieved tile.
-    const statusValues = status.split(',').map((s) => s.trim()).filter(Boolean);
-    const params: (string | number)[] = [year, ...statusValues];
-    const statusPlaceholders = statusValues.map((_, i) => `$${i + 2}`).join(', ');
+    // Achieved tile, or absent (drill on row/column/grand totals).
+    const params: (string | number)[] = [];
+    let statusFilter = ` AND po."status" != 'DRAFT'`;
+    if (status) {
+      const statusValues = status.split(',').map((s) => s.trim()).filter(Boolean);
+      if (statusValues.length > 0) {
+        params.push(...statusValues);
+        const placeholders = statusValues.map((_, i) => `$${i + 1}`).join(', ');
+        statusFilter = ` AND po."status" IN (${placeholders})`;
+      }
+    }
+
+    // Date window: explicit startDate/endDate take precedence over year.
+    let dateFilter = '';
+    if (startDate || endDate) {
+      if (startDate) {
+        params.push(startDate);
+        dateFilter += ` AND po."markedPendingTime"::date >= $${params.length}`;
+      }
+      if (endDate) {
+        params.push(endDate);
+        dateFilter += ` AND po."markedPendingTime"::date <= $${params.length}`;
+      }
+    } else {
+      params.push(year);
+      dateFilter = ` AND EXTRACT(YEAR FROM po."markedPendingTime") = $${params.length}`;
+    }
+
     let monthFilter = '';
     if (monthParam) {
       const month = parseInt(monthParam);
@@ -81,6 +104,12 @@ export async function GET(req: NextRequest) {
         params.push(deliveryStatusParam);
         deliveryFilter = ` AND po."deliveryStatus" = $${params.length}`;
       }
+    }
+
+    let brandFilter = '';
+    if (brand) {
+      params.push(brand);
+      brandFilter = ` AND TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) = ANY(string_to_array($${params.length}, ','))`;
     }
 
     const sql = `
@@ -179,11 +208,11 @@ export async function GET(req: NextRequest) {
         AND po."deliveryNetwork" = 'THIRD_PARTY'
         AND po."deliveryType"    = 'INTERCITY'
         AND po."isFalseOrder"    = FALSE
-        AND po."status" != 'DRAFT'
-        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
-        AND po."status" IN (${statusPlaceholders})
+        ${statusFilter}
+        ${dateFilter}
         ${monthFilter}
         ${deliveryFilter}
+        ${brandFilter}
       ORDER BY "MarkedpendingTime" DESC NULLS LAST
       LIMIT 5000;
     `;

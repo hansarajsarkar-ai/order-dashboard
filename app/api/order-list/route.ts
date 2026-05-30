@@ -54,7 +54,9 @@ export async function GET(req: NextRequest) {
   const deliveryStatusParam = searchParams.get('deliveryStatus'); // value | "__NULL__" | null
   const startDate = searchParams.get('startDate');            // optional YYYY-MM-DD — when set, replaces year-based filter
   const endDate   = searchParams.get('endDate');              // optional YYYY-MM-DD
-  const brand     = searchParams.get('brand');                // optional comma-separated seller businessName prefixes (matches brand-performance pivot)
+  const brand     = searchParams.get('brand');                // optional comma-separated seller businessName prefixes (matches brand-performance MBS pivot)
+  const brandLabel = searchParams.get('brandLabel');          // optional comma-separated brand labels (matches brand-performance Brand × Product table, sourced from brands.brand.label)
+  const sku       = searchParams.get('sku');                  // optional comma-separated brandSKUIds — return only POs that contain at least one matching item
 
   try {
     // status can be a single value ('REJECTED'), comma-separated
@@ -110,6 +112,40 @@ export async function GET(req: NextRequest) {
     if (brand) {
       params.push(brand);
       brandFilter = ` AND TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) = ANY(string_to_array($${params.length}, ','))`;
+    }
+
+    // SKU filter: only POs containing at least one matching non-DRAFT,
+    // non-combo-child purchaseOrderItem. Matches the aggregation rules used
+    // across brand-performance (see project_purchase_order_item_draft_filter
+    // and project_purchase_order_item_combo_explosion memories).
+    let skuFilter = '';
+    if (sku) {
+      params.push(sku);
+      skuFilter = ` AND EXISTS (
+        SELECT 1 FROM "purchaseOrder"."purchaseOrderItem" poi_f
+        WHERE poi_f."purchaseOrderId" = po."id"
+          AND poi_f."brandSKUId" = ANY(string_to_array($${params.length}, ','))
+          AND poi_f."status" != 'DRAFT'
+          AND poi_f."comboBrandSKUPOItemId" IS NULL
+      )`;
+    }
+
+    // Brand-label filter: scope POs to those containing at least one item
+    // whose brandSKU resolves to one of the given brand labels. Used by the
+    // Brand × Product drill where brand names come from brands.brand.label
+    // (e.g. "HOPPIN CANDY") rather than the seller businessName prefix.
+    let brandLabelFilter = '';
+    if (brandLabel) {
+      params.push(brandLabel);
+      brandLabelFilter = ` AND EXISTS (
+        SELECT 1 FROM "purchaseOrder"."purchaseOrderItem" poi_bl
+        JOIN "brands"."brandSKU" bs_bl ON bs_bl."id" = poi_bl."brandSKUId"
+        LEFT JOIN "brands"."brand" bra_bl ON bra_bl."id" = bs_bl."brandId"
+        WHERE poi_bl."purchaseOrderId" = po."id"
+          AND poi_bl."status" != 'DRAFT'
+          AND poi_bl."comboBrandSKUPOItemId" IS NULL
+          AND COALESCE(bra_bl."label", '(unbranded)') = ANY(string_to_array($${params.length}, ','))
+      )`;
     }
 
     const sql = `
@@ -213,6 +249,8 @@ export async function GET(req: NextRequest) {
         ${monthFilter}
         ${deliveryFilter}
         ${brandFilter}
+        ${brandLabelFilter}
+        ${skuFilter}
       ORDER BY "MarkedpendingTime" DESC NULLS LAST
       LIMIT 5000;
     `;

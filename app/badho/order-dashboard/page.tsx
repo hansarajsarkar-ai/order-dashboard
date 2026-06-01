@@ -4065,8 +4065,12 @@ export default function OrderStatusDashboard() {
                         }}
                       />
                       <Legend wrapperStyle={{ fontSize: 12, color: '#e9d5ff' }} />
-                      <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill="url(#gradRevBar)" radius={[6, 6, 0, 0]} maxBarSize={48} />
-                      <Line yAxisId="right" dataKey="orders" name="Orders" stroke="#22d3ee" strokeWidth={2.5} dot={{ r: 3, fill: '#22d3ee' }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                      <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill="url(#gradRevBar)" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                        <LabelList dataKey="revenue" position="top" formatter={(v: unknown) => formatAmount(Number(v))} style={{ fill: '#f0abfc', fontSize: 10, fontWeight: 700 }} />
+                      </Bar>
+                      <Line yAxisId="right" dataKey="orders" name="Orders" stroke="#22d3ee" strokeWidth={2.5} dot={{ r: 3, fill: '#22d3ee' }} activeDot={{ r: 5 }} isAnimationActive={false}>
+                        <LabelList dataKey="orders" position="top" offset={10} formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: '#67e8f9', fontSize: 10, fontWeight: 700 }} />
+                      </Line>
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -4114,7 +4118,9 @@ export default function OrderStatusDashboard() {
                           labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
                           formatter={(value) => [formatAmount(Number(value)), 'Avg Order Value']}
                         />
-                        <Area dataKey="aov" name="Avg Order Value" stroke="#e879f9" strokeWidth={2.5} fill="url(#gradAov)" dot={{ r: 3, fill: '#e879f9' }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                        <Area dataKey="aov" name="Avg Order Value" stroke="#e879f9" strokeWidth={2.5} fill="url(#gradAov)" dot={{ r: 3, fill: '#e879f9' }} activeDot={{ r: 5 }} isAnimationActive={false}>
+                          <LabelList dataKey="aov" position="top" offset={8} formatter={(v: unknown) => formatAmount(Number(v))} style={{ fill: '#f0abfc', fontSize: 10, fontWeight: 700 }} />
+                        </Area>
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -4158,7 +4164,9 @@ export default function OrderStatusDashboard() {
                           labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
                           formatter={(value) => [formatAmount(Number(value)), 'Cumulative']}
                         />
-                        <Area dataKey="cumRevenue" name="Cumulative" stroke="#22d3ee" strokeWidth={2.5} fill="url(#gradCum)" dot={{ r: 3, fill: '#22d3ee' }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                        <Area dataKey="cumRevenue" name="Cumulative" stroke="#22d3ee" strokeWidth={2.5} fill="url(#gradCum)" dot={{ r: 3, fill: '#22d3ee' }} activeDot={{ r: 5 }} isAnimationActive={false}>
+                          <LabelList dataKey="cumRevenue" position="top" offset={8} formatter={(v: unknown) => formatAmount(Number(v))} style={{ fill: '#67e8f9', fontSize: 10, fontWeight: 700 }} />
+                        </Area>
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -4762,9 +4770,14 @@ export default function OrderStatusDashboard() {
                       formatter={(v: any, n: any) => [Number(v).toLocaleString('en-IN'), n]}
                     />
                     <Legend wrapperStyle={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }} />
-                    {paymentTrend.options.map((opt, i) => (
-                      <Bar key={opt} dataKey={opt} stackId="pm" fill={colorFor(i)} radius={i === paymentTrend.options.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-                    ))}
+                    {paymentTrend.options.map((opt, i) => {
+                      const isLast = i === paymentTrend.options.length - 1;
+                      return (
+                        <Bar key={opt} dataKey={opt} stackId="pm" fill={colorFor(i)} radius={isLast ? [4, 4, 0, 0] : [0, 0, 0, 0]}>
+                          {isLast && <LabelList dataKey="total" position="top" formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: 700 }} />}
+                        </Bar>
+                      );
+                    })}
                   </BarChart>
                 </ResponsiveContainer>
               );

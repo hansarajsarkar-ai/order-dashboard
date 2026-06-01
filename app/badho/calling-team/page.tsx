@@ -106,7 +106,44 @@ interface LogsResp {
 
 // ───────────────────────── filters bar ─────────────────────────
 
-type Tab = 'analytics' | 'logs';
+type Tab = 'analytics' | 'daily' | 'logs';
+
+// Per-day types used by the Daily Trend tab.
+export interface DailyDetailedRow {
+  day: string;
+  dow: number;
+  dowName: string;
+  total: number;
+  connected: number;
+  missed: number;
+  noAnswer: number;
+  meaningful: number;
+  shortCalls: number;
+  avgDuration: number;
+  totalTalkTime: number;
+  uniqueCustomers: number;
+  uniqueAgents: number;
+  connectionRate: number;
+  meaningfulRate: number;
+  notConnected: number;
+  deltaPrevTotal: number | null;
+  deltaPrevPct: number | null;
+  wowDeltaPct: number | null;
+  wowConnectDelta: number | null;
+}
+interface DowAggRow { dow: number; name: string; avgCalls: number; avgConnected: number; avgMeaningful: number; connectionRate: number; days: number; }
+interface DailySummary {
+  todayCalls: number; todayConnectRate: number;
+  yesterdayCalls: number; yesterdayConnectRate: number;
+  last7Avg: number; prev7Avg: number;
+  last7ConnectRate: number; prev7ConnectRate: number;
+  windowAvg: number; windowConnectRate: number;
+  bestDay: DailyDetailedRow | null;
+  worstDay: DailyDetailedRow | null;
+  bestConnect: DailyDetailedRow | null;
+}
+interface DayHourly { hour: number; total: number; connected: number; missed: number; noAnswer: number; avgDuration: number; connectionRate: number; }
+interface DailyResp { series: DailyDetailedRow[]; dowAgg: DowAggRow[]; summary: DailySummary; dayHourly?: DayHourly[]; }
 
 interface Filters {
   startDate: string;
@@ -411,6 +448,10 @@ export default function CallingTeamDashboard() {
   const [logsPage, setLogsPage] = useState(1);
   const [logsLoading, setLogsLoading] = useState(false);
 
+  const [dailyResp, setDailyResp] = useState<DailyResp | null>(null);
+  const [dailyLoading, setDailyLoading] = useState(false);
+  const [dailyFocusDay, setDailyFocusDay] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -516,6 +557,25 @@ export default function CallingTeamDashboard() {
     loadLogs(1);
   }, [authChecked, tab, qs, loadLogs]);
 
+  // Daily Trend tab — loads per-day rich metrics and (optionally) hour breakdown for a focused day.
+  const loadDaily = useCallback(async () => {
+    setDailyLoading(true);
+    try {
+      const p = new URLSearchParams(qs);
+      if (dailyFocusDay) p.set('day', dailyFocusDay);
+      const r = await fetch(`/api/calling-team/daily-detailed?${p.toString()}`).then((r) => r.json());
+      if (r?.series) setDailyResp(r);
+    } finally {
+      setDailyLoading(false);
+    }
+  }, [qs, dailyFocusDay]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    if (tab !== 'daily') return;
+    loadDaily();
+  }, [authChecked, tab, loadDaily]);
+
   if (!authChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -571,6 +631,12 @@ export default function CallingTeamDashboard() {
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'analytics' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
             >
               📊 Trends & Insights
+            </button>
+            <button
+              onClick={() => setTab('daily')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'daily' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+            >
+              📅 Daily Trend
             </button>
             <button
               onClick={() => setTab('logs')}
@@ -639,6 +705,15 @@ export default function CallingTeamDashboard() {
             dispositions={dispositions}
             oppLoss={oppLoss}
             kpis={kpis}
+          />
+        )}
+
+        {tab === 'daily' && (
+          <DailyTrendTab
+            data={dailyResp}
+            loading={dailyLoading}
+            focusDay={dailyFocusDay}
+            setFocusDay={setDailyFocusDay}
           />
         )}
 
@@ -1387,6 +1462,322 @@ function LogsTab(props: {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── Tab 3: Daily Trend ─────────────────────────
+
+function DailyTrendTab(props: {
+  data: DailyResp | null;
+  loading: boolean;
+  focusDay: string | null;
+  setFocusDay: (d: string | null) => void;
+}) {
+  const { data, loading, focusDay, setFocusDay } = props;
+  const [sort, setSort] = useState<{ col: keyof DailyDetailedRow; dir: 'asc' | 'desc' }>({ col: 'day', dir: 'desc' });
+
+  if (loading && !data) {
+    return <div className="text-purple-200 py-16 text-center text-sm">Loading daily trend…</div>;
+  }
+  if (!data || !data.series.length) {
+    return <div className="text-purple-200/70 py-16 text-center text-sm">No data for this window.</div>;
+  }
+
+  const { series, dowAgg, summary, dayHourly } = data;
+  const sorted = [...series].sort((a, b) => {
+    const av = a[sort.col];
+    const bv = b[sort.col];
+    if (typeof av === 'number' && typeof bv === 'number') return sort.dir === 'asc' ? av - bv : bv - av;
+    const as = String(av ?? '');
+    const bs = String(bv ?? '');
+    return sort.dir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as);
+  });
+
+  const maxTotal = Math.max(1, ...series.map((s) => s.total));
+  const last7AvgDelta = summary.prev7Avg > 0 ? ((summary.last7Avg - summary.prev7Avg) / summary.prev7Avg) * 100 : null;
+  const last7ConnectDelta = (summary.last7ConnectRate - summary.prev7ConnectRate) * 100;
+
+  // Chart data: include cumulative connect rate per day for a secondary y-axis.
+  const chartData = series.map((s) => ({ ...s, dayLabel: fmtDay(s.day) }));
+
+  // AI insights for the daily tab.
+  const insights: Insight[] = [];
+  if (summary.bestDay && summary.worstDay) {
+    insights.push({
+      tone: 'positive',
+      label: 'BEST DAY',
+      text: `${fmtDay(summary.bestDay.day)} (${summary.bestDay.dowName}) — ${fmtInt(summary.bestDay.total)} calls, ${fmtPct(summary.bestDay.connectionRate)} connect.`,
+    });
+    const ratio = summary.bestDay.total / Math.max(summary.worstDay.total, 1);
+    if (ratio > 3) {
+      insights.push({
+        tone: 'warning',
+        label: 'SWING',
+        text: `Best day was ${ratio.toFixed(1)}× the worst (${fmtDay(summary.worstDay.day)} — ${fmtInt(summary.worstDay.total)} calls). High volatility — investigate scheduling or campaign launches.`,
+      });
+    }
+  }
+  if (last7AvgDelta !== null) {
+    insights.push({
+      tone: last7AvgDelta > 5 ? 'positive' : last7AvgDelta < -5 ? 'danger' : 'neutral',
+      label: 'MOMENTUM',
+      text: `Last 7-day daily average (${fmtCompact(summary.last7Avg)}) is ${last7AvgDelta >= 0 ? 'up' : 'down'} ${Math.abs(last7AvgDelta).toFixed(1)}% vs the prior 7 days.`,
+    });
+  }
+  if (summary.bestConnect) {
+    insights.push({
+      tone: 'opportunity',
+      label: 'QUALITY',
+      text: `Highest single-day connect rate: ${fmtPct(summary.bestConnect.connectionRate)} on ${fmtDay(summary.bestConnect.day)} (${summary.bestConnect.dowName}). Replicate conditions on this date.`,
+    });
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Period KPI strip */}
+      <section>
+        <div className="text-xs uppercase tracking-wider text-purple-300/70 font-semibold mb-3">Period Comparison</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          <KPICard
+            label="Today"
+            value={fmtCompact(summary.todayCalls)}
+            sub={`${fmtPct(summary.todayConnectRate)} connect`}
+            tone="fuchsia"
+            icon="📞"
+          />
+          <KPICard
+            label="Yesterday"
+            value={fmtCompact(summary.yesterdayCalls)}
+            sub={`${fmtPct(summary.yesterdayConnectRate)} connect`}
+            tone="purple"
+            icon="⏪"
+          />
+          <KPICard
+            label="Day-over-Day"
+            value={summary.yesterdayCalls > 0
+              ? `${(((summary.todayCalls - summary.yesterdayCalls) / summary.yesterdayCalls) * 100).toFixed(1)}%`
+              : '—'}
+            sub={summary.todayCalls > summary.yesterdayCalls ? 'up vs yesterday' : 'down vs yesterday'}
+            tone={summary.todayCalls >= summary.yesterdayCalls ? 'emerald' : 'rose'}
+            icon={summary.todayCalls >= summary.yesterdayCalls ? '↑' : '↓'}
+          />
+          <KPICard
+            label="Last 7d Avg"
+            value={fmtCompact(summary.last7Avg)}
+            sub={last7AvgDelta === null ? `${fmtPct(summary.last7ConnectRate)} connect` : `${last7AvgDelta >= 0 ? '+' : ''}${last7AvgDelta.toFixed(1)}% vs prev 7d`}
+            tone="indigo"
+            icon="📈"
+          />
+          <KPICard
+            label="Window Avg"
+            value={fmtCompact(summary.windowAvg)}
+            sub={`${fmtPct(summary.windowConnectRate)} connect`}
+            tone="sky"
+            icon="📊"
+          />
+          <KPICard
+            label="Connect Δ (7d)"
+            value={`${last7ConnectDelta >= 0 ? '+' : ''}${last7ConnectDelta.toFixed(1)}pp`}
+            sub="last 7 vs prior 7"
+            tone={last7ConnectDelta >= 0 ? 'emerald' : 'amber'}
+            icon="🔗"
+          />
+        </div>
+      </section>
+
+      {/* Insights */}
+      {insights.length > 0 && (
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+          <InsightPanel insights={insights} title="What changed this period" />
+        </div>
+      )}
+
+      {/* Daily breakdown chart */}
+      <ChartCard
+        title="Daily Stacked Breakdown"
+        subtitle="Per-day connected / no-answer / missed bars + connect rate line"
+        question="Day-by-day: where did volume spike or drop, and what happened to connect quality?"
+      >
+        <div className="h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="dayLabel" tick={{ fill: '#c4b5fd', fontSize: 10 }} interval="preserveStartEnd" />
+              <YAxis yAxisId="l" tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} />
+              <YAxis yAxisId="r" orientation="right" tick={{ fill: '#fbbf24', fontSize: 11 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} domain={[0, 1]} />
+              <Tooltip
+                contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
+                formatter={(v, name) => (name === 'Connect Rate' ? `${(Number(v) * 100).toFixed(1)}%` : fmtInt(Number(v)))}
+              />
+              <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
+              <Bar yAxisId="l" dataKey="connected" name="Connected" stackId="a" fill="#10b981" />
+              <Bar yAxisId="l" dataKey="noAnswer"  name="No Answer"  stackId="a" fill="#f59e0b" />
+              <Bar yAxisId="l" dataKey="missed"    name="Missed"    stackId="a" fill="#ef4444" />
+              <Line yAxisId="r" type="monotone" dataKey="connectionRate" name="Connect Rate" stroke="#fbbf24" strokeWidth={2.5} dot={{ r: 3 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </ChartCard>
+
+      {/* Day-of-week pattern + detailed table */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <ChartCard
+          title="Day-of-Week Pattern"
+          subtitle="Average calls per weekday across the window"
+          question="Which weekdays are reliably high vs low?"
+        >
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={dowAgg}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="name" tick={{ fill: '#c4b5fd', fontSize: 11 }} />
+                <YAxis yAxisId="l" tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} />
+                <YAxis yAxisId="r" orientation="right" tick={{ fill: '#fbbf24', fontSize: 11 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} domain={[0, 1]} />
+                <Tooltip contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
+                  formatter={(v, name) => (name === 'Connect Rate' ? `${(Number(v) * 100).toFixed(1)}%` : fmtInt(Number(v)))} />
+                <Bar yAxisId="l" dataKey="avgCalls" name="Avg Calls" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                <Line yAxisId="r" type="monotone" dataKey="connectionRate" name="Connect Rate" stroke="#fbbf24" strokeWidth={2} dot={{ r: 3 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartCard>
+
+        <div className="xl:col-span-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div>
+              <div className="text-base font-semibold text-white">Detailed Daily Metrics</div>
+              <div className="text-xs text-purple-200/70 mt-0.5">Click any row to see its hour-by-hour breakdown. Sortable columns.</div>
+            </div>
+            <div className="text-[10px] text-purple-300/60">{series.length} days</div>
+          </div>
+          <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="text-purple-300/70 uppercase tracking-wider text-[10px] border-b border-white/10 sticky top-0 bg-slate-900/80 backdrop-blur">
+                <tr>
+                  {([
+                    ['day', 'Date', 'left'],
+                    ['dowName', 'Day', 'left'],
+                    ['total', 'Total', 'right'],
+                    ['connected', 'Connected', 'right'],
+                    ['connectionRate', 'Connect %', 'right'],
+                    ['meaningful', 'Meaningful', 'right'],
+                    ['avgDuration', 'Avg Dur', 'right'],
+                    ['totalTalkTime', 'Talk Time', 'right'],
+                    ['uniqueCustomers', 'Customers', 'right'],
+                    ['uniqueAgents', 'Agents', 'right'],
+                    ['deltaPrevPct', 'Δ Day', 'right'],
+                    ['wowDeltaPct', 'Δ WoW', 'right'],
+                  ] as const).map(([col, label, align]) => (
+                    <th
+                      key={col}
+                      className={`py-2 px-2 cursor-pointer hover:text-purple-100 select-none whitespace-nowrap ${align === 'right' ? 'text-right' : 'text-left'}`}
+                      onClick={() => setSort((s) => ({ col: col as keyof DailyDetailedRow, dir: s.col === col && s.dir === 'desc' ? 'asc' : 'desc' }))}
+                    >
+                      {label} {sort.col === col ? (sort.dir === 'desc' ? '↓' : '↑') : ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((r) => {
+                  const isFocused = focusDay === r.day;
+                  const widthPct = (r.total / maxTotal) * 100;
+                  return (
+                    <tr
+                      key={r.day}
+                      className={`border-b border-white/5 cursor-pointer ${isFocused ? 'bg-fuchsia-500/15' : 'hover:bg-white/5'}`}
+                      onClick={() => setFocusDay(isFocused ? null : r.day)}
+                    >
+                      <td className="py-2 px-2 text-purple-100 whitespace-nowrap">{fmtDay(r.day)}</td>
+                      <td className="py-2 px-2 text-purple-200/80">{r.dowName}</td>
+                      <td className="py-2 px-2 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="hidden md:block w-14 h-1.5 bg-white/5 rounded overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-fuchsia-400 to-purple-500" style={{ width: `${widthPct}%` }} />
+                          </div>
+                          <span className="text-purple-100 tabular-nums font-semibold">{fmtInt(r.total)}</span>
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-right text-emerald-300 tabular-nums">{fmtInt(r.connected)}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">
+                        <span className={r.connectionRate >= 0.5 ? 'text-emerald-300' : r.connectionRate >= 0.3 ? 'text-amber-300' : 'text-rose-300'}>
+                          {fmtPct(r.connectionRate)}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(r.meaningful)}</td>
+                      <td className="py-2 px-2 text-right text-purple-200 tabular-nums whitespace-nowrap">{fmtDuration(r.avgDuration)}</td>
+                      <td className="py-2 px-2 text-right text-purple-200 tabular-nums whitespace-nowrap">{fmtTalkTime(r.totalTalkTime)}</td>
+                      <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(r.uniqueCustomers)}</td>
+                      <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(r.uniqueAgents)}</td>
+                      <td className="py-2 px-2 text-right tabular-nums whitespace-nowrap">
+                        {r.deltaPrevPct === null ? <span className="text-purple-300/50">—</span> :
+                          <span className={r.deltaPrevPct >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+                            {r.deltaPrevPct >= 0 ? '+' : ''}{r.deltaPrevPct.toFixed(1)}%
+                          </span>
+                        }
+                      </td>
+                      <td className="py-2 px-2 text-right tabular-nums whitespace-nowrap">
+                        {r.wowDeltaPct === null ? <span className="text-purple-300/50">—</span> :
+                          <span className={r.wowDeltaPct >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+                            {r.wowDeltaPct >= 0 ? '+' : ''}{r.wowDeltaPct.toFixed(1)}%
+                          </span>
+                        }
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Hourly drilldown for focused day */}
+      {focusDay && dayHourly && (
+        <ChartCard
+          title={`Hourly Breakdown — ${fmtDay(focusDay)}`}
+          subtitle="Hour-by-hour view of calls placed on the selected day"
+          question="Within this day, when did the team peak — and when did connect quality dip?"
+          insights={(() => {
+            const valid = dayHourly.filter((h) => h.total > 0);
+            if (!valid.length) return [{ tone: 'neutral' as const, label: 'EMPTY', text: 'No calls recorded on this day.' }];
+            const peak = valid.reduce((a, b) => (b.total > a.total ? b : a));
+            const trough = valid.reduce((a, b) => (b.total < a.total ? b : a));
+            const lowConn = valid.filter((h) => h.total >= 10).sort((a, b) => a.connectionRate - b.connectionRate)[0];
+            return [
+              { tone: 'positive', label: 'PEAK', text: `Peak hour: ${peak.hour}:00 — ${fmtInt(peak.total)} calls, ${fmtPct(peak.connectionRate)} connect.` },
+              { tone: 'neutral', label: 'QUIET', text: `Lightest active hour: ${trough.hour}:00 (${fmtInt(trough.total)} calls).` },
+              ...(lowConn ? [{
+                tone: 'warning' as const,
+                label: 'DIP',
+                text: `Weakest connect: ${lowConn.hour}:00 (${fmtPct(lowConn.connectionRate)} on ${fmtInt(lowConn.total)} calls).`,
+              }] : []),
+            ];
+          })()}
+        >
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={dayHourly.map((h) => ({ ...h, hourLabel: `${h.hour}:00` }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="hourLabel" tick={{ fill: '#c4b5fd', fontSize: 10 }} interval={1} />
+                <YAxis yAxisId="l" tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} />
+                <YAxis yAxisId="r" orientation="right" tick={{ fill: '#fbbf24', fontSize: 11 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} domain={[0, 1]} />
+                <Tooltip contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
+                  formatter={(v, name) => (name === 'Connect Rate' ? `${(Number(v) * 100).toFixed(1)}%` : fmtInt(Number(v)))} />
+                <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
+                <Bar yAxisId="l" dataKey="connected" name="Connected" stackId="a" fill="#10b981" />
+                <Bar yAxisId="l" dataKey="noAnswer"  name="No Answer"  stackId="a" fill="#f59e0b" />
+                <Bar yAxisId="l" dataKey="missed"    name="Missed"    stackId="a" fill="#ef4444" />
+                <Line yAxisId="r" type="monotone" dataKey="connectionRate" name="Connect Rate" stroke="#fbbf24" strokeWidth={2} dot={{ r: 2 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-3 text-right">
+            <button onClick={() => setFocusDay(null)} className="text-[11px] text-purple-300 hover:text-purple-100">Clear day filter</button>
+          </div>
+        </ChartCard>
       )}
     </div>
   );

@@ -1146,6 +1146,15 @@ export default function OrderStatusDashboard() {
   interface DailyTrendPoint { day: string; ordersCount: number; ordersAmount: number; deliveredCount: number; deliveredAmount: number; }
   const [trendData, setTrendData] = useState<DailyTrendPoint[] | null>(null);
   const [trendLoading, setTrendLoading] = useState(false);
+
+  // Trend tab — daily payment-option mix (distinct PO count per option per day)
+  interface PaymentTrend {
+    data: Array<Record<string, number | string>>;
+    options: string[];
+    optionTotals: Record<string, number>;
+  }
+  const [paymentTrend, setPaymentTrend] = useState<PaymentTrend | null>(null);
+  const [paymentTrendLoading, setPaymentTrendLoading] = useState(false);
   const [trendRange, setTrendRange] = useState<'7d' | '30d' | '90d' | 'all' | 'custom'>('30d');
   const [trendCustomFrom, setTrendCustomFrom] = useState('');
   const [trendCustomTo, setTrendCustomTo] = useState('');
@@ -1370,10 +1379,30 @@ export default function OrderStatusDashboard() {
     }
   };
 
+  const fetchPaymentTrend = async () => {
+    try {
+      setPaymentTrendLoading(true);
+      const { startDate, endDate } = resolveTrendRange();
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const res = await fetch(`/api/brand-performance/payment-trend${params.toString() ? `?${params}` : ''}`);
+      if (!res.ok) throw new Error('Failed to fetch payment-trend');
+      const json = await res.json();
+      setPaymentTrend(json);
+    } catch (err) {
+      console.error('Payment-trend fetch error:', err);
+      setPaymentTrend(null);
+    } finally {
+      setPaymentTrendLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab !== 'trend') return;
     fetchTrend();
     fetchAnomalies();
+    fetchPaymentTrend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, trendRange, trendCustomFrom, trendCustomTo]);
 
@@ -4687,6 +4716,57 @@ export default function OrderStatusDashboard() {
                     </tr>
                   </tbody>
                 </table>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* Daily payment-option mix · distinct POs per day */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25)]">
+          <div className="px-8 py-6 border-b border-white/10 flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Payment mix · distinct POs per day</h2>
+              <p className="text-white/60 text-sm mt-1">Daily distinct purchase orders bucketed by payment option · 3PL × INTERCITY only</p>
+            </div>
+            {paymentTrend && paymentTrend.options.length > 0 && (() => {
+              const grand = Object.values(paymentTrend.optionTotals).reduce((s, v) => s + v, 0);
+              const top = Object.entries(paymentTrend.optionTotals).sort((a, b) => b[1] - a[1])[0];
+              return top ? (
+                <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-400/30">
+                  <p className="text-[10px] text-emerald-300/70 uppercase tracking-wider">Top option</p>
+                  <p className="text-sm font-bold text-emerald-300 tabular-nums">{top[0]} · {grand > 0 ? ((top[1] / grand) * 100).toFixed(1) : '0'}%</p>
+                </div>
+              ) : null;
+            })()}
+          </div>
+          <div className="p-6" style={{ height: 380 }}>
+            {paymentTrendLoading || !paymentTrend || paymentTrend.data.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-sm text-white/50">{paymentTrendLoading ? 'Loading…' : 'No data'}</div>
+            ) : (() => {
+              const palette = ['#d946ef', '#10b981', '#38bdf8', '#f59e0b', '#a78bfa', '#f43f5e', '#22d3ee', '#84cc16'];
+              const colorFor = (i: number) => palette[i % palette.length];
+              const fmtDate = (d: string) => {
+                const date = new Date(d + 'T00:00:00Z');
+                return `${String(date.getUTCDate()).padStart(2, '0')} ${date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}`;
+              };
+              const chartData = paymentTrend.data.map((r) => ({ ...r, dateLabel: fmtDate(String(r.date)) }));
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ left: 10, right: 20, top: 10 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                    <XAxis dataKey="dateLabel" stroke="rgba(255,255,255,0.5)" fontSize={10} tickMargin={6} interval="preserveStartEnd" />
+                    <YAxis stroke="rgba(255,255,255,0.5)" fontSize={11} tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
+                    <Tooltip
+                      contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontSize: 12 }}
+                      labelStyle={{ color: '#fff', fontWeight: 700 }}
+                      formatter={(v: any, n: any) => [Number(v).toLocaleString('en-IN'), n]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }} />
+                    {paymentTrend.options.map((opt, i) => (
+                      <Bar key={opt} dataKey={opt} stackId="pm" fill={colorFor(i)} radius={i === paymentTrend.options.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
               );
             })()}
           </div>

@@ -512,7 +512,7 @@ export default function OrderStatusDashboard() {
   const [sellerDrillEndDate, setSellerDrillEndDate] = useState<string>('');
   const [sellerDrillStatus, setSellerDrillStatus] = useState<string>('all');
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography' | 'alert'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography' | 'zone' | 'alert'>('dashboard');
 
   // PO Items modal (opened from any "View Items" button across the dashboard)
   interface PoItemRow {
@@ -2603,6 +2603,7 @@ export default function OrderStatusDashboard() {
             { key: 'rto', label: 'RTO' },
             { key: 'seller', label: 'Seller wise' },
             { key: 'demography', label: 'Demography' },
+            { key: 'zone', label: 'Zone Wise' },
             { key: 'alert', label: 'Alert' },
           ] as const).map((tab) => {
             const active = activeTab === tab.key;
@@ -7085,6 +7086,13 @@ export default function OrderStatusDashboard() {
                 })()}
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'zone' && (
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-16 text-center">
+            <h2 className="text-2xl font-bold text-white mb-2">Zone Wise</h2>
+            <p className="text-purple-300 text-sm">Coming soon.</p>
           </div>
         )}
 

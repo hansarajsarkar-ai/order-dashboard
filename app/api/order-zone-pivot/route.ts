@@ -16,7 +16,7 @@ interface Row {
   cnt: string;
 }
 
-type Cell = { count: number; modeKg: number };
+type Cell = { count: number; modeKg: number; avgKg: number; medianKg: number };
 
 const ZONE_ORDER = ['A', 'B', 'C1', 'C2', 'D1', 'D2', 'E', 'F'];
 
@@ -34,10 +34,40 @@ function modeFrom(weightHist: Map<number, number>): number {
   return bestG / 1000;
 }
 
+function avgFrom(weightHist: Map<number, number>): number {
+  let total = 0;
+  let sum = 0;
+  for (const [g, c] of weightHist) { total += c; sum += g * c; }
+  return total === 0 ? 0 : (sum / total) / 1000;
+}
+
+function medianFrom(weightHist: Map<number, number>): number {
+  let total = 0;
+  for (const c of weightHist.values()) total += c;
+  if (total === 0) return 0;
+  const target = total / 2;
+  const sorted = Array.from(weightHist.entries()).sort((a, b) => a[0] - b[0]);
+  let running = 0;
+  for (const [g, c] of sorted) {
+    running += c;
+    if (running >= target) return g / 1000;
+  }
+  return 0;
+}
+
 function totalCount(weightHist: Map<number, number>): number {
   let total = 0;
   for (const c of weightHist.values()) total += c;
   return total;
+}
+
+function cellFrom(hist: Map<number, number>): Cell {
+  return {
+    count: totalCount(hist),
+    modeKg: modeFrom(hist),
+    avgKg: avgFrom(hist),
+    medianKg: medianFrom(hist),
+  };
 }
 
 function mergeInto(target: Map<number, number>, source: Map<number, number>) {
@@ -136,10 +166,7 @@ export async function GET(req: NextRequest) {
       for (const [zone, byStatus] of Object.entries(byZone)) {
         data[seller][zone] = {};
         for (const [status, hist] of Object.entries(byStatus)) {
-          data[seller][zone][status] = {
-            count: totalCount(hist),
-            modeKg: modeFrom(hist),
-          };
+          data[seller][zone][status] = cellFrom(hist);
         }
       }
     }
@@ -147,7 +174,7 @@ export async function GET(req: NextRequest) {
     const buildTotals = (m: Map<string, Map<number, number>>) => {
       const out: Record<string, Cell> = {};
       for (const [k, h] of m) {
-        out[k] = { count: totalCount(h), modeKg: modeFrom(h) };
+        out[k] = cellFrom(h);
       }
       return out;
     };
@@ -171,14 +198,14 @@ export async function GET(req: NextRequest) {
     for (const [seller, byZone] of Object.entries(sellerZoneHist)) {
       sellerZoneRollup[seller] = {};
       for (const [zone, hist] of Object.entries(byZone)) {
-        sellerZoneRollup[seller][zone] = { count: totalCount(hist), modeKg: modeFrom(hist) };
+        sellerZoneRollup[seller][zone] = cellFrom(hist);
       }
     }
     const zoneStatusRollup: Record<string, Record<string, Cell>> = {};
     for (const [zone, byStatus] of Object.entries(zoneStatusHist)) {
       zoneStatusRollup[zone] = {};
       for (const [status, hist] of Object.entries(byStatus)) {
-        zoneStatusRollup[zone][status] = { count: totalCount(hist), modeKg: modeFrom(hist) };
+        zoneStatusRollup[zone][status] = cellFrom(hist);
       }
     }
 
@@ -203,7 +230,7 @@ export async function GET(req: NextRequest) {
       statusTotals,
       sellerZoneRollup,
       zoneStatusRollup,
-      grand: { count: totalCount(grandHist), modeKg: modeFrom(grandHist) },
+      grand: cellFrom(grandHist),
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

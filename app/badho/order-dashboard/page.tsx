@@ -1157,7 +1157,7 @@ export default function OrderStatusDashboard() {
   const [paymentTrendLoading, setPaymentTrendLoading] = useState(false);
 
   // Zone Wise tab — Delhivery pivot: seller × zone × status (count + kg)
-  interface ZoneCell { count: number; modeKg: number; }
+  interface ZoneCell { count: number; modeKg: number; avgKg?: number; medianKg?: number; }
   interface ZonePivot {
     startDate: string;
     endDate: string;
@@ -7404,6 +7404,55 @@ export default function OrderStatusDashboard() {
                         </Area>
                       ))}
                     </AreaChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Row 3: weight profile per zone (avg / mode / median) */}
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+              <h2 className="text-base font-bold text-white">Weight profile by zone</h2>
+              <p className="text-purple-300 text-xs mt-0.5">Average, mode, and median charged weight (kg) per Delhivery zone</p>
+            </div>
+            <div className="p-4" style={{ height: 340 }}>
+              {zonePivotLoading || !zonePivot || zonePivot.zones.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm text-purple-300">{zonePivotLoading ? 'Loading…' : 'No data'}</div>
+              ) : (() => {
+                const data = zonePivot.zones.map((z) => {
+                  const zt = zonePivot.zoneTotals[z];
+                  return {
+                    zone: z,
+                    avg: zt?.avgKg ?? 0,
+                    mode: zt?.modeKg ?? 0,
+                    median: zt?.medianKg ?? 0,
+                    count: zt?.count ?? 0,
+                  };
+                });
+                const fmt = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+                return (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data} margin={{ top: 24, right: 16, left: 8, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <XAxis dataKey="zone" tick={{ fill: 'rgba(216,180,254,0.8)', fontSize: 12, fontWeight: 600 }} />
+                      <YAxis tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} tickFormatter={(v: number) => `${fmt(v)}`} />
+                      <Tooltip
+                        contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}
+                        labelFormatter={(label) => `Zone ${label}`}
+                        formatter={(v: any, n: any) => [`${fmt(Number(v))} kg`, n]}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11, color: '#e9d5ff' }} />
+                      <Bar dataKey="avg" name="Average" fill="#a78bfa" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="avg" position="top" offset={4} formatter={(v: unknown) => fmt(Number(v))} style={{ fill: '#ddd6fe', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 2, strokeLinejoin: 'round' }} />
+                      </Bar>
+                      <Bar dataKey="mode" name="Mode" fill="#10b981" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="mode" position="top" offset={4} formatter={(v: unknown) => fmt(Number(v))} style={{ fill: '#a7f3d0', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 2, strokeLinejoin: 'round' }} />
+                      </Bar>
+                      <Bar dataKey="median" name="Median" fill="#22d3ee" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="median" position="top" offset={4} formatter={(v: unknown) => fmt(Number(v))} style={{ fill: '#a5f3fc', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 2, strokeLinejoin: 'round' }} />
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 );
               })()}

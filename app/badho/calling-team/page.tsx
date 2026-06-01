@@ -781,7 +781,6 @@ export default function CallingTeamDashboard() {
           <DashboardTab
             loading={loading}
             overview={overview}
-            agents={agents}
             momRows={momRows}
             momLoading={momLoading}
           />
@@ -1309,11 +1308,10 @@ function AnalyticsTab(props: {
 function DashboardTab(props: {
   loading: boolean;
   overview: Overview | null;
-  agents: AgentRow[];
   momRows: MomRow[];
   momLoading: boolean;
 }) {
-  const { loading, overview, agents, momRows, momLoading } = props;
+  const { loading, overview, momRows, momLoading } = props;
 
   if (loading && !overview) {
     return <div className="text-purple-200 py-16 text-center text-sm">Loading dashboard…</div>;
@@ -1321,11 +1319,6 @@ function DashboardTab(props: {
   if (!overview) {
     return <div className="text-purple-200/70 py-16 text-center text-sm">No data for this window.</div>;
   }
-
-  const top5Agents = [...agents]
-    .filter((a) => a.totalCalls >= 20)
-    .sort((a, b) => b.connectedCalls - a.connectedCalls)
-    .slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -1340,37 +1333,6 @@ function DashboardTab(props: {
           <KPICard label="Total Talk Time"    value={fmtTalkTime(overview.totalTalkTimeSec)}        sub={`${overview.uniqueAgents} agents`} tone="sky" icon="🕓" />
           <KPICard label="Missed + No Ans"    value={fmtCompact(overview.missedCalls + overview.noAnswerCalls)} sub={fmtPct((overview.missedCalls + overview.noAnswerCalls) / Math.max(overview.totalCalls, 1))} tone="rose" icon="↺" />
         </div>
-      </section>
-
-      {/* Top 5 Agents */}
-      <section className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <div className="text-base font-semibold text-white">Top 5 Agents</div>
-            <div className="text-xs text-purple-200/70 mt-0.5">By connected calls (≥20 attempts)</div>
-          </div>
-        </div>
-        {top5Agents.length === 0 ? (
-          <div className="text-purple-200/60 text-sm py-8 text-center">No agents with enough volume yet.</div>
-        ) : (
-          <ol className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
-            {top5Agents.map((a, i) => (
-              <li key={a.agentName} className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-lg px-3 py-2">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center text-[11px] font-bold text-white">
-                  {i + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-purple-100 font-medium truncate">{a.agentName}</div>
-                  <div className="text-[10px] text-purple-300/70">{fmtInt(a.connectedCalls)} connected · {fmtPct(a.connectionRate, 0)} rate</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-xs text-purple-100 font-semibold tabular-nums">{fmtInt(a.totalCalls)}</div>
-                  <div className="text-[10px] text-purple-300/60">calls</div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
       </section>
 
       {/* Month-over-Month rollup */}

@@ -7138,6 +7138,62 @@ export default function OrderStatusDashboard() {
         )}
 
         {activeTab === 'zone' && (
+          <div className="space-y-6">
+          {/* Zone share chart */}
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-8 py-5 border-b border-white/10 bg-white/5">
+              <h2 className="text-xl font-bold text-white">Order share by zone</h2>
+              <p className="text-purple-300 text-xs mt-0.5">% of Delhivery POs in each zone for the selected range</p>
+            </div>
+            <div className="p-6" style={{ height: 320 }}>
+              {zonePivotLoading || !zonePivot || zonePivot.zones.length === 0 || zonePivot.grand.count === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm text-purple-300">{zonePivotLoading ? 'Loading…' : 'No data'}</div>
+              ) : (() => {
+                const ZONE_COLOR: Record<string, string> = {
+                  A: '#10b981', B: '#22d3ee', C1: '#a78bfa', C2: '#8b5cf6',
+                  D1: '#f59e0b', D2: '#fb923c', E: '#f43f5e', F: '#ec4899',
+                };
+                const data = zonePivot.zones.map((z) => ({
+                  zone: z,
+                  count: zonePivot.zoneTotals[z]?.count || 0,
+                  pct: ((zonePivot.zoneTotals[z]?.count || 0) / zonePivot.grand.count) * 100,
+                }));
+                return (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data} margin={{ top: 24, right: 16, left: 8, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <XAxis dataKey="zone" tick={{ fill: 'rgba(216,180,254,0.8)', fontSize: 12, fontWeight: 600 }} />
+                      <YAxis tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} tickFormatter={(v: number) => `${v}%`} domain={[0, 'dataMax']} />
+                      <Tooltip
+                        contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}
+                        labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
+                        formatter={(_v: any, _n: any, p: any) => [`${p.payload.count.toLocaleString('en-IN')} POs · ${p.payload.pct.toFixed(1)}%`, `Zone ${p.payload.zone}`]}
+                      />
+                      <Bar dataKey="pct" radius={[6, 6, 0, 0]} maxBarSize={64}>
+                        {data.map((d) => (
+                          <Cell key={d.zone} fill={ZONE_COLOR[d.zone] || '#a855f7'} />
+                        ))}
+                        <LabelList
+                          dataKey="pct"
+                          position="top"
+                          offset={6}
+                          formatter={(v: unknown) => `${Number(v).toFixed(1)}%`}
+                          style={{ fill: '#fdf4ff', fontSize: 11, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                        />
+                        <LabelList
+                          dataKey="count"
+                          position="center"
+                          formatter={(v: unknown) => Number(v).toLocaleString('en-IN')}
+                          style={{ fill: '#ffffff', fontSize: 11, fontWeight: 800, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+            </div>
+          </div>
+
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
@@ -7358,6 +7414,7 @@ export default function OrderStatusDashboard() {
                 );
               })()}
             </div>
+          </div>
           </div>
         )}
 

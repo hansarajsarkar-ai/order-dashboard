@@ -7261,18 +7261,37 @@ export default function OrderStatusDashboard() {
                 return (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={0} outerRadius={110} paddingAngle={1} stroke="rgba(15,23,42,0.6)" strokeWidth={1} isAnimationActive={false}>
+                      <Pie
+                        data={data}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={0}
+                        outerRadius={100}
+                        paddingAngle={1}
+                        stroke="rgba(15,23,42,0.6)"
+                        strokeWidth={1}
+                        isAnimationActive={false}
+                        labelLine={(props: any) => {
+                          const pct = (props.value / zonePivot.grand.count) * 100;
+                          if (pct < 2) return <g />;
+                          const { points, stroke } = props;
+                          if (!points || points.length < 2) return <g />;
+                          return <polyline points={points.map((p: any) => `${p.x},${p.y}`).join(' ')} stroke={stroke} strokeWidth={1} fill="none" />;
+                        }}
+                        label={(props: any) => {
+                          const pct = (props.value / zonePivot.grand.count) * 100;
+                          if (pct < 2) return <g />;
+                          const { x, y, textAnchor, name } = props;
+                          return (
+                            <text x={x} y={y} textAnchor={textAnchor} dominantBaseline="middle" style={{ fill: '#fdf4ff', fontSize: 11, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}>
+                              Zone {name} · {pct.toFixed(1)}%
+                            </text>
+                          );
+                        }}
+                      >
                         {data.map((d) => <Cell key={d.name} fill={colorOf(d.name)} />)}
-                        <LabelList
-                          dataKey="value"
-                          position="outside"
-                          formatter={(v: unknown) => {
-                            const n = Number(v);
-                            const pct = (n / zonePivot.grand.count) * 100;
-                            return pct >= 1 ? `${pct.toFixed(1)}%` : '';
-                          }}
-                          style={{ fill: '#fdf4ff', fontSize: 11, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
-                        />
                       </Pie>
                       <Tooltip
                         contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}

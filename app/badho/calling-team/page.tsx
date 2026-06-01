@@ -159,6 +159,17 @@ export interface MomRow {
   totalTalkTime: number;
 }
 
+export interface BuyerAttemptRow {
+  bucket: string;
+  totalAtcBuyer: number;
+  attemptedSameDay: number;
+  attemptRateSameDay: number;
+  attemptedNextDayOnly: number;
+  totalAttemptedByNextDay: number;
+  cumulativeAttemptRate: number;
+}
+export type BuyerAttemptGrain = 'day' | 'week' | 'month';
+
 interface Filters {
   startDate: string;
   endDate: string;
@@ -484,6 +495,10 @@ export default function CallingTeamDashboard() {
   const [momRows, setMomRows] = useState<MomRow[]>([]);
   const [momLoading, setMomLoading] = useState(false);
 
+  const [buyerAttemptGrain, setBuyerAttemptGrain] = useState<BuyerAttemptGrain>('day');
+  const [buyerAttemptRows, setBuyerAttemptRows] = useState<BuyerAttemptRow[]>([]);
+  const [buyerAttemptLoading, setBuyerAttemptLoading] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -624,6 +639,23 @@ export default function CallingTeamDashboard() {
     if (tab !== 'dashboard') return;
     loadMom();
   }, [authChecked, tab, loadMom]);
+
+  // Buyer-attempt section — fixed 3-month window, granularity-driven.
+  const loadBuyerAttempts = useCallback(async () => {
+    setBuyerAttemptLoading(true);
+    try {
+      const r = await fetch(`/api/calling-team/buyer-attempts?granularity=${buyerAttemptGrain}`).then((r) => r.json());
+      if (r?.rows) setBuyerAttemptRows(r.rows);
+    } finally {
+      setBuyerAttemptLoading(false);
+    }
+  }, [buyerAttemptGrain]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    if (tab !== 'dashboard') return;
+    loadBuyerAttempts();
+  }, [authChecked, tab, loadBuyerAttempts]);
 
   // On first visit to Dashboard in a session, default the date range to YTD.
   // After that, leave whatever the user has chosen alone.
@@ -802,6 +834,10 @@ export default function CallingTeamDashboard() {
             overview={overview}
             momRows={momRows}
             momLoading={momLoading}
+            buyerAttemptRows={buyerAttemptRows}
+            buyerAttemptLoading={buyerAttemptLoading}
+            buyerAttemptGrain={buyerAttemptGrain}
+            setBuyerAttemptGrain={setBuyerAttemptGrain}
           />
         )}
 
@@ -1329,8 +1365,12 @@ function DashboardTab(props: {
   overview: Overview | null;
   momRows: MomRow[];
   momLoading: boolean;
+  buyerAttemptRows: BuyerAttemptRow[];
+  buyerAttemptLoading: boolean;
+  buyerAttemptGrain: BuyerAttemptGrain;
+  setBuyerAttemptGrain: (g: BuyerAttemptGrain) => void;
 }) {
-  const { loading, overview, momRows, momLoading } = props;
+  const { loading, overview, momRows, momLoading, buyerAttemptRows, buyerAttemptLoading, buyerAttemptGrain, setBuyerAttemptGrain } = props;
 
   if (loading && !overview) {
     return <div className="text-purple-200 py-16 text-center text-sm">Loading dashboard…</div>;
@@ -1356,7 +1396,138 @@ function DashboardTab(props: {
 
       {/* Month-over-Month rollup */}
       <MomSection rows={momRows} loading={momLoading} />
+
+      {/* ATC Buyer Attempt Rate (last 3 months) */}
+      <BuyerAttemptsSection
+        rows={buyerAttemptRows}
+        loading={buyerAttemptLoading}
+        grain={buyerAttemptGrain}
+        setGrain={setBuyerAttemptGrain}
+      />
     </div>
+  );
+}
+
+// ───────────────────────── Buyer Attempts Section ─────────────────────────
+
+function BuyerAttemptsSection({ rows, loading, grain, setGrain }: {
+  rows: BuyerAttemptRow[];
+  loading: boolean;
+  grain: BuyerAttemptGrain;
+  setGrain: (g: BuyerAttemptGrain) => void;
+}) {
+  const bucketLabel = (b: string): string => {
+    if (!b) return b;
+    const [y, m, d] = b.split('-').map(Number);
+    if (!y || !m || !d) return b;
+    const date = new Date(y, m - 1, d);
+    if (grain === 'month') {
+      return date.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+    }
+    if (grain === 'week') {
+      const end = new Date(date.getTime() + 6 * 86400000);
+      const s = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+      const e = end.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+      return `${s} – ${e}`;
+    }
+    const weekday = date.toLocaleDateString('en-IN', { weekday: 'short' });
+    const dayMonth = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+    return `${dayMonth} · ${weekday}`;
+  };
+
+  // Footer totals (weighted rates across buckets).
+  const totals = rows.reduce(
+    (a, r) => ({
+      totalAtcBuyer: a.totalAtcBuyer + r.totalAtcBuyer,
+      attemptedSameDay: a.attemptedSameDay + r.attemptedSameDay,
+      attemptedNextDayOnly: a.attemptedNextDayOnly + r.attemptedNextDayOnly,
+      totalAttemptedByNextDay: a.totalAttemptedByNextDay + r.totalAttemptedByNextDay,
+    }),
+    { totalAtcBuyer: 0, attemptedSameDay: 0, attemptedNextDayOnly: 0, totalAttemptedByNextDay: 0 },
+  );
+  const wSameDayRate = totals.totalAtcBuyer ? (totals.attemptedSameDay * 100) / totals.totalAtcBuyer : 0;
+  const wCumulativeRate = totals.totalAtcBuyer ? (totals.totalAttemptedByNextDay * 100) / totals.totalAtcBuyer : 0;
+
+  const rateColor = (pct: number) =>
+    pct >= 80 ? 'text-emerald-300' :
+    pct >= 50 ? 'text-amber-300' :
+    'text-rose-300';
+
+  return (
+    <section className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
+      <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
+        <div>
+          <div className="text-base font-semibold text-white">ATC Buyer Attempt Rate</div>
+          <div className="text-xs text-purple-200/70 mt-0.5">
+            D2R intercity orders (last 3 months) — was the buyer called on order date or the next day?
+            Campaigns: Cold Lead, Warm_Lead.
+          </div>
+        </div>
+        <div className="inline-flex p-1 bg-white/5 border border-white/10 rounded-lg">
+          {(['day', 'week', 'month'] as const).map((g) => (
+            <button
+              key={g}
+              onClick={() => setGrain(g)}
+              className={`px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+                grain === g
+                  ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow'
+                  : 'text-purple-200 hover:bg-white/5'
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading && rows.length === 0 ? (
+        <div className="text-purple-200 text-sm py-10 text-center">Loading buyer attempts…</div>
+      ) : rows.length === 0 ? (
+        <div className="text-purple-200/70 text-sm py-10 text-center">No ATC buyers in this window.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-purple-300/70 uppercase tracking-wider text-[10px] border-b border-white/10">
+              <tr>
+                <th className="text-left py-2 pr-2">
+                  {grain === 'day' ? 'Order Date' : grain === 'week' ? 'Order Week' : 'Order Month'}
+                </th>
+                <th className="text-right py-2 px-2">Total ATC Buyer</th>
+                <th className="text-right py-2 px-2">Attempted Same Day</th>
+                <th className="text-right py-2 px-2">Same-Day %</th>
+                <th className="text-right py-2 px-2" title="Buyers called only on the next day (not same day)">Next-Day Only</th>
+                <th className="text-right py-2 px-2">Total Attempted (by Next Day)</th>
+                <th className="text-right py-2 px-2">Cumulative %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.bucket} className="border-b border-white/5 hover:bg-white/5">
+                  <td className="py-2 pr-2 text-purple-100 font-semibold whitespace-nowrap">{bucketLabel(r.bucket)}</td>
+                  <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(r.totalAtcBuyer)}</td>
+                  <td className="py-2 px-2 text-right text-emerald-300 tabular-nums">{fmtInt(r.attemptedSameDay)}</td>
+                  <td className={`py-2 px-2 text-right tabular-nums ${rateColor(r.attemptRateSameDay)}`}>{r.attemptRateSameDay.toFixed(2)}%</td>
+                  <td className="py-2 px-2 text-right text-amber-300 tabular-nums">{fmtInt(r.attemptedNextDayOnly)}</td>
+                  <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(r.totalAttemptedByNextDay)}</td>
+                  <td className={`py-2 px-2 text-right tabular-nums font-semibold ${rateColor(r.cumulativeAttemptRate)}`}>{r.cumulativeAttemptRate.toFixed(2)}%</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-white/10 bg-white/5 font-semibold">
+                <td className="py-2 pr-2 text-purple-100">Total / Weighted</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(totals.totalAtcBuyer)}</td>
+                <td className="py-2 px-2 text-right text-emerald-300 tabular-nums">{fmtInt(totals.attemptedSameDay)}</td>
+                <td className={`py-2 px-2 text-right tabular-nums ${rateColor(wSameDayRate)}`}>{wSameDayRate.toFixed(2)}%</td>
+                <td className="py-2 px-2 text-right text-amber-300 tabular-nums">{fmtInt(totals.attemptedNextDayOnly)}</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(totals.totalAttemptedByNextDay)}</td>
+                <td className={`py-2 px-2 text-right tabular-nums ${rateColor(wCumulativeRate)}`}>{wCumulativeRate.toFixed(2)}%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

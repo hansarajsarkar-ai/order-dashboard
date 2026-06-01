@@ -7456,7 +7456,7 @@ export default function OrderStatusDashboard() {
                     <BarChart data={data} margin={{ top: 24, right: 16, left: 8, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                       <XAxis dataKey="zone" tick={{ fill: 'rgba(216,180,254,0.8)', fontSize: 12, fontWeight: 600 }} />
-                      <YAxis tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} tickFormatter={(v: number) => `${v}%`} domain={[0, 'dataMax']} />
+                      <YAxis tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} tickFormatter={(v: number) => `${Math.round(v)}%`} domain={[0, (dataMax: number) => Math.ceil(dataMax / 10) * 10]} allowDecimals={false} />
                       <Tooltip
                         contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}
                         labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
@@ -7897,16 +7897,6 @@ export default function OrderStatusDashboard() {
 
               {!marginLoading && marginData && totals && (
                 <>
-                  {/* KPI cards */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                    <Kpi label="Total Orders" value={totals.totalOrders.toLocaleString('en-IN')} accent="purple" />
-                    <Kpi label="Total GTV" value={fmtINR(totals.totalPoAmount)} sub={fmtFull(totals.totalPoAmount)} accent="indigo" />
-                    <Kpi label="Total Margin" value={fmtINR(totals.totalMargin)} sub={fmtFull(totals.totalMargin)} accent="emerald" />
-                    <Kpi label="Operational Cost" value={fmtINR(totals.totalOperationalCost)} sub={fmtFull(totals.totalOperationalCost)} accent="amber" />
-                    <Kpi label="Net P&L" value={fmtINR(totals.profitAndLossRs)} sub={totals.profitAndLossRs >= 0 ? 'Profit' : 'Loss'} accent={totals.profitAndLossRs >= 0 ? 'emerald' : 'rose'} />
-                    <Kpi label="P&L % of GTV" value={totals.pnlPercentOfGtv === null ? '—' : `${totals.pnlPercentOfGtv}%`} sub={`${totals.profitDays} profit · ${totals.lossDays} loss days`} accent={(totals.pnlPercentOfGtv ?? 0) >= 0 ? 'emerald' : 'rose'} />
-                  </div>
-
                   {/* Sub-tab navigation */}
                   <div className="mb-6 flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl w-fit">
                     {(['trend', 'details'] as const).map((sub) => {
@@ -7929,6 +7919,16 @@ export default function OrderStatusDashboard() {
 
                   {marginSubTab === 'trend' && (
                   <>
+                  {/* KPI cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                    <Kpi label="Total Orders" value={totals.totalOrders.toLocaleString('en-IN')} accent="purple" />
+                    <Kpi label="Total GTV" value={fmtINR(totals.totalPoAmount)} sub={fmtFull(totals.totalPoAmount)} accent="indigo" />
+                    <Kpi label="Total Margin" value={fmtINR(totals.totalMargin)} sub={fmtFull(totals.totalMargin)} accent="emerald" />
+                    <Kpi label="Operational Cost" value={fmtINR(totals.totalOperationalCost)} sub={fmtFull(totals.totalOperationalCost)} accent="amber" />
+                    <Kpi label="Net P&L" value={fmtINR(totals.profitAndLossRs)} sub={totals.profitAndLossRs >= 0 ? 'Profit' : 'Loss'} accent={totals.profitAndLossRs >= 0 ? 'emerald' : 'rose'} />
+                    <Kpi label="P&L % of GTV" value={totals.pnlPercentOfGtv === null ? '—' : `${totals.pnlPercentOfGtv}%`} sub={`${totals.profitDays} profit · ${totals.lossDays} loss days`} accent={(totals.pnlPercentOfGtv ?? 0) >= 0 ? 'emerald' : 'rose'} />
+                  </div>
+
                   {/* Margin vs OpCost + Net P&L line */}
                   <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6">
                     <div className="mb-3">

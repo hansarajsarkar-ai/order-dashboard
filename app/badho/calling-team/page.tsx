@@ -749,7 +749,7 @@ export default function CallingTeamDashboard() {
         )}
 
         {/* Global filter row — applies across all tabs */}
-        <div className="mb-5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+        <div className="relative z-20 mb-5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
           <div className="flex items-center gap-2 flex-wrap mb-3">
             <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold">Global Filters</div>
             {(filters.campaign.length + filters.direction.length + filters.status.length) > 0 && (

@@ -7186,63 +7186,60 @@ export default function OrderStatusDashboard() {
           const range = resolveZoneRange();
           return (
           <div className="space-y-6">
-          {/* Range selector */}
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-4">
-            <div className="inline-flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
-              {([
-                { k: 'today', l: 'Today' },
-                { k: '7d',    l: 'Last 7 days' },
-                { k: '15d',   l: 'Last 15 days' },
-                { k: '30d',   l: 'Last 30 days' },
-                { k: 'custom',l: 'Custom' },
-              ] as const).map(({ k, l }) => {
-                const active = zoneRange === k;
-                return (
-                  <button
-                    key={k}
-                    onClick={() => setZoneRange(k)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${active ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_20px_rgba(217,70,239,0.5)]' : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}
-                  >
-                    {l}
-                  </button>
-                );
-              })}
+          {/* Sub-tab nav + range selector on one horizontal line */}
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-3 flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="inline-flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                {([
+                  { k: 'trend', l: 'Trend' },
+                  { k: 'table', l: 'Table' },
+                ] as const).map(({ k, l }) => {
+                  const active = zoneSubTab === k;
+                  return (
+                    <button
+                      key={k}
+                      onClick={() => setZoneSubTab(k)}
+                      className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${active ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_20px_rgba(217,70,239,0.5)]' : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}
+                    >
+                      {l}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="text-[11px] text-purple-300/80 tabular-nums hidden md:block">
+                {range.startDate} → {range.endDate}
+                {zonePivot && <span className="ml-2 text-white/80">· {zonePivot.grand.count.toLocaleString('en-IN')} POs</span>}
+              </div>
             </div>
-            {zoneRange === 'custom' && (
-              <div className="flex items-center gap-3 text-xs">
-                <div className="flex items-center gap-2">
-                  <label className="text-purple-300/70 uppercase tracking-wider text-[10px]">From</label>
+            <div className="flex items-center gap-3 flex-wrap">
+              {zoneRange === 'custom' && (
+                <div className="flex items-center gap-2 text-xs">
                   <input type="date" value={zoneFrom} onChange={(e) => setZoneFrom(e.target.value)} className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-purple-300/70 uppercase tracking-wider text-[10px]">To</label>
+                  <span className="text-purple-300/60">→</span>
                   <input type="date" value={zoneTo} onChange={(e) => setZoneTo(e.target.value)} className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400" />
                 </div>
+              )}
+              <div className="inline-flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                {([
+                  { k: 'today', l: 'Today' },
+                  { k: '7d',    l: 'Last 7 days' },
+                  { k: '15d',   l: 'Last 15 days' },
+                  { k: '30d',   l: 'Last 30 days' },
+                  { k: 'custom',l: 'Custom' },
+                ] as const).map(({ k, l }) => {
+                  const active = zoneRange === k;
+                  return (
+                    <button
+                      key={k}
+                      onClick={() => setZoneRange(k)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${active ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_20px_rgba(217,70,239,0.5)]' : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}
+                    >
+                      {l}
+                    </button>
+                  );
+                })}
               </div>
-            )}
-            <div className="text-[11px] text-purple-300/80 tabular-nums">
-              {range.startDate} → {range.endDate}
-              {zonePivot && <span className="ml-2 text-white/80">· {zonePivot.grand.count.toLocaleString('en-IN')} POs</span>}
             </div>
-          </div>
-
-          {/* Sub-tab nav */}
-          <div className="inline-flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
-            {([
-              { k: 'trend', l: 'Trend' },
-              { k: 'table', l: 'Table' },
-            ] as const).map(({ k, l }) => {
-              const active = zoneSubTab === k;
-              return (
-                <button
-                  key={k}
-                  onClick={() => setZoneSubTab(k)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${active ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_20px_rgba(217,70,239,0.5)]' : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}
-                >
-                  {l}
-                </button>
-              );
-            })}
           </div>
 
           {zoneSubTab === 'trend' && (<>

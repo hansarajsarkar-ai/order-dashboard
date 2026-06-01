@@ -3,7 +3,12 @@ import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-const GOAL = 10000000;
+const DEFAULT_GOAL = 10000000;
+const GOAL_OVERRIDES: Record<string, number> = {
+  '2026-6': 3000000,
+};
+const goalFor = (year: number, month: number) =>
+  GOAL_OVERRIDES[`${year}-${month}`] ?? DEFAULT_GOAL;
 
 interface Row {
   achieved: string;
@@ -47,7 +52,7 @@ export async function GET(req: NextRequest) {
     const rows = await query<Row>(sql, [year, month]);
     const achieved = parseFloat(rows[0]?.achieved || '0');
     const orders = parseInt(rows[0]?.orders || '0');
-    const goal = GOAL;
+    const goal = goalFor(year, month);
     const achievePct = goal > 0 ? (achieved / goal) * 100 : 0;
     const remaining = Math.max(goal - achieved, 0);
 

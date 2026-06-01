@@ -1157,7 +1157,7 @@ export default function OrderStatusDashboard() {
   const [paymentTrendLoading, setPaymentTrendLoading] = useState(false);
 
   // Zone Wise tab — Delhivery pivot: seller × zone × status (count + kg)
-  interface ZoneCell { count: number; weightKg: number; }
+  interface ZoneCell { count: number; modeKg: number; }
   interface ZonePivot {
     startDate: string;
     endDate: string;
@@ -1168,6 +1168,8 @@ export default function OrderStatusDashboard() {
     sellerTotals: Record<string, ZoneCell>;
     zoneTotals:   Record<string, ZoneCell>;
     statusTotals: Record<string, ZoneCell>;
+    sellerZoneRollup: Record<string, Record<string, ZoneCell>>;
+    zoneStatusRollup: Record<string, Record<string, ZoneCell>>;
     grand: ZoneCell;
   }
   const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -7140,7 +7142,7 @@ export default function OrderStatusDashboard() {
             <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
                 <h2 className="text-2xl font-bold text-white">Zone Wise · Delhivery</h2>
-                <p className="text-purple-300 text-sm mt-1">Seller × zone × delivery status · count and charged weight (kg)</p>
+                <p className="text-purple-300 text-sm mt-1">Seller × zone × delivery status · count and modal charged weight (kg)</p>
               </div>
               <div className="flex items-center gap-3 text-xs">
                 <div className="flex items-center gap-2">
@@ -7164,7 +7166,7 @@ export default function OrderStatusDashboard() {
                 {zonePivot && (
                   <div className="px-3 py-2 rounded-xl bg-slate-900/70 border border-white/10">
                     <div className="text-purple-300/70 uppercase tracking-wide text-[10px]">Grand total</div>
-                    <div className="text-white font-bold mt-0.5 tabular-nums">{zonePivot.grand.count.toLocaleString('en-IN')} POs · {zonePivot.grand.weightKg.toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg</div>
+                    <div className="text-white font-bold mt-0.5 tabular-nums">{zonePivot.grand.count.toLocaleString('en-IN')} POs · mode {zonePivot.grand.modeKg.toLocaleString('en-IN', { maximumFractionDigits: 2 })} kg</div>
                   </div>
                 )}
               </div>
@@ -7175,23 +7177,13 @@ export default function OrderStatusDashboard() {
               ) : !zonePivot || zonePivot.sellers.length === 0 ? (
                 <div className="py-16 text-center text-purple-300">No Delhivery orders with zone data in this window.</div>
               ) : (() => {
-                const fmtKg = (kg: number) => kg.toLocaleString('en-IN', { maximumFractionDigits: 1 });
+                const fmtKg = (kg: number) => kg.toLocaleString('en-IN', { maximumFractionDigits: 2 });
                 const toggleZone = (z: string) => setExpandedZones((prev) => { const n = new Set(prev); if (n.has(z)) n.delete(z); else n.add(z); return n; });
                 const isExpanded = (z: string) => expandedZones.has(z);
-                const zoneRollup = (seller: string, zone: string) => {
-                  const zr = zonePivot.data[seller]?.[zone] || {};
-                  let c = 0; let w = 0;
-                  for (const st of Object.keys(zr)) { c += zr[st].count; w += zr[st].weightKg; }
-                  return { count: c, weightKg: w };
-                };
-                const zoneStatusTotal = (zone: string, st: string) => {
-                  let c = 0; let w = 0;
-                  for (const s of zonePivot.sellers) {
-                    const cell = zonePivot.data[s]?.[zone]?.[st];
-                    if (cell) { c += cell.count; w += cell.weightKg; }
-                  }
-                  return { count: c, weightKg: w };
-                };
+                const zoneRollup = (seller: string, zone: string): ZoneCell =>
+                  zonePivot.sellerZoneRollup?.[seller]?.[zone] || { count: 0, modeKg: 0 };
+                const zoneStatusTotal = (zone: string, st: string): ZoneCell =>
+                  zonePivot.zoneStatusRollup?.[zone]?.[st] || { count: 0, modeKg: 0 };
                 return (
                   <>
                     <div className="flex items-center gap-3 mb-3 text-[11px] text-purple-300/80">
@@ -7223,7 +7215,7 @@ export default function OrderStatusDashboard() {
                             {zonePivot.zones.map((zone) => {
                               const open = isExpanded(zone);
                               const span = open ? zonePivot.statuses.length : 1;
-                              const ztot = zonePivot.zoneTotals[zone] || { count: 0, weightKg: 0 };
+                              const ztot = zonePivot.zoneTotals[zone] || { count: 0, modeKg: 0 };
                               return (
                                 <th
                                   key={zone}
@@ -7237,7 +7229,7 @@ export default function OrderStatusDashboard() {
                                     <span>{zone}</span>
                                   </div>
                                   <div className="text-[10px] font-normal text-white/50 mt-0.5 tabular-nums">
-                                    {ztot.count.toLocaleString('en-IN')} · {fmtKg(ztot.weightKg)} kg
+                                    {ztot.count.toLocaleString('en-IN')} · {fmtKg(ztot.modeKg)} kg
                                   </div>
                                 </th>
                               );
@@ -7269,7 +7261,7 @@ export default function OrderStatusDashboard() {
                         <tbody>
                           {zonePivot.sellers.map((seller) => {
                             const sellerRow = zonePivot.data[seller] || {};
-                            const sellerTot = zonePivot.sellerTotals[seller] || { count: 0, weightKg: 0 };
+                            const sellerTot = zonePivot.sellerTotals[seller] || { count: 0, modeKg: 0 };
                             return (
                               <tr key={seller} className="border-b border-white/5 hover:bg-white/5">
                                 <td className="px-4 py-2.5 text-white sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 truncate max-w-[260px]" title={seller}>
@@ -7287,7 +7279,7 @@ export default function OrderStatusDashboard() {
                                         {dim ? '—' : (
                                           <div className="leading-tight">
                                             <div className="font-bold">{cell.count.toLocaleString('en-IN')}</div>
-                                            <div className="text-[10px] text-purple-300/70">{fmtKg(cell.weightKg)} kg</div>
+                                            <div className="text-[10px] text-purple-300/70">{fmtKg(cell.modeKg)} kg</div>
                                           </div>
                                         )}
                                       </td>
@@ -7305,7 +7297,7 @@ export default function OrderStatusDashboard() {
                                         {dim ? '—' : (
                                           <div className="leading-tight">
                                             <div className="font-bold">{cell.count.toLocaleString('en-IN')}</div>
-                                            <div className="text-[10px] text-purple-300/70">{fmtKg(cell.weightKg)} kg</div>
+                                            <div className="text-[10px] text-purple-300/70">{fmtKg(cell.modeKg)} kg</div>
                                           </div>
                                         )}
                                       </td>
@@ -7314,7 +7306,7 @@ export default function OrderStatusDashboard() {
                                 })}
                                 <td className="px-3 py-2.5 text-right tabular-nums sticky right-0 bg-slate-900/80 backdrop-blur z-10 border-l border-white/10">
                                   <div className="font-bold text-emerald-300">{sellerTot.count.toLocaleString('en-IN')}</div>
-                                  <div className="text-[10px] text-emerald-300/60">{fmtKg(sellerTot.weightKg)} kg</div>
+                                  <div className="text-[10px] text-emerald-300/60">{fmtKg(sellerTot.modeKg)} kg</div>
                                 </td>
                               </tr>
                             );
@@ -7323,14 +7315,14 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-3 text-white sticky left-0 bg-slate-900/95 backdrop-blur z-10 border-r border-white/15">Total</td>
                             {zonePivot.zones.map((zone) => {
                               if (!isExpanded(zone)) {
-                                const ztot = zonePivot.zoneTotals[zone] || { count: 0, weightKg: 0 };
+                                const ztot = zonePivot.zoneTotals[zone] || { count: 0, modeKg: 0 };
                                 const dim = ztot.count === 0;
                                 return (
                                   <td key={`tot|${zone}|rollup`} className={`px-2 py-2.5 text-center tabular-nums border-r border-white/15 ${dim ? 'text-white/30' : 'text-white'}`}>
                                     {dim ? '—' : (
                                       <div className="leading-tight">
                                         <div className="font-bold">{ztot.count.toLocaleString('en-IN')}</div>
-                                        <div className="text-[10px] text-purple-300/70">{fmtKg(ztot.weightKg)} kg</div>
+                                        <div className="text-[10px] text-purple-300/70">{fmtKg(ztot.modeKg)} kg</div>
                                       </div>
                                     )}
                                   </td>
@@ -7347,7 +7339,7 @@ export default function OrderStatusDashboard() {
                                     {dim ? '—' : (
                                       <div className="leading-tight">
                                         <div className="font-bold">{stot.count.toLocaleString('en-IN')}</div>
-                                        <div className="text-[10px] text-purple-300/70">{fmtKg(stot.weightKg)} kg</div>
+                                        <div className="text-[10px] text-purple-300/70">{fmtKg(stot.modeKg)} kg</div>
                                       </div>
                                     )}
                                   </td>
@@ -7356,7 +7348,7 @@ export default function OrderStatusDashboard() {
                             })}
                             <td className="px-3 py-3 text-right tabular-nums sticky right-0 bg-slate-900/95 backdrop-blur z-10 border-l border-white/15">
                               <div className="font-bold text-emerald-300">{zonePivot.grand.count.toLocaleString('en-IN')}</div>
-                              <div className="text-[10px] text-emerald-300/60">{fmtKg(zonePivot.grand.weightKg)} kg</div>
+                              <div className="text-[10px] text-emerald-300/60">{fmtKg(zonePivot.grand.modeKg)} kg</div>
                             </td>
                           </tr>
                         </tbody>

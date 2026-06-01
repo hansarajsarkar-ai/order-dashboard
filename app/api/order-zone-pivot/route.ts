@@ -3,17 +3,45 @@ import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-// Seller × Delhivery zone × delivery status pivot, with order count and
-// charged weight (kg). Zone + charged weight come from the first element of
-// intercityDelivery.deliveryCostReportJSON. Weight stored in grams, converted
-// to kg in SQL.
+// Seller × Delhivery zone × delivery status pivot. Each cell shows the
+// delivery count and the *mode* charged weight (kg) — the single charged-
+// weight value that occurs most often in the bucket. Zone + charged_weight
+// come from the first element of intercityDelivery.deliveryCostReportJSON.
 
 interface Row {
   seller: string;
   zone: string;
   status: string;
-  po_count: string;
-  weight_kg: string;
+  weight_g: string | null;
+  cnt: string;
+}
+
+type Cell = { count: number; modeKg: number };
+
+const ZONE_ORDER = ['A', 'B', 'C1', 'C2', 'D1', 'D2', 'E', 'F'];
+
+// Pick the weight_g with the highest count; tie-break on the smaller weight
+// for stable output. Returns kg.
+function modeFrom(weightHist: Map<number, number>): number {
+  let bestG = 0;
+  let bestC = -1;
+  for (const [g, c] of weightHist) {
+    if (c > bestC || (c === bestC && g < bestG)) {
+      bestG = g;
+      bestC = c;
+    }
+  }
+  return bestG / 1000;
+}
+
+function totalCount(weightHist: Map<number, number>): number {
+  let total = 0;
+  for (const c of weightHist.values()) total += c;
+  return total;
+}
+
+function mergeInto(target: Map<number, number>, source: Map<number, number>) {
+  for (const [g, c] of source) target.set(g, (target.get(g) || 0) + c);
 }
 
 export async function GET(req: NextRequest) {
@@ -25,15 +53,15 @@ export async function GET(req: NextRequest) {
   const endDate = searchParams.get('endDate') || fmt(today);
 
   try {
+    // Group at the finest (seller, zone, status, weight_g) so we can compute
+    // mode at any rollup level in JS without re-querying.
     const sql = `
       SELECT
-        COALESCE(s."businessName", '(unknown)')                                                 AS seller,
-        a."deliveryCostReportJSON" -> 0 ->> 'zone'                                              AS zone,
-        a."status"                                                                              AS status,
-        COUNT(*)::text                                                                          AS po_count,
-        COALESCE(
-          SUM(NULLIF(a."deliveryCostReportJSON" -> 0 ->> 'charged_weight', '')::numeric), 0
-        )::numeric / 1000.0                                                                     AS weight_kg
+        COALESCE(s."businessName", '(unknown)')                                  AS seller,
+        a."deliveryCostReportJSON" -> 0 ->> 'zone'                               AS zone,
+        a."status"                                                               AS status,
+        NULLIF(a."deliveryCostReportJSON" -> 0 ->> 'charged_weight', '')::numeric AS weight_g,
+        COUNT(*)::text                                                           AS cnt
       FROM "deliveries"."intercityDelivery" a
       JOIN "purchaseOrder"."purchaseOrder" b ON b."id" = a."purchaseOrderId"
       JOIN "users"."seller"                s ON s."id" = b."sellerId"
@@ -46,58 +74,84 @@ export async function GET(req: NextRequest) {
         AND c."businessName" NOT ILIKE '%test%'
         AND a."deliveryPartnerId" = 'DELHIVERY'
         AND a."deliveryCostReportJSON" -> 0 ->> 'zone' IS NOT NULL
-      GROUP BY 1, 2, 3
+      GROUP BY 1, 2, 3, 4
       ORDER BY seller, zone, status;
     `;
 
     const rows = await query<Row>(sql, [startDate, endDate]);
 
-    interface Cell { count: number; weightKg: number; }
-    type SellerData = Record<string, Record<string, Cell>>; // zone -> status -> cell
-    const data: Record<string, SellerData> = {};
-    const sellerTotals = new Map<string, Cell>();
-    const zoneTotals   = new Map<string, Cell>();
-    const statusTotals = new Map<string, Cell>();
-    const grand: Cell = { count: 0, weightKg: 0 };
+    // Histogram store: cellHist[seller][zone][status] = Map<weight_g, count>
+    const cellHist: Record<string, Record<string, Record<string, Map<number, number>>>> = {};
+    const sellerHist = new Map<string, Map<number, number>>();
+    const zoneHist   = new Map<string, Map<number, number>>();
+    const statusHist = new Map<string, Map<number, number>>();
+    const grandHist  = new Map<number, number>();
+    // Roll-ups needed by the UI (collapsed-zone and expanded footer).
+    const sellerZoneHist: Record<string, Record<string, Map<number, number>>> = {};
+    const zoneStatusHist: Record<string, Record<string, Map<number, number>>> = {};
 
     const zoneSet = new Set<string>();
     const statusSet = new Set<string>();
 
-    const bump = (m: Map<string, Cell>, k: string, c: Cell) => {
-      const cur = m.get(k) || { count: 0, weightKg: 0 };
-      cur.count += c.count;
-      cur.weightKg += c.weightKg;
-      m.set(k, cur);
+    const ensure = <K, V>(m: Map<K, V>, k: K, mk: () => V) => {
+      let v = m.get(k);
+      if (!v) { v = mk(); m.set(k, v); }
+      return v;
     };
 
     for (const r of rows) {
-      const count = parseInt(r.po_count);
-      const weightKg = parseFloat(r.weight_kg);
-      const cell: Cell = { count, weightKg };
       const seller = r.seller;
       const zone = r.zone || '(none)';
       const status = r.status || '(unknown)';
+      const weightG = r.weight_g ? Math.round(parseFloat(r.weight_g)) : 0;
+      const cnt = parseInt(r.cnt);
+      if (cnt === 0) continue;
 
       zoneSet.add(zone);
       statusSet.add(status);
 
-      if (!data[seller]) data[seller] = {};
-      if (!data[seller][zone]) data[seller][zone] = {};
-      data[seller][zone][status] = cell;
+      cellHist[seller] = cellHist[seller] || {};
+      cellHist[seller][zone] = cellHist[seller][zone] || {};
+      const h = cellHist[seller][zone][status] = cellHist[seller][zone][status] || new Map<number, number>();
+      h.set(weightG, (h.get(weightG) || 0) + cnt);
 
-      bump(sellerTotals, seller, cell);
-      bump(zoneTotals,   zone,   cell);
-      bump(statusTotals, status, cell);
-      grand.count    += count;
-      grand.weightKg += weightKg;
+      sellerZoneHist[seller] = sellerZoneHist[seller] || {};
+      const sz = sellerZoneHist[seller][zone] = sellerZoneHist[seller][zone] || new Map<number, number>();
+      sz.set(weightG, (sz.get(weightG) || 0) + cnt);
+
+      zoneStatusHist[zone] = zoneStatusHist[zone] || {};
+      const zs = zoneStatusHist[zone][status] = zoneStatusHist[zone][status] || new Map<number, number>();
+      zs.set(weightG, (zs.get(weightG) || 0) + cnt);
+
+      ensure(sellerHist, seller, () => new Map()).set(weightG, (sellerHist.get(seller)!.get(weightG) || 0) + cnt);
+      ensure(zoneHist,   zone,   () => new Map()).set(weightG, (zoneHist.get(zone)!.get(weightG)     || 0) + cnt);
+      ensure(statusHist, status, () => new Map()).set(weightG, (statusHist.get(status)!.get(weightG) || 0) + cnt);
+      grandHist.set(weightG, (grandHist.get(weightG) || 0) + cnt);
     }
 
-    const sellers = Array.from(sellerTotals.entries())
-      .sort((a, b) => b[1].count - a[1].count)
-      .map(([s]) => s);
+    // Build cells with count + modeKg.
+    const data: Record<string, Record<string, Record<string, Cell>>> = {};
+    for (const [seller, byZone] of Object.entries(cellHist)) {
+      data[seller] = {};
+      for (const [zone, byStatus] of Object.entries(byZone)) {
+        data[seller][zone] = {};
+        for (const [status, hist] of Object.entries(byStatus)) {
+          data[seller][zone][status] = {
+            count: totalCount(hist),
+            modeKg: modeFrom(hist),
+          };
+        }
+      }
+    }
 
-    // Canonical Delhivery zone order (matches their published rate card).
-    const ZONE_ORDER = ['A', 'B', 'C1', 'C2', 'D1', 'D2', 'E', 'F'];
+    const buildTotals = (m: Map<string, Map<number, number>>) => {
+      const out: Record<string, Cell> = {};
+      for (const [k, h] of m) {
+        out[k] = { count: totalCount(h), modeKg: modeFrom(h) };
+      }
+      return out;
+    };
+
     const zoneIndex = (z: string) => {
       const i = ZONE_ORDER.indexOf(z);
       return i === -1 ? ZONE_ORDER.length : i;
@@ -109,10 +163,32 @@ export async function GET(req: NextRequest) {
       return a.localeCompare(b);
     });
 
+    const sellerTotals = buildTotals(sellerHist);
+    const zoneTotals   = buildTotals(zoneHist);
+    const statusTotals = buildTotals(statusHist);
+
+    const sellerZoneRollup: Record<string, Record<string, Cell>> = {};
+    for (const [seller, byZone] of Object.entries(sellerZoneHist)) {
+      sellerZoneRollup[seller] = {};
+      for (const [zone, hist] of Object.entries(byZone)) {
+        sellerZoneRollup[seller][zone] = { count: totalCount(hist), modeKg: modeFrom(hist) };
+      }
+    }
+    const zoneStatusRollup: Record<string, Record<string, Cell>> = {};
+    for (const [zone, byStatus] of Object.entries(zoneStatusHist)) {
+      zoneStatusRollup[zone] = {};
+      for (const [status, hist] of Object.entries(byStatus)) {
+        zoneStatusRollup[zone][status] = { count: totalCount(hist), modeKg: modeFrom(hist) };
+      }
+    }
+
+    const sellers = Array.from(sellerHist.keys())
+      .sort((a, b) => (sellerTotals[b].count - sellerTotals[a].count));
+
     const statuses = Array.from(statusSet).sort((a, b) => {
-      const av = statusTotals.get(a)?.count || 0;
-      const bv = statusTotals.get(b)?.count || 0;
-      return bv - av;
+      const ac = statusTotals[a]?.count || 0;
+      const bc = statusTotals[b]?.count || 0;
+      return bc - ac;
     });
 
     return NextResponse.json({
@@ -122,10 +198,12 @@ export async function GET(req: NextRequest) {
       zones,
       statuses,
       data,
-      sellerTotals: Object.fromEntries(sellerTotals),
-      zoneTotals:   Object.fromEntries(zoneTotals),
-      statusTotals: Object.fromEntries(statusTotals),
-      grand,
+      sellerTotals,
+      zoneTotals,
+      statusTotals,
+      sellerZoneRollup,
+      zoneStatusRollup,
+      grand: { count: totalCount(grandHist), modeKg: modeFrom(grandHist) },
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

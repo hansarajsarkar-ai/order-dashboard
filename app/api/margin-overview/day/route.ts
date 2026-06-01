@@ -21,6 +21,10 @@ interface Row {
   buyerName: string | null;
   poAmount: string | null;
   marginRs: string | null;
+  couponRs: string | null;
+  badhoPaymentDiscountRs: string | null;
+  rewardRs: string | null;
+  deliveryChargeRs: string | null;
   operationalCostRs: string | null;
   profitAndLossRs: string | null;
   status: string;
@@ -77,11 +81,13 @@ export async function GET(req: NextRequest) {
         b."businessName" AS buyer_name,
         po."amount" AS po_amount,
         po."amount" * (COALESCE((s."deliveryChargesJSON"->'badhoFees'->>'value')::numeric, 0) / 100.0) AS badho_margin_rs,
-        CASE WHEN LOWER(s."deliveryChargesJSON"->>'forwardDeliveryCostToSeller') = 'false' THEN
-          (COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) + COALESCE(po."appliedOfferDiscount", 0) + COALESCE(dv."deliveryCharge", 0) + COALESCE(wt."rewardAmount", 0))
-        ELSE
-          (COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) + COALESCE(po."appliedOfferDiscount", 0) + COALESCE(wt."rewardAmount", 0))
-        END AS operational_cost_rs
+        COALESCE(po."appliedOfferDiscount", 0) AS coupon_rs,
+        COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) AS badho_payment_discount_rs,
+        COALESCE(wt."rewardAmount", 0) AS reward_rs,
+        CASE WHEN LOWER(s."deliveryChargesJSON"->>'forwardDeliveryCostToSeller') = 'false'
+          THEN COALESCE(dv."deliveryCharge", 0)
+          ELSE 0
+        END AS delivery_charge_rs
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
@@ -109,16 +115,20 @@ export async function GET(req: NextRequest) {
       buyer_name                                         AS "buyerName",
       po_amount                                          AS "poAmount",
       badho_margin_rs                                    AS "marginRs",
-      operational_cost_rs                                AS "operationalCostRs",
-      badho_margin_rs - operational_cost_rs              AS "profitAndLossRs",
+      coupon_rs                                          AS "couponRs",
+      badho_payment_discount_rs                          AS "badhoPaymentDiscountRs",
+      reward_rs                                          AS "rewardRs",
+      delivery_charge_rs                                 AS "deliveryChargeRs",
+      (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs) AS "operationalCostRs",
+      badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs) AS "profitAndLossRs",
       CASE
-        WHEN (badho_margin_rs - operational_cost_rs) > 0 THEN 'Profit'
-        WHEN (badho_margin_rs - operational_cost_rs) < 0 THEN 'Loss'
+        WHEN badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs) > 0 THEN 'Profit'
+        WHEN badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs) < 0 THEN 'Loss'
         ELSE 'Breakeven'
       END AS "status"
     FROM order_base
     WHERE order_date = ${dateParam}::date
-    ORDER BY (badho_margin_rs - operational_cost_rs) ASC;
+    ORDER BY (badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs)) ASC;
   `;
 
   try {
@@ -132,6 +142,10 @@ export async function GET(req: NextRequest) {
       buyerName: r.buyerName,
       poAmount: Number(r.poAmount) || 0,
       marginRs: Number(r.marginRs) || 0,
+      couponRs: Number(r.couponRs) || 0,
+      badhoPaymentDiscountRs: Number(r.badhoPaymentDiscountRs) || 0,
+      rewardRs: Number(r.rewardRs) || 0,
+      deliveryChargeRs: Number(r.deliveryChargeRs) || 0,
       operationalCostRs: Number(r.operationalCostRs) || 0,
       profitAndLossRs: Number(r.profitAndLossRs) || 0,
       status: r.status,
@@ -141,11 +155,15 @@ export async function GET(req: NextRequest) {
       (acc, d) => {
         acc.poAmount += d.poAmount;
         acc.marginRs += d.marginRs;
+        acc.couponRs += d.couponRs;
+        acc.badhoPaymentDiscountRs += d.badhoPaymentDiscountRs;
+        acc.rewardRs += d.rewardRs;
+        acc.deliveryChargeRs += d.deliveryChargeRs;
         acc.operationalCostRs += d.operationalCostRs;
         acc.profitAndLossRs += d.profitAndLossRs;
         return acc;
       },
-      { poAmount: 0, marginRs: 0, operationalCostRs: 0, profitAndLossRs: 0 }
+      { poAmount: 0, marginRs: 0, couponRs: 0, badhoPaymentDiscountRs: 0, rewardRs: 0, deliveryChargeRs: 0, operationalCostRs: 0, profitAndLossRs: 0 }
     );
 
     return NextResponse.json({

@@ -561,13 +561,17 @@ export default function OrderStatusDashboard() {
     buyerName: string | null;
     poAmount: number;
     marginRs: number;
+    couponRs: number;
+    badhoPaymentDiscountRs: number;
+    rewardRs: number;
+    deliveryChargeRs: number;
     operationalCostRs: number;
     profitAndLossRs: number;
     status: string;
   }
   const [marginDayModal, setMarginDayModal] = useState<string | null>(null); // selected order_date
   const [marginDayData, setMarginDayData] = useState<MarginDayOrder[] | null>(null);
-  const [marginDayTotals, setMarginDayTotals] = useState<{ poAmount: number; marginRs: number; operationalCostRs: number; profitAndLossRs: number } | null>(null);
+  const [marginDayTotals, setMarginDayTotals] = useState<{ poAmount: number; marginRs: number; couponRs: number; badhoPaymentDiscountRs: number; rewardRs: number; deliveryChargeRs: number; operationalCostRs: number; profitAndLossRs: number } | null>(null);
   const [marginDayLoading, setMarginDayLoading] = useState(false);
   const [marginDayError, setMarginDayError] = useState<string | null>(null);
 
@@ -8020,7 +8024,7 @@ export default function OrderStatusDashboard() {
                       <div className="text-xs text-purple-200/70 mt-0.5">Bars: daily margin &amp; op-cost (₹) · Line: net P&amp;L (₹)</div>
                     </div>
                     <ResponsiveContainer width="100%" height={360}>
-                      <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <ComposedChart data={chartData} margin={{ top: 24, right: 10, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                         <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
                         <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />
@@ -8029,7 +8033,35 @@ export default function OrderStatusDashboard() {
                         <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
                         <Bar dataKey="totalMargin" name="Margin" fill="#34d399" radius={[3, 3, 0, 0]} barSize={14} />
                         <Bar dataKey="totalOperationalCost" name="Op Cost" fill="#fbbf24" radius={[3, 3, 0, 0]} barSize={14} />
-                        <Line type="monotone" dataKey="profitAndLossRs" name="Net P&L" stroke="#f0abfc" strokeWidth={2.5} dot={false} />
+                        <Line
+                          type="monotone"
+                          dataKey="profitAndLossRs"
+                          name="Net P&L"
+                          stroke="#f0abfc"
+                          strokeWidth={2.5}
+                          dot={{ r: 2.5, fill: '#f0abfc', stroke: '#1e1b4b', strokeWidth: 1 }}
+                          activeDot={{ r: 5, fill: '#fff', stroke: '#d946ef', strokeWidth: 2 }}
+                          isAnimationActive={false}
+                        >
+                          <LabelList
+                            dataKey="profitAndLossRs"
+                            content={(props: any) => {
+                              const { x, y, value } = props;
+                              const val = Number(value);
+                              if (!Number.isFinite(val)) return null;
+                              return (
+                                <text
+                                  x={Number(x)}
+                                  y={Number(y) - 9}
+                                  textAnchor="middle"
+                                  style={{ fill: '#f5d0fe', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                                >
+                                  {fmtINR(val)}
+                                </text>
+                              );
+                            }}
+                          />
+                        </Line>
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
@@ -8047,10 +8079,30 @@ export default function OrderStatusDashboard() {
                         <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />
                         <Tooltip contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 12, color: '#fff' }} formatter={(value) => [fmtFull(Number(value)), 'Net P&L']} />
                         <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
-                        <Bar dataKey="profitAndLossRs" name="Net P&L" radius={[3, 3, 0, 0]}>
+                        <Bar dataKey="profitAndLossRs" name="Net P&L" radius={[3, 3, 0, 0]} isAnimationActive={false}>
                           {chartData.map((d, i) => (
                             <Cell key={i} fill={d.profitAndLossRs >= 0 ? '#34d399' : '#fb7185'} />
                           ))}
+                          <LabelList
+                            dataKey="profitAndLossRs"
+                            content={(props: any) => {
+                              const { x, y, width, height, value } = props;
+                              const val = Number(value);
+                              if (!Number.isFinite(val)) return null;
+                              const cx = Number(x) + Number(width) / 2;
+                              const labelY = val >= 0 ? Number(y) - 5 : Number(y) + Number(height) + 12;
+                              return (
+                                <text
+                                  x={cx}
+                                  y={labelY}
+                                  textAnchor="middle"
+                                  style={{ fill: '#ffffff', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                                >
+                                  {fmtINR(val)}
+                                </text>
+                              );
+                            }}
+                          />
                         </Bar>
                       </ComposedChart>
                     </ResponsiveContainer>
@@ -8250,6 +8302,10 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-left font-semibold">Buyer</th>
                           <th className="px-4 py-3 text-right font-semibold">GTV</th>
                           <th className="px-4 py-3 text-right font-semibold">Margin</th>
+                          <th className="px-4 py-3 text-right font-semibold">Coupon</th>
+                          <th className="px-4 py-3 text-right font-semibold">Badho Disc</th>
+                          <th className="px-4 py-3 text-right font-semibold">Reward</th>
+                          <th className="px-4 py-3 text-right font-semibold">Delivery</th>
                           <th className="px-4 py-3 text-right font-semibold">Op Cost</th>
                           <th className="px-4 py-3 text-right font-semibold">Net P&amp;L</th>
                           <th className="px-4 py-3 text-center font-semibold">Status</th>
@@ -8276,6 +8332,10 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-2.5 text-purple-100 max-w-[180px] truncate" title={o.buyerName ?? ''}>{o.buyerName ?? '—'}</td>
                             <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums">{fmtFull(o.poAmount)}</td>
                             <td className="px-4 py-2.5 text-right text-emerald-300 tabular-nums">{fmtFull(o.marginRs)}</td>
+                            <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.couponRs)}</td>
+                            <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.badhoPaymentDiscountRs)}</td>
+                            <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.rewardRs)}</td>
+                            <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.deliveryChargeRs)}</td>
                             <td className="px-4 py-2.5 text-right text-amber-300 tabular-nums">{fmtFull(o.operationalCostRs)}</td>
                             <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${o.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(o.profitAndLossRs)}</td>
                             <td className="px-4 py-2.5 text-center">
@@ -8292,7 +8352,7 @@ export default function OrderStatusDashboard() {
                           </tr>
                         ))}
                         {marginDayData.length === 0 && (
-                          <tr><td colSpan={8} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
+                          <tr><td colSpan={12} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
                         )}
                       </tbody>
                       {marginDayData.length > 0 && marginDayTotals && (
@@ -8301,6 +8361,10 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-3 text-purple-100" colSpan={3}>Total · {marginDayData.length} orders</td>
                             <td className="px-4 py-3 text-right text-purple-100 tabular-nums">{fmtFull(marginDayTotals.poAmount)}</td>
                             <td className="px-4 py-3 text-right text-emerald-300 tabular-nums">{fmtFull(marginDayTotals.marginRs)}</td>
+                            <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.couponRs)}</td>
+                            <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.badhoPaymentDiscountRs)}</td>
+                            <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.rewardRs)}</td>
+                            <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.deliveryChargeRs)}</td>
                             <td className="px-4 py-3 text-right text-amber-300 tabular-nums">{fmtFull(marginDayTotals.operationalCostRs)}</td>
                             <td className={`px-4 py-3 text-right tabular-nums ${marginDayTotals.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(marginDayTotals.profitAndLossRs)}</td>
                             <td></td>

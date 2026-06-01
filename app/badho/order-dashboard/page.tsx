@@ -7601,7 +7601,7 @@ export default function OrderStatusDashboard() {
                                       >
                                         {dim ? '—' : (
                                           <div className="leading-tight">
-                                            <div className="font-bold">{cell.count.toLocaleString('en-IN')}</div>
+                                            <div className="font-bold text-sm">{cell.count.toLocaleString('en-IN')}</div>
                                             <div className="text-[10px] text-purple-300/70">{fmtKg(cell.modeKg)} kg</div>
                                           </div>
                                         )}
@@ -7619,7 +7619,7 @@ export default function OrderStatusDashboard() {
                                       >
                                         {dim ? '—' : (
                                           <div className="leading-tight">
-                                            <div className="font-bold">{cell.count.toLocaleString('en-IN')}</div>
+                                            <div className="font-bold text-sm">{cell.count.toLocaleString('en-IN')}</div>
                                             <div className="text-[10px] text-purple-300/70">{fmtKg(cell.modeKg)} kg</div>
                                           </div>
                                         )}
@@ -7628,7 +7628,7 @@ export default function OrderStatusDashboard() {
                                   });
                                 })}
                                 <td className="px-3 py-2.5 text-right tabular-nums sticky right-0 bg-slate-900/80 backdrop-blur z-10 border-l border-white/10">
-                                  <div className="font-bold text-emerald-300">{sellerTot.count.toLocaleString('en-IN')}</div>
+                                  <div className="font-bold text-sm text-emerald-300">{sellerTot.count.toLocaleString('en-IN')}</div>
                                   <div className="text-[10px] text-emerald-300/60">{fmtKg(sellerTot.modeKg)} kg</div>
                                 </td>
                               </tr>
@@ -7644,7 +7644,7 @@ export default function OrderStatusDashboard() {
                                   <td key={`tot|${zone}|rollup`} className={`px-2 py-2.5 text-center tabular-nums border-r border-white/15 ${dim ? 'text-white/30' : 'text-white'}`}>
                                     {dim ? '—' : (
                                       <div className="leading-tight">
-                                        <div className="font-bold">{ztot.count.toLocaleString('en-IN')}</div>
+                                        <div className="font-bold text-sm">{ztot.count.toLocaleString('en-IN')}</div>
                                         <div className="text-[10px] text-purple-300/70">{fmtKg(ztot.modeKg)} kg</div>
                                       </div>
                                     )}
@@ -7661,7 +7661,7 @@ export default function OrderStatusDashboard() {
                                   >
                                     {dim ? '—' : (
                                       <div className="leading-tight">
-                                        <div className="font-bold">{stot.count.toLocaleString('en-IN')}</div>
+                                        <div className="font-bold text-sm">{stot.count.toLocaleString('en-IN')}</div>
                                         <div className="text-[10px] text-purple-300/70">{fmtKg(stot.modeKg)} kg</div>
                                       </div>
                                     )}
@@ -7670,7 +7670,7 @@ export default function OrderStatusDashboard() {
                               });
                             })}
                             <td className="px-3 py-3 text-right tabular-nums sticky right-0 bg-slate-900/95 backdrop-blur z-10 border-l border-white/15">
-                              <div className="font-bold text-emerald-300">{zonePivot.grand.count.toLocaleString('en-IN')}</div>
+                              <div className="font-bold text-sm text-emerald-300">{zonePivot.grand.count.toLocaleString('en-IN')}</div>
                               <div className="text-[10px] text-emerald-300/60">{fmtKg(zonePivot.grand.modeKg)} kg</div>
                             </td>
                           </tr>

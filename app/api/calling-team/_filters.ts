@@ -84,30 +84,44 @@ export function buildWhere(f: CallFilters): { sql: string; params: unknown[] } {
   }
 
   if (f.direction) {
-    // Normalize: 'outbound' matches both 'outbound' and 'Outbound' and 'Manual'.
-    const dir = f.direction.toLowerCase();
-    if (dir === 'outbound') {
-      clauses.push(`(LOWER(direction) = 'outbound' OR direction = 'Manual')`);
-    } else if (dir === 'inbound') {
-      clauses.push(`(LOWER(direction) = 'inbound' OR direction = 'C')`);
-    } else {
-      params.push(f.direction);
-      clauses.push(`direction = $${params.length}`);
+    const dirs = f.direction.split(',').map((s) => s.trim()).filter(Boolean);
+    if (dirs.length) {
+      // Each value may be a bucket ('outbound', 'inbound') or a literal direction value.
+      const exprs: string[] = [];
+      for (const d of dirs) {
+        const ld = d.toLowerCase();
+        if (ld === 'outbound') {
+          exprs.push(`(LOWER(direction) = 'outbound' OR direction = 'Manual')`);
+        } else if (ld === 'inbound') {
+          exprs.push(`(LOWER(direction) = 'inbound' OR direction = 'C')`);
+        } else {
+          params.push(d);
+          exprs.push(`direction = $${params.length}`);
+        }
+      }
+      clauses.push(`(${exprs.join(' OR ')})`);
     }
   }
 
   if (f.status) {
-    // Buckets: 'connected', 'no_answer', 'missed', 'other'
-    const s = f.status.toLowerCase();
-    if (s === 'connected') {
-      clauses.push(`UPPER(call_status) IN ('ANSWERED','ANSWER')`);
-    } else if (s === 'no_answer') {
-      clauses.push(`call_status = 'No Answer'`);
-    } else if (s === 'missed') {
-      clauses.push(`call_status = 'Missed'`);
-    } else {
-      params.push(f.status);
-      clauses.push(`call_status = $${params.length}`);
+    const statuses = f.status.split(',').map((s) => s.trim()).filter(Boolean);
+    if (statuses.length) {
+      // Each value may be a bucket ('connected', 'no_answer', 'missed') or a literal call_status.
+      const exprs: string[] = [];
+      for (const s of statuses) {
+        const ls = s.toLowerCase();
+        if (ls === 'connected') {
+          exprs.push(`UPPER(call_status) IN ('ANSWERED','ANSWER')`);
+        } else if (ls === 'no_answer') {
+          exprs.push(`call_status = 'No Answer'`);
+        } else if (ls === 'missed') {
+          exprs.push(`call_status = 'Missed'`);
+        } else {
+          params.push(s);
+          exprs.push(`call_status = $${params.length}`);
+        }
+      }
+      clauses.push(`(${exprs.join(' OR ')})`);
     }
   }
 

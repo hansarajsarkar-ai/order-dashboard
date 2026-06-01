@@ -145,13 +145,27 @@ interface DailySummary {
 interface DayHourly { hour: number; total: number; connected: number; missed: number; noAnswer: number; avgDuration: number; connectionRate: number; }
 interface DailyResp { series: DailyDetailedRow[]; dowAgg: DowAggRow[]; summary: DailySummary; dayHourly?: DayHourly[]; }
 
+export interface MomRow {
+  monthKey: string;
+  totalAttempts: number;
+  uniqueAttempts: number;
+  totalConnected: number;
+  uniqueConnected: number;
+  connectedPct: number;
+  connectedUnder15: number;
+  connected15Plus: number;
+  avgConnectedDuration: number;
+  activeAgents: number;
+  totalTalkTime: number;
+}
+
 interface Filters {
   startDate: string;
   endDate: string;
   agent: string[];
   campaign: string[];
-  status: string;
-  direction: string;
+  status: string[];
+  direction: string[];
   customer: string;
   minDuration: string;
   maxDuration: string;
@@ -166,7 +180,7 @@ function defaultFilters(): Filters {
   return {
     startDate, endDate,
     agent: [], campaign: [],
-    status: '', direction: '', customer: '',
+    status: [], direction: [], customer: '',
     minDuration: '', maxDuration: '', hour: '', weekday: '',
   };
 }
@@ -177,8 +191,8 @@ function buildQs(f: Filters): string {
   p.set('endDate', f.endDate);
   if (f.agent.length) p.set('agent', f.agent.join(','));
   if (f.campaign.length) p.set('campaign', f.campaign.join(','));
-  if (f.status) p.set('status', f.status);
-  if (f.direction) p.set('direction', f.direction);
+  if (f.status.length) p.set('status', f.status.join(','));
+  if (f.direction.length) p.set('direction', f.direction.join(','));
   if (f.customer) p.set('customer', f.customer);
   if (f.minDuration) p.set('minDuration', f.minDuration);
   if (f.maxDuration) p.set('maxDuration', f.maxDuration);
@@ -452,6 +466,9 @@ export default function CallingTeamDashboard() {
   const [dailyLoading, setDailyLoading] = useState(false);
   const [dailyFocusDay, setDailyFocusDay] = useState<string | null>(null);
 
+  const [momRows, setMomRows] = useState<MomRow[]>([]);
+  const [momLoading, setMomLoading] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -576,6 +593,23 @@ export default function CallingTeamDashboard() {
     loadDaily();
   }, [authChecked, tab, loadDaily]);
 
+  // MoM (Month-over-Month) — loaded on the Dashboard tab.
+  const loadMom = useCallback(async () => {
+    setMomLoading(true);
+    try {
+      const r = await fetch(`/api/calling-team/mom?${qs}`).then((r) => r.json());
+      if (r?.months) setMomRows(r.months);
+    } finally {
+      setMomLoading(false);
+    }
+  }, [qs]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    if (tab !== 'dashboard') return;
+    loadMom();
+  }, [authChecked, tab, loadMom]);
+
   if (!authChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -695,6 +729,54 @@ export default function CallingTeamDashboard() {
           </div>
         )}
 
+        {/* Global filter row — applies across all tabs */}
+        <div className="mb-5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+          <div className="flex items-center gap-2 flex-wrap mb-3">
+            <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold">Global Filters</div>
+            {(filters.campaign.length + filters.direction.length + filters.status.length) > 0 && (
+              <>
+                <span className="text-xs text-purple-300/60">
+                  · {filters.campaign.length + filters.direction.length + filters.status.length} active
+                </span>
+                <button
+                  onClick={() => setFilters({ ...filters, campaign: [], direction: [], status: [] })}
+                  className="ml-auto text-[11px] text-rose-300 hover:text-rose-200"
+                >
+                  Clear global filters
+                </button>
+              </>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <MultiSelect
+              label="Direction"
+              value={filters.direction}
+              options={[
+                { value: 'outbound', label: 'Outbound (incl. Manual)' },
+                { value: 'inbound',  label: 'Inbound' },
+              ]}
+              onChange={(v) => setFilters({ ...filters, direction: v })}
+            />
+            <MultiSelect
+              label="Campaign"
+              value={filters.campaign}
+              options={filterOpts.campaigns.map((c) => ({ value: c.value, count: c.calls }))}
+              onChange={(v) => setFilters({ ...filters, campaign: v })}
+            />
+            <MultiSelect
+              label="Call Status"
+              value={filters.status}
+              options={[
+                { value: 'connected', label: 'Connected (bucket)' },
+                { value: 'no_answer', label: 'No Answer (bucket)' },
+                { value: 'missed',    label: 'Missed (bucket)' },
+                ...filterOpts.statuses.map((s) => ({ value: s.value, label: s.value, count: s.calls })),
+              ]}
+              onChange={(v) => setFilters({ ...filters, status: v })}
+            />
+          </div>
+        </div>
+
         {tab === 'dashboard' && (
           <DashboardTab
             loading={loading}
@@ -703,6 +785,8 @@ export default function CallingTeamDashboard() {
             agents={agents}
             oppLoss={oppLoss}
             setTab={setTab}
+            momRows={momRows}
+            momLoading={momLoading}
           />
         )}
 
@@ -1232,8 +1316,10 @@ function DashboardTab(props: {
   agents: AgentRow[];
   oppLoss: OppLoss | null;
   setTab: (t: Tab) => void;
+  momRows: MomRow[];
+  momLoading: boolean;
 }) {
-  const { loading, overview, trend, agents, oppLoss, setTab } = props;
+  const { loading, overview, trend, agents, oppLoss, setTab, momRows, momLoading } = props;
 
   if (loading && !overview) {
     return <div className="text-purple-200 py-16 text-center text-sm">Loading dashboard…</div>;
@@ -1435,7 +1521,133 @@ function DashboardTab(props: {
           </div>
         </div>
       </section>
+
+      {/* Month-over-Month rollup */}
+      <MomSection rows={momRows} loading={momLoading} />
     </div>
+  );
+}
+
+// ───────────────────────── MoM Section ─────────────────────────
+
+function MomSection({ rows, loading }: { rows: MomRow[]; loading: boolean }) {
+  const monthLabel = (k: string) => {
+    if (!k) return k;
+    const [y, m] = k.split('-').map(Number);
+    if (!y || !m) return k;
+    return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+  };
+  const totals = rows.reduce(
+    (a, r) => ({
+      totalAttempts: a.totalAttempts + r.totalAttempts,
+      uniqueAttempts: a.uniqueAttempts + r.uniqueAttempts,
+      totalConnected: a.totalConnected + r.totalConnected,
+      uniqueConnected: a.uniqueConnected + r.uniqueConnected,
+      connectedUnder15: a.connectedUnder15 + r.connectedUnder15,
+      connected15Plus: a.connected15Plus + r.connected15Plus,
+      totalTalkTime: a.totalTalkTime + r.totalTalkTime,
+    }),
+    { totalAttempts: 0, uniqueAttempts: 0, totalConnected: 0, uniqueConnected: 0, connectedUnder15: 0, connected15Plus: 0, totalTalkTime: 0 },
+  );
+  const overallConnectPct = totals.totalAttempts ? totals.totalConnected / totals.totalAttempts : 0;
+  // Weighted average connected duration across all months.
+  const weightedAvgDur = totals.totalConnected
+    ? rows.reduce((a, r) => a + r.avgConnectedDuration * r.totalConnected, 0) / totals.totalConnected
+    : 0;
+  // Peak active agents in any single month.
+  const maxActiveAgents = rows.reduce((a, r) => Math.max(a, r.activeAgents), 0);
+
+  return (
+    <section className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div>
+          <div className="text-base font-semibold text-white">Month-over-Month Summary</div>
+          <div className="text-xs text-purple-200/70 mt-0.5">
+            Calling activity rolled up by calendar month. Respects the date range and global filters above.
+          </div>
+        </div>
+        {rows.length > 0 && (
+          <div className="text-[11px] text-purple-300/70">{rows.length} {rows.length === 1 ? 'month' : 'months'} in window</div>
+        )}
+      </div>
+
+      {loading && rows.length === 0 ? (
+        <div className="text-purple-200 text-sm py-10 text-center">Loading MoM summary…</div>
+      ) : rows.length === 0 ? (
+        <div className="text-purple-200/70 text-sm py-10 text-center">
+          No months in the selected window. Widen the date range to see month-by-month comparison.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-purple-300/70 uppercase tracking-wider text-[10px] border-b border-white/10">
+              <tr>
+                <th className="text-left py-2 pr-2 sticky left-0 bg-slate-900/30 backdrop-blur z-10">Month</th>
+                <th className="text-right py-2 px-2">Total Attempt Calls</th>
+                <th className="text-right py-2 px-2">Unique Attempt</th>
+                <th className="text-right py-2 px-2">Total Connected</th>
+                <th className="text-right py-2 px-2">Unique Connected</th>
+                <th className="text-right py-2 px-2">Connected %</th>
+                <th className="text-right py-2 px-2" title="Connected calls shorter than 15 seconds">Connected &lt;15s</th>
+                <th className="text-right py-2 px-2" title="Connected calls of 15 seconds or more">Connected &ge;15s</th>
+                <th className="text-right py-2 px-2">Avg Connected Duration</th>
+                <th className="text-right py-2 px-2">Active Agents</th>
+                <th className="text-right py-2 px-2">Talk Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => {
+                const prev = i > 0 ? rows[i - 1] : null;
+                const momPct = prev && prev.totalAttempts > 0
+                  ? ((r.totalAttempts - prev.totalAttempts) / prev.totalAttempts) * 100
+                  : null;
+                return (
+                  <tr key={r.monthKey} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="py-2 pr-2 text-purple-100 font-semibold whitespace-nowrap sticky left-0 bg-slate-900/30 backdrop-blur">
+                      <div>{monthLabel(r.monthKey)}</div>
+                      {momPct !== null && (
+                        <div className={`text-[10px] font-normal ${momPct >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                          {momPct >= 0 ? '↑' : '↓'} {Math.abs(momPct).toFixed(1)}% MoM
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(r.totalAttempts)}</td>
+                    <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(r.uniqueAttempts)}</td>
+                    <td className="py-2 px-2 text-right text-emerald-300 tabular-nums">{fmtInt(r.totalConnected)}</td>
+                    <td className="py-2 px-2 text-right text-emerald-200 tabular-nums">{fmtInt(r.uniqueConnected)}</td>
+                    <td className="py-2 px-2 text-right tabular-nums">
+                      <span className={r.connectedPct >= 0.5 ? 'text-emerald-300' : r.connectedPct >= 0.3 ? 'text-amber-300' : 'text-rose-300'}>
+                        {fmtPct(r.connectedPct)}
+                      </span>
+                    </td>
+                    <td className="py-2 px-2 text-right text-rose-300 tabular-nums">{fmtInt(r.connectedUnder15)}</td>
+                    <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(r.connected15Plus)}</td>
+                    <td className="py-2 px-2 text-right text-purple-200 tabular-nums whitespace-nowrap">{fmtDuration(r.avgConnectedDuration)}</td>
+                    <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(r.activeAgents)}</td>
+                    <td className="py-2 px-2 text-right text-purple-200 tabular-nums whitespace-nowrap">{fmtTalkTime(r.totalTalkTime)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-white/10 bg-white/5 font-semibold">
+                <td className="py-2 pr-2 text-purple-100 sticky left-0 bg-slate-900/60 backdrop-blur">Total / Avg</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(totals.totalAttempts)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(totals.uniqueAttempts)}</td>
+                <td className="py-2 px-2 text-right text-emerald-300 tabular-nums">{fmtInt(totals.totalConnected)}</td>
+                <td className="py-2 px-2 text-right text-emerald-200 tabular-nums">{fmtInt(totals.uniqueConnected)}</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtPct(overallConnectPct)}</td>
+                <td className="py-2 px-2 text-right text-rose-300 tabular-nums">{fmtInt(totals.connectedUnder15)}</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(totals.connected15Plus)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums whitespace-nowrap">{fmtDuration(Math.round(weightedAvgDur))}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums" title="Peak active agents in any single month">{fmtInt(maxActiveAgents)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums whitespace-nowrap">{fmtTalkTime(totals.totalTalkTime)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1471,32 +1683,26 @@ function LogsTab(props: {
             options={filterOpts.campaigns.map((a) => ({ value: a.value, count: a.calls }))}
             onChange={(v) => setFilters({ ...filters, campaign: v })}
           />
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold mb-1">Call Status</div>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full text-sm bg-white/5 border border-white/10 hover:bg-white/10 rounded-lg px-3 py-2 text-purple-100 focus:outline-none"
-            >
-              <option value="">All</option>
-              <option value="connected">Connected</option>
-              <option value="missed">Missed</option>
-              <option value="no_answer">No Answer</option>
-              {filterOpts.statuses.map((s) => <option key={s.value} value={s.value}>{s.value} ({s.calls})</option>)}
-            </select>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold mb-1">Direction</div>
-            <select
-              value={filters.direction}
-              onChange={(e) => setFilters({ ...filters, direction: e.target.value })}
-              className="w-full text-sm bg-white/5 border border-white/10 hover:bg-white/10 rounded-lg px-3 py-2 text-purple-100 focus:outline-none"
-            >
-              <option value="">All</option>
-              <option value="outbound">Outbound</option>
-              <option value="inbound">Inbound</option>
-            </select>
-          </div>
+          <MultiSelect
+            label="Call Status"
+            value={filters.status}
+            options={[
+              { value: 'connected', label: 'Connected (bucket)' },
+              { value: 'no_answer', label: 'No Answer (bucket)' },
+              { value: 'missed',    label: 'Missed (bucket)' },
+              ...filterOpts.statuses.map((s) => ({ value: s.value, label: s.value, count: s.calls })),
+            ]}
+            onChange={(v) => setFilters({ ...filters, status: v })}
+          />
+          <MultiSelect
+            label="Direction"
+            value={filters.direction}
+            options={[
+              { value: 'outbound', label: 'Outbound (incl. Manual)' },
+              { value: 'inbound',  label: 'Inbound' },
+            ]}
+            onChange={(v) => setFilters({ ...filters, direction: v })}
+          />
           <div>
             <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold mb-1">Customer (last 10 digits)</div>
             <input
@@ -1549,7 +1755,7 @@ function LogsTab(props: {
         </div>
         <div className="mt-3 flex items-center gap-2">
           <button
-            onClick={() => setFilters({ ...filters, agent: [], campaign: [], status: '', direction: '', customer: '', minDuration: '', maxDuration: '', hour: '', weekday: '' })}
+            onClick={() => setFilters({ ...filters, agent: [], campaign: [], status: [], direction: [], customer: '', minDuration: '', maxDuration: '', hour: '', weekday: '' })}
             className="text-xs px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-purple-200"
           >
             Clear filters
@@ -1685,7 +1891,7 @@ function LogsTab(props: {
                 onClick={() => {
                   if (drill.type === 'agent') setFilters({ ...filters, agent: [drill.value] });
                   else if (drill.type === 'customer') setFilters({ ...filters, customer: drill.value });
-                  else setFilters({ ...filters, status: drill.value });
+                  else setFilters({ ...filters, status: [drill.value] });
                   setDrill(null);
                 }}
                 className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white text-sm font-semibold"

@@ -545,6 +545,7 @@ export default function OrderStatusDashboard() {
   const [marginLoading, setMarginLoading] = useState(false);
   const [marginError, setMarginError] = useState<string | null>(null);
   const [marginDays, setMarginDays] = useState(30);
+  const [marginSubTab, setMarginSubTab] = useState<'trend' | 'details'>('trend');
 
   useEffect(() => {
     if (activeTab !== 'margin') return;
@@ -7906,6 +7907,28 @@ export default function OrderStatusDashboard() {
                     <Kpi label="P&L % of GTV" value={totals.pnlPercentOfGtv === null ? '—' : `${totals.pnlPercentOfGtv}%`} sub={`${totals.profitDays} profit · ${totals.lossDays} loss days`} accent={(totals.pnlPercentOfGtv ?? 0) >= 0 ? 'emerald' : 'rose'} />
                   </div>
 
+                  {/* Sub-tab navigation */}
+                  <div className="mb-6 flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl w-fit">
+                    {(['trend', 'details'] as const).map((sub) => {
+                      const active = marginSubTab === sub;
+                      return (
+                        <button
+                          key={sub}
+                          onClick={() => setMarginSubTab(sub)}
+                          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 ${
+                            active
+                              ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.55),inset_0_0_18px_rgba(168,85,247,0.5)]'
+                              : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                          }`}
+                        >
+                          {sub === 'trend' ? 'Trend' : 'Details'}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {marginSubTab === 'trend' && (
+                  <>
                   {/* Margin vs OpCost + Net P&L line */}
                   <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6">
                     <div className="mb-3">
@@ -7948,7 +7971,11 @@ export default function OrderStatusDashboard() {
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
+                  </>
+                  )}
 
+                  {marginSubTab === 'details' && (
+                  <>
                   {/* Daily breakdown table */}
                   <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
                     <div className="overflow-x-auto">
@@ -8009,6 +8036,8 @@ export default function OrderStatusDashboard() {
                       </table>
                     </div>
                   </div>
+                  </>
+                  )}
 
                   <div className="mt-4 text-right text-purple-300/40 text-[11px]">
                     Updated {new Date(marginData.timestamp).toLocaleString('en-IN')} · lookback {marginData.days}d

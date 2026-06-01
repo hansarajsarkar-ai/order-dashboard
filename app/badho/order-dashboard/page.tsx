@@ -4028,7 +4028,7 @@ export default function OrderStatusDashboard() {
                 </div>
                 <div className="p-6">
                   <ResponsiveContainer width="100%" height={360}>
-                    <ComposedChart data={monthlyTrend} margin={{ top: 16, right: 16, left: 8, bottom: 8 }}>
+                    <ComposedChart data={monthlyTrend} margin={{ top: 28, right: 16, left: 8, bottom: 8 }}>
                       <defs>
                         <linearGradient id="gradRevBar" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#a855f7" stopOpacity={0.95} />
@@ -4066,10 +4066,22 @@ export default function OrderStatusDashboard() {
                       />
                       <Legend wrapperStyle={{ fontSize: 12, color: '#e9d5ff' }} />
                       <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill="url(#gradRevBar)" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                        <LabelList dataKey="revenue" position="top" formatter={(v: unknown) => formatAmount(Number(v))} style={{ fill: '#f0abfc', fontSize: 10, fontWeight: 700 }} />
+                        <LabelList
+                          dataKey="revenue"
+                          position="insideTop"
+                          offset={8}
+                          formatter={(v: unknown) => formatAmount(Number(v))}
+                          style={{ fill: '#fdf4ff', fontSize: 10, fontWeight: 700, paintOrder: 'stroke', stroke: '#1e1b4b', strokeWidth: 3, strokeLinejoin: 'round' }}
+                        />
                       </Bar>
                       <Line yAxisId="right" dataKey="orders" name="Orders" stroke="#22d3ee" strokeWidth={2.5} dot={{ r: 3, fill: '#22d3ee' }} activeDot={{ r: 5 }} isAnimationActive={false}>
-                        <LabelList dataKey="orders" position="top" offset={10} formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: '#67e8f9', fontSize: 10, fontWeight: 700 }} />
+                        <LabelList
+                          dataKey="orders"
+                          position="top"
+                          offset={14}
+                          formatter={(v: unknown) => Number(v).toLocaleString('en-IN')}
+                          style={{ fill: '#67e8f9', fontSize: 10, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                        />
                       </Line>
                     </ComposedChart>
                   </ResponsiveContainer>

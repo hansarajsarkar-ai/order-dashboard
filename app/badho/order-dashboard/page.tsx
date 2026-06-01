@@ -1155,6 +1155,27 @@ export default function OrderStatusDashboard() {
   }
   const [paymentTrend, setPaymentTrend] = useState<PaymentTrend | null>(null);
   const [paymentTrendLoading, setPaymentTrendLoading] = useState(false);
+
+  // Zone Wise tab — Delhivery pivot: seller × zone × status (count + kg)
+  interface ZoneCell { count: number; weightKg: number; }
+  interface ZonePivot {
+    startDate: string;
+    endDate: string;
+    sellers: string[];
+    zones: string[];
+    statuses: string[];
+    data: Record<string, Record<string, Record<string, ZoneCell>>>;
+    sellerTotals: Record<string, ZoneCell>;
+    zoneTotals:   Record<string, ZoneCell>;
+    statusTotals: Record<string, ZoneCell>;
+    grand: ZoneCell;
+  }
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const firstOfMonthStr = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
+  const [zonePivot, setZonePivot] = useState<ZonePivot | null>(null);
+  const [zonePivotLoading, setZonePivotLoading] = useState(false);
+  const [zoneFrom, setZoneFrom] = useState(firstOfMonthStr());
+  const [zoneTo, setZoneTo] = useState(todayStr());
   const [trendRange, setTrendRange] = useState<'7d' | '30d' | '90d' | 'all' | 'custom'>('30d');
   const [trendCustomFrom, setTrendCustomFrom] = useState('');
   const [trendCustomTo, setTrendCustomTo] = useState('');
@@ -1378,6 +1399,30 @@ export default function OrderStatusDashboard() {
       setTrendLoading(false);
     }
   };
+
+  const fetchZonePivot = async () => {
+    try {
+      setZonePivotLoading(true);
+      const params = new URLSearchParams();
+      if (zoneFrom) params.append('startDate', zoneFrom);
+      if (zoneTo) params.append('endDate', zoneTo);
+      const res = await fetch(`/api/order-zone-pivot?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch zone pivot');
+      const json = await res.json();
+      setZonePivot(json);
+    } catch (err) {
+      console.error('Zone pivot fetch error:', err);
+      setZonePivot(null);
+    } finally {
+      setZonePivotLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'zone') return;
+    fetchZonePivot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, zoneFrom, zoneTo]);
 
   const fetchPaymentTrend = async () => {
     try {
@@ -7090,9 +7135,159 @@ export default function OrderStatusDashboard() {
         )}
 
         {activeTab === 'zone' && (
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-16 text-center">
-            <h2 className="text-2xl font-bold text-white mb-2">Zone Wise</h2>
-            <p className="text-purple-300 text-sm">Coming soon.</p>
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Zone Wise · Delhivery</h2>
+                <p className="text-purple-300 text-sm mt-1">Seller × zone × delivery status · count and charged weight (kg)</p>
+              </div>
+              <div className="flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <label className="text-purple-300/70 uppercase tracking-wider text-[10px]">From</label>
+                  <input
+                    type="date"
+                    value={zoneFrom}
+                    onChange={(e) => setZoneFrom(e.target.value)}
+                    className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-purple-300/70 uppercase tracking-wider text-[10px]">To</label>
+                  <input
+                    type="date"
+                    value={zoneTo}
+                    onChange={(e) => setZoneTo(e.target.value)}
+                    className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+                {zonePivot && (
+                  <div className="px-3 py-2 rounded-xl bg-slate-900/70 border border-white/10">
+                    <div className="text-purple-300/70 uppercase tracking-wide text-[10px]">Grand total</div>
+                    <div className="text-white font-bold mt-0.5 tabular-nums">{zonePivot.grand.count.toLocaleString('en-IN')} POs · {zonePivot.grand.weightKg.toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg</div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="p-4">
+              {zonePivotLoading ? (
+                <div className="py-16 text-center text-purple-300">Loading zone pivot…</div>
+              ) : !zonePivot || zonePivot.sellers.length === 0 ? (
+                <div className="py-16 text-center text-purple-300">No Delhivery orders with zone data in this window.</div>
+              ) : (() => {
+                const fmtKg = (kg: number) => kg >= 1000 ? `${(kg / 1000).toFixed(1)}T` : kg.toLocaleString('en-IN', { maximumFractionDigits: 1 });
+                return (
+                  <div className="overflow-x-auto rounded-xl border border-white/10">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0">
+                        <tr className="border-b border-white/15 bg-slate-900/90 backdrop-blur">
+                          <th rowSpan={2} className="px-4 py-3 text-left font-semibold text-white/80 sticky left-0 bg-slate-900/95 backdrop-blur z-20 border-r border-white/15 min-w-[220px]">
+                            Seller
+                          </th>
+                          {zonePivot.zones.map((zone) => (
+                            <th
+                              key={zone}
+                              colSpan={zonePivot.statuses.length}
+                              className="px-2 py-2 text-center font-bold text-fuchsia-200 border-r border-white/15 bg-gradient-to-b from-fuchsia-500/10 to-transparent"
+                            >
+                              <div>{zone}</div>
+                              <div className="text-[10px] font-normal text-white/50 mt-0.5 tabular-nums">
+                                {(zonePivot.zoneTotals[zone]?.count || 0).toLocaleString('en-IN')} · {fmtKg(zonePivot.zoneTotals[zone]?.weightKg || 0)} kg
+                              </div>
+                            </th>
+                          ))}
+                          <th rowSpan={2} className="px-3 py-3 text-right font-semibold text-emerald-300 sticky right-0 bg-slate-900/95 backdrop-blur z-20 border-l border-white/15 min-w-[110px]">
+                            Total
+                          </th>
+                        </tr>
+                        <tr className="border-b border-white/10 bg-slate-900/80 backdrop-blur">
+                          {zonePivot.zones.map((zone) =>
+                            zonePivot.statuses.map((st, si) => (
+                              <th
+                                key={`${zone}|${st}`}
+                                className={`px-2 py-2 text-center text-[10px] font-medium text-purple-200/80 ${si === zonePivot.statuses.length - 1 ? 'border-r border-white/15' : ''}`}
+                              >
+                                {st}
+                              </th>
+                            )),
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {zonePivot.sellers.map((seller) => {
+                          const sellerRow = zonePivot.data[seller] || {};
+                          const sellerTot = zonePivot.sellerTotals[seller] || { count: 0, weightKg: 0 };
+                          return (
+                            <tr key={seller} className="border-b border-white/5 hover:bg-white/5">
+                              <td className="px-4 py-2.5 text-white sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 truncate max-w-[260px]" title={seller}>
+                                {seller}
+                              </td>
+                              {zonePivot.zones.map((zone) => {
+                                const zoneRow = sellerRow[zone] || {};
+                                return zonePivot.statuses.map((st, si) => {
+                                  const cell = zoneRow[st];
+                                  const dim = !cell;
+                                  return (
+                                    <td
+                                      key={`${seller}|${zone}|${st}`}
+                                      className={`px-2 py-2 text-center tabular-nums ${si === zonePivot.statuses.length - 1 ? 'border-r border-white/10' : ''} ${dim ? 'text-white/20' : 'text-white'}`}
+                                    >
+                                      {dim ? '—' : (
+                                        <div className="leading-tight">
+                                          <div className="font-bold">{cell.count.toLocaleString('en-IN')}</div>
+                                          <div className="text-[10px] text-purple-300/70">{fmtKg(cell.weightKg)} kg</div>
+                                        </div>
+                                      )}
+                                    </td>
+                                  );
+                                });
+                              })}
+                              <td className="px-3 py-2.5 text-right tabular-nums sticky right-0 bg-slate-900/80 backdrop-blur z-10 border-l border-white/10">
+                                <div className="font-bold text-emerald-300">{sellerTot.count.toLocaleString('en-IN')}</div>
+                                <div className="text-[10px] text-emerald-300/60">{fmtKg(sellerTot.weightKg)} kg</div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        <tr className="border-t-2 border-white/20 bg-white/10 font-semibold">
+                          <td className="px-4 py-3 text-white sticky left-0 bg-slate-900/95 backdrop-blur z-10 border-r border-white/15">Total</td>
+                          {zonePivot.zones.map((zone) => {
+                            const ztot = zonePivot.zoneTotals[zone] || { count: 0, weightKg: 0 };
+                            return zonePivot.statuses.map((st, si) => {
+                              const stot = (() => {
+                                let c = 0; let w = 0;
+                                for (const s of zonePivot.sellers) {
+                                  const cell = zonePivot.data[s]?.[zone]?.[st];
+                                  if (cell) { c += cell.count; w += cell.weightKg; }
+                                }
+                                return { count: c, weightKg: w };
+                              })();
+                              const dim = stot.count === 0;
+                              return (
+                                <td
+                                  key={`tot|${zone}|${st}`}
+                                  className={`px-2 py-2.5 text-center tabular-nums ${si === zonePivot.statuses.length - 1 ? 'border-r border-white/15' : ''} ${dim ? 'text-white/30' : 'text-white'}`}
+                                >
+                                  {dim ? '—' : (
+                                    <div className="leading-tight">
+                                      <div className="font-bold">{stot.count.toLocaleString('en-IN')}</div>
+                                      <div className="text-[10px] text-purple-300/70">{fmtKg(stot.weightKg)} kg</div>
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            });
+                          })}
+                          <td className="px-3 py-3 text-right tabular-nums sticky right-0 bg-slate-900/95 backdrop-blur z-10 border-l border-white/15">
+                            <div className="font-bold text-emerald-300">{zonePivot.grand.count.toLocaleString('en-IN')}</div>
+                            <div className="text-[10px] text-emerald-300/60">{fmtKg(zonePivot.grand.weightKg)} kg</div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         )}
 

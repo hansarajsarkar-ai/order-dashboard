@@ -8083,7 +8083,7 @@ export default function OrderStatusDashboard() {
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                         <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
                         <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />
-                        <Tooltip contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 12, color: '#fff' }} formatter={(value, name) => [fmtFull(Number(value)), String(name)]} />
+                        <Tooltip contentStyle={{ background: '#ffffff', border: '1px solid rgba(217,70,239,0.5)', borderRadius: 12, color: '#1e1b4b', boxShadow: '0 8px 24px rgba(30,27,75,0.2)' }} labelStyle={{ color: '#a21caf', fontWeight: 700 }} itemStyle={{ color: '#1e1b4b' }} formatter={(value, name) => [fmtFull(Number(value)), String(name)]} />
                         <Legend wrapperStyle={{ fontSize: 12, color: '#c4b5fd' }} />
                         <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
                         <Bar dataKey="totalMargin" name="Margin" fill="#34d399" radius={[3, 3, 0, 0]} barSize={14} />
@@ -8132,7 +8132,7 @@ export default function OrderStatusDashboard() {
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                         <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
                         <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />
-                        <Tooltip contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 12, color: '#fff' }} formatter={(value) => [fmtFull(Number(value)), 'Net P&L']} />
+                        <Tooltip contentStyle={{ background: '#ffffff', border: '1px solid rgba(217,70,239,0.5)', borderRadius: 12, color: '#1e1b4b', boxShadow: '0 8px 24px rgba(30,27,75,0.2)' }} labelStyle={{ color: '#a21caf', fontWeight: 700 }} itemStyle={{ color: '#1e1b4b' }} formatter={(value) => [fmtFull(Number(value)), 'Net P&L']} />
                         <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
                         <Bar dataKey="profitAndLossRs" name="Net P&L" radius={[3, 3, 0, 0]} isAnimationActive={false}>
                           {chartData.map((d, i) => (

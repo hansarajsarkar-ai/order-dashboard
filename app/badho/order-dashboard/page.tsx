@@ -8017,55 +8017,6 @@ export default function OrderStatusDashboard() {
                     <Kpi label="P&L % of GTV" value={totals.pnlPercentOfGtv === null ? '—' : `${totals.pnlPercentOfGtv}%`} sub={`${totals.profitDays} profit · ${totals.lossDays} loss days`} accent={(totals.pnlPercentOfGtv ?? 0) >= 0 ? 'emerald' : 'rose'} />
                   </div>
 
-                  {/* Margin vs OpCost + Net P&L line */}
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6 animate-corner-breath">
-                    <div className="mb-3">
-                      <div className="text-base font-semibold text-white">Margin vs Operational Cost &amp; Net P&amp;L</div>
-                      <div className="text-xs text-purple-200/70 mt-0.5">Bars: daily margin &amp; op-cost (₹) · Line: net P&amp;L (₹)</div>
-                    </div>
-                    <ResponsiveContainer width="100%" height={360}>
-                      <ComposedChart data={chartData} margin={{ top: 24, right: 10, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
-                        <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />
-                        <Tooltip contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 12, color: '#fff' }} formatter={(value, name) => [fmtFull(Number(value)), String(name)]} />
-                        <Legend wrapperStyle={{ fontSize: 12, color: '#c4b5fd' }} />
-                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
-                        <Bar dataKey="totalMargin" name="Margin" fill="#34d399" radius={[3, 3, 0, 0]} barSize={14} />
-                        <Bar dataKey="totalOperationalCost" name="Op Cost" fill="#fbbf24" radius={[3, 3, 0, 0]} barSize={14} />
-                        <Line
-                          type="monotone"
-                          dataKey="profitAndLossRs"
-                          name="Net P&L"
-                          stroke="#f0abfc"
-                          strokeWidth={2.5}
-                          dot={{ r: 2.5, fill: '#f0abfc', stroke: '#1e1b4b', strokeWidth: 1 }}
-                          activeDot={{ r: 5, fill: '#fff', stroke: '#d946ef', strokeWidth: 2 }}
-                          isAnimationActive={false}
-                        >
-                          <LabelList
-                            dataKey="profitAndLossRs"
-                            content={(props: any) => {
-                              const { x, y, value } = props;
-                              const val = Number(value);
-                              if (!Number.isFinite(val)) return null;
-                              return (
-                                <text
-                                  x={Number(x)}
-                                  y={Number(y) - 9}
-                                  textAnchor="middle"
-                                  style={{ fill: '#f5d0fe', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
-                                >
-                                  {fmtINR(val)}
-                                </text>
-                              );
-                            }}
-                          />
-                        </Line>
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-
                   {/* Daily P&L % of GTV */}
                   <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6 animate-corner-breath">
                     <div className="mb-3">
@@ -8116,6 +8067,55 @@ export default function OrderStatusDashboard() {
                             }}
                           />
                         </Bar>
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Margin vs OpCost + Net P&L line */}
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6 animate-corner-breath">
+                    <div className="mb-3">
+                      <div className="text-base font-semibold text-white">Margin vs Operational Cost &amp; Net P&amp;L</div>
+                      <div className="text-xs text-purple-200/70 mt-0.5">Bars: daily margin &amp; op-cost (₹) · Line: net P&amp;L (₹)</div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={360}>
+                      <ComposedChart data={chartData} margin={{ top: 24, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />
+                        <Tooltip contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 12, color: '#fff' }} formatter={(value, name) => [fmtFull(Number(value)), String(name)]} />
+                        <Legend wrapperStyle={{ fontSize: 12, color: '#c4b5fd' }} />
+                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
+                        <Bar dataKey="totalMargin" name="Margin" fill="#34d399" radius={[3, 3, 0, 0]} barSize={14} />
+                        <Bar dataKey="totalOperationalCost" name="Op Cost" fill="#fbbf24" radius={[3, 3, 0, 0]} barSize={14} />
+                        <Line
+                          type="monotone"
+                          dataKey="profitAndLossRs"
+                          name="Net P&L"
+                          stroke="#f0abfc"
+                          strokeWidth={2.5}
+                          dot={{ r: 2.5, fill: '#f0abfc', stroke: '#1e1b4b', strokeWidth: 1 }}
+                          activeDot={{ r: 5, fill: '#fff', stroke: '#d946ef', strokeWidth: 2 }}
+                          isAnimationActive={false}
+                        >
+                          <LabelList
+                            dataKey="profitAndLossRs"
+                            content={(props: any) => {
+                              const { x, y, value } = props;
+                              const val = Number(value);
+                              if (!Number.isFinite(val)) return null;
+                              return (
+                                <text
+                                  x={Number(x)}
+                                  y={Number(y) - 9}
+                                  textAnchor="middle"
+                                  style={{ fill: '#f5d0fe', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                                >
+                                  {fmtINR(val)}
+                                </text>
+                              );
+                            }}
+                          />
+                        </Line>
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>

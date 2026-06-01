@@ -4460,7 +4460,21 @@ export default function OrderStatusDashboard() {
                       const isLast = i === paymentTrend.options.length - 1;
                       return (
                         <Bar key={opt} dataKey={opt} stackId="pm" fill={colorFor(i)} radius={isLast ? [4, 4, 0, 0] : [0, 0, 0, 0]}>
-                          {isLast && <LabelList dataKey="total" position="top" formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: 700 }} />}
+                          <LabelList
+                            dataKey={opt}
+                            position="center"
+                            formatter={(v: unknown) => { const n = Number(v); return n > 0 ? n.toLocaleString('en-IN') : ''; }}
+                            style={{ fill: '#ffffff', fontSize: 10, fontWeight: 800, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                          />
+                          {isLast && (
+                            <LabelList
+                              dataKey="total"
+                              position="top"
+                              offset={6}
+                              formatter={(v: unknown) => Number(v).toLocaleString('en-IN')}
+                              style={{ fill: '#fdf4ff', fontSize: 11, fontWeight: 800, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                            />
+                          )}
                         </Bar>
                       );
                     })}

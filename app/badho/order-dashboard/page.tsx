@@ -526,7 +526,8 @@ export default function OrderStatusDashboard() {
     pnlPercentOfGtv: number | null;
   }
   interface MarginResp {
-    days: number;
+    days: number | null;
+    range?: { days?: number; startDate?: string; endDate?: string };
     data: MarginDayRow[];
     totals: {
       totalOrders: number;
@@ -544,17 +545,74 @@ export default function OrderStatusDashboard() {
   const [marginData, setMarginData] = useState<MarginResp | null>(null);
   const [marginLoading, setMarginLoading] = useState(false);
   const [marginError, setMarginError] = useState<string | null>(null);
-  const [marginDays, setMarginDays] = useState(30);
+  const [marginRange, setMarginRange] = useState<'last7' | 'last15' | 'last30' | 'custom'>('custom');
+  const [marginCustomFrom, setMarginCustomFrom] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 29); return d.toISOString().slice(0, 10);
+  });
+  const [marginCustomTo, setMarginCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [marginSubTab, setMarginSubTab] = useState<'trend' | 'details'>('trend');
+
+  // Per-day drill-down modal (opened by clicking a day's Orders count in the Details table)
+  interface MarginDayOrder {
+    poId: string;
+    poNumber: string | null;
+    orderDate: string;
+    sellerName: string | null;
+    buyerName: string | null;
+    poAmount: number;
+    marginRs: number;
+    operationalCostRs: number;
+    profitAndLossRs: number;
+    status: string;
+  }
+  const [marginDayModal, setMarginDayModal] = useState<string | null>(null); // selected order_date
+  const [marginDayData, setMarginDayData] = useState<MarginDayOrder[] | null>(null);
+  const [marginDayTotals, setMarginDayTotals] = useState<{ poAmount: number; marginRs: number; operationalCostRs: number; profitAndLossRs: number } | null>(null);
+  const [marginDayLoading, setMarginDayLoading] = useState(false);
+  const [marginDayError, setMarginDayError] = useState<string | null>(null);
+
+  const openMarginDayModal = async (date: string) => {
+    setMarginDayModal(date);
+    setMarginDayData(null);
+    setMarginDayTotals(null);
+    setMarginDayLoading(true);
+    setMarginDayError(null);
+    const params = new URLSearchParams({ date });
+    if (marginRange === 'custom') {
+      if (marginCustomFrom) params.set('startDate', marginCustomFrom);
+      if (marginCustomTo) params.set('endDate', marginCustomTo);
+    } else {
+      params.set('days', marginRange === 'last7' ? '7' : marginRange === 'last15' ? '15' : '30');
+    }
+    try {
+      const res = await fetch(`/api/margin-overview/day?${params.toString()}`, { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      setMarginDayData(json.data);
+      setMarginDayTotals(json.totals);
+    } catch (err) {
+      setMarginDayError(err instanceof Error ? err.message : 'Failed to load');
+    } finally {
+      setMarginDayLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab !== 'margin') return;
+    const params = new URLSearchParams();
+    if (marginRange === 'custom') {
+      if (!marginCustomFrom || !marginCustomTo) return; // wait until both dates picked
+      params.set('startDate', marginCustomFrom);
+      params.set('endDate', marginCustomTo);
+    } else {
+      params.set('days', marginRange === 'last7' ? '7' : marginRange === 'last15' ? '15' : '30');
+    }
     let cancelled = false;
     (async () => {
       setMarginLoading(true);
       setMarginError(null);
       try {
-        const res = await fetch(`/api/margin-overview?days=${marginDays}`, { cache: 'no-store' });
+        const res = await fetch(`/api/margin-overview?${params.toString()}`, { cache: 'no-store' });
         const json: MarginResp = await res.json();
         if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
         if (!cancelled) setMarginData(json);
@@ -568,7 +626,7 @@ export default function OrderStatusDashboard() {
       }
     })();
     return () => { cancelled = true; };
-  }, [activeTab, marginDays]);
+  }, [activeTab, marginRange, marginCustomFrom, marginCustomTo]);
 
   // PO Items modal (opened from any "View Items" button across the dashboard)
   interface PoItemRow {
@@ -7849,7 +7907,7 @@ export default function OrderStatusDashboard() {
             rose: 'from-rose-500/20 to-red-500/10 border-rose-400/20',
           };
           const Kpi = ({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent: string }) => (
-            <div className={`bg-gradient-to-br ${accentRing[accent]} backdrop-blur-xl border rounded-2xl p-4`}>
+            <div className={`bg-gradient-to-br ${accentRing[accent]} backdrop-blur-xl border rounded-2xl p-4 animate-corner-breath`}>
               <div className="text-[11px] uppercase tracking-wide text-purple-200/70 font-semibold">{label}</div>
               <div className="text-2xl font-bold text-white mt-1 tabular-nums">{value}</div>
               {sub && <div className="text-[11px] text-purple-200/60 mt-0.5">{sub}</div>}
@@ -7866,20 +7924,46 @@ export default function OrderStatusDashboard() {
                     Daily P&amp;L — D2R brand sellers · third-party INTERCITY orders · badho margin vs operational cost
                   </p>
                 </div>
-                <div className="inline-flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl">
-                  {[7, 14, 30, 60, 90].map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setMarginDays(d)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                        marginDays === d
-                          ? 'bg-fuchsia-500/30 text-white border border-fuchsia-400/40'
-                          : 'text-purple-200 hover:bg-white/10'
-                      }`}
-                    >
-                      {d}d
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="inline-flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl">
+                    {([
+                      { key: 'last7', label: 'Last 7 days' },
+                      { key: 'last15', label: 'Last 15 days' },
+                      { key: 'last30', label: 'Last 30 days' },
+                      { key: 'custom', label: 'Custom' },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setMarginRange(opt.key)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                          marginRange === opt.key
+                            ? 'bg-fuchsia-500/30 text-white border border-fuchsia-400/40'
+                            : 'text-purple-200 hover:bg-white/10'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {marginRange === 'custom' && (
+                    <div className="inline-flex items-center gap-1.5 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl">
+                      <input
+                        type="date"
+                        value={marginCustomFrom}
+                        max={marginCustomTo || undefined}
+                        onChange={(e) => setMarginCustomFrom(e.target.value)}
+                        className="bg-slate-900/60 text-purple-100 text-xs px-2 py-1 rounded-lg border border-white/10 focus:border-fuchsia-400/50 focus:outline-none [color-scheme:dark]"
+                      />
+                      <span className="text-purple-300/60 text-xs">to</span>
+                      <input
+                        type="date"
+                        value={marginCustomTo}
+                        min={marginCustomFrom || undefined}
+                        onChange={(e) => setMarginCustomTo(e.target.value)}
+                        className="bg-slate-900/60 text-purple-100 text-xs px-2 py-1 rounded-lg border border-white/10 focus:border-fuchsia-400/50 focus:outline-none [color-scheme:dark]"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -7930,7 +8014,7 @@ export default function OrderStatusDashboard() {
                   </div>
 
                   {/* Margin vs OpCost + Net P&L line */}
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6">
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6 animate-corner-breath">
                     <div className="mb-3">
                       <div className="text-base font-semibold text-white">Margin vs Operational Cost &amp; Net P&amp;L</div>
                       <div className="text-xs text-purple-200/70 mt-0.5">Bars: daily margin &amp; op-cost (₹) · Line: net P&amp;L (₹)</div>
@@ -7951,7 +8035,7 @@ export default function OrderStatusDashboard() {
                   </div>
 
                   {/* Daily Net P&L bars */}
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6">
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6 animate-corner-breath">
                     <div className="mb-3">
                       <div className="text-base font-semibold text-white">Daily Net P&amp;L</div>
                       <div className="text-xs text-purple-200/70 mt-0.5">Green = profit day · Red = loss day</div>
@@ -7973,7 +8057,7 @@ export default function OrderStatusDashboard() {
                   </div>
 
                   {/* Daily P&L % of GTV */}
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6">
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6 animate-corner-breath">
                     <div className="mb-3">
                       <div className="text-base font-semibold text-white">Daily P&amp;L % of GTV</div>
                       <div className="text-xs text-purple-200/70 mt-0.5">Net P&amp;L as a share of that day&apos;s GTV · value shown on each bar</div>
@@ -8031,7 +8115,7 @@ export default function OrderStatusDashboard() {
                   {marginSubTab === 'details' && (
                   <>
                   {/* Daily breakdown table */}
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden animate-corner-breath">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
@@ -8050,7 +8134,17 @@ export default function OrderStatusDashboard() {
                           {marginData.data.map((d) => (
                             <tr key={d.date} className="border-t border-white/5 hover:bg-white/5 transition-colors">
                               <td className="px-4 py-2.5 text-purple-100 font-medium whitespace-nowrap">{fmtMDay(d.date)}</td>
-                              <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums">{d.totalOrders.toLocaleString('en-IN')}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums">
+                                <button
+                                  type="button"
+                                  onClick={() => openMarginDayModal(d.date)}
+                                  disabled={d.totalOrders === 0}
+                                  title={d.totalOrders === 0 ? undefined : 'View orders for this day'}
+                                  className="text-fuchsia-300 font-semibold underline decoration-dotted underline-offset-4 hover:text-fuchsia-200 hover:decoration-solid transition-colors disabled:text-purple-100 disabled:no-underline disabled:cursor-default"
+                                >
+                                  {d.totalOrders.toLocaleString('en-IN')}
+                                </button>
+                              </td>
                               <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums">{fmtFull(d.totalPoAmount)}</td>
                               <td className="px-4 py-2.5 text-right text-emerald-300 tabular-nums">{fmtFull(d.totalMargin)}</td>
                               <td className="px-4 py-2.5 text-right text-amber-300 tabular-nums">{fmtFull(d.totalOperationalCost)}</td>
@@ -8094,10 +8188,129 @@ export default function OrderStatusDashboard() {
                   )}
 
                   <div className="mt-4 text-right text-purple-300/40 text-[11px]">
-                    Updated {new Date(marginData.timestamp).toLocaleString('en-IN')} · lookback {marginData.days}d
+                    Updated {new Date(marginData.timestamp).toLocaleString('en-IN')} · {marginData.days ? `lookback ${marginData.days}d` : `${marginCustomFrom} → ${marginCustomTo}`}
                   </div>
                 </>
               )}
+            </div>
+          );
+        })()}
+
+        {/* Per-day P&L drill-down modal — opened from the Details table Orders count */}
+        {marginDayModal && (() => {
+          const fmtFull = (n: number) => `${n < 0 ? '-' : ''}₹${Math.round(Math.abs(n)).toLocaleString('en-IN')}`;
+          const fmtDay = (iso: string) => {
+            const dt = new Date(iso);
+            if (Number.isNaN(dt.getTime())) return iso;
+            return dt.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+          };
+          return (
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm"
+              onClick={() => setMarginDayModal(null)}
+            >
+              <div
+                className="relative w-full max-w-5xl max-h-[85vh] flex flex-col bg-gradient-to-br from-slate-900 via-purple-950/60 to-slate-900 border border-fuchsia-400/20 rounded-2xl shadow-[0_0_60px_rgba(217,70,239,0.25)] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Order-level P&amp;L · {fmtDay(marginDayModal)}</h3>
+                    <p className="text-xs text-purple-200/70 mt-0.5">
+                      {marginDayData ? `${marginDayData.length} order${marginDayData.length === 1 ? '' : 's'}` : 'Loading…'} · D2R · third-party INTERCITY
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMarginDayModal(null)}
+                    className="shrink-0 w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-purple-200 hover:text-white flex items-center justify-center transition-colors"
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-auto">
+                  {marginDayError && (
+                    <div className="m-6 rounded-xl border border-rose-400/30 bg-rose-500/10 p-4 text-rose-200 text-sm">
+                      Failed to load: {marginDayError}
+                    </div>
+                  )}
+                  {marginDayLoading && (
+                    <div className="p-12 text-center text-purple-200 text-sm">Loading orders…</div>
+                  )}
+                  {!marginDayLoading && marginDayData && (
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 z-10">
+                        <tr className="bg-slate-900 text-purple-200 text-xs uppercase tracking-wide">
+                          <th className="px-4 py-3 text-left font-semibold">PO #</th>
+                          <th className="px-4 py-3 text-left font-semibold">Seller</th>
+                          <th className="px-4 py-3 text-left font-semibold">Buyer</th>
+                          <th className="px-4 py-3 text-right font-semibold">GTV</th>
+                          <th className="px-4 py-3 text-right font-semibold">Margin</th>
+                          <th className="px-4 py-3 text-right font-semibold">Op Cost</th>
+                          <th className="px-4 py-3 text-right font-semibold">Net P&amp;L</th>
+                          <th className="px-4 py-3 text-center font-semibold">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {marginDayData.map((o) => (
+                          <tr key={o.poId} className="border-t border-white/5 hover:bg-white/5 transition-colors">
+                            <td className="px-4 py-2.5 whitespace-nowrap">
+                              {o.poNumber ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openPoItemsModal(o.poNumber as string)}
+                                  className="text-fuchsia-300 font-semibold hover:text-fuchsia-200 hover:underline transition-colors"
+                                  title="View order items"
+                                >
+                                  {o.poNumber}
+                                </button>
+                              ) : (
+                                <span className="text-purple-300/50">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-purple-100 max-w-[180px] truncate" title={o.sellerName ?? ''}>{o.sellerName ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 max-w-[180px] truncate" title={o.buyerName ?? ''}>{o.buyerName ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums">{fmtFull(o.poAmount)}</td>
+                            <td className="px-4 py-2.5 text-right text-emerald-300 tabular-nums">{fmtFull(o.marginRs)}</td>
+                            <td className="px-4 py-2.5 text-right text-amber-300 tabular-nums">{fmtFull(o.operationalCostRs)}</td>
+                            <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${o.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(o.profitAndLossRs)}</td>
+                            <td className="px-4 py-2.5 text-center">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                o.status === 'Profit'
+                                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                                  : o.status === 'Loss'
+                                  ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
+                                  : 'bg-slate-500/20 text-slate-200 border border-slate-400/30'
+                              }`}>
+                                {o.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                        {marginDayData.length === 0 && (
+                          <tr><td colSpan={8} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
+                        )}
+                      </tbody>
+                      {marginDayData.length > 0 && marginDayTotals && (
+                        <tfoot className="sticky bottom-0">
+                          <tr className="border-t-2 border-fuchsia-400/30 bg-slate-900 font-semibold">
+                            <td className="px-4 py-3 text-purple-100" colSpan={3}>Total · {marginDayData.length} orders</td>
+                            <td className="px-4 py-3 text-right text-purple-100 tabular-nums">{fmtFull(marginDayTotals.poAmount)}</td>
+                            <td className="px-4 py-3 text-right text-emerald-300 tabular-nums">{fmtFull(marginDayTotals.marginRs)}</td>
+                            <td className="px-4 py-3 text-right text-amber-300 tabular-nums">{fmtFull(marginDayTotals.operationalCostRs)}</td>
+                            <td className={`px-4 py-3 text-right tabular-nums ${marginDayTotals.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(marginDayTotals.profitAndLossRs)}</td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  )}
+                </div>
+              </div>
             </div>
           );
         })()}

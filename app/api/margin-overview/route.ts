@@ -29,8 +29,20 @@ interface Row {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
+  const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+  const useCustom = !!startDate && !!endDate && isoDate.test(startDate) && isoDate.test(endDate);
+
   const daysRaw = parseInt(searchParams.get('days') || '30', 10);
   const days = Number.isFinite(daysRaw) && daysRaw > 0 && daysRaw <= 365 ? daysRaw : 30;
+
+  // Filter the latest-delivery window either by an explicit [startDate, endDate]
+  // range (inclusive) or by a rolling N-day lookback.
+  const deliveryFilter = useCustom
+    ? `di."created_at" >= $1::date AND di."created_at" < ($2::date + 1)`
+    : `di."created_at" >= CURRENT_DATE - make_interval(days => $1)`;
+  const params: unknown[] = useCustom ? [startDate, endDate] : [days];
 
   const sql = `
     WITH latest_delivery AS (
@@ -43,7 +55,7 @@ export async function GET(req: NextRequest) {
         di."created_at",
         di."deliveryCharge"
       FROM "deliveries"."intercityDelivery" di
-      WHERE di."created_at" >= CURRENT_DATE - make_interval(days => $1)
+      WHERE ${deliveryFilter}
       ORDER BY di."purchaseOrderId", di."created_at" DESC, di."id" DESC
     ),
     wallet_txns AS (
@@ -90,7 +102,7 @@ export async function GET(req: NextRequest) {
         AND po."isFalseOrder"    = FALSE
     )
     SELECT
-      order_date                                                     AS "Date",
+      to_char(order_date, 'YYYY-MM-DD')                             AS "Date",
       COUNT(po_id)                                                   AS "totalOrders",
       SUM(po_amount)                                                 AS "totalPoAmount",
       SUM(badho_margin_rs)                                           AS "totalMargin",
@@ -111,7 +123,7 @@ export async function GET(req: NextRequest) {
   `;
 
   try {
-    const rows = await query<Row>(sql, [days]);
+    const rows = await query<Row>(sql, params);
 
     const data = rows.map((r) => ({
       date: r.Date,
@@ -144,7 +156,8 @@ export async function GET(req: NextRequest) {
     const lossDays = data.filter((d) => d.profitAndLossRs < 0).length;
 
     return NextResponse.json({
-      days,
+      days: useCustom ? null : days,
+      range: useCustom ? { startDate, endDate } : { days },
       data,
       totals: { ...totals, pnlPercentOfGtv, profitDays, lossDays },
       timestamp: new Date().toISOString(),

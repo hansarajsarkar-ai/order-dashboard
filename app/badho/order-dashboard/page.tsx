@@ -8072,8 +8072,8 @@ export default function OrderStatusDashboard() {
                       <div className="text-base font-semibold text-white">Daily Net P&amp;L</div>
                       <div className="text-xs text-purple-200/70 mt-0.5">Green = profit day · Red = loss day</div>
                     </div>
-                    <ResponsiveContainer width="100%" height={280}>
-                      <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <ComposedChart data={chartData} margin={{ top: 24, right: 10, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                         <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
                         <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />

@@ -7250,7 +7250,7 @@ export default function OrderStatusDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-white/10 bg-white/5">
-              <h2 className="text-base font-bold text-white">Zone share · donut</h2>
+              <h2 className="text-base font-bold text-white">Zone share · pie</h2>
               <p className="text-purple-300 text-xs mt-0.5">Share of total Delhivery POs</p>
             </div>
             <div className="p-4" style={{ height: 320 }}>
@@ -7261,7 +7261,7 @@ export default function OrderStatusDashboard() {
                 return (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} stroke="none" isAnimationActive={false}>
+                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={0} outerRadius={110} paddingAngle={1} stroke="rgba(15,23,42,0.6)" strokeWidth={1} isAnimationActive={false}>
                         {data.map((d) => <Cell key={d.name} fill={colorOf(d.name)} />)}
                         <LabelList
                           dataKey="value"

@@ -37,9 +37,9 @@ export async function GET(req: NextRequest) {
 
     const sql = `
       SELECT
-        COALESCE(a."paymentInfo"->>'option', 'UNKNOWN') AS payment_option,
-        a."markedPendingTime"::date                     AS order_date,
-        COUNT(DISTINCT a."poNumber")::text              AS po_count
+        COALESCE(a."paymentInfo"->>'option', 'UNKNOWN')             AS payment_option,
+        to_char(a."markedPendingTime"::date, 'YYYY-MM-DD')          AS order_date,
+        COUNT(DISTINCT a."poNumber")::text                          AS po_count
       FROM "purchaseOrder"."purchaseOrder" a
       JOIN "users"."seller" s ON s."id" = a."sellerId"
       JOIN "users"."buyer"  b ON b."id" = a."buyerId"

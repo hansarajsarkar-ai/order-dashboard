@@ -545,7 +545,7 @@ export default function OrderStatusDashboard() {
   const [marginData, setMarginData] = useState<MarginResp | null>(null);
   const [marginLoading, setMarginLoading] = useState(false);
   const [marginError, setMarginError] = useState<string | null>(null);
-  const [marginRange, setMarginRange] = useState<'last7' | 'last15' | 'last30' | 'custom'>('custom');
+  const [marginRange, setMarginRange] = useState<'last7' | 'last15' | 'last30' | 'custom'>('last15');
   const [marginCustomFrom, setMarginCustomFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 29); return d.toISOString().slice(0, 10);
   });

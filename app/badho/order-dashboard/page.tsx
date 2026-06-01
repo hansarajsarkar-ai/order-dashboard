@@ -1188,14 +1188,6 @@ export default function OrderStatusDashboard() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [commercialOpen]);
-  interface ZoneTrend {
-    startDate: string;
-    endDate: string;
-    zones: string[];
-    data: Array<Record<string, number | string>>;
-  }
-  const [zoneTrend, setZoneTrend] = useState<ZoneTrend | null>(null);
-  const [zoneTrendLoading, setZoneTrendLoading] = useState(false);
   const resolveZoneRange = (): { startDate: string; endDate: string } => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
@@ -1450,27 +1442,9 @@ export default function OrderStatusDashboard() {
     }
   };
 
-  const fetchZoneTrend = async () => {
-    try {
-      setZoneTrendLoading(true);
-      const { startDate, endDate } = resolveZoneRange();
-      const params = new URLSearchParams({ startDate, endDate });
-      const res = await fetch(`/api/order-zone-trend?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch zone trend');
-      const json = await res.json();
-      setZoneTrend(json);
-    } catch (err) {
-      console.error('Zone trend fetch error:', err);
-      setZoneTrend(null);
-    } finally {
-      setZoneTrendLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (activeTab !== 'zone') return;
     fetchZonePivot();
-    fetchZoneTrend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, zoneRange, zoneFrom, zoneTo]);
 
@@ -7374,64 +7348,7 @@ export default function OrderStatusDashboard() {
           </div>
           </div>
 
-          {/* Row 2: daily trend (stacked area by zone) */}
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-white/10 bg-white/5">
-              <h2 className="text-base font-bold text-white">Daily POs by zone</h2>
-              <p className="text-purple-300 text-xs mt-0.5">Stacked daily Delhivery PO counts coloured by zone</p>
-            </div>
-            <div className="p-4" style={{ height: 360 }}>
-              {zoneTrendLoading || !zoneTrend || zoneTrend.data.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-sm text-purple-300">{zoneTrendLoading ? 'Loading…' : 'No data'}</div>
-              ) : (() => {
-                const fmtDate = (d: string) => {
-                  const dt = new Date(d + 'T00:00:00Z');
-                  return `${String(dt.getUTCDate()).padStart(2, '0')} ${dt.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}`;
-                };
-                const data = zoneTrend.data.map((r) => ({ ...r, dateLabel: fmtDate(String(r.date)) }));
-                return (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data} margin={{ top: 18, right: 16, left: 8, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                      <XAxis dataKey="dateLabel" tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 10 }} interval="preserveStartEnd" minTickGap={20} />
-                      <YAxis tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
-                      <Tooltip
-                        contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}
-                        labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
-                        formatter={(v: any, n: any) => [Number(v).toLocaleString('en-IN'), `Zone ${n}`]}
-                      />
-                      <Legend wrapperStyle={{ fontSize: 11, color: '#e9d5ff' }} formatter={(v) => `Zone ${v}`} />
-                      {zoneTrend.zones.map((z, i) => (
-                        <Area
-                          key={z}
-                          type="monotone"
-                          dataKey={z}
-                          stackId="zones"
-                          stroke={colorOf(z)}
-                          fill={colorOf(z)}
-                          fillOpacity={0.55}
-                          strokeWidth={1.5}
-                          isAnimationActive={false}
-                        >
-                          {i === zoneTrend.zones.length - 1 && (
-                            <LabelList
-                              dataKey="total"
-                              position="top"
-                              offset={6}
-                              formatter={(v: unknown) => Number(v).toLocaleString('en-IN')}
-                              style={{ fill: '#fdf4ff', fontSize: 10, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 2, strokeLinejoin: 'round' }}
-                            />
-                          )}
-                        </Area>
-                      ))}
-                    </AreaChart>
-                  </ResponsiveContainer>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* Row 3: weight profile per zone (avg / mode / median) */}
+          {/* Row 2: weight profile per zone (avg / mode / median) */}
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-white/10 bg-white/5">
               <h2 className="text-base font-bold text-white">Weight profile by zone</h2>

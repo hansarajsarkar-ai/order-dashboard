@@ -3240,7 +3240,7 @@ export default function BrandPerformanceDashboard() {
                       <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>{trendsExtraLoading ? 'Loading…' : 'No data'}</div>
                     ) : (() => {
                       const monthLabel = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                      const data = trendsExtra.cohort.map((r) => ({ ...r, monthLabel: monthLabel[r.month - 1] || r.month }));
+                      const data = trendsExtra.cohort.map((r) => ({ ...r, monthLabel: monthLabel[r.month - 1] || r.month, totalBuyers: r.new + r.returning }));
                       return (
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={data}>
@@ -3257,7 +3257,7 @@ export default function BrandPerformanceDashboard() {
                             </Bar>
                             <Bar dataKey="returning" stackId="b" fill="#10b981" radius={[4,4,0,0]}>
                               <LabelList dataKey="returning" position="center" formatter={(v: unknown) => { const n = Number(v); return n > 0 ? n.toLocaleString('en-IN') : ''; }} style={{ fill: '#ffffff', fontSize: 10, fontWeight: 700 }} />
-                              <LabelList dataKey="orders" position="top" formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: tipText, fontSize: 11, fontWeight: 700 }} />
+                              <LabelList dataKey="totalBuyers" position="top" formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: tipText, fontSize: 11, fontWeight: 700 }} />
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>

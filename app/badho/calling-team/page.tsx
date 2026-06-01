@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -201,12 +201,27 @@ function buildQs(f: Filters): string {
   return p.toString();
 }
 
-const DATE_PRESETS: { label: string; days: number }[] = [
+type DatePreset =
+  | { label: string; days: number }
+  | { label: 'YTD'; ytd: true };
+
+const DATE_PRESETS: DatePreset[] = [
   { label: 'Today', days: 0 },
-  { label: '7d', days: 6 },
-  { label: '30d', days: 29 },
-  { label: '90d', days: 89 },
+  { label: '7d',    days: 6 },
+  { label: '30d',   days: 29 },
+  { label: '90d',   days: 89 },
+  { label: 'YTD',   ytd: true },
 ];
+
+function presetRange(p: DatePreset): { startDate: string; endDate: string } {
+  const today = new Date();
+  const endDate = today.toISOString().slice(0, 10);
+  if ('ytd' in p) {
+    return { startDate: `${today.getFullYear()}-01-01`, endDate };
+  }
+  const start = new Date(today.getTime() - p.days * 86400000);
+  return { startDate: start.toISOString().slice(0, 10), endDate };
+}
 
 // ───────────────────────── insights generators ─────────────────────────
 
@@ -610,6 +625,18 @@ export default function CallingTeamDashboard() {
     loadMom();
   }, [authChecked, tab, loadMom]);
 
+  // On first visit to Dashboard in a session, default the date range to YTD.
+  // After that, leave whatever the user has chosen alone.
+  const dashboardYTDInitialized = useRef(false);
+  useEffect(() => {
+    if (!authChecked) return;
+    if (tab !== 'dashboard') return;
+    if (dashboardYTDInitialized.current) return;
+    dashboardYTDInitialized.current = true;
+    const ytd = presetRange({ label: 'YTD', ytd: true });
+    setFilters((prev) => ({ ...prev, ...ytd }));
+  }, [authChecked, tab]);
+
   if (!authChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -689,15 +716,7 @@ export default function CallingTeamDashboard() {
             {DATE_PRESETS.map((p) => (
               <button
                 key={p.label}
-                onClick={() => {
-                  const end = new Date();
-                  const start = new Date(end.getTime() - p.days * 86400000);
-                  setFilters({
-                    ...filters,
-                    startDate: start.toISOString().slice(0, 10),
-                    endDate: end.toISOString().slice(0, 10),
-                  });
-                }}
+                onClick={() => setFilters({ ...filters, ...presetRange(p) })}
                 className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-purple-200"
               >
                 {p.label}

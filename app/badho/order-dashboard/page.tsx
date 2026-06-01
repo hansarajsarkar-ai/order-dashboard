@@ -8066,48 +8066,6 @@ export default function OrderStatusDashboard() {
                     </ResponsiveContainer>
                   </div>
 
-                  {/* Daily Net P&L bars */}
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6 animate-corner-breath">
-                    <div className="mb-3">
-                      <div className="text-base font-semibold text-white">Daily Net P&amp;L</div>
-                      <div className="text-xs text-purple-200/70 mt-0.5">Green = profit day · Red = loss day</div>
-                    </div>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <ComposedChart data={chartData} margin={{ top: 24, right: 10, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
-                        <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />
-                        <Tooltip contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 12, color: '#fff' }} formatter={(value) => [fmtFull(Number(value)), 'Net P&L']} />
-                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
-                        <Bar dataKey="profitAndLossRs" name="Net P&L" radius={[3, 3, 0, 0]} isAnimationActive={false}>
-                          {chartData.map((d, i) => (
-                            <Cell key={i} fill={d.profitAndLossRs >= 0 ? '#34d399' : '#fb7185'} />
-                          ))}
-                          <LabelList
-                            dataKey="profitAndLossRs"
-                            content={(props: any) => {
-                              const { x, y, width, height, value } = props;
-                              const val = Number(value);
-                              if (!Number.isFinite(val)) return null;
-                              const cx = Number(x) + Number(width) / 2;
-                              const labelY = val >= 0 ? Number(y) - 5 : Number(y) + Number(height) + 12;
-                              return (
-                                <text
-                                  x={cx}
-                                  y={labelY}
-                                  textAnchor="middle"
-                                  style={{ fill: '#ffffff', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
-                                >
-                                  {fmtINR(val)}
-                                </text>
-                              );
-                            }}
-                          />
-                        </Bar>
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-
                   {/* Daily P&L % of GTV */}
                   <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6 animate-corner-breath">
                     <div className="mb-3">
@@ -8153,6 +8111,48 @@ export default function OrderStatusDashboard() {
                                   style={{ fill: '#ffffff', fontSize: 10, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
                                 >
                                   {`${val.toFixed(0)}%`}
+                                </text>
+                              );
+                            }}
+                          />
+                        </Bar>
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Daily Net P&L bars */}
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6 animate-corner-breath">
+                    <div className="mb-3">
+                      <div className="text-base font-semibold text-white">Daily Net P&amp;L</div>
+                      <div className="text-xs text-purple-200/70 mt-0.5">Green = profit day · Red = loss day</div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <ComposedChart data={chartData} margin={{ top: 24, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />
+                        <Tooltip contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 12, color: '#fff' }} formatter={(value) => [fmtFull(Number(value)), 'Net P&L']} />
+                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
+                        <Bar dataKey="profitAndLossRs" name="Net P&L" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                          {chartData.map((d, i) => (
+                            <Cell key={i} fill={d.profitAndLossRs >= 0 ? '#34d399' : '#fb7185'} />
+                          ))}
+                          <LabelList
+                            dataKey="profitAndLossRs"
+                            content={(props: any) => {
+                              const { x, y, width, height, value } = props;
+                              const val = Number(value);
+                              if (!Number.isFinite(val)) return null;
+                              const cx = Number(x) + Number(width) / 2;
+                              const labelY = val >= 0 ? Number(y) - 5 : Number(y) + Number(height) + 12;
+                              return (
+                                <text
+                                  x={cx}
+                                  y={labelY}
+                                  textAnchor="middle"
+                                  style={{ fill: '#ffffff', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                                >
+                                  {fmtINR(val)}
                                 </text>
                               );
                             }}

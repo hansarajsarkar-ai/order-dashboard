@@ -106,7 +106,7 @@ interface LogsResp {
 
 // ───────────────────────── filters bar ─────────────────────────
 
-type Tab = 'analytics' | 'daily' | 'logs';
+type Tab = 'dashboard' | 'analytics' | 'daily' | 'logs';
 
 // Per-day types used by the Daily Trend tab.
 export interface DailyDetailedRow {
@@ -426,7 +426,7 @@ export default function CallingTeamDashboard() {
   const [employeeName, setEmployeeName] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const [tab, setTab] = useState<Tab>('analytics');
+  const [tab, setTab] = useState<Tab>('dashboard');
   const [filters, setFilters] = useState<Filters>(defaultFilters);
 
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -532,7 +532,7 @@ export default function CallingTeamDashboard() {
 
   useEffect(() => {
     if (!authChecked) return;
-    if (tab !== 'analytics') return;
+    if (tab !== 'analytics' && tab !== 'dashboard') return;
     loadAnalytics();
   }, [authChecked, tab, loadAnalytics]);
 
@@ -627,6 +627,12 @@ export default function CallingTeamDashboard() {
         <div className="mb-5 flex items-center justify-between flex-wrap gap-3">
           <div className="inline-flex p-1 bg-white/5 border border-white/10 rounded-xl backdrop-blur-xl">
             <button
+              onClick={() => setTab('dashboard')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+            >
+              🏠 Dashboard
+            </button>
+            <button
               onClick={() => setTab('analytics')}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'analytics' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
             >
@@ -687,6 +693,17 @@ export default function CallingTeamDashboard() {
           <div className="mb-4 px-4 py-2 bg-rose-500/15 border border-rose-400/30 rounded-lg text-rose-200 text-sm">
             {err}
           </div>
+        )}
+
+        {tab === 'dashboard' && (
+          <DashboardTab
+            loading={loading}
+            overview={overview}
+            trend={trend}
+            agents={agents}
+            oppLoss={oppLoss}
+            setTab={setTab}
+          />
         )}
 
         {tab === 'analytics' && (
@@ -1201,6 +1218,222 @@ function AnalyticsTab(props: {
             </div>
           ) : <div className="text-purple-200/60 text-sm">No data.</div>}
         </ChartCard>
+      </section>
+    </div>
+  );
+}
+
+// ───────────────────────── Tab: Dashboard (overview landing) ─────────────────────────
+
+function DashboardTab(props: {
+  loading: boolean;
+  overview: Overview | null;
+  trend: TrendPoint[];
+  agents: AgentRow[];
+  oppLoss: OppLoss | null;
+  setTab: (t: Tab) => void;
+}) {
+  const { loading, overview, trend, agents, oppLoss, setTab } = props;
+
+  if (loading && !overview) {
+    return <div className="text-purple-200 py-16 text-center text-sm">Loading dashboard…</div>;
+  }
+  if (!overview) {
+    return <div className="text-purple-200/70 py-16 text-center text-sm">No data for this window.</div>;
+  }
+
+  const last = trend.length ? trend[trend.length - 1] : null;
+  const prev = trend.length > 1 ? trend[trend.length - 2] : null;
+  const dod = last && prev && prev.total > 0 ? ((last.total - prev.total) / prev.total) * 100 : null;
+
+  const last7 = trend.slice(-7);
+  const prev7 = trend.slice(-14, -7);
+  const last7Avg = last7.length ? last7.reduce((a, b) => a + b.total, 0) / last7.length : 0;
+  const prev7Avg = prev7.length ? prev7.reduce((a, b) => a + b.total, 0) / prev7.length : 0;
+  const wow = prev7Avg > 0 ? ((last7Avg - prev7Avg) / prev7Avg) * 100 : null;
+
+  const totalCallsWindow = trend.reduce((a, b) => a + b.total, 0);
+  const connectedWindow = trend.reduce((a, b) => a + b.connected, 0);
+  const windowConnectRate = totalCallsWindow > 0 ? connectedWindow / totalCallsWindow : 0;
+
+  const top5Agents = [...agents]
+    .filter((a) => a.totalCalls >= 20)
+    .sort((a, b) => b.connectedCalls - a.connectedCalls)
+    .slice(0, 5);
+
+  return (
+    <div className="space-y-6">
+      {/* Hero KPIs */}
+      <section>
+        <div className="text-xs uppercase tracking-wider text-purple-300/70 font-semibold mb-3">At a glance</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <KPICard label="Total Calls"        value={fmtCompact(overview.totalCalls)}              sub={`${fmtInt(overview.totalCalls)} attempts`} tone="fuchsia" icon="📞" />
+          <KPICard label="Connected"          value={fmtCompact(overview.connectedCalls)}          sub={fmtPct(overview.connectionRate)}            tone="emerald" icon="✓" />
+          <KPICard label="Unique Customers"   value={fmtCompact(overview.uniqueCustomers)}         sub={`${overview.avgCallsPerCustomer.toFixed(1)} calls / cust`} tone="purple" icon="👥" />
+          <KPICard label="Avg Duration"       value={fmtDuration(overview.avgDurationConnected)}   sub="connected calls" tone="indigo" icon="⏱" />
+          <KPICard label="Total Talk Time"    value={fmtTalkTime(overview.totalTalkTimeSec)}        sub={`${overview.uniqueAgents} agents`} tone="sky" icon="🕓" />
+          <KPICard label="Missed + No Ans"    value={fmtCompact(overview.missedCalls + overview.noAnswerCalls)} sub={fmtPct((overview.missedCalls + overview.noAnswerCalls) / Math.max(overview.totalCalls, 1))} tone="rose" icon="↺" />
+        </div>
+      </section>
+
+      {/* Momentum strip */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+          <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold">Day-over-Day</div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <div className="text-2xl font-bold text-white">{last ? fmtInt(last.total) : '—'}</div>
+            <div className={`text-sm font-semibold ${dod === null ? 'text-purple-300/60' : dod >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+              {dod === null ? '—' : `${dod >= 0 ? '↑' : '↓'} ${Math.abs(dod).toFixed(1)}%`}
+            </div>
+          </div>
+          <div className="text-[11px] text-purple-200/70 mt-1">vs previous day ({prev ? fmtInt(prev.total) : '—'})</div>
+        </div>
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+          <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold">Week-over-Week</div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <div className="text-2xl font-bold text-white">{fmtCompact(last7Avg)}</div>
+            <div className={`text-sm font-semibold ${wow === null ? 'text-purple-300/60' : wow >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+              {wow === null ? '—' : `${wow >= 0 ? '↑' : '↓'} ${Math.abs(wow).toFixed(1)}%`}
+            </div>
+          </div>
+          <div className="text-[11px] text-purple-200/70 mt-1">last 7d avg vs prior 7d ({fmtCompact(prev7Avg)})</div>
+        </div>
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+          <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold">Window Connect Rate</div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <div className="text-2xl font-bold text-white">{fmtPct(windowConnectRate)}</div>
+            <div className="text-sm font-semibold text-purple-300/70">{fmtCompact(connectedWindow)} of {fmtCompact(totalCallsWindow)}</div>
+          </div>
+          <div className="text-[11px] text-purple-200/70 mt-1">across the selected date range</div>
+        </div>
+      </section>
+
+      {/* Trend chart + Top agents */}
+      <section className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="xl:col-span-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-base font-semibold text-white">Calls vs Connect Rate</div>
+              <div className="text-xs text-purple-200/70 mt-0.5">Daily volume with connect-rate overlay</div>
+            </div>
+            <button
+              onClick={() => setTab('analytics')}
+              className="text-[11px] font-semibold text-fuchsia-300 hover:text-fuchsia-200 px-2 py-1 rounded-md hover:bg-white/5"
+            >
+              Open full trends →
+            </button>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={trend.map((p) => ({
+                ...p,
+                dayLabel: fmtDay(p.day),
+                connectRate: p.total > 0 ? p.connected / p.total : 0,
+              }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="dayLabel" tick={{ fill: '#c4b5fd', fontSize: 10 }} interval="preserveStartEnd" />
+                <YAxis yAxisId="l" tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} />
+                <YAxis yAxisId="r" orientation="right" tick={{ fill: '#fbbf24', fontSize: 11 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} domain={[0, 1]} />
+                <Tooltip
+                  contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
+                  formatter={(v, name) => (name === 'Connect Rate' ? `${(Number(v) * 100).toFixed(1)}%` : fmtInt(Number(v)))}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
+                <Bar yAxisId="l" dataKey="total" name="Calls" fill="#a855f7" radius={[3, 3, 0, 0]} />
+                <Line yAxisId="r" type="monotone" dataKey="connectRate" name="Connect Rate" stroke="#fbbf24" strokeWidth={2.5} dot={{ r: 2 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-base font-semibold text-white">Top 5 Agents</div>
+              <div className="text-xs text-purple-200/70 mt-0.5">By connected calls (≥20 attempts)</div>
+            </div>
+          </div>
+          {top5Agents.length === 0 ? (
+            <div className="text-purple-200/60 text-sm py-8 text-center">No agents with enough volume yet.</div>
+          ) : (
+            <ol className="space-y-2">
+              {top5Agents.map((a, i) => (
+                <li key={a.agentName} className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-lg px-3 py-2">
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center text-[11px] font-bold text-white">
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-purple-100 font-medium truncate">{a.agentName}</div>
+                    <div className="text-[10px] text-purple-300/70">{fmtInt(a.connectedCalls)} connected · {fmtPct(a.connectionRate, 0)} rate</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-xs text-purple-100 font-semibold tabular-nums">{fmtInt(a.totalCalls)}</div>
+                    <div className="text-[10px] text-purple-300/60">calls</div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </section>
+
+      {/* Opportunity loss + quick links */}
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="bg-gradient-to-br from-rose-500/10 to-amber-500/5 border border-rose-400/30 rounded-2xl p-5">
+          <div className="text-[10px] uppercase tracking-wider text-rose-200 font-semibold">Biggest Leak</div>
+          {oppLoss ? (
+            <>
+              <div className="mt-2 text-3xl font-bold text-white">{fmtCompact(oppLoss.notConnected)}</div>
+              <div className="text-sm text-rose-200/80 mt-1">attempts didn't connect ({fmtPct(oppLoss.notConnectedRate)} of total)</div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="bg-white/5 rounded-lg px-3 py-2">
+                  <div className="text-[10px] uppercase text-rose-300/70">Missed</div>
+                  <div className="text-sm font-semibold text-white">{fmtCompact(oppLoss.missed)}</div>
+                </div>
+                <div className="bg-white/5 rounded-lg px-3 py-2">
+                  <div className="text-[10px] uppercase text-amber-300/70">No Answer</div>
+                  <div className="text-sm font-semibold text-white">{fmtCompact(oppLoss.noAnswer)}</div>
+                </div>
+                <div className="bg-white/5 rounded-lg px-3 py-2">
+                  <div className="text-[10px] uppercase text-rose-300/70">Short (&lt;15s)</div>
+                  <div className="text-sm font-semibold text-white">{fmtCompact(oppLoss.shortCalls)}</div>
+                </div>
+              </div>
+              <div className="mt-3 text-[11px] text-rose-200/80">
+                Recoverable at 25% retry: ~{fmtCompact(Math.round(oppLoss.notConnected * 0.25))} added connections.
+              </div>
+            </>
+          ) : (
+            <div className="text-purple-200/60 text-sm mt-2">No opportunity data.</div>
+          )}
+        </div>
+
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
+          <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold">Jump to</div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button
+              onClick={() => setTab('analytics')}
+              className="text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+            >
+              <div className="text-sm font-semibold text-white">📊 Trends & Insights</div>
+              <div className="text-[11px] text-purple-200/70 mt-0.5">Full analytics, funnel, heatmap, agent matrix</div>
+            </button>
+            <button
+              onClick={() => setTab('daily')}
+              className="text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+            >
+              <div className="text-sm font-semibold text-white">📅 Daily Trend</div>
+              <div className="text-[11px] text-purple-200/70 mt-0.5">Day-by-day detail with hourly drill-down</div>
+            </button>
+            <button
+              onClick={() => setTab('logs')}
+              className="text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+            >
+              <div className="text-sm font-semibold text-white">📋 Call Logs</div>
+              <div className="text-[11px] text-purple-200/70 mt-0.5">Filterable raw call records & recordings</div>
+            </button>
+          </div>
+        </div>
       </section>
     </div>
   );

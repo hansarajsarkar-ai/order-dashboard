@@ -2880,20 +2880,22 @@ export default function OrderStatusDashboard() {
                 <button
                   className={DOWNLOAD_BTN_CLASS}
                   onClick={() => {
-                    const headers = ['Status', 'Delivery Status', ...MONTH_NAMES.flatMap((m) => [`${m} Count`, `${m} Amount`]), 'Total Count', 'Total Amount'];
+                    const headers = ['Status', 'Delivery Status', ...MONTH_NAMES.flatMap((m) => [`${m} Count`, `${m} Amount`]), 'Total Count', 'Total Amount', '% Total'];
                     const rows: CsvCell[][] = [];
+                    const grandCount = pivotData.totals.grand.count;
+                    const pct = (n: number) => grandCount > 0 ? `${((n / grandCount) * 100).toFixed(1)}%` : '—';
                     byStatusOrder(pivotData.data).forEach((row) => {
                       const parentCells = MONTH_NAMES.flatMap((_, i) => {
                         const c = row.months[i + 1];
                         return [c?.count ?? 0, c?.amount ?? 0];
                       });
-                      rows.push([row.status, '(all)', ...parentCells, row.total.count, row.total.amount]);
+                      rows.push([row.status, '(all)', ...parentCells, row.total.count, row.total.amount, pct(row.total.count)]);
                       row.deliveryStatuses.forEach((sub) => {
                         const subCells = MONTH_NAMES.flatMap((_, i) => {
                           const c = sub.months[i + 1];
                           return [c?.count ?? 0, c?.amount ?? 0];
                         });
-                        rows.push([row.status, sub.deliveryStatus ?? '(no delivery status)', ...subCells, sub.total.count, sub.total.amount]);
+                        rows.push([row.status, sub.deliveryStatus ?? '(no delivery status)', ...subCells, sub.total.count, sub.total.amount, pct(sub.total.count)]);
                       });
                     });
                     downloadCSV(`status-x-delivery-${currentYear}.csv`, headers, rows);
@@ -2986,15 +2988,16 @@ export default function OrderStatusDashboard() {
                         {m}
                       </th>
                     ))}
-                    <th colSpan={2} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">Total</th>
+                    <th colSpan={3} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">Total</th>
                   </tr>
                   <tr className="bg-white/5 border-b border-white/10">
                     {[...Array(13)].map((_, i) => (
                       <Fragment key={i}>
                         <th className={`px-2 py-2 text-right text-[10px] font-medium ${i === 12 ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Count</th>
-                        <th className={`px-2 py-2 text-right text-[10px] font-medium border-r border-white/10 ${i === 12 ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Amount</th>
+                        <th className={`px-2 py-2 text-right text-[10px] font-medium ${i === 12 ? 'text-purple-100 bg-purple-500/20' : 'border-r border-white/10 text-purple-300'}`}>Amount</th>
                       </Fragment>
                     ))}
+                    <th className="px-2 py-2 text-right text-[10px] font-medium text-purple-100 bg-purple-500/20 border-r border-white/10">% Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3049,9 +3052,14 @@ export default function OrderStatusDashboard() {
                           </td>
                           <td
                             onClick={(e) => { e.stopPropagation(); openPivotDrill(row.status, undefined, null); }}
-                            className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:shadow-[inset_0_0_20px_rgba(217,70,239,0.7),0_0_22px_rgba(168,85,247,0.6)] hover:scale-110 transform-gpu relative"
+                            className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:shadow-[inset_0_0_20px_rgba(217,70,239,0.7),0_0_22px_rgba(168,85,247,0.6)] hover:scale-110 transform-gpu relative"
                           >
                             {formatAmount(row.total.amount)}
+                          </td>
+                          <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10">
+                            {pivotData.totals.grand.count > 0
+                              ? `${((row.total.count / pivotData.totals.grand.count) * 100).toFixed(1)}%`
+                              : '—'}
                           </td>
                         </tr>
                         {/* Expanded delivery-status sub-rows */}
@@ -3098,9 +3106,14 @@ export default function OrderStatusDashboard() {
                             </td>
                             <td
                               onClick={(e) => { e.stopPropagation(); openPivotDrill(row.status, sub.deliveryStatus, null); }}
-                              className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-200/80 bg-purple-500/5 border-r border-white/10 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_18px_rgba(217,70,239,0.6),0_0_18px_rgba(168,85,247,0.55)] hover:scale-110 transform-gpu relative"
+                              className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-200/80 bg-purple-500/5 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_18px_rgba(217,70,239,0.6),0_0_18px_rgba(168,85,247,0.55)] hover:scale-110 transform-gpu relative"
                             >
                               {formatAmount(sub.total.amount)}
+                            </td>
+                            <td className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-200/80 bg-purple-500/5 border-r border-white/10">
+                              {pivotData.totals.grand.count > 0
+                                ? `${((sub.total.count / pivotData.totals.grand.count) * 100).toFixed(1)}%`
+                                : '—'}
                             </td>
                           </tr>
                         ))}
@@ -3130,8 +3143,11 @@ export default function OrderStatusDashboard() {
                     <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30">
                       {pivotData.totals.grand.count.toLocaleString()}
                     </td>
-                    <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30 border-r border-white/10">
+                    <td className="px-2 py-3 text-right tabular-nums text-purple-50 bg-purple-500/30">
                       {formatAmount(pivotData.totals.grand.amount)}
+                    </td>
+                    <td className="px-2 py-3 text-right tabular-nums text-white bg-purple-500/30 border-r border-white/10">
+                      100.0%
                     </td>
                   </tr>
                 </tbody>

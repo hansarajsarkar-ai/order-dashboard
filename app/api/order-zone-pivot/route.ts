@@ -96,10 +96,17 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b[1].count - a[1].count)
       .map(([s]) => s);
 
+    // Canonical Delhivery zone order (matches their published rate card).
+    const ZONE_ORDER = ['A', 'B', 'C1', 'C2', 'D1', 'D2', 'E', 'F'];
+    const zoneIndex = (z: string) => {
+      const i = ZONE_ORDER.indexOf(z);
+      return i === -1 ? ZONE_ORDER.length : i;
+    };
     const zones = Array.from(zoneSet).sort((a, b) => {
-      const av = zoneTotals.get(a)?.count || 0;
-      const bv = zoneTotals.get(b)?.count || 0;
-      return bv - av;
+      const ai = zoneIndex(a);
+      const bi = zoneIndex(b);
+      if (ai !== bi) return ai - bi;
+      return a.localeCompare(b);
     });
 
     const statuses = Array.from(statusSet).sort((a, b) => {

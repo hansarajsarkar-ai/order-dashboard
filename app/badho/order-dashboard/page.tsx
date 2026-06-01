@@ -1176,9 +1176,31 @@ export default function OrderStatusDashboard() {
   const firstOfMonthStr = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
   const [zonePivot, setZonePivot] = useState<ZonePivot | null>(null);
   const [zonePivotLoading, setZonePivotLoading] = useState(false);
+  const [zoneRange, setZoneRange] = useState<'today' | '7d' | '15d' | '30d' | 'custom'>('30d');
   const [zoneFrom, setZoneFrom] = useState(firstOfMonthStr());
   const [zoneTo, setZoneTo] = useState(todayStr());
   const [expandedZones, setExpandedZones] = useState<Set<string>>(new Set());
+  interface ZoneTrend {
+    startDate: string;
+    endDate: string;
+    zones: string[];
+    data: Array<Record<string, number | string>>;
+  }
+  const [zoneTrend, setZoneTrend] = useState<ZoneTrend | null>(null);
+  const [zoneTrendLoading, setZoneTrendLoading] = useState(false);
+  const resolveZoneRange = (): { startDate: string; endDate: string } => {
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    if (zoneRange === 'today') return { startDate: fmt(today), endDate: fmt(today) };
+    const map: Record<string, number> = { '7d': 7, '15d': 15, '30d': 30 };
+    const days = map[zoneRange];
+    if (days) {
+      const s = new Date(today);
+      s.setDate(s.getDate() - (days - 1));
+      return { startDate: fmt(s), endDate: fmt(today) };
+    }
+    return { startDate: zoneFrom, endDate: zoneTo };
+  };
   const [trendRange, setTrendRange] = useState<'7d' | '30d' | '90d' | 'all' | 'custom'>('30d');
   const [trendCustomFrom, setTrendCustomFrom] = useState('');
   const [trendCustomTo, setTrendCustomTo] = useState('');
@@ -1406,9 +1428,8 @@ export default function OrderStatusDashboard() {
   const fetchZonePivot = async () => {
     try {
       setZonePivotLoading(true);
-      const params = new URLSearchParams();
-      if (zoneFrom) params.append('startDate', zoneFrom);
-      if (zoneTo) params.append('endDate', zoneTo);
+      const { startDate, endDate } = resolveZoneRange();
+      const params = new URLSearchParams({ startDate, endDate });
       const res = await fetch(`/api/order-zone-pivot?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch zone pivot');
       const json = await res.json();
@@ -1421,11 +1442,29 @@ export default function OrderStatusDashboard() {
     }
   };
 
+  const fetchZoneTrend = async () => {
+    try {
+      setZoneTrendLoading(true);
+      const { startDate, endDate } = resolveZoneRange();
+      const params = new URLSearchParams({ startDate, endDate });
+      const res = await fetch(`/api/order-zone-trend?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch zone trend');
+      const json = await res.json();
+      setZoneTrend(json);
+    } catch (err) {
+      console.error('Zone trend fetch error:', err);
+      setZoneTrend(null);
+    } finally {
+      setZoneTrendLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab !== 'zone') return;
     fetchZonePivot();
+    fetchZoneTrend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, zoneFrom, zoneTo]);
+  }, [activeTab, zoneRange, zoneFrom, zoneTo]);
 
   const fetchPaymentTrend = async () => {
     try {
@@ -7137,22 +7176,104 @@ export default function OrderStatusDashboard() {
           </div>
         )}
 
-        {activeTab === 'zone' && (
+        {activeTab === 'zone' && (() => {
+          const ZONE_COLOR: Record<string, string> = {
+            A: '#10b981', B: '#22d3ee', C1: '#a78bfa', C2: '#8b5cf6',
+            D1: '#f59e0b', D2: '#fb923c', E: '#f43f5e', F: '#ec4899',
+          };
+          const colorOf = (z: string) => ZONE_COLOR[z] || '#a855f7';
+          const range = resolveZoneRange();
+          return (
           <div className="space-y-6">
-          {/* Zone share chart */}
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-            <div className="px-8 py-5 border-b border-white/10 bg-white/5">
-              <h2 className="text-xl font-bold text-white">Order share by zone</h2>
-              <p className="text-purple-300 text-xs mt-0.5">% of Delhivery POs in each zone for the selected range</p>
+          {/* Range selector */}
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-4">
+            <div className="inline-flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+              {([
+                { k: 'today', l: 'Today' },
+                { k: '7d',    l: 'Last 7 days' },
+                { k: '15d',   l: 'Last 15 days' },
+                { k: '30d',   l: 'Last 30 days' },
+                { k: 'custom',l: 'Custom' },
+              ] as const).map(({ k, l }) => {
+                const active = zoneRange === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => setZoneRange(k)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${active ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_20px_rgba(217,70,239,0.5)]' : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}
+                  >
+                    {l}
+                  </button>
+                );
+              })}
             </div>
-            <div className="p-6" style={{ height: 320 }}>
+            {zoneRange === 'custom' && (
+              <div className="flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <label className="text-purple-300/70 uppercase tracking-wider text-[10px]">From</label>
+                  <input type="date" value={zoneFrom} onChange={(e) => setZoneFrom(e.target.value)} className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-purple-300/70 uppercase tracking-wider text-[10px]">To</label>
+                  <input type="date" value={zoneTo} onChange={(e) => setZoneTo(e.target.value)} className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                </div>
+              </div>
+            )}
+            <div className="text-[11px] text-purple-300/80 tabular-nums">
+              {range.startDate} → {range.endDate}
+              {zonePivot && <span className="ml-2 text-white/80">· {zonePivot.grand.count.toLocaleString('en-IN')} POs</span>}
+            </div>
+          </div>
+
+          {/* Row 1: donut + bar (% share) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+              <h2 className="text-base font-bold text-white">Zone share · donut</h2>
+              <p className="text-purple-300 text-xs mt-0.5">Share of total Delhivery POs</p>
+            </div>
+            <div className="p-4" style={{ height: 320 }}>
               {zonePivotLoading || !zonePivot || zonePivot.zones.length === 0 || zonePivot.grand.count === 0 ? (
                 <div className="h-full flex items-center justify-center text-sm text-purple-300">{zonePivotLoading ? 'Loading…' : 'No data'}</div>
               ) : (() => {
-                const ZONE_COLOR: Record<string, string> = {
-                  A: '#10b981', B: '#22d3ee', C1: '#a78bfa', C2: '#8b5cf6',
-                  D1: '#f59e0b', D2: '#fb923c', E: '#f43f5e', F: '#ec4899',
-                };
+                const data = zonePivot.zones.map((z) => ({ name: z, value: zonePivot.zoneTotals[z]?.count || 0 }));
+                return (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} stroke="none" isAnimationActive={false}>
+                        {data.map((d) => <Cell key={d.name} fill={colorOf(d.name)} />)}
+                        <LabelList
+                          dataKey="value"
+                          position="outside"
+                          formatter={(v: unknown) => {
+                            const n = Number(v);
+                            const pct = (n / zonePivot.grand.count) * 100;
+                            return pct >= 1 ? `${pct.toFixed(1)}%` : '';
+                          }}
+                          style={{ fill: '#fdf4ff', fontSize: 11, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                        />
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}
+                        formatter={(v: any, _n: any, p: any) => [`${Number(v).toLocaleString('en-IN')} POs · ${((Number(v) / zonePivot.grand.count) * 100).toFixed(1)}%`, `Zone ${p.payload.name}`]}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11, color: '#e9d5ff' }} formatter={(v) => `Zone ${v}`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+            </div>
+          </div>
+
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+              <h2 className="text-base font-bold text-white">Zone share · bar</h2>
+              <p className="text-purple-300 text-xs mt-0.5">% of POs per zone with PO counts inside the bar</p>
+            </div>
+            <div className="p-4" style={{ height: 320 }}>
+              {zonePivotLoading || !zonePivot || zonePivot.zones.length === 0 || zonePivot.grand.count === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm text-purple-300">{zonePivotLoading ? 'Loading…' : 'No data'}</div>
+              ) : (() => {
                 const data = zonePivot.zones.map((z) => ({
                   zone: z,
                   count: zonePivot.zoneTotals[z]?.count || 0,
@@ -7171,7 +7292,7 @@ export default function OrderStatusDashboard() {
                       />
                       <Bar dataKey="pct" radius={[6, 6, 0, 0]} maxBarSize={64}>
                         {data.map((d) => (
-                          <Cell key={d.zone} fill={ZONE_COLOR[d.zone] || '#a855f7'} />
+                          <Cell key={d.zone} fill={colorOf(d.zone)} />
                         ))}
                         <LabelList
                           dataKey="pct"
@@ -7193,6 +7314,64 @@ export default function OrderStatusDashboard() {
               })()}
             </div>
           </div>
+          </div>
+
+          {/* Row 2: daily trend (stacked area by zone) */}
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+              <h2 className="text-base font-bold text-white">Daily POs by zone</h2>
+              <p className="text-purple-300 text-xs mt-0.5">Stacked daily Delhivery PO counts coloured by zone</p>
+            </div>
+            <div className="p-4" style={{ height: 360 }}>
+              {zoneTrendLoading || !zoneTrend || zoneTrend.data.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm text-purple-300">{zoneTrendLoading ? 'Loading…' : 'No data'}</div>
+              ) : (() => {
+                const fmtDate = (d: string) => {
+                  const dt = new Date(d + 'T00:00:00Z');
+                  return `${String(dt.getUTCDate()).padStart(2, '0')} ${dt.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}`;
+                };
+                const data = zoneTrend.data.map((r) => ({ ...r, dateLabel: fmtDate(String(r.date)) }));
+                return (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={data} margin={{ top: 18, right: 16, left: 8, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <XAxis dataKey="dateLabel" tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 10 }} interval="preserveStartEnd" minTickGap={20} />
+                      <YAxis tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }} tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
+                      <Tooltip
+                        contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 10, color: '#fff', fontSize: 12 }}
+                        labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
+                        formatter={(v: any, n: any) => [Number(v).toLocaleString('en-IN'), `Zone ${n}`]}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11, color: '#e9d5ff' }} formatter={(v) => `Zone ${v}`} />
+                      {zoneTrend.zones.map((z, i) => (
+                        <Area
+                          key={z}
+                          type="monotone"
+                          dataKey={z}
+                          stackId="zones"
+                          stroke={colorOf(z)}
+                          fill={colorOf(z)}
+                          fillOpacity={0.55}
+                          strokeWidth={1.5}
+                          isAnimationActive={false}
+                        >
+                          {i === zoneTrend.zones.length - 1 && (
+                            <LabelList
+                              dataKey="total"
+                              position="top"
+                              offset={6}
+                              formatter={(v: unknown) => Number(v).toLocaleString('en-IN')}
+                              style={{ fill: '#fdf4ff', fontSize: 10, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 2, strokeLinejoin: 'round' }}
+                            />
+                          )}
+                        </Area>
+                      ))}
+                    </AreaChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+            </div>
+          </div>
 
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
@@ -7200,32 +7379,12 @@ export default function OrderStatusDashboard() {
                 <h2 className="text-2xl font-bold text-white">Zone Wise · Delhivery</h2>
                 <p className="text-purple-300 text-sm mt-1">Seller × zone × delivery status · count and modal charged weight (kg)</p>
               </div>
-              <div className="flex items-center gap-3 text-xs">
-                <div className="flex items-center gap-2">
-                  <label className="text-purple-300/70 uppercase tracking-wider text-[10px]">From</label>
-                  <input
-                    type="date"
-                    value={zoneFrom}
-                    onChange={(e) => setZoneFrom(e.target.value)}
-                    className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  />
+              {zonePivot && (
+                <div className="px-3 py-2 rounded-xl bg-slate-900/70 border border-white/10">
+                  <div className="text-purple-300/70 uppercase tracking-wide text-[10px]">Grand total</div>
+                  <div className="text-white font-bold mt-0.5 tabular-nums">{zonePivot.grand.count.toLocaleString('en-IN')} POs · mode {zonePivot.grand.modeKg.toLocaleString('en-IN', { maximumFractionDigits: 2 })} kg</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-purple-300/70 uppercase tracking-wider text-[10px]">To</label>
-                  <input
-                    type="date"
-                    value={zoneTo}
-                    onChange={(e) => setZoneTo(e.target.value)}
-                    className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  />
-                </div>
-                {zonePivot && (
-                  <div className="px-3 py-2 rounded-xl bg-slate-900/70 border border-white/10">
-                    <div className="text-purple-300/70 uppercase tracking-wide text-[10px]">Grand total</div>
-                    <div className="text-white font-bold mt-0.5 tabular-nums">{zonePivot.grand.count.toLocaleString('en-IN')} POs · mode {zonePivot.grand.modeKg.toLocaleString('en-IN', { maximumFractionDigits: 2 })} kg</div>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
             <div className="p-4">
               {zonePivotLoading ? (
@@ -7416,7 +7575,8 @@ export default function OrderStatusDashboard() {
             </div>
           </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Brand-wise SLA breach pivot — rows = seller, columns = payment category */}
         {activeTab === 'alert' && (

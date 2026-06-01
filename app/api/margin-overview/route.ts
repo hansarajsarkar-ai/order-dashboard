@@ -42,6 +42,12 @@ export async function GET(req: NextRequest) {
   const deliveryFilter = useCustom
     ? `di."created_at" >= $1::date AND di."created_at" < ($2::date + 1)`
     : `di."created_at" >= CURRENT_DATE - make_interval(days => $1)`;
+  // The chart buckets by order date, so the window must also bound the order
+  // date — otherwise an old order that merely had a delivery event inside the
+  // window leaks in as a stray bucket far outside the selected range.
+  const orderDateFilter = useCustom
+    ? `po."created_at" >= $1::date AND po."created_at" < ($2::date + 1)`
+    : `po."created_at" >= CURRENT_DATE - make_interval(days => $1)`;
   const params: unknown[] = useCustom ? [startDate, endDate] : [days];
 
   const sql = `
@@ -100,6 +106,7 @@ export async function GET(req: NextRequest) {
         AND po."deliveryNetwork" = 'THIRD_PARTY'
         AND po."deliveryType"    = 'INTERCITY'
         AND po."isFalseOrder"    = FALSE
+        AND ${orderDateFilter}
     )
     SELECT
       to_char(order_date, 'YYYY-MM-DD')                             AS "Date",

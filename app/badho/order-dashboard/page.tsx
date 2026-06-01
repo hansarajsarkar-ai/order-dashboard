@@ -8030,8 +8030,9 @@ export default function OrderStatusDashboard() {
                         <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => `${Math.round(Number(v))}%`} width={48} />
                         <Tooltip
                           cursor={{ fill: 'rgba(217,70,239,0.12)' }}
-                          contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.5)', borderRadius: 12, color: '#fff', fontSize: 13, padding: '10px 14px' }}
-                          labelStyle={{ color: '#f0abfc', fontWeight: 700, marginBottom: 4 }}
+                          contentStyle={{ background: '#ffffff', border: '1px solid rgba(217,70,239,0.5)', borderRadius: 12, color: '#1e1b4b', fontSize: 13, padding: '10px 14px', boxShadow: '0 8px 24px rgba(30,27,75,0.2)' }}
+                          labelStyle={{ color: '#a21caf', fontWeight: 700, marginBottom: 4 }}
+                          itemStyle={{ color: '#1e1b4b' }}
                           formatter={(value, _name, item) => {
                             const p = item?.payload || {};
                             return [

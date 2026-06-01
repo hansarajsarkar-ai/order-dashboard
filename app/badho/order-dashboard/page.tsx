@@ -1181,6 +1181,13 @@ export default function OrderStatusDashboard() {
   const [zoneTo, setZoneTo] = useState(todayStr());
   const [expandedZones, setExpandedZones] = useState<Set<string>>(new Set());
   const [zoneSubTab, setZoneSubTab] = useState<'trend' | 'table'>('trend');
+  const [commercialOpen, setCommercialOpen] = useState(false);
+  useEffect(() => {
+    if (!commercialOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCommercialOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [commercialOpen]);
   interface ZoneTrend {
     startDate: string;
     endDate: string;
@@ -7239,6 +7246,20 @@ export default function OrderStatusDashboard() {
                   );
                 })}
               </div>
+              <button
+                onClick={() => setCommercialOpen(true)}
+                className="group relative inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-amber-500 via-pink-500 to-fuchsia-500 shadow-[0_0_24px_rgba(236,72,153,0.45)] hover:shadow-[0_0_32px_rgba(236,72,153,0.7)] hover:scale-[1.03] transition-all"
+                title="View Badho logistics commercials (PDF)"
+              >
+                <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-white/20 via-transparent to-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="9" y1="13" x2="15" y2="13" />
+                  <line x1="9" y1="17" x2="13" y2="17" />
+                </svg>
+                <span className="tracking-wide">See commercial</span>
+              </button>
             </div>
           </div>
 
@@ -7662,6 +7683,78 @@ export default function OrderStatusDashboard() {
               })()}
             </div>
           </div>
+          )}
+
+          {/* Commercial PDF modal */}
+          {commercialOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
+              onClick={() => setCommercialOpen(false)}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-950/85 via-purple-950/80 to-fuchsia-950/85 backdrop-blur-2xl" />
+              <div
+                className="relative w-full max-w-6xl h-[88vh] rounded-3xl overflow-hidden border border-white/15 bg-gradient-to-br from-slate-900/95 via-purple-950/95 to-slate-900/95 shadow-[0_0_80px_rgba(217,70,239,0.45),inset_0_0_40px_rgba(168,85,247,0.15)]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="absolute -top-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-fuchsia-400 to-transparent" />
+                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-r from-fuchsia-500/10 via-purple-500/10 to-transparent">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(217,70,239,0.5)]">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="9" y1="13" x2="15" y2="13" />
+                        <line x1="9" y1="17" x2="13" y2="17" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-white tracking-tight">Badho Logistics Commercials</h2>
+                      <p className="text-[11px] text-purple-300/70 uppercase tracking-wider mt-0.5">Delhivery rate card · zone × weight slab</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href="/badho-logistics-commercials.pdf"
+                      download
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-colors"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                      Download
+                    </a>
+                    <a
+                      href="/badho-logistics-commercials.pdf"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-colors"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                      Open in tab
+                    </a>
+                    <button
+                      onClick={() => setCommercialOpen(false)}
+                      className="w-8 h-8 rounded-lg bg-white/10 hover:bg-rose-500/30 border border-white/15 hover:border-rose-400/50 text-white/80 hover:text-white text-lg leading-none transition-all"
+                      aria-label="Close"
+                      title="Close (Esc)"
+                    >×</button>
+                  </div>
+                </div>
+                <div className="absolute inset-x-6 top-[73px] bottom-6 rounded-2xl overflow-hidden border border-white/10 bg-white">
+                  <iframe
+                    src="/badho-logistics-commercials.pdf#toolbar=1&navpanes=0&view=FitH"
+                    title="Badho Logistics Commercials"
+                    className="w-full h-full"
+                  />
+                </div>
+              </div>
+            </div>
           )}
           </div>
           );

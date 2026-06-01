@@ -7175,7 +7175,7 @@ export default function OrderStatusDashboard() {
               ) : !zonePivot || zonePivot.sellers.length === 0 ? (
                 <div className="py-16 text-center text-purple-300">No Delhivery orders with zone data in this window.</div>
               ) : (() => {
-                const fmtKg = (kg: number) => kg >= 1000 ? `${(kg / 1000).toFixed(1)}T` : kg.toLocaleString('en-IN', { maximumFractionDigits: 1 });
+                const fmtKg = (kg: number) => kg.toLocaleString('en-IN', { maximumFractionDigits: 1 });
                 const toggleZone = (z: string) => setExpandedZones((prev) => { const n = new Set(prev); if (n.has(z)) n.delete(z); else n.add(z); return n; });
                 const isExpanded = (z: string) => expandedZones.has(z);
                 const zoneRollup = (seller: string, zone: string) => {

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   ResponsiveContainer,
   RadialBarChart, RadialBar, PolarAngleAxis,
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, LabelList,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, LabelList, ReferenceLine,
   ComposedChart, Bar, BarChart,
   PieChart, Pie, Cell,
 } from 'recharts';
@@ -512,7 +512,62 @@ export default function OrderStatusDashboard() {
   const [sellerDrillEndDate, setSellerDrillEndDate] = useState<string>('');
   const [sellerDrillStatus, setSellerDrillStatus] = useState<string>('all');
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography' | 'zone' | 'alert'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography' | 'zone' | 'margin' | 'alert'>('dashboard');
+
+  // Margin Overview tab — daily P&L for D2R brand sellers on third-party INTERCITY orders.
+  interface MarginDayRow {
+    date: string;
+    totalOrders: number;
+    totalPoAmount: number;
+    totalMargin: number;
+    totalOperationalCost: number;
+    profitAndLossRs: number;
+    status: string;
+    pnlPercentOfGtv: number | null;
+  }
+  interface MarginResp {
+    days: number;
+    data: MarginDayRow[];
+    totals: {
+      totalOrders: number;
+      totalPoAmount: number;
+      totalMargin: number;
+      totalOperationalCost: number;
+      profitAndLossRs: number;
+      pnlPercentOfGtv: number | null;
+      profitDays: number;
+      lossDays: number;
+    };
+    timestamp: string;
+    error?: string;
+  }
+  const [marginData, setMarginData] = useState<MarginResp | null>(null);
+  const [marginLoading, setMarginLoading] = useState(false);
+  const [marginError, setMarginError] = useState<string | null>(null);
+  const [marginDays, setMarginDays] = useState(30);
+
+  useEffect(() => {
+    if (activeTab !== 'margin') return;
+    let cancelled = false;
+    (async () => {
+      setMarginLoading(true);
+      setMarginError(null);
+      try {
+        const res = await fetch(`/api/margin-overview?days=${marginDays}`, { cache: 'no-store' });
+        const json: MarginResp = await res.json();
+        if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+        if (!cancelled) setMarginData(json);
+      } catch (err) {
+        if (!cancelled) {
+          setMarginError(err instanceof Error ? err.message : 'Failed to load');
+          setMarginData(null);
+        }
+      } finally {
+        if (!cancelled) setMarginLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, marginDays]);
 
   // PO Items modal (opened from any "View Items" button across the dashboard)
   interface PoItemRow {
@@ -2675,6 +2730,7 @@ export default function OrderStatusDashboard() {
             { key: 'seller', label: 'Seller wise' },
             { key: 'demography', label: 'Demography' },
             { key: 'zone', label: 'Zone Wise' },
+            { key: 'margin', label: 'Margin' },
             { key: 'alert', label: 'Alert' },
           ] as const).map((tab) => {
             const active = activeTab === tab.key;
@@ -7762,6 +7818,204 @@ export default function OrderStatusDashboard() {
             </div>
           )}
           </div>
+          );
+        })()}
+
+        {activeTab === 'margin' && (() => {
+          const fmtINR = (n: number) => {
+            const sign = n < 0 ? '-' : '';
+            const abs = Math.abs(n);
+            if (abs >= 1e7) return `${sign}₹${(abs / 1e7).toFixed(2)}Cr`;
+            if (abs >= 1e5) return `${sign}₹${(abs / 1e5).toFixed(2)}L`;
+            if (abs >= 1e3) return `${sign}₹${(abs / 1e3).toFixed(1)}K`;
+            return `${sign}₹${abs.toFixed(0)}`;
+          };
+          const fmtFull = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+          const fmtMDay = (iso: string) => {
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return iso;
+            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+          };
+          const totals = marginData?.totals;
+          const chartData = marginData
+            ? [...marginData.data].reverse().map((d) => ({ ...d, label: fmtMDay(d.date) }))
+            : [];
+          const accentRing: Record<string, string> = {
+            purple: 'from-purple-500/20 to-fuchsia-500/10 border-purple-400/20',
+            indigo: 'from-indigo-500/20 to-blue-500/10 border-indigo-400/20',
+            emerald: 'from-emerald-500/20 to-teal-500/10 border-emerald-400/20',
+            amber: 'from-amber-500/20 to-orange-500/10 border-amber-400/20',
+            rose: 'from-rose-500/20 to-red-500/10 border-rose-400/20',
+          };
+          const Kpi = ({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent: string }) => (
+            <div className={`bg-gradient-to-br ${accentRing[accent]} backdrop-blur-xl border rounded-2xl p-4`}>
+              <div className="text-[11px] uppercase tracking-wide text-purple-200/70 font-semibold">{label}</div>
+              <div className="text-2xl font-bold text-white mt-1 tabular-nums">{value}</div>
+              {sub && <div className="text-[11px] text-purple-200/60 mt-0.5">{sub}</div>}
+            </div>
+          );
+
+          return (
+            <div>
+              {/* Header + range toggle */}
+              <div className="mb-5 flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Margin Overview</h2>
+                  <p className="text-white/60 text-sm mt-1">
+                    Daily P&amp;L — D2R brand sellers · third-party INTERCITY orders · badho margin vs operational cost
+                  </p>
+                </div>
+                <div className="inline-flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl">
+                  {[7, 14, 30, 60, 90].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setMarginDays(d)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                        marginDays === d
+                          ? 'bg-fuchsia-500/30 text-white border border-fuchsia-400/40'
+                          : 'text-purple-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {marginError && (
+                <div className="mb-6 rounded-xl border border-rose-400/30 bg-rose-500/10 p-4 text-rose-200 text-sm">
+                  Failed to load data: {marginError}
+                </div>
+              )}
+
+              {marginLoading && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur-xl p-12 text-center text-purple-200 text-sm">
+                  Loading margin data…
+                </div>
+              )}
+
+              {!marginLoading && marginData && totals && (
+                <>
+                  {/* KPI cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                    <Kpi label="Total Orders" value={totals.totalOrders.toLocaleString('en-IN')} accent="purple" />
+                    <Kpi label="Total GTV" value={fmtINR(totals.totalPoAmount)} sub={fmtFull(totals.totalPoAmount)} accent="indigo" />
+                    <Kpi label="Total Margin" value={fmtINR(totals.totalMargin)} sub={fmtFull(totals.totalMargin)} accent="emerald" />
+                    <Kpi label="Operational Cost" value={fmtINR(totals.totalOperationalCost)} sub={fmtFull(totals.totalOperationalCost)} accent="amber" />
+                    <Kpi label="Net P&L" value={fmtINR(totals.profitAndLossRs)} sub={totals.profitAndLossRs >= 0 ? 'Profit' : 'Loss'} accent={totals.profitAndLossRs >= 0 ? 'emerald' : 'rose'} />
+                    <Kpi label="P&L % of GTV" value={totals.pnlPercentOfGtv === null ? '—' : `${totals.pnlPercentOfGtv}%`} sub={`${totals.profitDays} profit · ${totals.lossDays} loss days`} accent={(totals.pnlPercentOfGtv ?? 0) >= 0 ? 'emerald' : 'rose'} />
+                  </div>
+
+                  {/* Margin vs OpCost + Net P&L line */}
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6">
+                    <div className="mb-3">
+                      <div className="text-base font-semibold text-white">Margin vs Operational Cost &amp; Net P&amp;L</div>
+                      <div className="text-xs text-purple-200/70 mt-0.5">Bars: daily margin &amp; op-cost (₹) · Line: net P&amp;L (₹)</div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={360}>
+                      <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />
+                        <Tooltip contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 12, color: '#fff' }} formatter={(value, name) => [fmtFull(Number(value)), String(name)]} />
+                        <Legend wrapperStyle={{ fontSize: 12, color: '#c4b5fd' }} />
+                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
+                        <Bar dataKey="totalMargin" name="Margin" fill="#34d399" radius={[3, 3, 0, 0]} barSize={14} />
+                        <Bar dataKey="totalOperationalCost" name="Op Cost" fill="#fbbf24" radius={[3, 3, 0, 0]} barSize={14} />
+                        <Line type="monotone" dataKey="profitAndLossRs" name="Net P&L" stroke="#f0abfc" strokeWidth={2.5} dot={false} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Daily Net P&L bars */}
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6">
+                    <div className="mb-3">
+                      <div className="text-base font-semibold text-white">Daily Net P&amp;L</div>
+                      <div className="text-xs text-purple-200/70 mt-0.5">Green = profit day · Red = loss day</div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => fmtINR(v)} width={60} />
+                        <Tooltip contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.4)', borderRadius: 12, color: '#fff' }} formatter={(value) => [fmtFull(Number(value)), 'Net P&L']} />
+                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
+                        <Bar dataKey="profitAndLossRs" name="Net P&L" radius={[3, 3, 0, 0]}>
+                          {chartData.map((d, i) => (
+                            <Cell key={i} fill={d.profitAndLossRs >= 0 ? '#34d399' : '#fb7185'} />
+                          ))}
+                        </Bar>
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Daily breakdown table */}
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-white/5 text-purple-200 text-xs uppercase tracking-wide">
+                            <th className="px-4 py-3 text-left font-semibold">Date</th>
+                            <th className="px-4 py-3 text-right font-semibold">Orders</th>
+                            <th className="px-4 py-3 text-right font-semibold">GTV</th>
+                            <th className="px-4 py-3 text-right font-semibold">Margin</th>
+                            <th className="px-4 py-3 text-right font-semibold">Op Cost</th>
+                            <th className="px-4 py-3 text-right font-semibold">Net P&amp;L</th>
+                            <th className="px-4 py-3 text-right font-semibold">P&amp;L % GTV</th>
+                            <th className="px-4 py-3 text-center font-semibold">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {marginData.data.map((d) => (
+                            <tr key={d.date} className="border-t border-white/5 hover:bg-white/5 transition-colors">
+                              <td className="px-4 py-2.5 text-purple-100 font-medium whitespace-nowrap">{fmtMDay(d.date)}</td>
+                              <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums">{d.totalOrders.toLocaleString('en-IN')}</td>
+                              <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums">{fmtFull(d.totalPoAmount)}</td>
+                              <td className="px-4 py-2.5 text-right text-emerald-300 tabular-nums">{fmtFull(d.totalMargin)}</td>
+                              <td className="px-4 py-2.5 text-right text-amber-300 tabular-nums">{fmtFull(d.totalOperationalCost)}</td>
+                              <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${d.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(d.profitAndLossRs)}</td>
+                              <td className={`px-4 py-2.5 text-right tabular-nums ${(d.pnlPercentOfGtv ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{d.pnlPercentOfGtv === null ? '—' : `${d.pnlPercentOfGtv}%`}</td>
+                              <td className="px-4 py-2.5 text-center">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                  d.status === 'Profit'
+                                    ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                                    : d.status === 'Loss'
+                                    ? 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
+                                    : 'bg-slate-500/20 text-slate-200 border border-slate-400/30'
+                                }`}>
+                                  {d.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {marginData.data.length === 0 && (
+                            <tr><td colSpan={8} className="px-4 py-8 text-center text-purple-300/70">No orders in this window.</td></tr>
+                          )}
+                        </tbody>
+                        {marginData.data.length > 0 && (
+                          <tfoot>
+                            <tr className="border-t-2 border-fuchsia-400/30 bg-white/5 font-semibold">
+                              <td className="px-4 py-3 text-purple-100">Total</td>
+                              <td className="px-4 py-3 text-right text-purple-100 tabular-nums">{totals.totalOrders.toLocaleString('en-IN')}</td>
+                              <td className="px-4 py-3 text-right text-purple-100 tabular-nums">{fmtFull(totals.totalPoAmount)}</td>
+                              <td className="px-4 py-3 text-right text-emerald-300 tabular-nums">{fmtFull(totals.totalMargin)}</td>
+                              <td className="px-4 py-3 text-right text-amber-300 tabular-nums">{fmtFull(totals.totalOperationalCost)}</td>
+                              <td className={`px-4 py-3 text-right tabular-nums ${totals.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(totals.profitAndLossRs)}</td>
+                              <td className={`px-4 py-3 text-right tabular-nums ${(totals.pnlPercentOfGtv ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{totals.pnlPercentOfGtv === null ? '—' : `${totals.pnlPercentOfGtv}%`}</td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 text-right text-purple-300/40 text-[11px]">
+                    Updated {new Date(marginData.timestamp).toLocaleString('en-IN')} · lookback {marginData.days}d
+                  </div>
+                </>
+              )}
+            </div>
           );
         })()}
 

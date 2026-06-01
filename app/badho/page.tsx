@@ -76,6 +76,14 @@ const DASHBOARDS: DashboardEntry[] = [
     status: 'live',
   },
   {
+    slug: 'margin-overview',
+    title: 'Margin Overview',
+    description:
+      'Daily P&L for D2R brand sellers on third-party INTERCITY orders — badho margin vs operational cost (discounts, delivery, rewards), net profit/loss and P&L % of GTV.',
+    icon: '📐',
+    status: 'live',
+  },
+  {
     slug: 'margin-and-growth',
     title: 'Margin and Growth',
     description:

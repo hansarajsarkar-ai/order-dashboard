@@ -7971,6 +7971,60 @@ export default function OrderStatusDashboard() {
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
+
+                  {/* Daily P&L % of GTV */}
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6">
+                    <div className="mb-3">
+                      <div className="text-base font-semibold text-white">Daily P&amp;L % of GTV</div>
+                      <div className="text-xs text-purple-200/70 mt-0.5">Net P&amp;L as a share of that day&apos;s GTV · value shown on each bar</div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <ComposedChart data={chartData} margin={{ top: 24, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={(v) => `${Math.round(Number(v))}%`} width={48} />
+                        <Tooltip
+                          cursor={{ fill: 'rgba(217,70,239,0.12)' }}
+                          contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(217,70,239,0.5)', borderRadius: 12, color: '#fff', fontSize: 13, padding: '10px 14px' }}
+                          labelStyle={{ color: '#f0abfc', fontWeight: 700, marginBottom: 4 }}
+                          formatter={(value, _name, item) => {
+                            const p = item?.payload || {};
+                            return [
+                              `${Number(value).toFixed(2)}%  ·  Net P&L ${fmtFull(p.profitAndLossRs || 0)}  ·  GTV ${fmtFull(p.totalPoAmount || 0)}`,
+                              p.status || 'P&L % of GTV',
+                            ];
+                          }}
+                        />
+                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.35)" />
+                        <Bar dataKey="pnlPercentOfGtv" name="P&L % of GTV" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                          {chartData.map((d, i) => (
+                            <Cell key={i} fill={(d.pnlPercentOfGtv ?? 0) >= 0 ? '#34d399' : '#fb7185'} />
+                          ))}
+                          <LabelList
+                            dataKey="pnlPercentOfGtv"
+                            content={(props: any) => {
+                              const { x, y, width, height, value } = props;
+                              const val = Number(value);
+                              if (!Number.isFinite(val)) return null;
+                              const cx = Number(x) + Number(width) / 2;
+                              // positive bars grow up from baseline (label above top); negative grow down (label below)
+                              const labelY = val >= 0 ? Number(y) - 5 : Number(y) + Number(height) + 12;
+                              return (
+                                <text
+                                  x={cx}
+                                  y={labelY}
+                                  textAnchor="middle"
+                                  style={{ fill: '#ffffff', fontSize: 10, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                                >
+                                  {`${val.toFixed(0)}%`}
+                                </text>
+                              );
+                            }}
+                          />
+                        </Bar>
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
                   </>
                   )}
 

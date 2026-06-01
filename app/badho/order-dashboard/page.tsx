@@ -1180,6 +1180,7 @@ export default function OrderStatusDashboard() {
   const [zoneFrom, setZoneFrom] = useState(firstOfMonthStr());
   const [zoneTo, setZoneTo] = useState(todayStr());
   const [expandedZones, setExpandedZones] = useState<Set<string>>(new Set());
+  const [zoneSubTab, setZoneSubTab] = useState<'trend' | 'table'>('trend');
   interface ZoneTrend {
     startDate: string;
     endDate: string;
@@ -7225,6 +7226,26 @@ export default function OrderStatusDashboard() {
             </div>
           </div>
 
+          {/* Sub-tab nav */}
+          <div className="inline-flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+            {([
+              { k: 'trend', l: 'Trend' },
+              { k: 'table', l: 'Table' },
+            ] as const).map(({ k, l }) => {
+              const active = zoneSubTab === k;
+              return (
+                <button
+                  key={k}
+                  onClick={() => setZoneSubTab(k)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${active ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-[0_0_20px_rgba(217,70,239,0.5)]' : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}
+                >
+                  {l}
+                </button>
+              );
+            })}
+          </div>
+
+          {zoneSubTab === 'trend' && (<>
           {/* Row 1: donut + bar (% share) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
@@ -7372,7 +7393,9 @@ export default function OrderStatusDashboard() {
               })()}
             </div>
           </div>
+          </>)}
 
+          {zoneSubTab === 'table' && (
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
             <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
@@ -7574,6 +7597,7 @@ export default function OrderStatusDashboard() {
               })()}
             </div>
           </div>
+          )}
           </div>
           );
         })()}

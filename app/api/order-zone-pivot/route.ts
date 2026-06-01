@@ -218,6 +218,41 @@ export async function GET(req: NextRequest) {
       return bc - ac;
     });
 
+    // Fetch one address per distinct businessName for the sellers in this window.
+    // DISTINCT ON keeps the most recently created seller row when names collide.
+    const sellerAddresses: Record<string, string> = {};
+    if (sellers.length > 0) {
+      const addrSql = `
+        SELECT DISTINCT ON (s."businessName")
+          s."businessName"  AS seller,
+          s."addressLine1"  AS "addressLine1",
+          s."landmark"      AS "landmark",
+          s."pincode"       AS "pincode",
+          s."city"          AS "city",
+          s."district"      AS "district",
+          s."state"         AS "state"
+        FROM "users"."seller" s
+        WHERE s."businessName" = ANY($1::text[])
+        ORDER BY s."businessName", s."created_at" DESC NULLS LAST
+      `;
+      type AddrRow = {
+        seller: string;
+        addressLine1: string | null;
+        landmark: string | null;
+        pincode: string | null;
+        city: string | null;
+        district: string | null;
+        state: string | null;
+      };
+      const addrRows = await query<AddrRow>(addrSql, [sellers]);
+      for (const r of addrRows) {
+        const parts = [r.addressLine1, r.landmark, r.pincode, r.city, r.district, r.state]
+          .map((p) => (p ?? '').toString().trim())
+          .filter((p) => p.length > 0);
+        if (parts.length > 0) sellerAddresses[r.seller] = parts.join('_');
+      }
+    }
+
     return NextResponse.json({
       startDate,
       endDate,
@@ -230,6 +265,7 @@ export async function GET(req: NextRequest) {
       statusTotals,
       sellerZoneRollup,
       zoneStatusRollup,
+      sellerAddresses,
       grand: cellFrom(grandHist),
       timestamp: new Date().toISOString(),
     });

@@ -1171,6 +1171,7 @@ export default function OrderStatusDashboard() {
     statusTotals: Record<string, ZoneCell>;
     sellerZoneRollup: Record<string, Record<string, ZoneCell>>;
     zoneStatusRollup: Record<string, Record<string, ZoneCell>>;
+    sellerAddresses?: Record<string, string>;
     grand: ZoneCell;
   }
   const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -7587,8 +7588,13 @@ export default function OrderStatusDashboard() {
                             const sellerTot = zonePivot.sellerTotals[seller] || { count: 0, modeKg: 0 };
                             return (
                               <tr key={seller} className="border-b border-white/5 hover:bg-white/5">
-                                <td className="px-4 py-2.5 text-white sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 truncate max-w-[260px]" title={seller}>
-                                  {seller}
+                                <td className="px-4 py-2.5 text-white sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 align-top min-w-[260px] max-w-[320px]" title={`${seller}${zonePivot.sellerAddresses?.[seller] ? `\n${zonePivot.sellerAddresses[seller]}` : ''}`}>
+                                  <div className="truncate">{seller}</div>
+                                  {zonePivot.sellerAddresses?.[seller] && (
+                                    <div className="text-[10px] text-purple-300/60 mt-0.5 leading-snug break-words">
+                                      {zonePivot.sellerAddresses[seller]}
+                                    </div>
+                                  )}
                                 </td>
                                 {zonePivot.zones.map((zone) => {
                                   if (!isExpanded(zone)) {

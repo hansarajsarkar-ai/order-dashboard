@@ -2793,7 +2793,7 @@ export default function OrderStatusDashboard() {
             { key: 'seller', label: 'Seller wise' },
             { key: 'geography', label: 'Geography' },
             { key: 'zone', label: 'Zone Wise' },
-            { key: 'margin', label: 'Margin' },
+            { key: 'margin', label: 'P&L' },
             { key: 'alert', label: 'Alert' },
           ] as const).map((tab) => {
             const active = activeTab === tab.key;
@@ -7923,7 +7923,7 @@ export default function OrderStatusDashboard() {
               {/* Header + range toggle */}
               <div className="mb-5 flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Margin Overview</h2>
+                  <h2 className="text-2xl font-bold text-white">P&amp;L Overview</h2>
                   <p className="text-white/60 text-sm mt-1">
                     Daily P&amp;L — D2R brand sellers · third-party INTERCITY orders · badho margin vs operational cost
                   </p>

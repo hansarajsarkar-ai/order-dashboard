@@ -2698,6 +2698,23 @@ export default function OrderStatusDashboard() {
     }
   };
 
+  // Render an AWB number as a link to its Delhivery forward-shipment tracking page.
+  const awbLink = (awb: string | null | undefined) =>
+    awb ? (
+      <a
+        href={`https://one.delhivery.com/shipments/forward/${encodeURIComponent(awb)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+        title="Track this shipment on Delhivery"
+      >
+        {awb}
+      </a>
+    ) : (
+      <span className="text-slate-400">—</span>
+    );
+
   // Render one "Latest Scan N" table cell (idx 0 = most recent) from the batch-loaded scans.
   const renderScanCell = (poNumber: string, idx: number) => {
     const scans = scansByPo[poNumber];
@@ -11042,7 +11059,7 @@ export default function OrderStatusDashboard() {
                               </a>
                             </div>
                             <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
-                              AWB: {r.awbNumber || '—'}
+                              AWB: {awbLink(r.awbNumber)}
                             </div>
                           </td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
@@ -11094,7 +11111,7 @@ export default function OrderStatusDashboard() {
                           </td>
                           <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">{awbLink(r.awbNumber)}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>

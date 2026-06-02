@@ -60,12 +60,28 @@ const fmtDay = (s: string) => {
   return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
+const fmtBucket = (s: string, gran: Granularity) => {
+  if (!s) return '';
+  const [y, m, d] = s.split('-').map(Number);
+  if (!y || !m || !d) return s;
+  const dt = new Date(y, m - 1, d);
+  if (gran === 'month') return dt.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+  if (gran === 'week') return `W/o ${dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`;
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+};
+
 const RANGES = [
   { label: '7D', days: 7 },
   { label: '14D', days: 14 },
   { label: '30D', days: 30 },
   { label: '60D', days: 60 },
   { label: '90D', days: 90 },
+] as const;
+
+const GRANULARITIES = [
+  { label: 'Day', value: 'day' as const },
+  { label: 'Week', value: 'week' as const },
+  { label: 'Month', value: 'month' as const },
 ] as const;
 
 function KPICard({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: string }) {
@@ -96,6 +112,13 @@ export default function MarginAndGrowthDashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Order creation trend (with day/week/month granularity toggle)
+  const [granularity, setGranularity] = useState<Granularity>('day');
+  const [orderData, setOrderData] = useState<OrderTrendPoint[]>([]);
+  const [orderSummary, setOrderSummary] = useState<OrderSummary | null>(null);
+  const [orderLoading, setOrderLoading] = useState(true);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -135,6 +158,33 @@ export default function MarginAndGrowthDashboard() {
     };
   }, [authChecked, days]);
 
+  useEffect(() => {
+    if (!authChecked) return;
+    let cancelled = false;
+    setOrderLoading(true);
+    setOrderError(null);
+    fetch(`/api/margin-and-growth/order-trend?days=${days}&granularity=${granularity}`)
+      .then(async (r) => {
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error || 'Failed to load');
+        return json;
+      })
+      .then((json) => {
+        if (cancelled) return;
+        setOrderData(json.data || []);
+        setOrderSummary(json.summary || null);
+      })
+      .catch((e) => {
+        if (!cancelled) setOrderError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setOrderLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authChecked, days, granularity]);
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
@@ -152,7 +202,13 @@ export default function MarginAndGrowthDashboard() {
     [data]
   );
 
+  const orderChartData = useMemo(
+    () => orderData.map((p) => ({ ...p, bucketLabel: fmtBucket(p.bucket, granularity) })),
+    [orderData, granularity]
+  );
+
   const up = (summary?.changePct ?? 0) >= 0;
+  const ordersUp = (orderSummary?.changePct ?? 0) >= 0;
 
   if (!authChecked) {
     return (
@@ -317,6 +373,102 @@ export default function MarginAndGrowthDashboard() {
                       }}
                     />
                   )}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Order Creation Trend */}
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mt-6">
+          <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-lg font-bold text-white">Order Creation Trend</h2>
+              <p className="text-xs text-purple-300/70 mt-0.5">
+                D2R intercity (third-party) orders created per {granularity}, and the distinct buyers placing them.
+              </p>
+            </div>
+            {/* Granularity toggle */}
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+              {GRANULARITIES.map((g) => (
+                <button
+                  key={g.value}
+                  onClick={() => setGranularity(g.value)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                    granularity === g.value
+                      ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-[0_0_18px_rgba(56,189,248,0.45)]'
+                      : 'text-purple-200 hover:bg-white/10'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {orderSummary && !orderLoading && !orderError && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <KPICard label="Total Orders" value={fmtInt(orderSummary.totalOrders)} sub={`over last ${days} days`} tone="sky" />
+              <KPICard label={`Avg / ${granularity}`} value={fmtInt(orderSummary.avg)} sub={`per ${granularity}`} tone="purple" />
+              <KPICard
+                label={`Peak ${granularity}`}
+                value={fmtInt(orderSummary.peak)}
+                sub={orderSummary.peakBucket ? fmtBucket(orderSummary.peakBucket, granularity) : '—'}
+                tone="emerald"
+              />
+              <KPICard
+                label="Change vs Start"
+                value={`${ordersUp ? '▲' : '▼'} ${Math.abs(orderSummary.changePct).toFixed(1)}%`}
+                sub={`${fmtInt(orderSummary.first)} → ${fmtInt(orderSummary.latest)}`}
+                tone={ordersUp ? 'emerald' : 'amber'}
+              />
+            </div>
+          )}
+
+          {orderLoading ? (
+            <div className="h-80 flex items-center justify-center text-purple-300 text-sm">Loading trend…</div>
+          ) : orderError ? (
+            <div className="h-80 flex items-center justify-center text-rose-300 text-sm">Error: {orderError}</div>
+          ) : orderData.length === 0 ? (
+            <div className="h-80 flex items-center justify-center text-purple-300/70 text-sm">No data for this window.</div>
+          ) : (
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={orderChartData} margin={{ top: 16, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="ordersBar" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0.5} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="bucketLabel" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" minTickGap={20} />
+                  <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} width={48} />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(255,255,255,0.06)' }}
+                    contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
+                    labelStyle={{ color: '#c7d2fe', fontWeight: 600, marginBottom: 2 }}
+                    formatter={(v, name) => [fmtInt(Number(v)), String(name)]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
+                  <Bar
+                    dataKey="orders"
+                    name="Orders"
+                    fill="url(#ordersBar)"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={48}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="buyers"
+                    name="Distinct Buyers"
+                    stroke="#f472b6"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: '#f472b6', stroke: '#fff', strokeWidth: 1 }}
+                    activeDot={{ r: 5, fill: '#f472b6', stroke: '#fff', strokeWidth: 2 }}
+                    isAnimationActive={false}
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

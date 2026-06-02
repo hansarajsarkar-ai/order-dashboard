@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ResponsiveContainer,
-  ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot,
+  ComposedChart, Area, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot,
 } from 'recharts';
 
 interface DauPoint {
@@ -22,6 +22,26 @@ interface Summary {
   first: number;
   changePct: number;
   windowDays: number | null;
+}
+
+type Granularity = 'day' | 'week' | 'month';
+
+interface OrderTrendPoint {
+  bucket: string;
+  orders: number;
+  buyers: number;
+}
+
+interface OrderSummary {
+  totalOrders: number;
+  avg: number;
+  peak: number;
+  peakBucket: string | null;
+  latest: number;
+  first: number;
+  changePct: number;
+  granularity: Granularity;
+  windowDays: number;
 }
 
 const fmtCompact = (n: number) => {
@@ -179,7 +199,7 @@ export default function MarginAndGrowthDashboard() {
         <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent flex items-center gap-2">
-              🚀 Margin and Growth
+              🚀 Daily Wise Trend
             </h1>
             <p className="text-purple-200 text-sm mt-1">
               Daily Active Buyers — distinct buyers who opened a buyer-app session each day.

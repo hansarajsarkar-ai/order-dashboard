@@ -612,9 +612,9 @@ export default function MarginAndGrowthDashboard() {
             </div>
           )}
           <p className="text-[11px] text-purple-300/50 mt-3">
-            DAU = distinct buyer-app active buyers. A “cart” is any purchase order created; “order placed” excludes
-            DRAFT carts. Carts/orders are platform-wide with test buyers excluded. Totals sum each bucket (a buyer
-            active on multiple days is counted per day).
+            DAU = distinct buyer-app active buyers. A “cart” is a DRAFT purchase order; “order placed” is a non-DRAFT
+            order. Carts/orders use the same D2R universe as MonthWiseOrder (test buyers/sellers excluded), so these
+            buyer counts match that table. Totals sum each bucket (a buyer active on multiple days is counted per day).
           </p>
         </div>
       </div>

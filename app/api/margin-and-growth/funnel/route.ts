@@ -19,11 +19,12 @@ const GRANULARITIES: Record<string, 'day' | 'week' | 'month'> = {
 
 // Engagement / conversion funnel per bucket:
 //   DAU            – distinct active buyers (buyer-app sessions)
-//   cart_buyers    – distinct buyers who created a cart (any purchaseOrder)
-//   order_buyers   – distinct buyers who actually placed an order (status != DRAFT)
+//   cart_buyers    – distinct buyers with a cart (status = DRAFT)
+//   order_buyers   – distinct buyers who placed an order (status != DRAFT)
 //   orders         – count of placed orders
-// Carts/orders join both seller and buyer and exclude test sellers, test
-// buyers, test orders and false orders, so the % reads cleanly against DAU.
+// Carts/orders use the SAME universe as the MonthWiseOrder table (order-funnel):
+// D2R brand sellers, test/false excluded, no delivery-network filter, and
+// cart = DRAFT — so these buyer counts match MonthWiseOrder exactly.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
       po_agg AS (
         SELECT
           date_trunc($1, po."created_at")::date AS bucket,
-          COUNT(DISTINCT po."buyerId")                                          AS cart_buyers,
+          COUNT(DISTINCT po."buyerId") FILTER (WHERE po."status"  = 'DRAFT')    AS cart_buyers,
           COUNT(DISTINCT po."buyerId") FILTER (WHERE po."status" != 'DRAFT')    AS order_buyers,
           COUNT(*) FILTER (WHERE po."status" != 'DRAFT')                        AS orders
         FROM "purchaseOrder"."purchaseOrder" po
@@ -82,12 +83,12 @@ export async function GET(req: NextRequest) {
         JOIN "users"."buyer"  b ON b."id" = po."buyerId"
         WHERE po."isTest"      = FALSE
           AND po."isFalseOrder" = FALSE
-          AND po."deliveryType"    = 'INTERCITY'
-          AND po."deliveryNetwork" = 'THIRD_PARTY'
-          AND s."isTest"        = FALSE
+          AND s."isTest"           = FALSE
           AND s."businessName" NOT ILIKE '%test%'
+          AND s."isD2RBrandSeller" = TRUE
           AND b."isTest"        = FALSE
           AND b."businessName" NOT ILIKE '%test%'
+          AND po."created_at" IS NOT NULL
           AND po."created_at"::date >= $2::date
           AND po."created_at"::date <= $3::date
         GROUP BY 1

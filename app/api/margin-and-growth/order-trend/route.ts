@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
       JOIN "users"."seller" s ON s."id" = po."sellerId"
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       WHERE po."isTest"          = FALSE
+        AND po."status"         != 'DRAFT'
         AND po."created_at"::date >= current_date - $2::int
         AND s."isD2RBrandSeller" = TRUE
         AND s."isTest"           = FALSE

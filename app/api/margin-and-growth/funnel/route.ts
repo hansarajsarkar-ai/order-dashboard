@@ -82,6 +82,8 @@ export async function GET(req: NextRequest) {
         JOIN "users"."buyer"  b ON b."id" = po."buyerId"
         WHERE po."isTest"      = FALSE
           AND po."isFalseOrder" = FALSE
+          AND po."deliveryType"    = 'INTERCITY'
+          AND po."deliveryNetwork" = 'THIRD_PARTY'
           AND s."isTest"        = FALSE
           AND s."businessName" NOT ILIKE '%test%'
           AND b."isTest"        = FALSE

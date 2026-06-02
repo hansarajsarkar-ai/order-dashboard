@@ -431,6 +431,7 @@ export default function OrderStatusDashboard() {
   const [pivotDrillDay, setPivotDrillDay] = useState<number | null>(null); // when set, drill is scoped to a single day within pivotDrillMonth
   const [pivotDrillWeek, setPivotDrillWeek] = useState<number | null>(null); // when set, drill is scoped to a single ISO week (Postgres EXTRACT(WEEK))
   const [pivotDrillWeekLabel, setPivotDrillWeekLabel] = useState<string | null>(null); // human label for the week (e.g. "05 May")
+  const [pivotDrillZone, setPivotDrillZone] = useState<{ zone: string; label: string } | null>(null); // when set, drill is scoped to a Delhivery zone + date window
   const [pivotDrillRows, setPivotDrillRows] = useState<OrderListRow[] | null>(null);
   const [pivotDrillLoading, setPivotDrillLoading] = useState(false);
   const [pivotDrillError, setPivotDrillError] = useState<string | null>(null);
@@ -2129,7 +2130,8 @@ export default function OrderStatusDashboard() {
     day: number | null = null,
     week: number | null = null,
     weekLabel: string | null = null,
-    initialPayment: string[] = []
+    initialPayment: string[] = [],
+    zone: { zone: string; label: string; start: string; end: string } | null = null
   ) => {
     setPivotDrillOpen(true);
     setPivotDrillStatus(status);
@@ -2138,6 +2140,7 @@ export default function OrderStatusDashboard() {
     setPivotDrillDay(day);
     setPivotDrillWeek(week);
     setPivotDrillWeekLabel(weekLabel);
+    setPivotDrillZone(zone ? { zone: zone.zone, label: zone.label } : null);
     setPivotDrillRows(null);
     setPivotDrillError(null);
     setPivotDrillSearch('');
@@ -2151,7 +2154,12 @@ export default function OrderStatusDashboard() {
     setPivotDrillLoading(true);
     try {
       const params = new URLSearchParams({ status, year: String(currentYear) });
-      if (week !== null) {
+      if (zone) {
+        // Zone drill: filter via intercityDelivery, windowed by created_at.
+        params.append('zone', zone.zone);
+        params.append('startDate', zone.start);
+        params.append('endDate', zone.end);
+      } else if (week !== null) {
         // Single-week drill: scope to that Postgres EXTRACT(WEEK), matching the weekly pivot.
         params.append('week', String(week));
       } else if (day !== null && month !== null) {
@@ -2277,6 +2285,15 @@ export default function OrderStatusDashboard() {
     openPivotDrill(status, undefined, null);
   };
 
+  // Zone share charts → drill the POs in that Delhivery zone, within the zone date window.
+  const openZoneDrill = (zoneName: unknown) => {
+    const z = typeof zoneName === 'string' ? zoneName : '';
+    if (!z) return;
+    const { startDate, endDate } = resolveZoneRange();
+    const label = `Zone ${z} · ${startDate} → ${endDate}`;
+    openPivotDrill('', undefined, null, null, null, null, [], { zone: z, label, start: startDate, end: endDate });
+  };
+
   const closePivotDrill = () => {
     setPivotDrillOpen(false);
     setPivotDrillStatus('');
@@ -2285,6 +2302,7 @@ export default function OrderStatusDashboard() {
     setPivotDrillDay(null);
     setPivotDrillWeek(null);
     setPivotDrillWeekLabel(null);
+    setPivotDrillZone(null);
     setPivotDrillRows(null);
     setPivotDrillError(null);
     setPivotDrillSearch('');
@@ -7701,6 +7719,8 @@ export default function OrderStatusDashboard() {
                         stroke="rgba(15,23,42,0.6)"
                         strokeWidth={1}
                         isAnimationActive={false}
+                        cursor="pointer"
+                        onClick={(d: any) => openZoneDrill(d?.name ?? d?.payload?.name)}
                         labelLine={(props: any) => {
                           const pct = (props.value / zonePivot.grand.count) * 100;
                           if (pct < 2) return <g />;
@@ -7758,7 +7778,7 @@ export default function OrderStatusDashboard() {
                         labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
                         formatter={(_v: any, _n: any, p: any) => [`${p.payload.count.toLocaleString('en-IN')} POs · ${p.payload.pct.toFixed(1)}%`, `Zone ${p.payload.zone}`]}
                       />
-                      <Bar dataKey="pct" radius={[6, 6, 0, 0]} maxBarSize={64}>
+                      <Bar dataKey="pct" radius={[6, 6, 0, 0]} maxBarSize={64} cursor="pointer" onClick={(e: any) => openZoneDrill(e?.payload?.zone ?? e?.zone)}>
                         {data.map((d) => (
                           <Cell key={d.zone} fill={colorOf(d.zone)} />
                         ))}
@@ -10487,7 +10507,7 @@ export default function OrderStatusDashboard() {
                 <div>
                   <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900">
                     <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse" />
-                    <span>{pivotDrillStatus.includes(',') ? `Achieved · ${pivotDrillStatus.split(',').join(' + ')}` : (pivotDrillStatus || (pivotDrillPaymentFilter.size > 0 ? Array.from(pivotDrillPaymentFilter).join(' + ') : 'All orders'))}</span>
+                    <span>{pivotDrillZone ? `Zone ${pivotDrillZone.zone}` : pivotDrillStatus.includes(',') ? `Achieved · ${pivotDrillStatus.split(',').join(' + ')}` : (pivotDrillStatus || (pivotDrillPaymentFilter.size > 0 ? Array.from(pivotDrillPaymentFilter).join(' + ') : 'All orders'))}</span>
                     {pivotDrillDelivery !== undefined && (
                       <span className="text-slate-400 text-sm font-normal mx-1">→</span>
                     )}
@@ -10498,7 +10518,9 @@ export default function OrderStatusDashboard() {
                     )}
                   </h3>
                   <p className="text-slate-500 text-xs mt-1">
-                    {pivotDrillWeek
+                    {pivotDrillZone
+                      ? pivotDrillZone.label
+                      : pivotDrillWeek
                       ? `Week ${pivotDrillWeek}${pivotDrillWeekLabel ? ` (w/c ${pivotDrillWeekLabel})` : ''} · ${currentYear}`
                       : pivotDrillDay && pivotDrillMonth
                       ? `${MONTH_NAMES[pivotDrillMonth - 1]} ${pivotDrillDay}, ${currentYear}`

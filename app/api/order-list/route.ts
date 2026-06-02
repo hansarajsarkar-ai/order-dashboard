@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
   const monthParam = searchParams.get('month');
   const weekParam = searchParams.get('week');                  // optional Postgres EXTRACT(WEEK) number — matches the weekly status pivot
+  const zone = searchParams.get('zone');                       // optional Delhivery zone (A/B/C1/…); filters via intercityDelivery, windowed by startDate/endDate on icd.created_at
   const status = searchParams.get('status');                  // optional now — when omitted, all non-DRAFT statuses are included
   const deliveryStatusParam = searchParams.get('deliveryStatus'); // value | "__NULL__" | null
   const startDate = searchParams.get('startDate');            // optional YYYY-MM-DD — when set, replaces year-based filter
@@ -75,8 +76,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Date window: explicit startDate/endDate take precedence over year.
+    // For a zone drill the window applies to intercityDelivery.created_at inside the
+    // zone EXISTS (see zoneFilter), so the markedPendingTime date filter is skipped.
     let dateFilter = '';
-    if (startDate || endDate) {
+    if (zone) {
+      // no markedPendingTime constraint — handled in zoneFilter
+    } else if (startDate || endDate) {
       if (startDate) {
         params.push(startDate);
         dateFilter += ` AND po."markedPendingTime"::date >= $${params.length}`;
@@ -106,6 +111,29 @@ export async function GET(req: NextRequest) {
         params.push(week);
         weekFilter = ` AND EXTRACT(WEEK FROM po."markedPendingTime") = $${params.length}`;
       }
+    }
+
+    // Zone filter: PO has a Delhivery intercityDelivery in the requested zone, within the window.
+    // Mirrors the zone-pivot definition (deliveryPartnerId='DELHIVERY', zone from deliveryCostReportJSON).
+    let zoneFilter = '';
+    if (zone) {
+      params.push(zone);
+      const zoneIdx = params.length;
+      let zoneDateClause = '';
+      if (startDate) {
+        params.push(startDate);
+        zoneDateClause += ` AND icd."created_at"::date >= $${params.length}`;
+      }
+      if (endDate) {
+        params.push(endDate);
+        zoneDateClause += ` AND icd."created_at"::date <= $${params.length}`;
+      }
+      zoneFilter = ` AND EXISTS (
+        SELECT 1 FROM "deliveries"."intercityDelivery" icd
+        WHERE icd."purchaseOrderId" = po."id"
+          AND icd."deliveryPartnerId" = 'DELHIVERY'
+          AND icd."deliveryCostReportJSON" -> 0 ->> 'zone' = $${zoneIdx}${zoneDateClause}
+      )`;
     }
 
     let deliveryFilter = '';
@@ -258,6 +286,7 @@ export async function GET(req: NextRequest) {
         ${dateFilter}
         ${monthFilter}
         ${weekFilter}
+        ${zoneFilter}
         ${deliveryFilter}
         ${brandFilter}
         ${brandLabelFilter}

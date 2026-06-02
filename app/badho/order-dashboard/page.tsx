@@ -2168,6 +2168,20 @@ export default function OrderStatusDashboard() {
     }
   };
 
+  // Order Anomalies chart → reuse the pivot drill modal, scoped to the clicked
+  // status on the clicked day. Recharts hands the bar's data entry to onClick.
+  const openAnomalyDrill = (status: string, entry: unknown) => {
+    const payload = (entry && typeof entry === 'object' && 'payload' in entry
+      ? (entry as { payload?: Record<string, unknown> }).payload
+      : (entry as Record<string, unknown>)) || {};
+    const dateStr = typeof payload.date === 'string' ? payload.date : null;
+    const count = Number(payload[status] ?? 0);
+    if (!dateStr || count <= 0) return;
+    const [, mm, dd] = dateStr.split('-').map((n) => parseInt(n, 10));
+    if (Number.isNaN(mm) || Number.isNaN(dd)) return;
+    openPivotDrill(status, undefined, mm, dd);
+  };
+
   const closePivotDrill = () => {
     setPivotDrillOpen(false);
     setPivotDrillStatus('');
@@ -4946,7 +4960,7 @@ export default function OrderStatusDashboard() {
                       return [`${n} (${pct}%)`, String(name)];
                     }}
                   />
-                  <Bar dataKey="PENDING" stackId="status" fill="#ef4444" name="PENDING">
+                  <Bar dataKey="PENDING" stackId="status" fill="#ef4444" name="PENDING" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('PENDING', e)}>
                     <LabelList
                       dataKey="PENDING"
                       position="center"
@@ -4954,10 +4968,10 @@ export default function OrderStatusDashboard() {
                         const n = typeof v === 'number' ? v : Number(v ?? 0);
                         return n > 0 ? String(n) : '';
                       }}
-                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700 }}
+                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
                     />
                   </Bar>
-                  <Bar dataKey="INPROGRESS" stackId="status" fill="#fbcfe8" name="INPROGRESS">
+                  <Bar dataKey="INPROGRESS" stackId="status" fill="#fbcfe8" name="INPROGRESS" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('INPROGRESS', e)}>
                     <LabelList
                       dataKey="INPROGRESS"
                       position="center"
@@ -4965,10 +4979,10 @@ export default function OrderStatusDashboard() {
                         const n = typeof v === 'number' ? v : Number(v ?? 0);
                         return n > 0 ? String(n) : '';
                       }}
-                      style={{ fill: '#831843', fontSize: 11, fontWeight: 700 }}
+                      style={{ fill: '#831843', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
                     />
                   </Bar>
-                  <Bar dataKey="DISPATCHED" stackId="status" fill="#818cf8" name="DISPATCHED">
+                  <Bar dataKey="DISPATCHED" stackId="status" fill="#818cf8" name="DISPATCHED" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('DISPATCHED', e)}>
                     <LabelList
                       dataKey="DISPATCHED"
                       position="center"
@@ -4976,10 +4990,10 @@ export default function OrderStatusDashboard() {
                         const n = typeof v === 'number' ? v : Number(v ?? 0);
                         return n > 0 ? String(n) : '';
                       }}
-                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700 }}
+                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
                     />
                   </Bar>
-                  <Bar dataKey="COMPLETED" stackId="status" fill="#84cc16" name="COMPLETED">
+                  <Bar dataKey="COMPLETED" stackId="status" fill="#84cc16" name="COMPLETED" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('COMPLETED', e)}>
                     <LabelList
                       dataKey="COMPLETED"
                       position="center"
@@ -4987,7 +5001,7 @@ export default function OrderStatusDashboard() {
                         const n = typeof v === 'number' ? v : Number(v ?? 0);
                         return n > 0 ? String(n) : '';
                       }}
-                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700 }}
+                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
                     />
                   </Bar>
                 </BarChart>

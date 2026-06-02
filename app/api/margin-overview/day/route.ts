@@ -42,6 +42,7 @@ interface Row {
   paymentEvent: string | null;
   buyerPhone: string | null;
   sellerPhone: string | null;
+  forwardDeliveryCostToSeller: string | null;
   codAmountRs: string | null;
   buyerAddressLine1: string | null;
   buyerLandmark: string | null;
@@ -149,6 +150,7 @@ export async function GET(req: NextRequest) {
         pop."event"                                              AS payment_event,
         b."phone"                                                AS buyer_phone,
         s."phone"                                                AS seller_phone,
+        s."deliveryChargesJSON"->>'forwardDeliveryCostToSeller'  AS forward_delivery_cost_to_seller,
         dv."codAmountToBeCollected"                              AS cod_amount,
         b."addressLine1"                                         AS buyer_address_line1,
         b."landmark"                                             AS buyer_landmark,
@@ -243,6 +245,7 @@ export async function GET(req: NextRequest) {
       payment_event                                      AS "paymentEvent",
       buyer_phone                                        AS "buyerPhone",
       seller_phone                                       AS "sellerPhone",
+      forward_delivery_cost_to_seller                    AS "forwardDeliveryCostToSeller",
       cod_amount                                         AS "codAmountRs",
       buyer_address_line1                                AS "buyerAddressLine1",
       buyer_landmark                                     AS "buyerLandmark",
@@ -295,6 +298,7 @@ export async function GET(req: NextRequest) {
       paymentEvent: r.paymentEvent ?? null,
       buyerPhone: r.buyerPhone ?? null,
       sellerPhone: r.sellerPhone ?? null,
+      forwardDeliveryCostToSeller: r.forwardDeliveryCostToSeller ?? null,
       codAmountRs: r.codAmountRs != null ? Number(r.codAmountRs) : null,
       buyerFullAddress: [
         r.buyerAddressLine1,

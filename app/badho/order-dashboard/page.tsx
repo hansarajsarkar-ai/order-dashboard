@@ -596,6 +596,7 @@ export default function OrderStatusDashboard() {
     paymentEvent: string | null;
     buyerPhone: string | null;
     sellerPhone: string | null;
+    forwardDeliveryCostToSeller: string | null;
     codAmountRs: number | null;
     buyerFullAddress: string | null;
     refundInitiatedTime: string | null;
@@ -8424,6 +8425,7 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-right font-semibold">Badho Disc</th>
                           <th className="px-4 py-3 text-right font-semibold">Reward</th>
                           <th className="px-4 py-3 text-right font-semibold">Delivery Charge</th>
+                          <th className="px-4 py-3 text-center font-semibold">Forward Delivery Cost To Seller</th>
                           <th className="px-4 py-3 text-left font-semibold">Delivery Status</th>
                           <th className="px-4 py-3 text-left font-semibold">Marked Pending</th>
                           <th className="px-4 py-3 text-left font-semibold">Order Status</th>
@@ -8485,6 +8487,19 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.badhoPaymentDiscountRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.rewardRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.deliveryChargeRs)}</td>
+                            <td className="px-4 py-2.5 text-center whitespace-nowrap">
+                              {o.forwardDeliveryCostToSeller == null ? (
+                                <span className="text-purple-300/50">—</span>
+                              ) : (
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                  String(o.forwardDeliveryCostToSeller).toLowerCase() === 'true'
+                                    ? 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
+                                    : 'bg-slate-500/20 text-slate-200 border border-slate-400/30'
+                                }`}>
+                                  {String(o.forwardDeliveryCostToSeller).toLowerCase() === 'true' ? 'Yes' : 'No'}
+                                </span>
+                              )}
+                            </td>
                             <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{o.deliveryStatus ?? '—'}</td>
                             <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{formatDateTime(o.markedPendingTime)}</td>
                             <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{o.orderStatus ?? '—'}</td>
@@ -8510,7 +8525,7 @@ export default function OrderStatusDashboard() {
                           </tr>
                         ))}
                         {marginDayData.length === 0 && (
-                          <tr><td colSpan={33} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
+                          <tr><td colSpan={34} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
                         )}
                       </tbody>
                       {marginDayData.length > 0 && marginDayTotals && (
@@ -8527,7 +8542,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.badhoPaymentDiscountRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.rewardRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.deliveryChargeRs)}</td>
-                            <td colSpan={22}></td>
+                            <td colSpan={23}></td>
                           </tr>
                         </tfoot>
                       )}

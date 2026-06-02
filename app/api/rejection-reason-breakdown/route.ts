@@ -49,7 +49,9 @@ export async function GET(req: NextRequest) {
   try {
     let periodExpr: string;
     const filters: string[] = [];
-    const params: (string | number)[] = [year];
+    // Use an indexable half-open range on markedPendingTime instead of
+    // EXTRACT(YEAR ...) = year (which is non-sargable and forces a full scan).
+    const params: (string | number)[] = [`${year}-01-01`, `${year + 1}-01-01`];
 
     if (granularity === 'month') {
       periodExpr = `TO_CHAR(po."markedPendingTime", 'YYYY-MM')`;
@@ -58,7 +60,7 @@ export async function GET(req: NextRequest) {
     } else {
       // day — filter to a single month, bucket by day
       periodExpr = `EXTRACT(DAY FROM po."markedPendingTime")::text`;
-      filters.push(`AND EXTRACT(MONTH FROM po."markedPendingTime") = $2`);
+      filters.push(`AND EXTRACT(MONTH FROM po."markedPendingTime") = $3`);
       params.push(month);
     }
 
@@ -83,8 +85,8 @@ export async function GET(req: NextRequest) {
         AND po."deliveryType" = 'INTERCITY'
         AND po."isFalseOrder" = FALSE
         AND po."status" = 'REJECTED'
-        AND po."markedPendingTime" IS NOT NULL
-        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
+        AND po."markedPendingTime" >= $1
+        AND po."markedPendingTime" <  $2
         ${filters.join(' ')}
       GROUP BY reason_category, po."status", po."deliveryStatus", period
       ORDER BY reason_category, period, po."status", po."deliveryStatus";

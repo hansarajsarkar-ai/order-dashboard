@@ -1403,6 +1403,22 @@ export default function OrderStatusDashboard() {
   const [anomaliesData, setAnomaliesData] = useState<AnomaliesPoint[] | null>(null);
   const [anomaliesLoading, setAnomaliesLoading] = useState(false);
   const [anomaliesStatuses, setAnomaliesStatuses] = useState<string[]>([]);
+  // Order Anomalies — status multiselect. Bars are stacked bottom→top in this
+  // order; ordered meta also drives the legend toggle chips and the tooltip total.
+  const ANOMALY_STATUS_META = [
+    { key: 'PENDING',    color: '#ef4444', labelFill: '#fff' },
+    { key: 'INPROGRESS', color: '#fbcfe8', labelFill: '#831843' },
+    { key: 'DISPATCHED', color: '#818cf8', labelFill: '#fff' },
+    { key: 'COMPLETED', color: '#84cc16', labelFill: '#fff' },
+  ] as const;
+  // Default selection mirrors the chart legend: all four statuses shown.
+  const [selectedAnomalyStatuses, setSelectedAnomalyStatuses] = useState<string[]>(
+    ['COMPLETED', 'DISPATCHED', 'INPROGRESS', 'PENDING']
+  );
+  const toggleAnomalyStatus = (status: string) =>
+    setSelectedAnomalyStatuses((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    );
   const [drillStatus, setDrillStatus] = useState<string | null>(null);
   const [drillMonth, setDrillMonth] = useState<number | null>(null);
   const [drillRows, setDrillRows] = useState<OrderListRow[] | null>(null);
@@ -9109,25 +9125,36 @@ export default function OrderStatusDashboard() {
                 Share of order statuses per day (100% stacked) — last 30 days
               </p>
             </div>
-            {/* Legend chips in header */}
+            {/* Legend = status multiselect. Click a chip to toggle that status in the chart. */}
             <div className="flex items-center gap-2 flex-wrap">
               {[
                 { label: 'COMPLETED', color: '#84cc16' },
                 { label: 'DISPATCHED', color: '#818cf8' },
                 { label: 'INPROGRESS', color: '#fbcfe8' },
                 { label: 'PENDING',    color: '#ef4444' },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/70 border border-white/10"
-                >
-                  <span
-                    className="inline-block w-3 h-3 rounded-sm"
-                    style={{ background: s.color }}
-                  />
-                  <span className="text-xs font-bold text-white tracking-wide">{s.label}</span>
-                </div>
-              ))}
+              ].map((s) => {
+                const selected = selectedAnomalyStatuses.includes(s.label);
+                return (
+                  <button
+                    key={s.label}
+                    type="button"
+                    onClick={() => toggleAnomalyStatus(s.label)}
+                    aria-pressed={selected}
+                    title={selected ? `Hide ${s.label}` : `Show ${s.label}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                      selected
+                        ? 'bg-slate-900/70 border-white/10 hover:border-fuchsia-400/50'
+                        : 'bg-slate-900/30 border-white/5 opacity-40 hover:opacity-70'
+                    }`}
+                  >
+                    <span
+                      className="inline-block w-3 h-3 rounded-sm"
+                      style={{ background: selected ? s.color : 'transparent', border: `1.5px solid ${s.color}` }}
+                    />
+                    <span className="text-xs font-bold text-white tracking-wide">{s.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -9142,6 +9169,8 @@ export default function OrderStatusDashboard() {
               </div>
             ) : anomaliesData.length === 0 ? (
               <div className="h-[360px] flex items-center justify-center text-purple-300">No data in this range</div>
+            ) : selectedAnomalyStatuses.length === 0 ? (
+              <div className="h-[360px] flex items-center justify-center text-purple-300">Select at least one status to display</div>
             ) : (
               <ResponsiveContainer width="100%" height={420}>
                 <BarChart
@@ -9179,57 +9208,36 @@ export default function OrderStatusDashboard() {
                     formatter={(value, name, props) => {
                       const n = typeof value === 'number' ? value : Number(value ?? 0);
                       const row = props && (props as { payload?: Record<string, number> }).payload;
+                      // Total reflects only the currently selected statuses so the
+                      // percentage matches what the 100%-stacked bar actually shows.
                       const total = row
-                        ? (Number(row.PENDING || 0) + Number(row.INPROGRESS || 0) + Number(row.DISPATCHED || 0) + Number(row.COMPLETED || 0))
+                        ? selectedAnomalyStatuses.reduce((sum, st) => sum + Number(row[st] || 0), 0)
                         : 0;
                       const pct = total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
                       return [`${n} (${pct}%)`, String(name)];
                     }}
                   />
-                  <Bar dataKey="PENDING" stackId="status" fill="#ef4444" name="PENDING" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('PENDING', e)}>
-                    <LabelList
-                      dataKey="PENDING"
-                      position="center"
-                      formatter={(v: unknown) => {
-                        const n = typeof v === 'number' ? v : Number(v ?? 0);
-                        return n > 0 ? String(n) : '';
-                      }}
-                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
-                    />
-                  </Bar>
-                  <Bar dataKey="INPROGRESS" stackId="status" fill="#fbcfe8" name="INPROGRESS" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('INPROGRESS', e)}>
-                    <LabelList
-                      dataKey="INPROGRESS"
-                      position="center"
-                      formatter={(v: unknown) => {
-                        const n = typeof v === 'number' ? v : Number(v ?? 0);
-                        return n > 0 ? String(n) : '';
-                      }}
-                      style={{ fill: '#831843', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
-                    />
-                  </Bar>
-                  <Bar dataKey="DISPATCHED" stackId="status" fill="#818cf8" name="DISPATCHED" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('DISPATCHED', e)}>
-                    <LabelList
-                      dataKey="DISPATCHED"
-                      position="center"
-                      formatter={(v: unknown) => {
-                        const n = typeof v === 'number' ? v : Number(v ?? 0);
-                        return n > 0 ? String(n) : '';
-                      }}
-                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
-                    />
-                  </Bar>
-                  <Bar dataKey="COMPLETED" stackId="status" fill="#84cc16" name="COMPLETED" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('COMPLETED', e)}>
-                    <LabelList
-                      dataKey="COMPLETED"
-                      position="center"
-                      formatter={(v: unknown) => {
-                        const n = typeof v === 'number' ? v : Number(v ?? 0);
-                        return n > 0 ? String(n) : '';
-                      }}
-                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
-                    />
-                  </Bar>
+                  {ANOMALY_STATUS_META.filter((s) => selectedAnomalyStatuses.includes(s.key)).map((s) => (
+                    <Bar
+                      key={s.key}
+                      dataKey={s.key}
+                      stackId="status"
+                      fill={s.color}
+                      name={s.key}
+                      cursor="pointer"
+                      onClick={(e: unknown) => openAnomalyDrill(s.key, e)}
+                    >
+                      <LabelList
+                        dataKey={s.key}
+                        position="center"
+                        formatter={(v: unknown) => {
+                          const n = typeof v === 'number' ? v : Number(v ?? 0);
+                          return n > 0 ? String(n) : '';
+                        }}
+                        style={{ fill: s.labelFill, fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
+                      />
+                    </Bar>
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             )}

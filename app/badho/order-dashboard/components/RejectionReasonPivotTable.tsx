@@ -1172,6 +1172,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           </td>
                           <td className={`sticky left-[280px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                             {r.poNumber ? (
+                              <>
                               <div className="inline-flex items-center gap-2">
                                 <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
                                 <a
@@ -1188,6 +1189,10 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                                   </svg>
                                 </a>
                               </div>
+                              <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
+                                AWB: {awbLink(r.awbNumber)}
+                              </div>
+                              </>
                             ) : <span className="text-slate-400">—</span>}
                           </td>
                           <td className="px-2.5 py-2 whitespace-nowrap">

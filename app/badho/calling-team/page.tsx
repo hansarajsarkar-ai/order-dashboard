@@ -216,7 +216,10 @@ function buildQs(f: Filters): string {
 
 type DatePreset =
   | { label: string; days: number }
-  | { label: 'YTD'; ytd: true };
+  | { label: 'YTD'; ytd: true }
+  | { label: string; fullYear: true };
+
+const CURRENT_YEAR = new Date().getFullYear();
 
 const DATE_PRESETS: DatePreset[] = [
   { label: 'Today', days: 0 },
@@ -224,11 +227,16 @@ const DATE_PRESETS: DatePreset[] = [
   { label: '30d',   days: 29 },
   { label: '90d',   days: 89 },
   { label: 'YTD',   ytd: true },
+  { label: String(CURRENT_YEAR), fullYear: true },
 ];
 
 function presetRange(p: DatePreset): { startDate: string; endDate: string } {
   const today = new Date();
   const endDate = today.toISOString().slice(0, 10);
+  if ('fullYear' in p) {
+    const y = today.getFullYear();
+    return { startDate: `${y}-01-01`, endDate: `${y}-12-31` };
+  }
   if ('ytd' in p) {
     return { startDate: `${today.getFullYear()}-01-01`, endDate };
   }

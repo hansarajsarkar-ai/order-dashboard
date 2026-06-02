@@ -8417,14 +8417,11 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-left font-semibold">Seller</th>
                           <th className="px-4 py-3 text-left font-semibold">Buyer</th>
                           <th className="px-4 py-3 text-right font-semibold">GTV</th>
-                          <th className="px-4 py-3 text-right font-semibold">Margin</th>
                           <th className="px-4 py-3 text-right font-semibold">Comm %</th>
                           <th className="px-4 py-3 text-right font-semibold">Coupon</th>
                           <th className="px-4 py-3 text-right font-semibold">Badho Disc</th>
                           <th className="px-4 py-3 text-right font-semibold">Reward</th>
                           <th className="px-4 py-3 text-right font-semibold">Delivery</th>
-                          <th className="px-4 py-3 text-right font-semibold">Op Cost</th>
-                          <th className="px-4 py-3 text-right font-semibold">Net P&amp;L</th>
                           <th className="px-4 py-3 text-center font-semibold">Delivery</th>
                           <th className="px-4 py-3 text-center font-semibold">Status</th>
                           {/* Monthly Breakdown by Order Status drill-down columns (appended, same sequence) */}
@@ -8459,6 +8456,10 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-left font-semibold">Reject Reason</th>
                           <th className="px-4 py-3 text-left font-semibold">Rejected By</th>
                           <th className="px-4 py-3 text-left font-semibold">Reason Added By Badho Team</th>
+                          {/* Moved to last: Margin · Op Cost · Net P&L */}
+                          <th className="px-4 py-3 text-right font-semibold">Margin</th>
+                          <th className="px-4 py-3 text-right font-semibold">Op Cost</th>
+                          <th className="px-4 py-3 text-right font-semibold">Net P&amp;L</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -8481,14 +8482,11 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-2.5 text-purple-100 max-w-[180px] truncate" title={o.sellerName ?? ''}>{o.sellerName ?? '—'}</td>
                             <td className="px-4 py-2.5 text-purple-100 max-w-[180px] truncate" title={o.buyerName ?? ''}>{o.buyerName ?? '—'}</td>
                             <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums">{fmtFull(o.poAmount)}</td>
-                            <td className="px-4 py-2.5 text-right text-emerald-300 tabular-nums">{fmtFull(o.marginRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{o.badhoCommissionPct ? `${o.badhoCommissionPct}%` : '—'}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.couponRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.badhoPaymentDiscountRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.rewardRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.deliveryChargeRs)}</td>
-                            <td className="px-4 py-2.5 text-right text-amber-300 tabular-nums">{fmtFull(o.operationalCostRs)}</td>
-                            <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${o.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(o.profitAndLossRs)}</td>
                             <td className="px-4 py-2.5 text-center text-purple-100 text-[11px] whitespace-nowrap">{o.deliveryStatus ?? '—'}</td>
                             <td className="px-4 py-2.5 text-center">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
@@ -8560,6 +8558,10 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-2.5 text-rose-300 text-[11px] max-w-[260px] whitespace-normal" title={o.rejectReason ?? ''}>{o.rejectReason ?? '—'}</td>
                             <td className="px-4 py-2.5 text-rose-300 text-[11px] whitespace-nowrap">{o.rejectedBy ?? '—'}</td>
                             <td className="px-4 py-2.5 text-rose-300 text-[11px] max-w-[260px] whitespace-normal" title={o.reasonAddedByBadhoTeam ?? ''}>{o.reasonAddedByBadhoTeam ?? '—'}</td>
+                            {/* Moved to last: Margin · Op Cost · Net P&L */}
+                            <td className="px-4 py-2.5 text-right text-emerald-300 tabular-nums">{fmtFull(o.marginRs)}</td>
+                            <td className="px-4 py-2.5 text-right text-amber-300 tabular-nums">{fmtFull(o.operationalCostRs)}</td>
+                            <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${o.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(o.profitAndLossRs)}</td>
                           </tr>
                         ))}
                         {marginDayData.length === 0 && (
@@ -8571,17 +8573,18 @@ export default function OrderStatusDashboard() {
                           <tr className="border-t-2 border-fuchsia-400/30 bg-slate-900 font-semibold">
                             <td className="px-4 py-3 text-purple-100" colSpan={3}>Total · {marginDayData.length} orders</td>
                             <td className="px-4 py-3 text-right text-purple-100 tabular-nums">{fmtFull(marginDayTotals.poAmount)}</td>
-                            <td className="px-4 py-3 text-right text-emerald-300 tabular-nums">{fmtFull(marginDayTotals.marginRs)}</td>
                             <td></td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.couponRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.badhoPaymentDiscountRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.rewardRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.deliveryChargeRs)}</td>
-                            <td className="px-4 py-3 text-right text-amber-300 tabular-nums">{fmtFull(marginDayTotals.operationalCostRs)}</td>
-                            <td className={`px-4 py-3 text-right tabular-nums ${marginDayTotals.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(marginDayTotals.profitAndLossRs)}</td>
                             <td></td>
                             <td></td>
                             <td colSpan={31}></td>
+                            {/* Moved to last: Margin · Op Cost · Net P&L */}
+                            <td className="px-4 py-3 text-right text-emerald-300 tabular-nums">{fmtFull(marginDayTotals.marginRs)}</td>
+                            <td className="px-4 py-3 text-right text-amber-300 tabular-nums">{fmtFull(marginDayTotals.operationalCostRs)}</td>
+                            <td className={`px-4 py-3 text-right tabular-nums ${marginDayTotals.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(marginDayTotals.profitAndLossRs)}</td>
                           </tr>
                         </tfoot>
                       )}

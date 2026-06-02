@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { appendMonthsFilter } from '@/lib/monthsFilter';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,9 @@ export async function GET(req: NextRequest) {
       params.push(currentYear);
       whereDate = ` AND EXTRACT(YEAR FROM po."markedRejectedTime") = $${params.length}`;
     }
+    // Optional "filter to selected months" (ignored in custom-range mode, where
+    // the frontend sends startDate/endDate instead).
+    whereDate += appendMonthsFilter(searchParams.get('months'), 'po."markedRejectedTime"', params);
 
     // Build bucket expressions per granularity
     let bucketSql = '';

@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { appendMonthsFilter } from '@/lib/monthsFilter';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,8 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
 
   try {
+    const params: (string | number)[] = [year];
+    const monthsFilter = appendMonthsFilter(searchParams.get('months'), 'po."markedPendingTime"', params);
     // Postgres EXTRACT(WEEK ...) uses ISO 8601 — Monday start, week 1 contains
     // the first Thursday of the year.
     const sql = `
@@ -44,12 +47,13 @@ export async function GET(req: NextRequest) {
         AND po."status" != 'DRAFT'
         AND po."markedPendingTime" IS NOT NULL
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
+        ${monthsFilter}
       GROUP BY po."status", EXTRACT(WEEK FROM po."markedPendingTime"),
                DATE_TRUNC('week', po."markedPendingTime")
       ORDER BY status, week;
     `;
 
-    const rows = await query<Row>(sql, [year]);
+    const rows = await query<Row>(sql, params);
 
     type Cell = { count: number; amount: number };
     const statusMap: Record<string, Record<number, Cell>> = {};

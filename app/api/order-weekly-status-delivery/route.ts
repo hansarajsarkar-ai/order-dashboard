@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { appendMonthsFilter } from '@/lib/monthsFilter';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,8 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
 
   try {
+    const params: (string | number)[] = [year];
+    const monthsFilter = appendMonthsFilter(searchParams.get('months'), 'po."markedPendingTime"', params);
     const sql = `
       SELECT
         po."status"                                                  AS status,
@@ -41,10 +44,11 @@ export async function GET(req: NextRequest) {
         AND po."status" != 'DRAFT'
         AND po."markedPendingTime" IS NOT NULL
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
+        ${monthsFilter}
       GROUP BY po."status", po."deliveryStatus", EXTRACT(WEEK FROM po."markedPendingTime"), DATE_TRUNC('week', po."markedPendingTime")
       ORDER BY status, delivery_status NULLS LAST, week;
     `;
-    const rows = await query<Row>(sql, [year]);
+    const rows = await query<Row>(sql, params);
 
     type Cell = { count: number; amount: number };
     interface DeliveryAgg { deliveryStatus: string | null; weeks: Record<number, Cell>; total: Cell; }

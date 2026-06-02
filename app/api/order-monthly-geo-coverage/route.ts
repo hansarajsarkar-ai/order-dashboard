@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { appendMonthsFilter } from '@/lib/monthsFilter';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,8 @@ export async function GET(req: NextRequest) {
       params.push(dayMonth);
       periodFilter += ` AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
     }
+    // "Filter to selected months" — applies in month/week modes.
+    periodFilter += appendMonthsFilter(searchParams.get('months'), 'po."markedPendingTime"', params);
 
     let statusFilter = '';
     if (statusesParam) {

@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { appendMonthsFilter } from '@/lib/monthsFilter';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,8 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
 
   try {
+    const params: (string | number)[] = [year];
+    const monthsFilter = appendMonthsFilter(searchParams.get('months'), 'po."markedPendingTime"', params);
     const sql = `
       SELECT
         po."status" AS status,
@@ -37,11 +40,12 @@ export async function GET(req: NextRequest) {
         AND po."status" != 'DRAFT'
         AND po."markedPendingTime" IS NOT NULL
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
+        ${monthsFilter}
       GROUP BY po."status", EXTRACT(MONTH FROM po."markedPendingTime")
       ORDER BY status, month;
     `;
 
-    const rows = await query<MonthlyStatusRow>(sql, [year]);
+    const rows = await query<MonthlyStatusRow>(sql, params);
 
     // Pivot data into status -> month -> {count, amount}
     const statusMap: Record<string, Record<number, { count: number; amount: number }>> = {};

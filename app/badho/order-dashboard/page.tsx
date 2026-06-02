@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
 import MultiSelectFilter from './components/MultiSelectFilter';
+import MonthMultiSelect from './components/MonthMultiSelect';
 import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
 import RejectionReasonPivotTable from './components/RejectionReasonPivotTable';
 import CountdownCalendar from './components/CountdownCalendar';
@@ -362,6 +363,13 @@ export default function OrderStatusDashboard() {
   // Granularity for the Status × Delivery Status pivot
   const [pivotGranularity, setPivotGranularity] = useState<'month' | 'week' | 'day'>('month');
   const [pivotDayMonth, setPivotDayMonth] = useState<number>(new Date().getMonth() + 1);
+  // "Filter to selected months" for the Monthly Breakdown by Order Status pivot
+  // (empty = all months). Applies to Month & Week views; Day view keeps its
+  // single-month selector.
+  const [pivotMonths, setPivotMonths] = useState<number[]>([]);
+  // Month-column set for the Monthly Breakdown month view: the selected months
+  // (sorted) or all 12 when none are picked.
+  const pivotMonthCols = pivotMonths.length ? [...pivotMonths].sort((a, b) => a - b) : MONTH_NAMES.map((_, i) => i + 1);
   const [pivotWeekData, setPivotWeekData] = useState<WeeklyStatusDeliveryData | null>(null);
   const [pivotWeekLoading, setPivotWeekLoading] = useState(false);
   const [pivotDayData, setPivotDayData] = useState<DailyStatusDeliveryData | null>(null);
@@ -383,6 +391,7 @@ export default function OrderStatusDashboard() {
   const [geoCoverageData, setGeoCoverageData] = useState<GeoCoverageData | null>(null);
   const [geoCoverageLoading, setGeoCoverageLoading] = useState(true);
   const [geoCovGranularity, setGeoCovGranularity] = useState<'month' | 'week' | 'day'>('month');
+  const [geoCovMonths, setGeoCovMonths] = useState<number[]>([]);
   const [geoCovDayMonth, setGeoCovDayMonth] = useState<number>(new Date().getMonth() + 1);
   const [geoCovStatuses, setGeoCovStatuses] = useState<string[]>([]);
   const [geoCovStatusOpen, setGeoCovStatusOpen] = useState(false);
@@ -851,6 +860,7 @@ export default function OrderStatusDashboard() {
   const [alertModalCourierFilter, setAlertModalCourierFilter] = useState<Set<string>>(new Set());
   const [alertModalDeliveryFilter, setAlertModalDeliveryFilter] = useState<Set<string>>(new Set());
   const [alertModalSort, setAlertModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [alertGroupByDims, setAlertGroupByDims] = useState<GroupDimension[]>([]);
   const toggleAlertSort = (key: string) => {
     setAlertModalSort((prev) => {
       if (!prev || prev.key !== key) return { key, direction: 'asc' };
@@ -1148,6 +1158,7 @@ export default function OrderStatusDashboard() {
   // RTO trend chart granularity + data
   interface RtoTrendPoint { bucket: string; label: string; count: number; amount: number; }
   const [rtoTrendGranularity, setRtoTrendGranularity] = useState<'month' | 'week' | 'day' | 'custom'>('month');
+  const [rtoTrendMonths, setRtoTrendMonths] = useState<number[]>([]);
   const [rtoTrendCustomFrom, setRtoTrendCustomFrom] = useState('');
   const [rtoTrendCustomTo, setRtoTrendCustomTo] = useState('');
   const [rtoTrendData, setRtoTrendData] = useState<RtoTrendPoint[] | null>(null);
@@ -1169,6 +1180,7 @@ export default function OrderStatusDashboard() {
   const [rtoKpiModalReasonFilter, setRtoKpiModalReasonFilter] = useState<Set<string>>(new Set());
   const [rtoKpiModalAttemptFilter, setRtoKpiModalAttemptFilter] = useState<Set<string>>(new Set());
   const [rtoKpiModalSort, setRtoKpiModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [rtoGroupByDims, setRtoGroupByDims] = useState<GroupDimension[]>([]);
   const toggleRtoKpiSort = (key: string) => {
     setRtoKpiModalSort((prev) => {
       if (!prev || prev.key !== key) return { key, direction: 'asc' };
@@ -1254,6 +1266,8 @@ export default function OrderStatusDashboard() {
     buyerName: string | null;
     buyerBusinessName: string | null;
     buyerPhone: string | null;
+    buyerDistrict: string | null;
+    buyerState: string | null;
     buyerFullAddress: string | null;
     buyerLongitude: string | null;
     buyerLatitude: string | null;
@@ -1534,7 +1548,8 @@ export default function OrderStatusDashboard() {
   const fetchPivot = async () => {
     try {
       setPivotLoading(true);
-      const response = await fetch(`/api/order-monthly-status-delivery?year=${currentYear}`);
+      const monthsQS = pivotMonths.length ? `&months=${pivotMonths.join(',')}` : '';
+      const response = await fetch(`/api/order-monthly-status-delivery?year=${currentYear}${monthsQS}`);
       if (!response.ok) throw new Error('Failed to fetch pivot data');
       const result: MonthlyStatusDeliveryData = await response.json();
       setPivotData(result);
@@ -1547,7 +1562,8 @@ export default function OrderStatusDashboard() {
 
   useEffect(() => {
     fetchPivot();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pivotMonths]);
 
   const fetchGeoCoverage = async () => {
     try {
@@ -1558,6 +1574,7 @@ export default function OrderStatusDashboard() {
         month: String(geoCovDayMonth),
       });
       if (geoCovStatuses.length) qs.set('statuses', geoCovStatuses.join(','));
+      if (geoCovMonths.length) qs.set('months', geoCovMonths.join(','));
       const response = await fetch(`/api/order-monthly-geo-coverage?${qs.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch geo coverage');
       const result: GeoCoverageData = await response.json();
@@ -1572,12 +1589,13 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     fetchGeoCoverage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geoCovGranularity, geoCovDayMonth, geoCovStatuses]);
+  }, [geoCovGranularity, geoCovDayMonth, geoCovStatuses, geoCovMonths]);
 
   const fetchPivotWeekly = async () => {
     try {
       setPivotWeekLoading(true);
-      const response = await fetch(`/api/order-weekly-status-delivery?year=${currentYear}`);
+      const monthsQS = pivotMonths.length ? `&months=${pivotMonths.join(',')}` : '';
+      const response = await fetch(`/api/order-weekly-status-delivery?year=${currentYear}${monthsQS}`);
       if (!response.ok) throw new Error('Failed to fetch weekly pivot');
       const result: WeeklyStatusDeliveryData = await response.json();
       setPivotWeekData(result);
@@ -1603,9 +1621,9 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => {
-    if (pivotGranularity === 'week' && !pivotWeekData) fetchPivotWeekly();
+    if (pivotGranularity === 'week') fetchPivotWeekly();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pivotGranularity]);
+  }, [pivotGranularity, pivotMonths]);
 
   useEffect(() => {
     if (pivotGranularity === 'day') fetchPivotDaily(pivotDayMonth);
@@ -1745,6 +1763,7 @@ export default function OrderStatusDashboard() {
         if (rtoTrendCustomTo) params.set('endDate', rtoTrendCustomTo);
       } else {
         params.set('granularity', rtoTrendGranularity);
+        if (rtoTrendMonths.length) params.set('months', rtoTrendMonths.join(','));
       }
       const res = await fetch(`/api/order-rto-trend?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch RTO trend');
@@ -1762,7 +1781,7 @@ export default function OrderStatusDashboard() {
     if (activeTab !== 'rto') return;
     fetchRtoTrend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, rtoTrendGranularity, rtoTrendCustomFrom, rtoTrendCustomTo]);
+  }, [activeTab, rtoTrendGranularity, rtoTrendCustomFrom, rtoTrendCustomTo, rtoTrendMonths]);
 
   const fetchRtoRate = async () => {
     try {
@@ -1896,6 +1915,7 @@ export default function OrderStatusDashboard() {
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setAlertModalData(json.data);
+      fetchScansBatch((json.data as AlertDetailRow[]).map((r) => r.poNumber).filter(Boolean));
     } catch (err) {
       setAlertModalError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -1904,6 +1924,7 @@ export default function OrderStatusDashboard() {
   };
 
   const closeAlertModal = () => {
+    setAlertGroupByDims([]);
     setAlertModalCategory(null);
     setAlertModalSeller(null);
     setAlertModalSource('sla');
@@ -3281,6 +3302,9 @@ export default function OrderStatusDashboard() {
                   );
                 })}
               </div>
+              {pivotGranularity !== 'day' && (
+                <MonthMultiSelect selected={pivotMonths} onChange={setPivotMonths} year={currentYear} />
+              )}
               {pivotGranularity === 'day' && (
                 <select
                   value={pivotDayMonth}
@@ -3306,19 +3330,19 @@ export default function OrderStatusDashboard() {
                 <button
                   className={DOWNLOAD_BTN_CLASS}
                   onClick={() => {
-                    const headers = ['Status', 'Delivery Status', ...MONTH_NAMES.flatMap((m) => [`${m} Count`, `${m} Amount`]), 'Total Count', 'Total Amount', '% Total'];
+                    const headers = ['Status', 'Delivery Status', ...pivotMonthCols.flatMap((m) => [`${MONTH_NAMES[m - 1]} Count`, `${MONTH_NAMES[m - 1]} Amount`]), 'Total Count', 'Total Amount', '% Total'];
                     const rows: CsvCell[][] = [];
                     const grandCount = pivotData.totals.grand.count;
                     const pct = (n: number) => grandCount > 0 ? `${((n / grandCount) * 100).toFixed(1)}%` : '—';
                     byStatusOrder(pivotData.data).forEach((row) => {
-                      const parentCells = MONTH_NAMES.flatMap((_, i) => {
-                        const c = row.months[i + 1];
+                      const parentCells = pivotMonthCols.flatMap((m) => {
+                        const c = row.months[m];
                         return [c?.count ?? 0, c?.amount ?? 0];
                       });
                       rows.push([row.status, '(all)', ...parentCells, row.total.count, row.total.amount, pct(row.total.count)]);
                       row.deliveryStatuses.forEach((sub) => {
-                        const subCells = MONTH_NAMES.flatMap((_, i) => {
-                          const c = sub.months[i + 1];
+                        const subCells = pivotMonthCols.flatMap((m) => {
+                          const c = sub.months[m];
                           return [c?.count ?? 0, c?.amount ?? 0];
                         });
                         rows.push([row.status, sub.deliveryStatus ?? '(no delivery status)', ...subCells, sub.total.count, sub.total.amount, pct(sub.total.count)]);
@@ -3409,20 +3433,23 @@ export default function OrderStatusDashboard() {
                     <th rowSpan={2} className="px-4 py-3 text-left text-xs font-semibold text-purple-200 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[220px]">
                       Status / Delivery Status
                     </th>
-                    {MONTH_NAMES.map((m) => (
+                    {pivotMonthCols.map((m) => (
                       <th key={m} colSpan={2} className="px-2 py-2 text-center text-xs font-semibold text-purple-200 border-r border-white/10">
-                        {m}
+                        {MONTH_NAMES[m - 1]}
                       </th>
                     ))}
                     <th colSpan={3} className="px-2 py-2 text-center text-xs font-bold text-purple-100 bg-purple-500/20">Total</th>
                   </tr>
                   <tr className="bg-white/5 border-b border-white/10">
-                    {[...Array(13)].map((_, i) => (
+                    {[...Array(pivotMonthCols.length + 1)].map((_, i) => {
+                      const isTotal = i === pivotMonthCols.length;
+                      return (
                       <Fragment key={i}>
-                        <th className={`px-2 py-2 text-right text-[10px] font-medium ${i === 12 ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Count</th>
-                        <th className={`px-2 py-2 text-right text-[10px] font-medium ${i === 12 ? 'text-purple-100 bg-purple-500/20' : 'border-r border-white/10 text-purple-300'}`}>Amount</th>
+                        <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'text-purple-300'}`}>Count</th>
+                        <th className={`px-2 py-2 text-right text-[10px] font-medium ${isTotal ? 'text-purple-100 bg-purple-500/20' : 'border-r border-white/10 text-purple-300'}`}>Amount</th>
                       </Fragment>
-                    ))}
+                      );
+                    })}
                     <th className="px-2 py-2 text-right text-[10px] font-medium text-purple-100 bg-purple-500/20 border-r border-white/10">% Total</th>
                   </tr>
                 </thead>
@@ -3445,8 +3472,7 @@ export default function OrderStatusDashboard() {
                               </span>
                             </div>
                           </td>
-                          {MONTH_NAMES.map((_, idx) => {
-                            const month = idx + 1;
+                          {pivotMonthCols.map((month) => {
                             const cell = row.months[month];
                             const hasData = cell && cell.count > 0;
                             const handleClick = (e: React.MouseEvent) => {
@@ -3499,8 +3525,7 @@ export default function OrderStatusDashboard() {
                                 </span>
                               </div>
                             </td>
-                            {MONTH_NAMES.map((_, idx) => {
-                              const month = idx + 1;
+                            {pivotMonthCols.map((month) => {
                               const cell = sub.months[month];
                               const hasData = cell && cell.count > 0;
                               const handleClick = (e: React.MouseEvent) => {
@@ -3551,8 +3576,7 @@ export default function OrderStatusDashboard() {
                     <td className="px-4 py-3 sticky left-0 bg-slate-900/95 backdrop-blur z-10 border-r border-white/10 text-white">
                       Total
                     </td>
-                    {MONTH_NAMES.map((_, idx) => {
-                      const month = idx + 1;
+                    {pivotMonthCols.map((month) => {
                       const cell = pivotData.totals.byMonth[month];
                       const hasData = cell && cell.count > 0;
                       return (
@@ -3827,6 +3851,9 @@ export default function OrderStatusDashboard() {
                   );
                 })}
               </div>
+              {geoCovGranularity !== 'day' && (
+                <MonthMultiSelect selected={geoCovMonths} onChange={setGeoCovMonths} year={currentYear} />
+              )}
               {geoCovGranularity === 'day' && (
                 <select
                   value={geoCovDayMonth}
@@ -5401,6 +5428,9 @@ export default function OrderStatusDashboard() {
                     );
                   })}
                 </div>
+                {rtoTrendGranularity !== 'custom' && (
+                  <MonthMultiSelect selected={rtoTrendMonths} onChange={setRtoTrendMonths} year={currentYear} />
+                )}
               </div>
               {/* Custom date pickers row */}
               {rtoTrendGranularity === 'custom' && (

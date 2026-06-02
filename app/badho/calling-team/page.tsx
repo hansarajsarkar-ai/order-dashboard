@@ -106,7 +106,7 @@ interface LogsResp {
 
 // ───────────────────────── filters bar ─────────────────────────
 
-type Tab = 'dashboard' | 'analytics' | 'daily' | 'logs';
+type Tab = 'dashboard' | 'analytics' | 'daily' | 'logs' | 'table';
 
 // Per-day types used by the Daily Trend tab.
 export interface DailyDetailedRow {
@@ -579,7 +579,7 @@ export default function CallingTeamDashboard() {
 
   useEffect(() => {
     if (!authChecked) return;
-    if (tab !== 'analytics' && tab !== 'dashboard') return;
+    if (tab !== 'analytics' && tab !== 'dashboard' && tab !== 'table') return;
     loadAnalytics();
   }, [authChecked, tab, loadAnalytics]);
 
@@ -743,6 +743,12 @@ export default function CallingTeamDashboard() {
             >
               📋 Detailed Call Logs
             </button>
+            <button
+              onClick={() => setTab('table')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'table' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+            >
+              📑 Table
+            </button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {DATE_PRESETS.map((p) => (
@@ -880,11 +886,141 @@ export default function CallingTeamDashboard() {
             loadLogs={(p) => { setLogsPage(p); loadLogs(p); }}
           />
         )}
+
+        {tab === 'table' && (
+          <TableTab loading={loading} agents={agents} />
+        )}
       </div>
 
       <style jsx>{`
         .animation-delay-2000 { animation-delay: 2s; }
       `}</style>
+    </div>
+  );
+}
+
+// ───────────────────────── Tab: Table (full agent table) ─────────────────────────
+
+function TableTab({ loading, agents }: { loading: boolean; agents: AgentRow[] }) {
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<{ col: keyof AgentRow; dir: 'asc' | 'desc' }>({ col: 'totalCalls', dir: 'desc' });
+
+  const COLS: [keyof AgentRow, string][] = [
+    ['totalCalls', 'Calls'],
+    ['connectedCalls', 'Connected'],
+    ['connectionRate', 'Connect %'],
+    ['meaningfulCalls', 'Meaningful'],
+    ['meaningfulRate', 'Meaningful %'],
+    ['missedCalls', 'Missed'],
+    ['avgDuration', 'Avg Dur'],
+    ['totalTalkTime', 'Talk Time'],
+    ['uniqueCustomers', 'Unique Cust'],
+  ];
+
+  const rows = agents
+    .filter((a) => a.agentName.toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((a, b) => {
+      const av = a[sort.col], bv = b[sort.col];
+      const cmp = typeof av === 'string' && typeof bv === 'string'
+        ? av.localeCompare(bv)
+        : Number(av) - Number(bv);
+      return sort.dir === 'desc' ? -cmp : cmp;
+    });
+
+  const toggleSort = (col: keyof AgentRow) =>
+    setSort((s) => ({ col, dir: s.col === col && s.dir === 'desc' ? 'asc' : 'desc' }));
+
+  const exportCsv = () => {
+    const header = ['Agent', ...COLS.map(([, label]) => label)];
+    const lines = rows.map((a) => [
+      `"${a.agentName.replace(/"/g, '""')}"`,
+      a.totalCalls, a.connectedCalls, (a.connectionRate * 100).toFixed(1) + '%',
+      a.meaningfulCalls, (a.meaningfulRate * 100).toFixed(1) + '%', a.missedCalls,
+      a.avgDuration, a.totalTalkTime, a.uniqueCustomers,
+    ].join(','));
+    const csv = [header.join(','), ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'calling-team-agents.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-purple-100">Agent Table</h2>
+          <p className="text-purple-300/70 text-xs mt-0.5">
+            {loading ? 'Loading…' : `${rows.length} of ${agents.length} agents — click a column to sort`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search agent…"
+            className="px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 text-purple-100 placeholder:text-purple-300/40 focus:outline-none focus:border-purple-400/40"
+          />
+          <button
+            onClick={exportCsv}
+            disabled={!rows.length}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border border-fuchsia-400/30 text-fuchsia-200 disabled:opacity-40"
+          >
+            ⬇ Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="text-purple-300/70 uppercase tracking-wider text-[10px] border-b border-white/10">
+            <tr>
+              <th className="text-left py-2 pr-2">#</th>
+              <th className="text-left py-2 pr-2">Agent</th>
+              {COLS.map(([col, label]) => (
+                <th
+                  key={col}
+                  className="text-right py-2 px-2 cursor-pointer hover:text-purple-100 select-none"
+                  onClick={() => toggleSort(col)}
+                >
+                  {label} {sort.col === col ? (sort.dir === 'desc' ? '↓' : '↑') : ''}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((a, i) => (
+              <tr key={a.agentName} className="border-b border-white/5 hover:bg-white/5">
+                <td className="py-2 pr-2 text-purple-300/60">{i + 1}</td>
+                <td className="py-2 pr-2 text-purple-100 font-medium">{a.agentName}</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(a.totalCalls)}</td>
+                <td className="py-2 px-2 text-right text-emerald-300 tabular-nums">{fmtInt(a.connectedCalls)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">
+                  <span className={a.connectionRate >= 0.6 ? 'text-emerald-300' : a.connectionRate >= 0.4 ? 'text-amber-300' : 'text-rose-300'}>
+                    {fmtPct(a.connectionRate, 1)}
+                  </span>
+                </td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(a.meaningfulCalls)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtPct(a.meaningfulRate, 1)}</td>
+                <td className="py-2 px-2 text-right text-rose-200/80 tabular-nums">{fmtInt(a.missedCalls)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtDuration(a.avgDuration)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtTalkTime(a.totalTalkTime)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.uniqueCustomers)}</td>
+              </tr>
+            ))}
+            {!loading && !rows.length && (
+              <tr>
+                <td colSpan={COLS.length + 2} className="py-8 text-center text-purple-300/50">
+                  {agents.length ? 'No agents match your search.' : 'No agent data for this range.'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

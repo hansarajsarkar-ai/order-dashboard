@@ -905,6 +905,8 @@ export default function OrderStatusDashboard() {
   const [alertBrandLoading, setAlertBrandLoading] = useState(false);
   const [alertBrandError, setAlertBrandError] = useState<string | null>(null);
   const [alertBrandSearch, setAlertBrandSearch] = useState('');
+  // Alert tab sub-views: 'sla' = SLA breach pivots, 'anomalies' = Order Anomalies chart
+  const [alertSubTab, setAlertSubTab] = useState<'sla' | 'anomalies'>('sla');
 
   // Buyer details modal — opens when clicking a "Buyer Business" cell in any drill modal
   interface BuyerDetailsRow {
@@ -1661,7 +1663,6 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     if (activeTab !== 'trend') return;
     fetchTrend();
-    fetchAnomalies();
     fetchPaymentTrend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, trendRange, trendCustomFrom, trendCustomTo]);
@@ -1822,6 +1823,13 @@ export default function OrderStatusDashboard() {
     if (alertBrandData === null) fetchAlertBrand();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // Lazy-load the Order Anomalies chart when its Alert sub-tab is opened
+  useEffect(() => {
+    if (activeTab !== 'alert' || alertSubTab !== 'anomalies') return;
+    if (anomaliesData === null) fetchAnomalies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, alertSubTab]);
 
   // Pre-fetch alert count on mount so the tab badge appears immediately
   useEffect(() => {
@@ -5002,142 +5010,6 @@ export default function OrderStatusDashboard() {
                 </ResponsiveContainer>
               );
             })()}
-          </div>
-        </div>
-
-        {/* Order Anomalies — stacked bar chart by status */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
-            <div>
-              <h2 className="text-2xl font-bold text-white">Order Anomalies</h2>
-              <p className="text-purple-300 text-sm mt-1">
-                Share of order statuses per day (100% stacked) — last 30 days
-              </p>
-            </div>
-            {/* Legend chips in header */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {[
-                { label: 'COMPLETED', color: '#84cc16' },
-                { label: 'DISPATCHED', color: '#818cf8' },
-                { label: 'INPROGRESS', color: '#fbcfe8' },
-                { label: 'PENDING',    color: '#ef4444' },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/70 border border-white/10"
-                >
-                  <span
-                    className="inline-block w-3 h-3 rounded-sm"
-                    style={{ background: s.color }}
-                  />
-                  <span className="text-xs font-bold text-white tracking-wide">{s.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Chart */}
-          <div className="p-6">
-            {anomaliesLoading || !anomaliesData ? (
-              <div className="h-[360px] flex items-center justify-center text-purple-300">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
-                  Loading anomalies…
-                </div>
-              </div>
-            ) : anomaliesData.length === 0 ? (
-              <div className="h-[360px] flex items-center justify-center text-purple-300">No data in this range</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={420}>
-                <BarChart
-                  data={anomaliesData}
-                  margin={{ top: 16, right: 16, left: 8, bottom: 8 }}
-                  stackOffset="expand"
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
-                    tickFormatter={(d: string) => {
-                      const [, m, dd] = d.split('-');
-                      return `${dd}/${m}`;
-                    }}
-                    minTickGap={4}
-                    interval={0}
-                  />
-                  <YAxis
-                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
-                    tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
-                    domain={[0, 1]}
-                    width={50}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'rgba(15,23,42,0.95)',
-                      border: '1px solid rgba(217,70,239,0.4)',
-                      borderRadius: 10,
-                      color: '#fff',
-                      fontSize: 12,
-                    }}
-                    labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
-                    labelFormatter={(d) => `Date: ${d}`}
-                    formatter={(value, name, props) => {
-                      const n = typeof value === 'number' ? value : Number(value ?? 0);
-                      const row = props && (props as { payload?: Record<string, number> }).payload;
-                      const total = row
-                        ? (Number(row.PENDING || 0) + Number(row.INPROGRESS || 0) + Number(row.DISPATCHED || 0) + Number(row.COMPLETED || 0))
-                        : 0;
-                      const pct = total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
-                      return [`${n} (${pct}%)`, String(name)];
-                    }}
-                  />
-                  <Bar dataKey="PENDING" stackId="status" fill="#ef4444" name="PENDING" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('PENDING', e)}>
-                    <LabelList
-                      dataKey="PENDING"
-                      position="center"
-                      formatter={(v: unknown) => {
-                        const n = typeof v === 'number' ? v : Number(v ?? 0);
-                        return n > 0 ? String(n) : '';
-                      }}
-                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
-                    />
-                  </Bar>
-                  <Bar dataKey="INPROGRESS" stackId="status" fill="#fbcfe8" name="INPROGRESS" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('INPROGRESS', e)}>
-                    <LabelList
-                      dataKey="INPROGRESS"
-                      position="center"
-                      formatter={(v: unknown) => {
-                        const n = typeof v === 'number' ? v : Number(v ?? 0);
-                        return n > 0 ? String(n) : '';
-                      }}
-                      style={{ fill: '#831843', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
-                    />
-                  </Bar>
-                  <Bar dataKey="DISPATCHED" stackId="status" fill="#818cf8" name="DISPATCHED" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('DISPATCHED', e)}>
-                    <LabelList
-                      dataKey="DISPATCHED"
-                      position="center"
-                      formatter={(v: unknown) => {
-                        const n = typeof v === 'number' ? v : Number(v ?? 0);
-                        return n > 0 ? String(n) : '';
-                      }}
-                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
-                    />
-                  </Bar>
-                  <Bar dataKey="COMPLETED" stackId="status" fill="#84cc16" name="COMPLETED" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('COMPLETED', e)}>
-                    <LabelList
-                      dataKey="COMPLETED"
-                      position="center"
-                      formatter={(v: unknown) => {
-                        const n = typeof v === 'number' ? v : Number(v ?? 0);
-                        return n > 0 ? String(n) : '';
-                      }}
-                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
           </div>
         </div>
 
@@ -8747,8 +8619,33 @@ export default function OrderStatusDashboard() {
           );
         })()}
 
-        {/* Brand-wise SLA breach pivot — rows = seller, columns = payment category */}
+        {/* Alert sub-tabs: SLA Breach vs Order Anomalies */}
         {activeTab === 'alert' && (
+          <div className="mb-5 flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl w-fit">
+            {([
+              { key: 'sla', label: 'SLA Breach' },
+              { key: 'anomalies', label: 'Order Anomalies' },
+            ] as const).map((st) => {
+              const active = alertSubTab === st.key;
+              return (
+                <button
+                  key={st.key}
+                  onClick={() => setAlertSubTab(st.key)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 ${
+                    active
+                      ? 'bg-gradient-to-r from-rose-500 via-red-500 to-orange-500 text-white shadow-[0_0_24px_rgba(244,63,94,0.55),inset_0_0_18px_rgba(251,113,133,0.4)]'
+                      : 'text-purple-200 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  {st.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Brand-wise SLA breach pivot — rows = seller, columns = payment category */}
+        {activeTab === 'alert' && alertSubTab === 'sla' && (
           <div className="relative bg-gradient-to-br from-rose-950/40 via-slate-900/30 to-amber-950/30 backdrop-blur-xl border-2 border-rose-500/40 rounded-2xl overflow-hidden shadow-[0_0_60px_rgba(244,63,94,0.25),inset_0_0_30px_rgba(244,63,94,0.05)]">
             {/* Animated alert stripe across the top */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-amber-400 to-rose-500 bg-[length:200%_100%] animate-stripe-flow" />
@@ -8994,7 +8891,7 @@ export default function OrderStatusDashboard() {
         )}
 
         {/* Brand-wise InProgress Aging — INPROGRESS orders stuck > 1 day (Sundays excluded) */}
-        {activeTab === 'alert' && (
+        {activeTab === 'alert' && alertSubTab === 'sla' && (
           <div className="mt-6 relative bg-gradient-to-br from-amber-950/40 via-slate-900/30 to-orange-950/30 backdrop-blur-xl border-2 border-amber-500/40 rounded-2xl overflow-hidden shadow-[0_0_60px_rgba(245,158,11,0.22),inset_0_0_30px_rgba(245,158,11,0.05)]">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500 bg-[length:200%_100%] animate-stripe-flow" />
             <div className="px-8 py-6 border-b border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-rose-500/10 flex items-center justify-between flex-wrap gap-4">
@@ -9201,6 +9098,144 @@ export default function OrderStatusDashboard() {
           </div>
         )}
 
+
+        {/* Order Anomalies — relocated here as the Alert > Order Anomalies sub-tab */}
+        {activeTab === 'alert' && alertSubTab === 'anomalies' && (
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Order Anomalies</h2>
+              <p className="text-purple-300 text-sm mt-1">
+                Share of order statuses per day (100% stacked) — last 30 days
+              </p>
+            </div>
+            {/* Legend chips in header */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { label: 'COMPLETED', color: '#84cc16' },
+                { label: 'DISPATCHED', color: '#818cf8' },
+                { label: 'INPROGRESS', color: '#fbcfe8' },
+                { label: 'PENDING',    color: '#ef4444' },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/70 border border-white/10"
+                >
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm"
+                    style={{ background: s.color }}
+                  />
+                  <span className="text-xs font-bold text-white tracking-wide">{s.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Chart */}
+          <div className="p-6">
+            {anomaliesLoading || !anomaliesData ? (
+              <div className="h-[360px] flex items-center justify-center text-purple-300">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+                  Loading anomalies…
+                </div>
+              </div>
+            ) : anomaliesData.length === 0 ? (
+              <div className="h-[360px] flex items-center justify-center text-purple-300">No data in this range</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={420}>
+                <BarChart
+                  data={anomaliesData}
+                  margin={{ top: 16, right: 16, left: 8, bottom: 8 }}
+                  stackOffset="expand"
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                    tickFormatter={(d: string) => {
+                      const [, m, dd] = d.split('-');
+                      return `${dd}/${m}`;
+                    }}
+                    minTickGap={4}
+                    interval={0}
+                  />
+                  <YAxis
+                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                    tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+                    domain={[0, 1]}
+                    width={50}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'rgba(15,23,42,0.95)',
+                      border: '1px solid rgba(217,70,239,0.4)',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 12,
+                    }}
+                    labelStyle={{ color: '#f0abfc', fontWeight: 700 }}
+                    labelFormatter={(d) => `Date: ${d}`}
+                    formatter={(value, name, props) => {
+                      const n = typeof value === 'number' ? value : Number(value ?? 0);
+                      const row = props && (props as { payload?: Record<string, number> }).payload;
+                      const total = row
+                        ? (Number(row.PENDING || 0) + Number(row.INPROGRESS || 0) + Number(row.DISPATCHED || 0) + Number(row.COMPLETED || 0))
+                        : 0;
+                      const pct = total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
+                      return [`${n} (${pct}%)`, String(name)];
+                    }}
+                  />
+                  <Bar dataKey="PENDING" stackId="status" fill="#ef4444" name="PENDING" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('PENDING', e)}>
+                    <LabelList
+                      dataKey="PENDING"
+                      position="center"
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        return n > 0 ? String(n) : '';
+                      }}
+                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
+                    />
+                  </Bar>
+                  <Bar dataKey="INPROGRESS" stackId="status" fill="#fbcfe8" name="INPROGRESS" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('INPROGRESS', e)}>
+                    <LabelList
+                      dataKey="INPROGRESS"
+                      position="center"
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        return n > 0 ? String(n) : '';
+                      }}
+                      style={{ fill: '#831843', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
+                    />
+                  </Bar>
+                  <Bar dataKey="DISPATCHED" stackId="status" fill="#818cf8" name="DISPATCHED" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('DISPATCHED', e)}>
+                    <LabelList
+                      dataKey="DISPATCHED"
+                      position="center"
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        return n > 0 ? String(n) : '';
+                      }}
+                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
+                    />
+                  </Bar>
+                  <Bar dataKey="COMPLETED" stackId="status" fill="#84cc16" name="COMPLETED" cursor="pointer" onClick={(e: unknown) => openAnomalyDrill('COMPLETED', e)}>
+                    <LabelList
+                      dataKey="COMPLETED"
+                      position="center"
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        return n > 0 ? String(n) : '';
+                      }}
+                      style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+        )}
 
         {/* Buyer Details Modal — opens when clicking a Buyer Business cell in any drill modal */}
         {buyerModalOpen && (
@@ -10290,6 +10325,7 @@ export default function OrderStatusDashboard() {
                             <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
                           </th>
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">View Ticket</th>
                           <SortTh k="status" label="Order Status" />
                           <SortTh k="poAmount" label="PO Amount" />
                           <SortTh k="coupon" label="Coupon Amount" />
@@ -10383,6 +10419,21 @@ export default function OrderStatusDashboard() {
                                   </svg>
                                   View Items
                                 </button>
+                              </td>
+                              <td className="px-2.5 py-2 whitespace-nowrap">
+                                <a
+                                  href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(r.poNumber)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 text-[11px] font-bold border border-sky-300 hover:border-sky-400 transition-all"
+                                  title={`Search Freshdesk tickets for PO ${r.poNumber}`}
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                  </svg>
+                                  View Ticket
+                                </a>
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
@@ -11184,6 +11235,7 @@ export default function OrderStatusDashboard() {
                     <thead className="sticky top-0 bg-slate-100 z-10">
                       <tr className="border-b border-slate-200">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">View Ticket</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Business</th>
@@ -11197,6 +11249,12 @@ export default function OrderStatusDashboard() {
                       {(sellerDrillPaged?.rows || filteredSellerDrillRows).map((r) => (
                         <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50">
                           <td className="px-4 py-3 text-slate-900 tabular-nums font-medium">{r.poNumber}</td>
+                          <td className="px-4 py-3">
+                            <a href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(r.poNumber)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold border border-sky-300" title={`Search Freshdesk tickets for PO ${r.poNumber}`}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                              View Ticket
+                            </a>
+                          </td>
                           <td className="px-4 py-3">
                             <span
                               className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
@@ -11326,6 +11384,7 @@ export default function OrderStatusDashboard() {
                     <thead className="sticky top-0 bg-slate-100 z-10">
                       <tr className="border-b border-slate-200">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">PO Number</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">View Ticket</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Status</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Buyer Address</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
@@ -11342,6 +11401,12 @@ export default function OrderStatusDashboard() {
                       {(drillPaged?.rows || filteredDrillRows).map((r) => (
                         <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50">
                           <td className="px-4 py-3 text-slate-900 tabular-nums font-medium">{r.poNumber}</td>
+                          <td className="px-4 py-3">
+                            <a href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(r.poNumber)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold border border-sky-300" title={`Search Freshdesk tickets for PO ${r.poNumber}`}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                              View Ticket
+                            </a>
+                          </td>
                           <td className="px-4 py-3 text-slate-700">{r.status}</td>
                           <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={r.buyerFullAddress || r.buyerAddress}>{r.buyerFullAddress || r.buyerAddress || '—'}</td>
                           <td className="px-4 py-3 text-right text-slate-900 tabular-nums">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
@@ -11829,6 +11894,7 @@ export default function OrderStatusDashboard() {
                             <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
                           </th>
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Items</th>
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">View Ticket</th>
                           <SortTh k="status" label="Order Status" />
                           <SortTh k="poAmount" label="PO Amount" align="right" />
                           <SortTh k="coupon" label="Coupon Amount" align="right" />
@@ -11906,6 +11972,21 @@ export default function OrderStatusDashboard() {
                                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold border border-emerald-300"
                                   title="View items + price breakup"
                                 >Items</button>
+                              </td>
+                              <td className="px-2.5 py-2 whitespace-nowrap">
+                                <a
+                                  href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(r.poNumber)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 hover:bg-sky-100 text-sky-700 text-[10px] font-bold border border-sky-300"
+                                  title={`Search Freshdesk tickets for PO ${r.poNumber}`}
+                                >
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                  </svg>
+                                  Ticket
+                                </a>
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.poStatus || dash}</td>
                               <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{fmtAmt(r.orderValue)}</td>

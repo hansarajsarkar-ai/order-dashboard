@@ -23,6 +23,7 @@ export interface GroupableOrderRow {
   buyerDistrict?: string | null;
   sellerBusinessName?: string | null;
   sellerPhone?: string | null;
+  deliveryStatus?: string | null;
 }
 
 interface GroupByModalProps {
@@ -72,6 +73,10 @@ const money = (n: number): string => `₹${n.toLocaleString('en-IN', { maximumFr
 
 const dimValue = (r: GroupableOrderRow, d: GroupDimension): string => {
   switch (d) {
+    case 'orderStatus':
+      return r.orderStatus || r.status || '(unknown)';
+    case 'deliveryStatus':
+      return r.deliveryStatus || '(no delivery status)';
     case 'buyer':
       return r.buyerBusinessName || r.buyerPhone || '(unknown)';
     case 'seller':

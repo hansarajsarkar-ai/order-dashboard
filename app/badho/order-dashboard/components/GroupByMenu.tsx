@@ -2,20 +2,37 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export type GroupDimension = 'buyer' | 'seller' | 'buyerState' | 'buyerDistrict';
+export type GroupDimension =
+  | 'orderStatus'
+  | 'deliveryStatus'
+  | 'buyer'
+  | 'seller'
+  | 'buyerState'
+  | 'buyerDistrict';
 
 // Options shown in the dropdown (multi-select). "Order Wise" = no grouping (empty selection).
 export const GROUP_OPTIONS: { dim: GroupDimension; label: string }[] = [
+  { dim: 'orderStatus', label: 'Order Status Wise' },
+  { dim: 'deliveryStatus', label: 'Delivery Status Wise' },
   { dim: 'buyer', label: 'Buyer Wise' },
   { dim: 'seller', label: 'Seller Wise' },
   { dim: 'buyerState', label: 'Buyer State Wise' },
   { dim: 'buyerDistrict', label: 'Buyer District Wise' },
 ];
 
-// Canonical column order when several dimensions are combined (broad → narrow → entity).
-export const DIM_ORDER: GroupDimension[] = ['buyerState', 'buyerDistrict', 'buyer', 'seller'];
+// Canonical column order when several dimensions are combined (status → geo → entity).
+export const DIM_ORDER: GroupDimension[] = [
+  'orderStatus',
+  'deliveryStatus',
+  'buyerState',
+  'buyerDistrict',
+  'buyer',
+  'seller',
+];
 
 export const DIM_LABEL: Record<GroupDimension, string> = {
+  orderStatus: 'Order Status',
+  deliveryStatus: 'Delivery Status',
   buyer: 'Buyer',
   seller: 'Seller',
   buyerState: 'State',

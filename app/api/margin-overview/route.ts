@@ -13,6 +13,8 @@ export const dynamic = 'force-dynamic';
  *                        + reward wallet credits
  *   profitAndLossRs    = totalMargin - totalOperationalCost
  *
+ * Daily buckets are keyed by the intercity-delivery created_at date (the day
+ * the order's latest in-window delivery was created), NOT the PO creation date.
  * `days` query param controls the latest-delivery lookback window (default 30).
  */
 
@@ -38,16 +40,14 @@ export async function GET(req: NextRequest) {
   const days = Number.isFinite(daysRaw) && daysRaw > 0 && daysRaw <= 365 ? daysRaw : 30;
 
   // Filter the latest-delivery window either by an explicit [startDate, endDate]
-  // range (inclusive) or by a rolling N-day lookback.
+  // range (inclusive) or by a rolling N-day lookback. The P&L is bucketed by
+  // the intercity-delivery created_at date (see order_date below), so this
+  // delivery-date window is also what bounds the chart's date range — an order
+  // appears on the day its delivery was created, regardless of when the PO was
+  // placed.
   const deliveryFilter = useCustom
     ? `di."created_at" >= $1::date AND di."created_at" < ($2::date + 1)`
     : `di."created_at" >= CURRENT_DATE - make_interval(days => $1)`;
-  // The chart buckets by order date, so the window must also bound the order
-  // date — otherwise an old order that merely had a delivery event inside the
-  // window leaks in as a stray bucket far outside the selected range.
-  const orderDateFilter = useCustom
-    ? `po."created_at" >= $1::date AND po."created_at" < ($2::date + 1)`
-    : `po."created_at" >= CURRENT_DATE - make_interval(days => $1)`;
   const params: unknown[] = useCustom ? [startDate, endDate] : [days];
 
   const sql = `
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     order_base AS (
       SELECT DISTINCT
         po."id" AS po_id,
-        po."created_at"::date AS order_date,
+        dv."created_at"::date AS order_date,
         po."amount" AS po_amount,
         po."amount" * (COALESCE((s."deliveryChargesJSON"->'badhoFees'->>'value')::numeric, 0) / 100.0) AS badho_margin_rs,
         CASE WHEN LOWER(s."deliveryChargesJSON"->>'forwardDeliveryCostToSeller') = 'false' THEN
@@ -106,7 +106,6 @@ export async function GET(req: NextRequest) {
         AND po."deliveryNetwork" = 'THIRD_PARTY'
         AND po."deliveryType"    = 'INTERCITY'
         AND po."isFalseOrder"    = FALSE
-        AND ${orderDateFilter}
     )
     SELECT
       to_char(order_date, 'YYYY-MM-DD')                             AS "Date",

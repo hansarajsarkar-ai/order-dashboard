@@ -8,9 +8,10 @@ export const dynamic = 'force-dynamic';
  *
  * Returns the individual D2R / third-party INTERCITY orders that make up one
  * row of the daily P&L table (same filters & cost model as /api/margin-overview).
- * Requires `date` (the order_date bucket, YYYY-MM-DD). The delivery lookback
- * window must match the parent table, so pass the same `days` OR
- * `startDate`+`endDate` params the table is using.
+ * Requires `date` (the bucket key = intercity-delivery created_at date,
+ * YYYY-MM-DD), matching the parent table which now buckets by delivery date
+ * rather than PO creation date. The delivery lookback window must match the
+ * parent table, so pass the same `days` OR `startDate`+`endDate` params.
  */
 
 interface Row {
@@ -123,7 +124,7 @@ export async function GET(req: NextRequest) {
       SELECT DISTINCT
         po."id" AS po_id,
         po."poNumber" AS po_number,
-        po."created_at"::date AS order_date,
+        dv."created_at"::date AS order_date,
         s."businessName" AS seller_name,
         b."businessName" AS buyer_name,
         po."amount" AS po_amount,

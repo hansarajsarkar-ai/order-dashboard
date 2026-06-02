@@ -70,6 +70,14 @@ const fmtBucket = (s: string, gran: Granularity) => {
   return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
+// Trailing-day count from Jan 1 of the current year through today (inclusive),
+// so the shared `days` window can express a year-to-date range.
+const computeYtdDays = () => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  return Math.max(1, Math.round((now.getTime() - start.getTime()) / 86_400_000));
+};
+
 const RANGES = [
   { label: '7D', days: 7 },
   { label: '14D', days: 14 },
@@ -107,7 +115,10 @@ export default function MarginAndGrowthDashboard() {
   const [employeeName, setEmployeeName] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const [days, setDays] = useState<number>(30);
+  const ytdDays = useMemo(() => computeYtdDays(), []);
+  const [days, setDays] = useState<number>(() => computeYtdDays());
+  const isYtd = days === ytdDays;
+  const windowSub = isYtd ? 'year to date' : `over last ${days} days`;
   const [data, setData] = useState<DauPoint[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -276,13 +287,23 @@ export default function MarginAndGrowthDashboard() {
                 {r.label}
               </button>
             ))}
+            <button
+              onClick={() => setDays(ytdDays)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                isYtd
+                  ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-[0_0_18px_rgba(217,70,239,0.45)]'
+                  : 'text-purple-200 hover:bg-white/10'
+              }`}
+            >
+              YTD
+            </button>
           </div>
         </div>
 
         {/* KPIs */}
         {summary && !loading && !error && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <KPICard label="Avg Daily Buyers" value={fmtInt(summary.avg)} sub={`over last ${days} days`} tone="fuchsia" />
+            <KPICard label="Avg Daily Buyers" value={fmtInt(summary.avg)} sub={windowSub} tone="fuchsia" />
             <KPICard
               label="Peak Day"
               value={fmtInt(summary.peak)}
@@ -343,14 +364,18 @@ export default function MarginAndGrowthDashboard() {
                       const { cx, cy, index, payload } = props;
                       if (cx == null || cy == null) return <g key={index} />;
                       const isPeak = summary?.peak != null && payload.buyers === summary.peak;
+                      // Per-point value labels only stay legible for short windows;
+                      // hide them once the series gets dense (e.g. YTD).
+                      const showLabel = !isPeak && chartData.length <= 45;
+                      const r = chartData.length > 70 ? 2 : 3;
                       return (
                         <g key={index}>
-                          {!isPeak && (
+                          {showLabel && (
                             <text x={cx} y={cy - 10} textAnchor="middle" fill="#f5d0fe" fontSize={10} fontWeight={600}>
                               {fmtCompact(payload.buyers)}
                             </text>
                           )}
-                          <circle cx={cx} cy={cy} r={3} fill="#d946ef" stroke="#fff" strokeWidth={1} />
+                          <circle cx={cx} cy={cy} r={r} fill="#d946ef" stroke="#fff" strokeWidth={1} />
                         </g>
                       );
                     }}
@@ -408,7 +433,7 @@ export default function MarginAndGrowthDashboard() {
 
           {orderSummary && !orderLoading && !orderError && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-              <KPICard label="Total Orders" value={fmtInt(orderSummary.totalOrders)} sub={`over last ${days} days`} tone="sky" />
+              <KPICard label="Total Orders" value={fmtInt(orderSummary.totalOrders)} sub={windowSub} tone="sky" />
               <KPICard label={`Avg / ${granularity}`} value={fmtInt(orderSummary.avg)} sub={`per ${granularity}`} tone="purple" />
               <KPICard
                 label={`Peak ${granularity}`}

@@ -8426,8 +8426,6 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-center font-semibold">Status</th>
                           {/* Monthly Breakdown by Order Status drill-down columns (appended, same sequence) */}
                           <th className="px-4 py-3 text-left font-semibold">Marked Pending</th>
-                          <th className="px-4 py-3 text-left font-semibold">Pushed</th>
-                          <th className="px-4 py-3 text-left font-semibold">PO Number</th>
                           <th className="px-4 py-3 text-left font-semibold">Items</th>
                           <th className="px-4 py-3 text-left font-semibold">Order Status</th>
                           <th className="px-4 py-3 text-right font-semibold">PO Amount</th>
@@ -8502,23 +8500,6 @@ export default function OrderStatusDashboard() {
                             {/* Appended Monthly Breakdown drill-down columns */}
                             <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{formatDateTime(o.markedPendingTime)}</td>
                             <td className="px-4 py-2.5 whitespace-nowrap">
-                              <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">Pushed</span>
-                            </td>
-                            <td className="px-4 py-2.5 whitespace-nowrap">
-                              {o.poNumber ? (
-                                <button
-                                  type="button"
-                                  onClick={() => openPoItemsModal(o.poNumber as string)}
-                                  className="text-fuchsia-300 font-semibold hover:text-fuchsia-200 hover:underline transition-colors"
-                                  title="View order items"
-                                >
-                                  {o.poNumber}
-                                </button>
-                              ) : (
-                                <span className="text-purple-300/50">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-2.5 whitespace-nowrap">
                               {o.poNumber ? (
                                 <button
                                   type="button"
@@ -8565,7 +8546,7 @@ export default function OrderStatusDashboard() {
                           </tr>
                         ))}
                         {marginDayData.length === 0 && (
-                          <tr><td colSpan={45} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
+                          <tr><td colSpan={43} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
                         )}
                       </tbody>
                       {marginDayData.length > 0 && marginDayTotals && (
@@ -8580,7 +8561,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.deliveryChargeRs)}</td>
                             <td></td>
                             <td></td>
-                            <td colSpan={31}></td>
+                            <td colSpan={29}></td>
                             {/* Moved to last: Margin · Op Cost · Net P&L */}
                             <td className="px-4 py-3 text-right text-emerald-300 tabular-nums">{fmtFull(marginDayTotals.marginRs)}</td>
                             <td className="px-4 py-3 text-right text-amber-300 tabular-nums">{fmtFull(marginDayTotals.operationalCostRs)}</td>

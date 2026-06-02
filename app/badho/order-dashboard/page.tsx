@@ -428,6 +428,7 @@ export default function OrderStatusDashboard() {
   const [pivotDrillStatus, setPivotDrillStatus] = useState<string>('');
   const [pivotDrillDelivery, setPivotDrillDelivery] = useState<string | null | undefined>(undefined); // undefined = no filter, null = NULL filter, string = exact
   const [pivotDrillMonth, setPivotDrillMonth] = useState<number | null>(null);
+  const [pivotDrillDay, setPivotDrillDay] = useState<number | null>(null); // when set, drill is scoped to a single day within pivotDrillMonth
   const [pivotDrillRows, setPivotDrillRows] = useState<OrderListRow[] | null>(null);
   const [pivotDrillLoading, setPivotDrillLoading] = useState(false);
   const [pivotDrillError, setPivotDrillError] = useState<string | null>(null);
@@ -2115,12 +2116,14 @@ export default function OrderStatusDashboard() {
   const openPivotDrill = async (
     status: string,
     deliveryStatus: string | null | undefined,
-    month: number | null
+    month: number | null,
+    day: number | null = null
   ) => {
     setPivotDrillOpen(true);
     setPivotDrillStatus(status);
     setPivotDrillDelivery(deliveryStatus);
     setPivotDrillMonth(month);
+    setPivotDrillDay(day);
     setPivotDrillRows(null);
     setPivotDrillError(null);
     setPivotDrillSearch('');
@@ -2134,7 +2137,14 @@ export default function OrderStatusDashboard() {
     setPivotDrillLoading(true);
     try {
       const params = new URLSearchParams({ status, year: String(currentYear) });
-      if (month !== null) params.append('month', String(month));
+      if (day !== null && month !== null) {
+        // Single-day drill: scope to exactly that calendar date.
+        const dateStr = `${currentYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        params.append('startDate', dateStr);
+        params.append('endDate', dateStr);
+      } else if (month !== null) {
+        params.append('month', String(month));
+      }
       if (deliveryStatus !== undefined) {
         params.append('deliveryStatus', deliveryStatus === null ? '__NULL__' : deliveryStatus);
       }
@@ -2154,6 +2164,7 @@ export default function OrderStatusDashboard() {
     setPivotDrillStatus('');
     setPivotDrillDelivery(undefined);
     setPivotDrillMonth(null);
+    setPivotDrillDay(null);
     setPivotDrillRows(null);
     setPivotDrillError(null);
     setPivotDrillSearch('');
@@ -3478,15 +3489,19 @@ export default function OrderStatusDashboard() {
                             {days.map((d) => {
                               const cell = row.days[d];
                               const hasData = cell && cell.count > 0;
+                              const handleClick = (e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                if (hasData) openPivotDrill(row.status, undefined, pivotDayMonth, d);
+                              };
                               return (
                                 <Fragment key={d}>
-                                  <td className={`px-2 py-3 text-right tabular-nums ${hasData ? 'text-white' : 'text-white/30'}`}>{hasData ? cell.count.toLocaleString() : '—'}</td>
-                                  <td className={`px-2 py-3 text-right tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200' : 'text-white/30'}`}>{hasData ? formatAmount(cell.amount) : '—'}</td>
+                                  <td onClick={handleClick} className={`px-2 py-3 text-right tabular-nums transition-all duration-200 ${hasData ? 'text-white cursor-pointer hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_20px_rgba(217,70,239,0.6),0_0_18px_rgba(168,85,247,0.55)] hover:scale-110 transform-gpu relative' : 'text-white/30'}`}>{hasData ? cell.count.toLocaleString() : '—'}</td>
+                                  <td onClick={handleClick} className={`px-2 py-3 text-right tabular-nums border-r border-white/10 transition-all duration-200 ${hasData ? 'text-purple-200 cursor-pointer hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_20px_rgba(217,70,239,0.6),0_0_18px_rgba(168,85,247,0.55)] hover:scale-110 transform-gpu relative' : 'text-white/30'}`}>{hasData ? formatAmount(cell.amount) : '—'}</td>
                                 </Fragment>
                               );
                             })}
-                            <td className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10">{row.total.count.toLocaleString()}</td>
-                            <td className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10">{formatAmount(row.total.amount)}</td>
+                            <td onClick={(e) => { e.stopPropagation(); openPivotDrill(row.status, undefined, pivotDayMonth); }} className="px-2 py-3 text-right tabular-nums font-bold text-white bg-purple-500/10 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:shadow-[inset_0_0_20px_rgba(217,70,239,0.7),0_0_22px_rgba(168,85,247,0.6)] hover:scale-110 transform-gpu relative">{row.total.count.toLocaleString()}</td>
+                            <td onClick={(e) => { e.stopPropagation(); openPivotDrill(row.status, undefined, pivotDayMonth); }} className="px-2 py-3 text-right tabular-nums font-bold text-purple-100 bg-purple-500/10 border-r border-white/10 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:shadow-[inset_0_0_20px_rgba(217,70,239,0.7),0_0_22px_rgba(168,85,247,0.6)] hover:scale-110 transform-gpu relative">{formatAmount(row.total.amount)}</td>
                           </tr>
                           {expanded && row.deliveryStatuses.map((sub) => (
                             <tr key={`${row.status}-${sub.deliveryStatus ?? 'null'}`} className="border-b border-white/5 bg-white/[0.02]">
@@ -3496,15 +3511,19 @@ export default function OrderStatusDashboard() {
                               {days.map((d) => {
                                 const cell = sub.days[d];
                                 const hasData = cell && cell.count > 0;
+                                const handleClick = (e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  if (hasData) openPivotDrill(row.status, sub.deliveryStatus, pivotDayMonth, d);
+                                };
                                 return (
                                   <Fragment key={d}>
-                                    <td className={`px-2 py-2.5 text-right text-xs tabular-nums ${hasData ? 'text-purple-100' : 'text-white/20'}`}>{hasData ? cell.count.toLocaleString() : '—'}</td>
-                                    <td className={`px-2 py-2.5 text-right text-xs tabular-nums border-r border-white/10 ${hasData ? 'text-purple-200/80' : 'text-white/20'}`}>{hasData ? formatAmount(cell.amount) : '—'}</td>
+                                    <td onClick={handleClick} className={`px-2 py-2.5 text-right text-xs tabular-nums transition-all duration-200 ${hasData ? 'text-purple-100 cursor-pointer hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_18px_rgba(217,70,239,0.55),0_0_16px_rgba(168,85,247,0.5)] hover:scale-110 transform-gpu relative' : 'text-white/20'}`}>{hasData ? cell.count.toLocaleString() : '—'}</td>
+                                    <td onClick={handleClick} className={`px-2 py-2.5 text-right text-xs tabular-nums border-r border-white/10 transition-all duration-200 ${hasData ? 'text-purple-200/80 cursor-pointer hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_18px_rgba(217,70,239,0.55),0_0_16px_rgba(168,85,247,0.5)] hover:scale-110 transform-gpu relative' : 'text-white/20'}`}>{hasData ? formatAmount(cell.amount) : '—'}</td>
                                   </Fragment>
                                 );
                               })}
-                              <td className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-100 bg-purple-500/5">{sub.total.count.toLocaleString()}</td>
-                              <td className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-200/80 bg-purple-500/5 border-r border-white/10">{formatAmount(sub.total.amount)}</td>
+                              <td onClick={(e) => { e.stopPropagation(); openPivotDrill(row.status, sub.deliveryStatus, pivotDayMonth); }} className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-100 bg-purple-500/5 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_18px_rgba(217,70,239,0.6),0_0_18px_rgba(168,85,247,0.55)] hover:scale-110 transform-gpu relative">{sub.total.count.toLocaleString()}</td>
+                              <td onClick={(e) => { e.stopPropagation(); openPivotDrill(row.status, sub.deliveryStatus, pivotDayMonth); }} className="px-2 py-2.5 text-right text-xs tabular-nums text-purple-200/80 bg-purple-500/5 border-r border-white/10 cursor-pointer transition-all duration-200 hover:bg-gradient-to-br hover:from-fuchsia-500 hover:via-purple-500 hover:to-indigo-500 hover:text-white hover:font-bold hover:shadow-[inset_0_0_18px_rgba(217,70,239,0.6),0_0_18px_rgba(168,85,247,0.55)] hover:scale-110 transform-gpu relative">{formatAmount(sub.total.amount)}</td>
                             </tr>
                           ))}
                         </Fragment>
@@ -10329,7 +10348,9 @@ export default function OrderStatusDashboard() {
                     )}
                   </h3>
                   <p className="text-slate-500 text-xs mt-1">
-                    {pivotDrillMonth ? `${MONTH_NAMES[pivotDrillMonth - 1]} ${currentYear}` : `${currentYear} (all months)`}
+                    {pivotDrillDay && pivotDrillMonth
+                      ? `${MONTH_NAMES[pivotDrillMonth - 1]} ${pivotDrillDay}, ${currentYear}`
+                      : pivotDrillMonth ? `${MONTH_NAMES[pivotDrillMonth - 1]} ${currentYear}` : `${currentYear} (all months)`}
                     {' · '}
                     {pivotDrillLoading
                       ? 'Loading…'

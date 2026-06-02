@@ -597,6 +597,7 @@ export default function OrderStatusDashboard() {
     buyerPhone: string | null;
     sellerPhone: string | null;
     forwardDeliveryCostToSeller: string | null;
+    dbDeliveryChargeRs: number | null;
     codAmountRs: number | null;
     buyerFullAddress: string | null;
     refundInitiatedTime: string | null;
@@ -8425,6 +8426,7 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-right font-semibold">Badho Disc</th>
                           <th className="px-4 py-3 text-right font-semibold">Reward</th>
                           <th className="px-4 py-3 text-right font-semibold">Delivery Charge</th>
+                          <th className="px-4 py-3 text-right font-semibold">DB Delivery Charge</th>
                           <th className="px-4 py-3 text-center font-semibold">Forward Delivery Cost To Seller</th>
                           <th className="px-4 py-3 text-left font-semibold">Delivery Status</th>
                           <th className="px-4 py-3 text-left font-semibold">Marked Pending</th>
@@ -8487,6 +8489,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.badhoPaymentDiscountRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.rewardRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.deliveryChargeRs)}</td>
+                            <td className="px-4 py-2.5 text-right text-sky-300 tabular-nums">{o.dbDeliveryChargeRs != null ? fmtFull(o.dbDeliveryChargeRs) : '—'}</td>
                             <td className="px-4 py-2.5 text-center whitespace-nowrap">
                               {o.forwardDeliveryCostToSeller == null ? (
                                 <span className="text-purple-300/50">—</span>
@@ -8525,7 +8528,7 @@ export default function OrderStatusDashboard() {
                           </tr>
                         ))}
                         {marginDayData.length === 0 && (
-                          <tr><td colSpan={34} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
+                          <tr><td colSpan={35} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
                         )}
                       </tbody>
                       {marginDayData.length > 0 && marginDayTotals && (
@@ -8542,6 +8545,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.badhoPaymentDiscountRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.rewardRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.deliveryChargeRs)}</td>
+                            <td className="px-4 py-3 text-right text-sky-300 tabular-nums">{fmtFull(marginDayData.reduce((s, o) => s + (o.dbDeliveryChargeRs ?? 0), 0))}</td>
                             <td colSpan={23}></td>
                           </tr>
                         </tfoot>

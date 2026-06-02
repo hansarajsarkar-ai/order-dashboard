@@ -8,6 +8,8 @@ interface SellerRow {
   seller_id: string;
   seller_phone: string | null;
   seller_business_name: string | null;
+  is_active: boolean | null;
+  days_since_last_order: string | null;
   pushed_count: string; pushed_amount: string;
   delivered_count: string; delivered_amount: string;
   rto_count: string; rto_amount: string;
@@ -65,6 +67,8 @@ export async function GET(req: NextRequest) {
         s."id"::text                                  AS seller_id,
         s."phone"                                     AS seller_phone,
         s."businessName"                              AS seller_business_name,
+        s."isActive"                                  AS is_active,
+        EXTRACT(DAY FROM (NOW() - MAX(po."markedPendingTime")))::int::text AS days_since_last_order,
         COUNT(*)                                                                                            AS pushed_count,
         COALESCE(SUM(po."amount"::numeric), 0)::text                                                        AS pushed_amount,
         COUNT(*) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))                                    AS delivered_count,
@@ -77,7 +81,7 @@ export async function GET(req: NextRequest) {
       WHERE po."markedPendingTime" IS NOT NULL
         AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
         ${STD_FILTERS}
-      GROUP BY s."id", s."phone", s."businessName"
+      GROUP BY s."id", s."phone", s."businessName", s."isActive"
       HAVING COUNT(*) FILTER (WHERE po."status" = 'REJECTED' AND po."deliveryStatus" ILIKE '%RTO%') > 0
       ORDER BY rto_count DESC;
     `;
@@ -149,6 +153,8 @@ export async function GET(req: NextRequest) {
         sellerId: r.seller_id,
         sellerPhone: r.seller_phone,
         sellerBusinessName: r.seller_business_name,
+        isActive: r.is_active === true,
+        daysSinceLastOrder: r.days_since_last_order != null ? parseInt(r.days_since_last_order, 10) : null,
         pushedCount,
         pushedAmount: parseFloat(r.pushed_amount),
         deliveredCount,

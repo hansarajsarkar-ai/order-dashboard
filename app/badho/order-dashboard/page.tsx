@@ -1114,6 +1114,8 @@ export default function OrderStatusDashboard() {
     sellerId: string;
     sellerPhone: string | null;
     sellerBusinessName: string | null;
+    isActive: boolean;
+    daysSinceLastOrder: number | null;
     pushedCount: number; pushedAmount: number;
     deliveredCount: number; deliveredAmount: number;
     rtoCount: number; rtoAmount: number;
@@ -5728,6 +5730,7 @@ export default function OrderStatusDashboard() {
                           <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-emerald-200">Delivered</th>
                           <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-rose-200">RTO</th>
                           <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-rose-300">RTO %</th>
+                          <th className="px-3 py-2.5 text-center text-[11px] font-semibold text-purple-200">Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -5759,6 +5762,27 @@ export default function OrderStatusDashboard() {
                                   : s.rtoRate >= 15 ? 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40'
                                   : 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/40'
                                 }`}>{s.rtoRate.toFixed(1)}%</span>
+                              </td>
+                              <td className="px-3 py-2.5 text-center align-top">
+                                {s.isActive ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/40">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
+                                    Active
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex flex-col items-center px-2.5 py-1 rounded-md text-[11px] font-bold bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/40 leading-tight"
+                                    title={s.daysSinceLastOrder != null ? `${s.daysSinceLastOrder} day${s.daysSinceLastOrder === 1 ? '' : 's'} since last order` : undefined}
+                                  >
+                                    <span className="inline-flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-300" />
+                                      Inactive
+                                    </span>
+                                    {s.daysSinceLastOrder != null && (
+                                      <span className="text-rose-300/80 text-[10px] font-medium mt-0.5">{s.daysSinceLastOrder}d ago</span>
+                                    )}
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           );

@@ -2070,7 +2070,7 @@ function DailyTrendTab(props: {
     return <div className="text-purple-200/70 py-16 text-center text-sm">No data for this window.</div>;
   }
 
-  const { series, dowAgg, summary, dayHourly } = data;
+  const { series, summary, dayHourly } = data;
   const sorted = [...series].sort((a, b) => {
     const av = a[sort.col];
     const bv = b[sort.col];
@@ -2183,26 +2183,52 @@ function DailyTrendTab(props: {
       >
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={chartData} margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="barConnected" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#34d399" />
+                  <stop offset="100%" stopColor="#059669" />
+                </linearGradient>
+                <linearGradient id="barNoAnswer" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#fbbf24" />
+                  <stop offset="100%" stopColor="#ea8a04" />
+                </linearGradient>
+                <linearGradient id="barMissed" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#fb7185" />
+                  <stop offset="100%" stopColor="#e11d48" />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="dayLabel" tick={{ fill: '#c4b5fd', fontSize: 10 }} interval="preserveStartEnd" />
               <YAxis yAxisId="l" tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} />
-              <YAxis yAxisId="r" orientation="right" tick={{ fill: '#fbbf24', fontSize: 11 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} domain={[0, 1]} />
+              <YAxis yAxisId="r" orientation="right" tick={{ fill: '#fcd34d', fontSize: 11 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} domain={[0, 1]} />
               <Tooltip
+                cursor={{ fill: 'rgba(168,85,247,0.08)' }}
                 contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
-                formatter={(v, name) => (name === 'Connect Rate' ? `${(Number(v) * 100).toFixed(1)}%` : fmtInt(Number(v)))}
+                formatter={(v, name, item: any) => {
+                  if (name === 'Connect Rate') return [`${(Number(v) * 100).toFixed(1)}%`, name];
+                  const total = item?.payload?.total ?? 0;
+                  const pct = total ? ` (${((Number(v) / total) * 100).toFixed(0)}%)` : '';
+                  return [`${fmtInt(Number(v))}${pct}`, name];
+                }}
               />
               <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
-              <Bar yAxisId="l" dataKey="connected" name="Connected" stackId="a" fill="#10b981" />
-              <Bar yAxisId="l" dataKey="noAnswer"  name="No Answer"  stackId="a" fill="#f59e0b" />
-              <Bar yAxisId="l" dataKey="missed"    name="Missed"    stackId="a" fill="#ef4444" />
+              <Bar yAxisId="l" dataKey="connected" name="Connected" stackId="a" fill="url(#barConnected)">
+                <LabelList dataKey="connectedPct" content={renderBarPct} />
+              </Bar>
+              <Bar yAxisId="l" dataKey="noAnswer"  name="No Answer"  stackId="a" fill="url(#barNoAnswer)" radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="noAnswerPct" content={renderBarPct} />
+              </Bar>
+              <Bar yAxisId="l" dataKey="missed"    name="Missed"    stackId="a" fill="url(#barMissed)" radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="missedPct" content={renderBarPct} />
+              </Bar>
               <Line
                 yAxisId="r"
                 type="monotone"
                 dataKey="connectionRate"
                 name="Connect Rate"
-                stroke="#fbbf24"
-                strokeWidth={2.5}
+                stroke="#fde047"
+                strokeWidth={3}
                 activeDot={{ r: 5 }}
                 isAnimationActive={false}
                 dot={(props: any) => {
@@ -2214,9 +2240,19 @@ function DailyTrendTab(props: {
                   const rate = payload?.connectionRate;
                   return (
                     <g key={`crd-${index}`}>
-                      <circle cx={cx} cy={cy} r={3} fill="#fbbf24" />
+                      <circle cx={cx} cy={cy} r={3.5} fill="#fde047" stroke="#1e1b4b" strokeWidth={1} />
                       {showLabel && rate != null && (
-                        <text x={cx} y={cy - 9} textAnchor="middle" fill="#fde68a" fontSize={9} fontWeight={600}>
+                        <text
+                          x={cx}
+                          y={cy - 10}
+                          textAnchor="middle"
+                          fill="#fef9c3"
+                          stroke="rgba(0,0,0,0.5)"
+                          strokeWidth={2.4}
+                          paintOrder="stroke"
+                          fontSize={11}
+                          fontWeight={800}
+                        >
                           {`${(Number(rate) * 100).toFixed(0)}%`}
                         </text>
                       )}
@@ -2229,30 +2265,9 @@ function DailyTrendTab(props: {
         </div>
       </ChartCard>
 
-      {/* Day-of-week pattern + detailed table */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <ChartCard
-          title="Day-of-Week Pattern"
-          subtitle="Average calls per weekday across the window"
-          question="Which weekdays are reliably high vs low?"
-        >
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={dowAgg}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="name" tick={{ fill: '#c4b5fd', fontSize: 11 }} />
-                <YAxis yAxisId="l" tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} />
-                <YAxis yAxisId="r" orientation="right" tick={{ fill: '#fbbf24', fontSize: 11 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} domain={[0, 1]} />
-                <Tooltip contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
-                  formatter={(v, name) => (name === 'Connect Rate' ? `${(Number(v) * 100).toFixed(1)}%` : fmtInt(Number(v)))} />
-                <Bar yAxisId="l" dataKey="avgCalls" name="Avg Calls" fill="#a855f7" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="r" type="monotone" dataKey="connectionRate" name="Connect Rate" stroke="#fbbf24" strokeWidth={2} dot={{ r: 3 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </ChartCard>
-
-        <div className="xl:col-span-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
+      {/* Detailed daily metrics table */}
+      <div>
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div>
               <div className="text-base font-semibold text-white">Detailed Daily Metrics</div>

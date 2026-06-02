@@ -77,7 +77,7 @@ const DASHBOARDS: DashboardEntry[] = [
   },
   {
     slug: 'margin-and-growth',
-    title: 'Margin and Growth',
+    title: 'GROWTH report',
     description:
       'Daily Active Buyers trend — distinct buyers opening a buyer-app session each day, with peak / average and a 7-day moving average.',
     icon: '🚀',

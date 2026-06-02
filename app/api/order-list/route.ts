@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
   const currentYear = new Date().getFullYear();
   const year = parseInt(searchParams.get('year') || String(currentYear));
   const monthParam = searchParams.get('month');
+  const weekParam = searchParams.get('week');                  // optional Postgres EXTRACT(WEEK) number — matches the weekly status pivot
   const status = searchParams.get('status');                  // optional now — when omitted, all non-DRAFT statuses are included
   const deliveryStatusParam = searchParams.get('deliveryStatus'); // value | "__NULL__" | null
   const startDate = searchParams.get('startDate');            // optional YYYY-MM-DD — when set, replaces year-based filter
@@ -95,6 +96,15 @@ export async function GET(req: NextRequest) {
       if (!Number.isNaN(month) && month >= 1 && month <= 12) {
         params.push(month);
         monthFilter = ` AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
+      }
+    }
+
+    let weekFilter = '';
+    if (weekParam) {
+      const week = parseInt(weekParam);
+      if (!Number.isNaN(week) && week >= 1 && week <= 53) {
+        params.push(week);
+        weekFilter = ` AND EXTRACT(WEEK FROM po."markedPendingTime") = $${params.length}`;
       }
     }
 
@@ -247,6 +257,7 @@ export async function GET(req: NextRequest) {
         ${statusFilter}
         ${dateFilter}
         ${monthFilter}
+        ${weekFilter}
         ${deliveryFilter}
         ${brandFilter}
         ${brandLabelFilter}

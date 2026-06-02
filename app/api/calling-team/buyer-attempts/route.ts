@@ -5,13 +5,37 @@ export const dynamic = 'force-dynamic';
 
 // ATC Buyer Attempt-Rate analysis: did the calling team reach buyers who placed
 // D2R intercity orders on the same day they ordered, or by the next day?
-// Window is fixed at 3 months ending today; bucketed by day / week / month.
+// Window is driven by the global date range; bucketed by day / week / month.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const grainParam = (searchParams.get('granularity') || 'day').toLowerCase();
   const grain = (['day', 'week', 'month'] as const).includes(grainParam as 'day' | 'week' | 'month')
     ? (grainParam as 'day' | 'week' | 'month')
     : 'day';
+
+  // Accept the global date range (YYYY-MM-DD). Fall back to a 3-month window
+  // ending today if either bound is missing or malformed.
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  const startParam = searchParams.get('startDate') || '';
+  const endParam = searchParams.get('endDate') || '';
+  const startDate = dateRe.test(startParam) ? startParam : null;
+  const endDate = dateRe.test(endParam) ? endParam : null;
+  const hasRange = startDate !== null && endDate !== null;
+
+  // Date predicates. When a range is given, orders fall within [start, end] and
+  // calls are considered through end+1 day (to capture next-day attempts).
+  // Otherwise fall back to the original rolling window.
+  const params: unknown[] = [];
+  let callDatePredicate: string;
+  let orderDatePredicate: string;
+  if (hasRange) {
+    params.push(startDate, endDate); // $1 = start, $2 = end
+    callDatePredicate = `AND "start_date"::date >= $1::date AND "start_date"::date <= $2::date + INTERVAL '1 day'`;
+    orderDatePredicate = `AND po."created_at"::date >= $1::date AND po."created_at"::date <= $2::date`;
+  } else {
+    callDatePredicate = `AND "start_date"::date >= CURRENT_DATE - INTERVAL '95 days'`;
+    orderDatePredicate = `AND po."created_at"::date >= CURRENT_DATE - INTERVAL '3 months'`;
+  }
 
   try {
     const rows = await query<{
@@ -35,7 +59,7 @@ export async function GET(req: NextRequest) {
         FROM "smartFlo"."call_logs"
         WHERE "campaign_name" IN ('Cold Lead Campaign', 'Warm_Lead')
           AND LENGTH(REGEXP_REPLACE("call_to_number", '[^0-9]', '', 'g')) >= 10
-          AND "start_date"::date >= CURRENT_DATE - INTERVAL '95 days'
+          ${callDatePredicate}
       ),
       eligible_sellers AS (
         SELECT s."id" AS seller_id
@@ -67,7 +91,7 @@ export async function GET(req: NextRequest) {
         JOIN eligible_seller_brands esb ON esb."brandId" = poi."brandId" AND esb."sellerId" = es.seller_id
         JOIN "users"."buyer" b ON b."id" = po."buyerId"
         WHERE po."isTest" = FALSE
-          AND po."created_at"::date >= CURRENT_DATE - INTERVAL '3 months'
+          ${orderDatePredicate}
           AND b."isTest" = FALSE
           AND b."businessName" NOT ILIKE '%test%'
       ),
@@ -101,6 +125,7 @@ export async function GET(req: NextRequest) {
       GROUP BY bucket
       ORDER BY bucket DESC
       `,
+      params,
     );
 
     const result = rows.map((r) => ({

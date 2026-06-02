@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ResponsiveContainer,
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot,
 } from 'recharts';
 
 interface DauPoint {
@@ -226,7 +226,7 @@ export default function MarginAndGrowthDashboard() {
         {/* Chart */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
           <div className="mb-4">
-            <h2 className="text-lg font-bold text-white">Daily Active Buyers Trend</h2>
+            <h2 className="text-lg font-bold text-white">DAU — Daily Active Buyers Trend</h2>
             <p className="text-xs text-purple-300/70 mt-0.5">Distinct active buyers per day with a 7-day moving average.</p>
           </div>
 
@@ -254,8 +254,35 @@ export default function MarginAndGrowthDashboard() {
                     formatter={(v, name) => [fmtInt(Number(v)), String(name)]}
                   />
                   <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
-                  <Area type="monotone" dataKey="buyers" name="Active Buyers" stroke="#d946ef" strokeWidth={2} fill="url(#dauFill)" />
+                  <Area
+                    type="monotone"
+                    dataKey="buyers"
+                    name="Active Buyers"
+                    stroke="#d946ef"
+                    strokeWidth={2}
+                    fill="url(#dauFill)"
+                    dot={{ r: 2, fill: '#d946ef', stroke: 'none' }}
+                    activeDot={{ r: 5, fill: '#d946ef', stroke: '#fff', strokeWidth: 2 }}
+                  />
                   <Line type="monotone" dataKey="ma7" name="7-day MA" stroke="#fbbf24" strokeWidth={2} dot={false} />
+                  {summary?.peakDay && (
+                    <ReferenceDot
+                      x={fmtDay(summary.peakDay)}
+                      y={summary.peak}
+                      r={6}
+                      fill="#34d399"
+                      stroke="#fff"
+                      strokeWidth={2}
+                      isFront
+                      label={{
+                        value: `Peak ${fmtInt(summary.peak)}`,
+                        position: 'top',
+                        fill: '#34d399',
+                        fontSize: 11,
+                        fontWeight: 700,
+                      }}
+                    />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

@@ -471,6 +471,7 @@ export default function OrderStatusDashboard() {
   const [sellerRange, setSellerRange] = useState<'7d' | '14d' | '15d' | 'custom' | 'all'>('all');
   const [sellerCustomFrom, setSellerCustomFrom] = useState('');
   const [sellerCustomTo, setSellerCustomTo] = useState('');
+  const [sellerMonths, setSellerMonths] = useState<number[]>([]);
   // Geography (India map) state
   const [stateData, setStateData] = useState<StateRow[] | null>(null);
   const [stateLoading, setStateLoading] = useState(false);
@@ -478,6 +479,7 @@ export default function OrderStatusDashboard() {
   const [stateRange, setStateRange] = useState<'7d' | '14d' | '15d' | 'custom' | 'all'>('all');
   const [stateCustomFrom, setStateCustomFrom] = useState('');
   const [stateCustomTo, setStateCustomTo] = useState('');
+  const [stateMonths, setStateMonths] = useState<number[]>([]);
   const [geoMode, setGeoMode] = useState<'state' | 'district'>('state');
   const [districtData, setDistrictData] = useState<DistrictRow[] | null>(null);
   const [districtLoading, setDistrictLoading] = useState(false);
@@ -1394,6 +1396,7 @@ export default function OrderStatusDashboard() {
   const [zoneRange, setZoneRange] = useState<'today' | '7d' | '15d' | '30d' | 'custom'>('30d');
   const [zoneFrom, setZoneFrom] = useState(firstOfMonthStr());
   const [zoneTo, setZoneTo] = useState(todayStr());
+  const [zoneMonths, setZoneMonths] = useState<number[]>([]);
   const [expandedZones, setExpandedZones] = useState<Set<string>>(new Set());
   const [zoneSubTab, setZoneSubTab] = useState<'trend' | 'table'>('trend');
   const [commercialOpen, setCommercialOpen] = useState(false);
@@ -1420,6 +1423,7 @@ export default function OrderStatusDashboard() {
   const [trendCustomFrom, setTrendCustomFrom] = useState('');
   const [trendCustomTo, setTrendCustomTo] = useState('');
   const [trendMetric, setTrendMetric] = useState<'count' | 'amount'>('count');
+  const [trendMonths, setTrendMonths] = useState<number[]>([]);
   // Order Anomalies — stacked bar chart by status
   interface AnomaliesPoint { date: string; [status: string]: string | number; }
   const [anomaliesData, setAnomaliesData] = useState<AnomaliesPoint[] | null>(null);
@@ -1652,6 +1656,7 @@ export default function OrderStatusDashboard() {
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
+      if (trendMonths.length) params.append('months', trendMonths.join(','));
       const res = await fetch(`/api/order-daily-trend${params.toString() ? `?${params}` : ''}`);
       if (!res.ok) throw new Error('Failed to fetch trend');
       const json = await res.json();
@@ -1669,6 +1674,7 @@ export default function OrderStatusDashboard() {
       setZonePivotLoading(true);
       const { startDate, endDate } = resolveZoneRange();
       const params = new URLSearchParams({ startDate, endDate });
+      if (zoneMonths.length) params.append('months', zoneMonths.join(','));
       const res = await fetch(`/api/order-zone-pivot?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch zone pivot');
       const json = await res.json();
@@ -1685,7 +1691,7 @@ export default function OrderStatusDashboard() {
     if (activeTab !== 'zone') return;
     fetchZonePivot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, zoneRange, zoneFrom, zoneTo]);
+  }, [activeTab, zoneRange, zoneFrom, zoneTo, zoneMonths]);
 
   const fetchPaymentTrend = async () => {
     try {
@@ -1694,6 +1700,7 @@ export default function OrderStatusDashboard() {
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
+      if (trendMonths.length) params.append('months', trendMonths.join(','));
       const res = await fetch(`/api/brand-performance/payment-trend${params.toString() ? `?${params}` : ''}`);
       if (!res.ok) throw new Error('Failed to fetch payment-trend');
       const json = await res.json();
@@ -1711,7 +1718,7 @@ export default function OrderStatusDashboard() {
     fetchTrend();
     fetchPaymentTrend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, trendRange, trendCustomFrom, trendCustomTo]);
+  }, [activeTab, trendRange, trendCustomFrom, trendCustomTo, trendMonths]);
 
   const fetchAnomalies = async () => {
     try {
@@ -2489,6 +2496,7 @@ export default function OrderStatusDashboard() {
       const params = new URLSearchParams({ year: String(currentYear) });
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
+      if (sellerMonths.length) params.append('months', sellerMonths.join(','));
       const response = await fetch(`/api/order-seller-wise?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch seller data');
       const result: SellerWiseData = await response.json();
@@ -2503,7 +2511,7 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     fetchSeller();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sellerRange, sellerCustomFrom, sellerCustomTo]);
+  }, [sellerRange, sellerCustomFrom, sellerCustomTo, sellerMonths]);
 
   const fetchSlab = async () => {
     try {
@@ -2512,6 +2520,7 @@ export default function OrderStatusDashboard() {
       const params = new URLSearchParams({ year: String(currentYear) });
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
+      if (sellerMonths.length) params.append('months', sellerMonths.join(','));
       const response = await fetch(`/api/order-seller-slab-monthly?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch slab data');
       const result: SellerSlabData = await response.json();
@@ -2526,7 +2535,7 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     fetchSlab();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sellerRange, sellerCustomFrom, sellerCustomTo]);
+  }, [sellerRange, sellerCustomFrom, sellerCustomTo, sellerMonths]);
 
   // Geography (state-wise map) range + fetcher
   const resolveStateRange = (): { startDate: string | null; endDate: string | null } => {
@@ -2553,6 +2562,7 @@ export default function OrderStatusDashboard() {
       if (endDate) params.append('endDate', endDate);
       const sids = resolveSelectedSellerIds();
       if (sids) params.append('sellerIds', sids);
+      if (stateMonths.length) params.append('months', stateMonths.join(','));
       const res = await fetch(`/api/order-by-state?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
@@ -2569,7 +2579,7 @@ export default function OrderStatusDashboard() {
     if (activeTab !== 'geography') return;
     fetchStateData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList]);
+  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList, stateMonths]);
 
   const fetchDistrictData = async () => {
     try {
@@ -2581,6 +2591,7 @@ export default function OrderStatusDashboard() {
       if (districtSelectedState) params.append('state', districtSelectedState);
       const sids = resolveSelectedSellerIds();
       if (sids) params.append('sellerIds', sids);
+      if (stateMonths.length) params.append('months', stateMonths.join(','));
       const res = await fetch(`/api/order-by-district?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
@@ -2598,7 +2609,7 @@ export default function OrderStatusDashboard() {
     if (geoMode !== 'district') return;
     fetchDistrictData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, geoMode, districtSelectedState, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList]);
+  }, [activeTab, geoMode, districtSelectedState, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList, stateMonths]);
 
   // Seller brand list — fetched once when entering Geography tab
   const fetchSellerBrandList = async () => {
@@ -2607,6 +2618,7 @@ export default function OrderStatusDashboard() {
       const params = new URLSearchParams({ year: String(currentYear) });
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
+      if (stateMonths.length) params.append('months', stateMonths.join(','));
       const res = await fetch(`/api/seller-brand-list?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
@@ -2621,7 +2633,7 @@ export default function OrderStatusDashboard() {
     if (activeTab !== 'geography') return;
     fetchSellerBrandList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo]);
+  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, stateMonths]);
 
 
 
@@ -2636,6 +2648,7 @@ export default function OrderStatusDashboard() {
       if (districtSelectedState) params.append('state', districtSelectedState);
       const sids = resolveSelectedSellerIds();
       if (sids) params.append('sellerIds', sids);
+      if (stateMonths.length) params.append('months', stateMonths.join(','));
       const res = await fetch(`/api/order-by-brand-state?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
@@ -2652,7 +2665,7 @@ export default function OrderStatusDashboard() {
     if (activeTab !== 'geography') return;
     fetchBrandStateData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList, districtSelectedState]);
+  }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList, districtSelectedState, stateMonths]);
 
   // Reverse alias: state-map's ST_NM (e.g. "Andaman & Nicobar") → DB state name.
   const GEO_TO_DB_STATE: Record<string, string> = {
@@ -4808,6 +4821,7 @@ export default function OrderStatusDashboard() {
                 </button>
               );
             })}
+            <MonthMultiSelect selected={trendMonths} onChange={setTrendMonths} year={currentYear} />
             {trendRange === 'custom' && (
               <div className="flex items-center gap-2 ml-2">
                 <input
@@ -6738,6 +6752,7 @@ export default function OrderStatusDashboard() {
                   </button>
                 );
               })}
+              <MonthMultiSelect selected={sellerMonths} onChange={setSellerMonths} year={currentYear} />
               {sellerRange === 'custom' && (
                 <div className="flex items-center gap-2 ml-2">
                   <input
@@ -7226,6 +7241,7 @@ export default function OrderStatusDashboard() {
                   </button>
                 );
               })}
+              <MonthMultiSelect selected={stateMonths} onChange={setStateMonths} year={currentYear} />
               {stateRange === 'custom' && (
                 <div className="flex items-center gap-2 ml-2">
                   <input
@@ -7682,6 +7698,7 @@ export default function OrderStatusDashboard() {
                   );
                 })}
               </div>
+              <MonthMultiSelect selected={zoneMonths} onChange={setZoneMonths} year={currentYear} />
               <button
                 onClick={() => setCommercialOpen(true)}
                 className="group relative inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-amber-500 via-pink-500 to-fuchsia-500 shadow-[0_0_24px_rgba(236,72,153,0.45)] hover:shadow-[0_0_32px_rgba(236,72,153,0.7)] hover:scale-[1.03] transition-all"

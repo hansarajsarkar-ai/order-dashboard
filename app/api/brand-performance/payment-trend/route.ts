@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { appendMonthsFilter } from '@/lib/monthsFilter';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,8 @@ export async function GET(req: NextRequest) {
       brandFilter = `AND TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) = ANY(string_to_array($${params.length}, ','))`;
     }
 
+    const monthsFilter = appendMonthsFilter(searchParams.get('months'), 'a."markedPendingTime"', params);
+
     const sql = `
       SELECT
         COALESCE(a."paymentInfo"->>'option', 'UNKNOWN')             AS payment_option,
@@ -53,6 +56,7 @@ export async function GET(req: NextRequest) {
         AND a."deliveryNetwork" = 'THIRD_PARTY'
         AND a."status"          != 'DRAFT'
         ${dateClause}
+        ${monthsFilter}
         ${brandFilter}
       GROUP BY 1, 2
       ORDER BY 2 ASC;

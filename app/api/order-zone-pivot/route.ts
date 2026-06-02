@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { appendMonthsFilter } from '@/lib/monthsFilter';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +84,8 @@ export async function GET(req: NextRequest) {
   const endDate = searchParams.get('endDate') || fmt(today);
 
   try {
+    const params: (string | number)[] = [startDate, endDate];
+    const monthsFilter = appendMonthsFilter(searchParams.get('months'), 'a."created_at"', params);
     // Group at the finest (seller, zone, status, weight_g) so we can compute
     // mode at any rollup level in JS without re-querying.
     const sql = `
@@ -98,6 +101,7 @@ export async function GET(req: NextRequest) {
       JOIN "users"."buyer"                 c ON c."id" = b."buyerId"
       WHERE a."created_at"::date >= $1
         AND a."created_at"::date <= $2
+        ${monthsFilter}
         AND s."isTest" = FALSE
         AND s."businessName" NOT ILIKE '%test%'
         AND c."isTest" = FALSE
@@ -108,7 +112,7 @@ export async function GET(req: NextRequest) {
       ORDER BY seller, zone, status;
     `;
 
-    const rows = await query<Row>(sql, [startDate, endDate]);
+    const rows = await query<Row>(sql, params);
 
     // Histogram store: cellHist[seller][zone][status] = Map<weight_g, count>
     const cellHist: Record<string, Record<string, Record<string, Map<number, number>>>> = {};

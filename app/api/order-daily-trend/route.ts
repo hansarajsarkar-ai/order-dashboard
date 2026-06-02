@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { appendMonthsFilter } from '@/lib/monthsFilter';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
       params.push(currentYear);
       whereDate = ` AND EXTRACT(YEAR FROM po."markedPendingTime") = $${params.length}`;
     }
+    whereDate += appendMonthsFilter(searchParams.get('months'), 'po."markedPendingTime"', params);
 
     const sql = `
       SELECT

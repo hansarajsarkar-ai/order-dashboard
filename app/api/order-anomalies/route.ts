@@ -23,7 +23,7 @@ export async function GET() {
       JOIN "users"."buyer"  AS c ON c."id" = a."buyerId"
       WHERE a."deliveryType"    = 'INTERCITY'
         AND a."deliveryNetwork" = 'THIRD_PARTY'
-        AND a."status" NOT IN ('REJECTED','CANCELLED')
+        AND a."status" != 'DRAFT'
         AND a."markedPendingTime" IS NOT NULL
         AND b."isTest" = FALSE AND b."businessName" NOT ILIKE '%test%'
         AND c."isTest" = FALSE AND c."businessName" NOT ILIKE '%test%'

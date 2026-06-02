@@ -442,7 +442,6 @@ export default function OrderStatusDashboard() {
   const [pivotDrillCourierFilter, setPivotDrillCourierFilter] = useState<Set<string>>(new Set());
   const [pivotDrillDeliveryFilter, setPivotDrillDeliveryFilter] = useState<Set<string>>(new Set());
   const [pivotDrillSort, setPivotDrillSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
-  const [pivotDrillPage, setPivotDrillPage] = useState(1);
   const [goalData, setGoalData] = useState<RevenueGoal | null>(null);
   const [goalLoading, setGoalLoading] = useState(true);
   const [sellerData, setSellerData] = useState<SellerWiseData | null>(null);
@@ -2174,7 +2173,6 @@ export default function OrderStatusDashboard() {
     setPivotDrillDeliveryFilter(new Set());
     setPivotDrillPaymentFilter(new Set(initialPayment));
     setPivotDrillSort(null);
-    setPivotDrillPage(1);
     setPivotDrillLoading(true);
     try {
       const params = new URLSearchParams({ status, year: String(currentYear) });
@@ -2330,7 +2328,6 @@ export default function OrderStatusDashboard() {
     setPivotDrillRows(null);
     setPivotDrillError(null);
     setPivotDrillSearch('');
-    setPivotDrillPage(1);
   };
 
   const fetchGoal = async () => {
@@ -2606,7 +2603,6 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => { setDrillPage(1); }, [drillStatus, drillMonth, drillSearch]);
-  useEffect(() => { setPivotDrillPage(1); }, [pivotDrillStatus, pivotDrillDelivery, pivotDrillMonth, pivotDrillSearch, pivotDrillPushedFilter, pivotDrillRejectReasonFilter, pivotDrillPaymentFilter, pivotDrillCourierFilter, pivotDrillDeliveryFilter, pivotDrillSort]);
   useEffect(() => { setSellerTablePage(1); }, [sellerSearch]);
   useEffect(() => { setSellerDrillPage(1); }, [sellerDrillId, sellerDrillStartDate, sellerDrillEndDate, sellerDrillStatus, sellerDrillPo]);
 
@@ -2947,15 +2943,6 @@ export default function OrderStatusDashboard() {
       });
     }
     return rows;
-  })();
-
-  const pivotDrillPaged = (() => {
-    if (!filteredPivotDrillRows) return null;
-    const totalPages = Math.max(1, Math.ceil(filteredPivotDrillRows.length / PAGE_SIZE));
-    const safePage = Math.min(Math.max(1, pivotDrillPage), totalPages);
-    const startIdx = (safePage - 1) * PAGE_SIZE;
-    const endIdx = Math.min(startIdx + PAGE_SIZE, filteredPivotDrillRows.length);
-    return { totalPages, safePage, startIdx, endIdx, rows: filteredPivotDrillRows.slice(startIdx, endIdx) };
   })();
 
   const rtoSellersPaged = (() => {
@@ -10895,7 +10882,7 @@ export default function OrderStatusDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(pivotDrillPaged?.rows || filteredPivotDrillRows).map((r, idx) => {
+                      {filteredPivotDrillRows.map((r, idx) => {
                         const paid = Number(r.paidAmount ?? 0);
                         const isFullyPaid = r.PaymentOption === 'FULLY_PAID' && paid > 0;
                         const isPartialPaid = r.PaymentOption === 'PARTIALLY_PAID' && paid > 0;
@@ -11072,35 +11059,63 @@ export default function OrderStatusDashboard() {
                         );
                       })}
                     </tbody>
+                    <tfoot>
+                      {(() => {
+                        const t = filteredPivotDrillRows.reduce((a, r) => {
+                          a.po     += Number(r.poAmount) || 0;
+                          a.coupon += Number(r.CoupanAmount) || 0;
+                          a.wallet += Number(r.appliedWalletAmount) || 0;
+                          a.seller += Number(r.discountBySeller) || 0;
+                          a.badho  += Number(r.PaymentOptionDiscountByBadho) || 0;
+                          a.cod    += Number(r.codAmountToBeCollected) || 0;
+                          a.paid   += Number(r.paidAmount) || 0;
+                          a.refund += Number(r.RefundAmount) || 0;
+                          return a;
+                        }, { po: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0 });
+                        const money = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+                        const cell = 'sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap';
+                        const num = `${cell} text-right tabular-nums`;
+                        return (
+                          <tr className="shadow-[0_-2px_0_rgba(168,85,247,0.6)]">
+                            <td className={`${cell} left-0 z-30 min-w-[160px] max-w-[160px] w-[160px] uppercase tracking-wider`}>Total</td>
+                            <td className={`${cell} left-[160px] z-30 min-w-[120px] max-w-[120px] w-[120px]`}>{filteredPivotDrillRows.length.toLocaleString('en-IN')} orders</td>
+                            <td className={`${cell} left-[280px] z-30 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)]`} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={num}>{money(t.po)}</td>
+                            <td className={num}>{money(t.coupon)}</td>
+                            <td className={num}>{money(t.wallet)}</td>
+                            <td className={num}>{money(t.seller)}</td>
+                            <td className={num}>{money(t.badho)}</td>
+                            <td className={num}>{money(t.cod)}</td>
+                            <td className={cell} />
+                            <td className={num}>{money(t.paid)}</td>
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={num}>{money(t.refund)}</td>
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
+                          </tr>
+                        );
+                      })()}
+                    </tfoot>
                   </table>
                 )}
               </div>
-              {pivotDrillPaged && filteredPivotDrillRows && filteredPivotDrillRows.length > 0 && (
-                <div className="relative px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-700 flex-wrap gap-2">
-                  <div>
-                    Showing <span className="font-bold text-purple-700">{pivotDrillPaged.startIdx + 1}</span>–<span className="font-bold text-purple-700">{pivotDrillPaged.endIdx}</span> of <span className="font-bold text-slate-900">{filteredPivotDrillRows.length}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPivotDrillPage((p) => Math.max(1, p - 1))}
-                      disabled={pivotDrillPaged.safePage <= 1}
-                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      ← Prev
-                    </button>
-                    <span className="px-2 text-slate-600">
-                      Page <span className="text-slate-900 font-bold">{pivotDrillPaged.safePage}</span> of <span className="text-slate-900 font-bold">{pivotDrillPaged.totalPages}</span>
-                    </span>
-                    <button
-                      onClick={() => setPivotDrillPage((p) => Math.min(pivotDrillPaged.totalPages, p + 1))}
-                      disabled={pivotDrillPaged.safePage >= pivotDrillPaged.totalPages}
-                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Next →
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}

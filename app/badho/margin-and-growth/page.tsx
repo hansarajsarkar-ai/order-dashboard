@@ -150,9 +150,10 @@ export default function MarginAndGrowthDashboard() {
   const [orderLoading, setOrderLoading] = useState(true);
   const [orderError, setOrderError] = useState<string | null>(null);
 
-  // DAU → Cart → Order conversion table (own day/week/month toggle + month picker)
+  // DAU → Cart → Order conversion table (own day/week/month toggle)
   const [tableGran, setTableGran] = useState<Granularity>('month');
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => currentMonthStr());
+  // Day view is scoped to the current month.
+  const selectedMonth = currentMonthStr();
   const [funnel, setFunnel] = useState<FunnelRow[]>([]);
   const [funnelTotals, setFunnelTotals] = useState<FunnelTotals | null>(null);
   const [funnelLoading, setFunnelLoading] = useState(true);
@@ -287,19 +288,6 @@ export default function MarginAndGrowthDashboard() {
   const mergedLoading = loading || orderLoading;
   const mergedError = error || orderError;
 
-  // Months from Jan of the current year through the current month (latest first),
-  // for the day-view month picker.
-  const monthOptions = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const opts: { value: string; label: string }[] = [];
-    for (let m = now.getMonth(); m >= 0; m--) {
-      const value = `${year}-${String(m + 1).padStart(2, '0')}`;
-      const label = new Date(year, m, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-      opts.push({ value, label });
-    }
-    return opts;
-  }, []);
   // Inline value labels stay readable only up to a point; past that they
   // overlap and add noise, so hide labels (and then dots) on dense windows.
   const showLabels = mergedData.length <= 31;
@@ -550,20 +538,6 @@ export default function MarginAndGrowthDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Month picker (day view only) */}
-              {tableGran === 'day' && (
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-purple-100 focus:outline-none focus:border-fuchsia-400/50"
-                >
-                  {monthOptions.map((m) => (
-                    <option key={m.value} value={m.value} className="bg-slate-900">
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              )}
               {/* Granularity toggle */}
               <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
                 {GRANULARITIES.map((g) => (

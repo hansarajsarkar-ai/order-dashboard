@@ -227,7 +227,7 @@ export default function MarginAndGrowthDashboard() {
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
           <div className="mb-4">
             <h2 className="text-lg font-bold text-white">DAU — Daily Active Buyers Trend</h2>
-            <p className="text-xs text-purple-300/70 mt-0.5">Distinct active buyers per day with a 7-day moving average.</p>
+            <p className="text-xs text-purple-300/70 mt-0.5">Distinct active buyers per day.</p>
           </div>
 
           {loading ? (
@@ -263,10 +263,9 @@ export default function MarginAndGrowthDashboard() {
                     stroke="#d946ef"
                     strokeWidth={2}
                     fill="url(#dauFill)"
-                    dot={{ r: 2, fill: '#d946ef', stroke: 'none' }}
+                    dot={{ r: 3, fill: '#d946ef', stroke: '#fff', strokeWidth: 1 }}
                     activeDot={{ r: 5, fill: '#d946ef', stroke: '#fff', strokeWidth: 2 }}
                   />
-                  <Line type="monotone" dataKey="ma7" name="7-day MA" stroke="#fbbf24" strokeWidth={2} dot={false} />
                   {summary?.peakDay && (
                     <ReferenceDot
                       x={fmtDay(summary.peakDay)}

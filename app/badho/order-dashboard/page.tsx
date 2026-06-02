@@ -10875,6 +10875,9 @@ export default function OrderStatusDashboard() {
                                 </svg>
                               </a>
                             </div>
+                            <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
+                              AWB: {r.awbNumber || '—'}
+                            </div>
                           </td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             <button

@@ -1,15 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ResponsiveContainer,
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  AreaChart, Area, BarChart, Bar, ComposedChart, ScatterChart, Scatter, ZAxis, Cell,
+  AreaChart, Area, BarChart, Bar, ComposedChart, ScatterChart, Scatter, ZAxis, Cell, LabelList,
 } from 'recharts';
 import { KPICard } from './components/KPICard';
-import { ChartCard, InsightPanel, type Insight } from './components/InsightPanel';
+import { ChartCard, type Insight } from './components/InsightPanel';
 import { Funnel } from './components/Funnel';
 import { Heatmap } from './components/Heatmap';
 import { MultiSelect } from './components/MultiSelect';
@@ -186,8 +186,10 @@ interface Filters {
 
 function defaultFilters(): Filters {
   const today = new Date();
-  const endDate = today.toISOString().slice(0, 10);
-  const startDate = new Date(today.getTime() - 29 * 86400000).toISOString().slice(0, 10);
+  // Default to the full current calendar year (Jan 1 – Dec 31).
+  const year = today.getFullYear();
+  const startDate = `${year}-01-01`;
+  const endDate = `${year}-12-31`;
   return {
     startDate, endDate,
     agent: [], campaign: [],
@@ -657,18 +659,6 @@ export default function CallingTeamDashboard() {
     loadBuyerAttempts();
   }, [authChecked, tab, loadBuyerAttempts]);
 
-  // On first visit to Dashboard in a session, default the date range to YTD.
-  // After that, leave whatever the user has chosen alone.
-  const dashboardYTDInitialized = useRef(false);
-  useEffect(() => {
-    if (!authChecked) return;
-    if (tab !== 'dashboard') return;
-    if (dashboardYTDInitialized.current) return;
-    dashboardYTDInitialized.current = true;
-    const ytd = presetRange({ label: 'YTD', ytd: true });
-    setFilters((prev) => ({ ...prev, ...ytd }));
-  }, [authChecked, tab]);
-
   if (!authChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -751,15 +741,24 @@ export default function CallingTeamDashboard() {
             </button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {DATE_PRESETS.map((p) => (
-              <button
-                key={p.label}
-                onClick={() => setFilters({ ...filters, ...presetRange(p) })}
-                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-purple-200"
-              >
-                {p.label}
-              </button>
-            ))}
+            {DATE_PRESETS.map((p) => {
+              const r = presetRange(p);
+              const active = filters.startDate === r.startDate && filters.endDate === r.endDate;
+              return (
+                <button
+                  key={p.label}
+                  onClick={() => setFilters({ ...filters, ...r })}
+                  aria-pressed={active}
+                  className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                    active
+                      ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 border-transparent text-white shadow-lg'
+                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-purple-200'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
               <input
                 type="date"
@@ -2080,38 +2079,6 @@ function DailyTrendTab(props: {
   // Chart data: include cumulative connect rate per day for a secondary y-axis.
   const chartData = series.map((s) => ({ ...s, dayLabel: fmtDay(s.day) }));
 
-  // AI insights for the daily tab.
-  const insights: Insight[] = [];
-  if (summary.bestDay && summary.worstDay) {
-    insights.push({
-      tone: 'positive',
-      label: 'BEST DAY',
-      text: `${fmtDay(summary.bestDay.day)} (${summary.bestDay.dowName}) — ${fmtInt(summary.bestDay.total)} calls, ${fmtPct(summary.bestDay.connectionRate)} connect.`,
-    });
-    const ratio = summary.bestDay.total / Math.max(summary.worstDay.total, 1);
-    if (ratio > 3) {
-      insights.push({
-        tone: 'warning',
-        label: 'SWING',
-        text: `Best day was ${ratio.toFixed(1)}× the worst (${fmtDay(summary.worstDay.day)} — ${fmtInt(summary.worstDay.total)} calls). High volatility — investigate scheduling or campaign launches.`,
-      });
-    }
-  }
-  if (last7AvgDelta !== null) {
-    insights.push({
-      tone: last7AvgDelta > 5 ? 'positive' : last7AvgDelta < -5 ? 'danger' : 'neutral',
-      label: 'MOMENTUM',
-      text: `Last 7-day daily average (${fmtCompact(summary.last7Avg)}) is ${last7AvgDelta >= 0 ? 'up' : 'down'} ${Math.abs(last7AvgDelta).toFixed(1)}% vs the prior 7 days.`,
-    });
-  }
-  if (summary.bestConnect) {
-    insights.push({
-      tone: 'opportunity',
-      label: 'QUALITY',
-      text: `Highest single-day connect rate: ${fmtPct(summary.bestConnect.connectionRate)} on ${fmtDay(summary.bestConnect.day)} (${summary.bestConnect.dowName}). Replicate conditions on this date.`,
-    });
-  }
-
   return (
     <div className="space-y-5">
       {/* Period KPI strip */}
@@ -2165,13 +2132,6 @@ function DailyTrendTab(props: {
         </div>
       </section>
 
-      {/* Insights */}
-      {insights.length > 0 && (
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-          <InsightPanel insights={insights} title="What changed this period" />
-        </div>
-      )}
-
       {/* Daily breakdown chart */}
       <ChartCard
         title="Daily Stacked Breakdown"
@@ -2193,7 +2153,34 @@ function DailyTrendTab(props: {
               <Bar yAxisId="l" dataKey="connected" name="Connected" stackId="a" fill="#10b981" />
               <Bar yAxisId="l" dataKey="noAnswer"  name="No Answer"  stackId="a" fill="#f59e0b" />
               <Bar yAxisId="l" dataKey="missed"    name="Missed"    stackId="a" fill="#ef4444" />
-              <Line yAxisId="r" type="monotone" dataKey="connectionRate" name="Connect Rate" stroke="#fbbf24" strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line
+                yAxisId="r"
+                type="monotone"
+                dataKey="connectionRate"
+                name="Connect Rate"
+                stroke="#fbbf24"
+                strokeWidth={2.5}
+                activeDot={{ r: 5 }}
+                isAnimationActive={false}
+                dot={(props: any) => {
+                  const { cx, cy, index, payload } = props;
+                  if (cx == null || cy == null) return <g key={`crd-${index}`} />;
+                  // Keep labels readable: cap to ~30 evenly-spaced labels for wide ranges.
+                  const step = Math.max(1, Math.ceil(chartData.length / 30));
+                  const showLabel = index % step === 0;
+                  const rate = payload?.connectionRate;
+                  return (
+                    <g key={`crd-${index}`}>
+                      <circle cx={cx} cy={cy} r={3} fill="#fbbf24" />
+                      {showLabel && rate != null && (
+                        <text x={cx} y={cy - 9} textAnchor="middle" fill="#fde68a" fontSize={9} fontWeight={600}>
+                          {`${(Number(rate) * 100).toFixed(0)}%`}
+                        </text>
+                      )}
+                    </g>
+                  );
+                }}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

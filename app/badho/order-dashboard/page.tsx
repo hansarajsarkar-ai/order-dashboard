@@ -582,6 +582,30 @@ export default function OrderStatusDashboard() {
     operationalCostRs: number;
     profitAndLossRs: number;
     status: string;
+    // Detailed order-list fields (appended columns mirroring the Monthly
+    // Breakdown by Order Status drill-down).
+    markedPendingTime: string | null;
+    orderStatus: string | null;
+    paidAmount: number | null;
+    appliedWalletAmount: number | null;
+    discountBySeller: number;
+    paymentOption: string | null;
+    awbNumber: string | null;
+    courierName: string | null;
+    paymentDate: string | null;
+    paymentEvent: string | null;
+    buyerPhone: string | null;
+    sellerPhone: string | null;
+    codAmountRs: number | null;
+    buyerFullAddress: string | null;
+    refundInitiatedTime: string | null;
+    refundCompletedTime: string | null;
+    refundAmount: number | null;
+    rejectReason: string | null;
+    rejectedBy: string | null;
+    reasonAddedByBadhoTeam: string | null;
+    statusMarkedTime: string | null;
+    statusDurationSec: number | null;
   }
   const [marginDayModal, setMarginDayModal] = useState<string | null>(null); // selected order_date
   const [marginDayData, setMarginDayData] = useState<MarginDayOrder[] | null>(null);
@@ -8354,7 +8378,7 @@ export default function OrderStatusDashboard() {
               onClick={() => setMarginDayModal(null)}
             >
               <div
-                className="relative w-full max-w-5xl max-h-[85vh] flex flex-col bg-gradient-to-br from-slate-900 via-purple-950/60 to-slate-900 border border-fuchsia-400/20 rounded-2xl shadow-[0_0_60px_rgba(217,70,239,0.25)] overflow-hidden"
+                className="relative w-[95vw] max-w-[95vw] max-h-[92vh] flex flex-col bg-gradient-to-br from-slate-900 via-purple-950/60 to-slate-900 border border-fuchsia-400/20 rounded-2xl shadow-[0_0_60px_rgba(217,70,239,0.25)] overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header */}
@@ -8403,6 +8427,38 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-right font-semibold">Net P&amp;L</th>
                           <th className="px-4 py-3 text-center font-semibold">Delivery</th>
                           <th className="px-4 py-3 text-center font-semibold">Status</th>
+                          {/* Monthly Breakdown by Order Status drill-down columns (appended, same sequence) */}
+                          <th className="px-4 py-3 text-left font-semibold">Marked Pending</th>
+                          <th className="px-4 py-3 text-left font-semibold">Pushed</th>
+                          <th className="px-4 py-3 text-left font-semibold">PO Number</th>
+                          <th className="px-4 py-3 text-left font-semibold">Items</th>
+                          <th className="px-4 py-3 text-left font-semibold">Order Status</th>
+                          <th className="px-4 py-3 text-right font-semibold">PO Amount</th>
+                          <th className="px-4 py-3 text-right font-semibold">Coupon Amount</th>
+                          <th className="px-4 py-3 text-right font-semibold">Applied Wallet Amount</th>
+                          <th className="px-4 py-3 text-right font-semibold">Seller Discount</th>
+                          <th className="px-4 py-3 text-right font-semibold">Payment Option Badho Discount</th>
+                          <th className="px-4 py-3 text-right font-semibold">COD Amount</th>
+                          <th className="px-4 py-3 text-left font-semibold">Delivery Status</th>
+                          <th className="px-4 py-3 text-right font-semibold">Paid Amount</th>
+                          <th className="px-4 py-3 text-left font-semibold">Payment Option</th>
+                          <th className="px-4 py-3 text-left font-semibold">AWB Number</th>
+                          <th className="px-4 py-3 text-left font-semibold">Courier Name</th>
+                          <th className="px-4 py-3 text-left font-semibold">Payment Date</th>
+                          <th className="px-4 py-3 text-left font-semibold">Payment Event</th>
+                          <th className="px-4 py-3 text-left font-semibold">Buyer Business</th>
+                          <th className="px-4 py-3 text-left font-semibold">Buyer Phone</th>
+                          <th className="px-4 py-3 text-left font-semibold">Buyer Address</th>
+                          <th className="px-4 py-3 text-left font-semibold">Seller Business</th>
+                          <th className="px-4 py-3 text-left font-semibold">Seller Phone</th>
+                          <th className="px-4 py-3 text-left font-semibold">{statusMarkedHeaderFor(marginDayData)}</th>
+                          <th className="px-4 py-3 text-left font-semibold">Status Duration</th>
+                          <th className="px-4 py-3 text-left font-semibold">Refund Initiated</th>
+                          <th className="px-4 py-3 text-left font-semibold">Refund Completed</th>
+                          <th className="px-4 py-3 text-right font-semibold">Refund Amount</th>
+                          <th className="px-4 py-3 text-left font-semibold">Reject Reason</th>
+                          <th className="px-4 py-3 text-left font-semibold">Rejected By</th>
+                          <th className="px-4 py-3 text-left font-semibold">Reason Added By Badho Team</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -8445,10 +8501,69 @@ export default function OrderStatusDashboard() {
                                 {o.status}
                               </span>
                             </td>
+                            {/* Appended Monthly Breakdown drill-down columns */}
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{formatDateTime(o.markedPendingTime)}</td>
+                            <td className="px-4 py-2.5 whitespace-nowrap">
+                              <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">Pushed</span>
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap">
+                              {o.poNumber ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openPoItemsModal(o.poNumber as string)}
+                                  className="text-fuchsia-300 font-semibold hover:text-fuchsia-200 hover:underline transition-colors"
+                                  title="View order items"
+                                >
+                                  {o.poNumber}
+                                </button>
+                              ) : (
+                                <span className="text-purple-300/50">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap">
+                              {o.poNumber ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openPoItemsModal(o.poNumber as string)}
+                                  className="px-2 py-1 rounded-md text-[11px] font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-400/30 hover:bg-emerald-500/25 transition-colors"
+                                >
+                                  View Items
+                                </button>
+                              ) : (
+                                <span className="text-purple-300/50">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{o.orderStatus ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums">{fmtFull(o.poAmount)}</td>
+                            <td className="px-4 py-2.5 text-right text-fuchsia-300 tabular-nums">{fmtFull(o.couponRs)}</td>
+                            <td className="px-4 py-2.5 text-right text-cyan-300 tabular-nums">{o.appliedWalletAmount != null ? fmtFull(o.appliedWalletAmount) : '—'}</td>
+                            <td className="px-4 py-2.5 text-right text-amber-300 tabular-nums">{fmtFull(o.discountBySeller)}</td>
+                            <td className="px-4 py-2.5 text-right text-amber-300 tabular-nums">{fmtFull(o.badhoPaymentDiscountRs)}</td>
+                            <td className="px-4 py-2.5 text-right text-amber-300 tabular-nums">{o.codAmountRs != null ? fmtFull(o.codAmountRs) : '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{o.deliveryStatus ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-right text-emerald-300 font-semibold tabular-nums">{o.paidAmount != null ? fmtFull(o.paidAmount) : '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{o.paymentOption ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] tabular-nums whitespace-nowrap">{o.awbNumber ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{o.courierName ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{formatDateTime(o.paymentDate)}</td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{o.paymentEvent ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 max-w-[180px] truncate" title={o.buyerName ?? ''}>{o.buyerName ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] tabular-nums whitespace-nowrap">{o.buyerPhone ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100/80 text-[11px] max-w-[260px] whitespace-normal">{o.buyerFullAddress ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 max-w-[180px] truncate" title={o.sellerName ?? ''}>{o.sellerName ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] tabular-nums whitespace-nowrap">{o.sellerPhone ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{formatDateTime(o.statusMarkedTime)}</td>
+                            <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap" title={o.statusDurationSec != null ? `${o.statusDurationSec}s` : ''}>{formatDuration(o.statusDurationSec)}</td>
+                            <td className="px-4 py-2.5 text-orange-300 text-[11px] whitespace-nowrap">{formatDateTime(o.refundInitiatedTime)}</td>
+                            <td className="px-4 py-2.5 text-emerald-300 text-[11px] whitespace-nowrap">{formatDateTime(o.refundCompletedTime)}</td>
+                            <td className="px-4 py-2.5 text-right text-emerald-300 font-semibold tabular-nums">{o.refundAmount != null ? fmtFull(o.refundAmount) : '—'}</td>
+                            <td className="px-4 py-2.5 text-rose-300 text-[11px] max-w-[260px] whitespace-normal" title={o.rejectReason ?? ''}>{o.rejectReason ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-rose-300 text-[11px] whitespace-nowrap">{o.rejectedBy ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-rose-300 text-[11px] max-w-[260px] whitespace-normal" title={o.reasonAddedByBadhoTeam ?? ''}>{o.reasonAddedByBadhoTeam ?? '—'}</td>
                           </tr>
                         ))}
                         {marginDayData.length === 0 && (
-                          <tr><td colSpan={14} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
+                          <tr><td colSpan={45} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
                         )}
                       </tbody>
                       {marginDayData.length > 0 && marginDayTotals && (
@@ -8466,6 +8581,7 @@ export default function OrderStatusDashboard() {
                             <td className={`px-4 py-3 text-right tabular-nums ${marginDayTotals.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(marginDayTotals.profitAndLossRs)}</td>
                             <td></td>
                             <td></td>
+                            <td colSpan={31}></td>
                           </tr>
                         </tfoot>
                       )}

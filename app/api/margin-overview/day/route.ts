@@ -30,6 +30,33 @@ interface Row {
   operationalCostRs: string | null;
   profitAndLossRs: string | null;
   status: string;
+  markedPendingTime: string | null;
+  orderStatus: string | null;
+  paidAmount: string | null;
+  appliedWalletAmount: string | null;
+  discountBySeller: string | null;
+  paymentOption: string | null;
+  awbNumber: string | null;
+  courierName: string | null;
+  paymentDate: string | null;
+  paymentEvent: string | null;
+  buyerPhone: string | null;
+  sellerPhone: string | null;
+  codAmountRs: string | null;
+  buyerAddressLine1: string | null;
+  buyerLandmark: string | null;
+  buyerPincode: string | null;
+  buyerCity: string | null;
+  buyerDistrict: string | null;
+  buyerState: string | null;
+  refundInitiatedTime: string | null;
+  refundCompletedTime: string | null;
+  refundAmount: string | null;
+  rejectReason: string | null;
+  rejectedBy: string | null;
+  reasonAddedByBadhoTeam: string | null;
+  statusMarkedTime: string | null;
+  statusDurationSec: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -62,7 +89,9 @@ export async function GET(req: NextRequest) {
         di."purchaseOrderId",
         di."status",
         di."created_at",
-        di."deliveryCharge"
+        di."deliveryCharge",
+        di."trackingInfo",
+        di."codAmountToBeCollected"
       FROM "deliveries"."intercityDelivery" di
       WHERE ${deliveryFilter}
       ORDER BY di."purchaseOrderId", di."created_at" DESC, di."id" DESC
@@ -73,6 +102,19 @@ export async function GET(req: NextRequest) {
         SUM(CASE WHEN "type" = 'CREDIT' AND ("comment" ILIKE '%Reward for PO%' OR "comment" ILIKE '%Yah Reward Aapko%') THEN "amount" END) AS "rewardAmount"
       FROM "promotions"."sellerWalletTransaction"
       WHERE "purchaseOrderId" IN (SELECT "purchaseOrderId" FROM latest_delivery)
+      GROUP BY 1
+    ),
+    -- Pre-aggregate refunds to one row per PO so the LEFT JOIN below cannot
+    -- multiply order rows (which would inflate the P&L totals).
+    refunds AS (
+      SELECT
+        "purchaseOrderId",
+        MIN("markedStatusInitiatedTime") AS refund_initiated_time,
+        MAX("markedStatusCompletedTime") AS refund_completed_time,
+        SUM("refundAmount"::numeric)     AS refund_amount
+      FROM "payments"."paymentRefundRecord"
+      WHERE "status" = 'COMPLETED'
+        AND "purchaseOrderId" IN (SELECT "purchaseOrderId" FROM latest_delivery)
       GROUP BY 1
     ),
     order_base AS (
@@ -92,7 +134,62 @@ export async function GET(req: NextRequest) {
         CASE WHEN LOWER(s."deliveryChargesJSON"->>'forwardDeliveryCostToSeller') = 'false'
           THEN COALESCE(dv."deliveryCharge", 0)
           ELSE 0
-        END AS delivery_charge_rs
+        END AS delivery_charge_rs,
+        -- Detailed order-list fields (appended to the P&L drill-down so the
+        -- modal mirrors the Monthly Breakdown by Order Status drill-down).
+        po."markedPendingTime"                                   AS marked_pending_time,
+        po."status"                                              AS order_status,
+        pop."paidAmount"                                         AS paid_amount,
+        pop."appliedWalletAmount"                                AS applied_wallet_amount,
+        COALESCE((pop."breakup"->>'discount_on_payment_preference_for_seller')::float, 0) AS discount_by_seller,
+        po."paymentInfo"->>'option'                              AS payment_option,
+        dv."trackingInfo"->>'awbNumber'                          AS awb_number,
+        dv."trackingInfo"->>'courierName'                        AS courier_name,
+        pop."created_at"                                         AS payment_date,
+        pop."event"                                              AS payment_event,
+        b."phone"                                                AS buyer_phone,
+        s."phone"                                                AS seller_phone,
+        dv."codAmountToBeCollected"                              AS cod_amount,
+        b."addressLine1"                                         AS buyer_address_line1,
+        b."landmark"                                             AS buyer_landmark,
+        b."pincode"                                              AS buyer_pincode,
+        b."city"                                                 AS buyer_city,
+        b."district"                                             AS buyer_district,
+        b."state"                                                AS buyer_state,
+        rf.refund_initiated_time                                 AS refund_initiated_time,
+        rf.refund_completed_time                                 AS refund_completed_time,
+        rf.refund_amount::text                                   AS refund_amount,
+        po."rejectReason"                                        AS reject_reason,
+        po."rejectedBy"                                          AS rejected_by,
+        po."reasonAddedByBadhoTeam"                              AS reason_added_by_badho_team,
+        CASE po."status"
+          WHEN 'REJECTED'    THEN po."markedRejectedTime"
+          WHEN 'CANCELLED'   THEN po."markedCancelledTime"
+          WHEN 'DELIVERED'   THEN po."markedDeliveredTime"
+          WHEN 'COMPLETED'   THEN po."markedCompletedTime"
+          WHEN 'DISPATCHED'  THEN po."markedDispatchedTime"
+          WHEN 'IN_TRANSIT'  THEN po."markedInTransitTime"
+          WHEN 'IN_PROGRESS' THEN po."markedInProgressTime"
+          WHEN 'INPROGRESS'  THEN po."markedInProgressTime"
+          WHEN 'PARTIAL'     THEN po."markedPartialTime"
+          ELSE NULL
+        END                                                      AS status_marked_time,
+        EXTRACT(EPOCH FROM (
+          CASE po."status"
+            WHEN 'REJECTED'    THEN po."markedRejectedTime"
+            WHEN 'CANCELLED'   THEN po."markedCancelledTime"
+            WHEN 'DELIVERED'   THEN po."markedDeliveredTime"
+            WHEN 'COMPLETED'   THEN po."markedCompletedTime"
+            WHEN 'DISPATCHED'  THEN po."markedDispatchedTime"
+            WHEN 'IN_TRANSIT'  THEN po."markedInTransitTime"
+            WHEN 'IN_PROGRESS' THEN po."markedInProgressTime"
+            WHEN 'INPROGRESS'  THEN po."markedInProgressTime"
+            WHEN 'PARTIAL'     THEN po."markedPartialTime"
+            WHEN 'PENDING'     THEN NOW()
+            ELSE NOW()
+          END
+          - po."markedPendingTime"
+        ))::float                                                AS status_duration_sec
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
@@ -102,6 +199,7 @@ export async function GET(req: NextRequest) {
             AND pop."status" = 'COMPLETED'
             AND pop."event"  IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
       LEFT JOIN wallet_txns as wt ON wt."purchaseOrderId" = po."id"
+      LEFT JOIN refunds      as rf ON rf."purchaseOrderId" = po."id"
       WHERE s."isD2RBrandSeller" = TRUE
         AND s."isTest"           = FALSE
         AND s."businessName" NOT ILIKE '%test%'
@@ -132,7 +230,34 @@ export async function GET(req: NextRequest) {
         WHEN badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs) > 0 THEN 'Profit'
         WHEN badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs) < 0 THEN 'Loss'
         ELSE 'Breakeven'
-      END AS "status"
+      END AS "status",
+      marked_pending_time                                AS "markedPendingTime",
+      order_status                                       AS "orderStatus",
+      paid_amount                                        AS "paidAmount",
+      applied_wallet_amount                              AS "appliedWalletAmount",
+      discount_by_seller                                 AS "discountBySeller",
+      payment_option                                     AS "paymentOption",
+      awb_number                                         AS "awbNumber",
+      courier_name                                       AS "courierName",
+      payment_date                                       AS "paymentDate",
+      payment_event                                      AS "paymentEvent",
+      buyer_phone                                        AS "buyerPhone",
+      seller_phone                                       AS "sellerPhone",
+      cod_amount                                         AS "codAmountRs",
+      buyer_address_line1                                AS "buyerAddressLine1",
+      buyer_landmark                                     AS "buyerLandmark",
+      buyer_pincode                                      AS "buyerPincode",
+      buyer_city                                         AS "buyerCity",
+      buyer_district                                     AS "buyerDistrict",
+      buyer_state                                        AS "buyerState",
+      refund_initiated_time                              AS "refundInitiatedTime",
+      refund_completed_time                              AS "refundCompletedTime",
+      refund_amount                                      AS "refundAmount",
+      reject_reason                                      AS "rejectReason",
+      rejected_by                                        AS "rejectedBy",
+      reason_added_by_badho_team                         AS "reasonAddedByBadhoTeam",
+      status_marked_time                                 AS "statusMarkedTime",
+      status_duration_sec                                AS "statusDurationSec"
     FROM order_base
     WHERE order_date = ${dateParam}::date
     ORDER BY (badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs)) ASC;
@@ -158,6 +283,35 @@ export async function GET(req: NextRequest) {
       operationalCostRs: Number(r.operationalCostRs) || 0,
       profitAndLossRs: Number(r.profitAndLossRs) || 0,
       status: r.status,
+      markedPendingTime: r.markedPendingTime ?? null,
+      orderStatus: r.orderStatus ?? null,
+      paidAmount: r.paidAmount != null ? Number(r.paidAmount) : null,
+      appliedWalletAmount: r.appliedWalletAmount != null ? Number(r.appliedWalletAmount) : null,
+      discountBySeller: Number(r.discountBySeller) || 0,
+      paymentOption: r.paymentOption ?? null,
+      awbNumber: r.awbNumber ?? null,
+      courierName: r.courierName ?? null,
+      paymentDate: r.paymentDate ?? null,
+      paymentEvent: r.paymentEvent ?? null,
+      buyerPhone: r.buyerPhone ?? null,
+      sellerPhone: r.sellerPhone ?? null,
+      codAmountRs: r.codAmountRs != null ? Number(r.codAmountRs) : null,
+      buyerFullAddress: [
+        r.buyerAddressLine1,
+        r.buyerLandmark,
+        r.buyerPincode,
+        r.buyerCity,
+        r.buyerDistrict,
+        r.buyerState,
+      ].filter((v) => v != null && String(v).trim() !== '').join(', ') || null,
+      refundInitiatedTime: r.refundInitiatedTime ?? null,
+      refundCompletedTime: r.refundCompletedTime ?? null,
+      refundAmount: r.refundAmount != null ? parseFloat(String(r.refundAmount)) : null,
+      rejectReason: r.rejectReason ?? null,
+      rejectedBy: r.rejectedBy ?? null,
+      reasonAddedByBadhoTeam: r.reasonAddedByBadhoTeam ?? null,
+      statusMarkedTime: r.statusMarkedTime ?? null,
+      statusDurationSec: r.statusDurationSec != null ? Number(r.statusDurationSec) : null,
     }));
 
     const totals = data.reduce(

@@ -15,6 +15,8 @@ import MultiSelectFilter from './components/MultiSelectFilter';
 import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
 import RejectionReasonPivotTable from './components/RejectionReasonPivotTable';
 import CountdownCalendar from './components/CountdownCalendar';
+import ScanTimeline, { type Scan } from './components/ScanTimeline';
+import GroupByModal, { type GroupDimension } from './components/GroupByModal';
 
 interface OrderListRow {
   poNumber: string;
@@ -442,6 +444,11 @@ export default function OrderStatusDashboard() {
   const [pivotDrillCourierFilter, setPivotDrillCourierFilter] = useState<Set<string>>(new Set());
   const [pivotDrillDeliveryFilter, setPivotDrillDeliveryFilter] = useState<Set<string>>(new Set());
   const [pivotDrillSort, setPivotDrillSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  // Last 3 Scan Locations — lazy-loaded per PO, cached, toggled inline under each order row.
+  const [scanCache, setScanCache] = useState<Record<string, { loading: boolean; error: string | null; scans: Scan[] }>>({});
+  const [expandedScans, setExpandedScans] = useState<Set<string>>(new Set());
+  // Group By — when set, opens the aggregated GroupByModal over the current (filtered) drill rows.
+  const [groupByDim, setGroupByDim] = useState<GroupDimension | null>(null);
   const [goalData, setGoalData] = useState<RevenueGoal | null>(null);
   const [goalLoading, setGoalLoading] = useState(true);
   const [sellerData, setSellerData] = useState<SellerWiseData | null>(null);
@@ -2332,6 +2339,31 @@ export default function OrderStatusDashboard() {
     setPivotDrillRows(null);
     setPivotDrillError(null);
     setPivotDrillSearch('');
+    setGroupByDim(null);
+    setExpandedScans(new Set());
+  };
+
+  // Toggle the inline "Last 3 Scan Locations" timeline for a PO, lazy-fetching + caching on first open.
+  const toggleScans = (poNumber: string) => {
+    const willExpand = !expandedScans.has(poNumber);
+    setExpandedScans((prev) => {
+      const next = new Set(prev);
+      if (next.has(poNumber)) next.delete(poNumber);
+      else next.add(poNumber);
+      return next;
+    });
+    if (willExpand && !scanCache[poNumber]) {
+      setScanCache((prev) => ({ ...prev, [poNumber]: { loading: true, error: null, scans: [] } }));
+      fetch(`/api/order-scans?poNumber=${encodeURIComponent(poNumber)}`)
+        .then(async (res) => {
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error || 'Failed to load scans');
+          setScanCache((prev) => ({ ...prev, [poNumber]: { loading: false, error: null, scans: json.data || [] } }));
+        })
+        .catch((err) => {
+          setScanCache((prev) => ({ ...prev, [poNumber]: { loading: false, error: err instanceof Error ? err.message : 'Error loading scans', scans: [] } }));
+        });
+    }
   };
 
   const fetchGoal = async () => {
@@ -10678,6 +10710,32 @@ export default function OrderStatusDashboard() {
               </div>
               <div className="relative px-4 py-2 border-b border-slate-200 bg-slate-50/80">
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* Group By — switch transaction-level (Order Wise) ↔ aggregated views */}
+                  <div role="group" aria-label="Group by" className="inline-flex items-center gap-1.5 shrink-0">
+                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Group by</span>
+                    <div className="inline-flex rounded-md border border-purple-300 overflow-hidden text-xs bg-white shadow-[0_1px_3px_-1px_rgba(168,85,247,0.3)]">
+                      {([
+                        { value: null, label: 'Order Wise' },
+                        { value: 'buyer', label: 'Buyer Wise' },
+                        { value: 'buyerState', label: 'Buyer State Wise' },
+                        { value: 'buyerDistrict', label: 'Buyer District Wise' },
+                      ] as { value: GroupDimension | null; label: string }[]).map((opt) => {
+                        const active = groupByDim === opt.value;
+                        return (
+                          <button
+                            key={opt.label}
+                            type="button"
+                            onClick={() => setGroupByDim(opt.value)}
+                            aria-pressed={active}
+                            className={`px-2.5 py-1.5 font-semibold transition-colors border-r border-purple-200 last:border-r-0 ${active ? 'bg-purple-500 text-white' : 'text-purple-700 hover:bg-purple-50'}`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Search — compact, fixed width */}
                   <div className="relative w-64 max-w-full">
                     <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -10946,8 +11004,8 @@ export default function OrderStatusDashboard() {
                           ? 'bg-violet-50'
                           : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50');
                         return (
+                        <Fragment key={r.poNumber}>
                         <tr
-                          key={r.poNumber}
                           className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}
                         >
                           <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2 whitespace-nowrap text-amber-800 font-medium`}>
@@ -10979,6 +11037,22 @@ export default function OrderStatusDashboard() {
                             <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
                               AWB: {r.awbNumber || '—'}
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleScans(r.poNumber)}
+                              aria-expanded={expandedScans.has(r.poNumber)}
+                              className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 hover:border-indigo-300 transition-all"
+                              title="Show last 3 scan locations"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <rect x="1" y="3" width="15" height="13" />
+                                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                                <circle cx="5.5" cy="18.5" r="2.5" />
+                                <circle cx="18.5" cy="18.5" r="2.5" />
+                              </svg>
+                              {expandedScans.has(r.poNumber) ? 'Hide scans' : 'Track'}
+                              <span className={`transition-transform ${expandedScans.has(r.poNumber) ? 'rotate-180' : ''}`}>▾</span>
+                            </button>
                           </td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             <button
@@ -11110,6 +11184,25 @@ export default function OrderStatusDashboard() {
                           <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam ? <div className="whitespace-normal break-words">{r.reasonAddedByBadhoTeam}</div> : <span className="text-slate-400">—</span>}</td>
                         </tr>
+                        {expandedScans.has(r.poNumber) && (
+                          <tr className="bg-indigo-50/30 border-b border-indigo-100">
+                            <td colSpan={32} className="p-0">
+                              <div className="sticky left-0 w-[min(640px,92vw)] px-5 py-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.7)]" />
+                                  <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700">Last 3 Scan Locations</h4>
+                                  <span className="text-[10px] text-slate-400">· PO {r.poNumber} · latest first</span>
+                                </div>
+                                <ScanTimeline
+                                  scans={scanCache[r.poNumber]?.scans ?? []}
+                                  loading={scanCache[r.poNumber]?.loading ?? true}
+                                  error={scanCache[r.poNumber]?.error ?? null}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
                         );
                       })}
                     </tbody>
@@ -11173,6 +11266,15 @@ export default function OrderStatusDashboard() {
             </div>
           </div>
         )}
+
+        {/* Group By aggregation modal — opens over the current (filtered) drill rows */}
+        <GroupByModal
+          open={pivotDrillOpen && groupByDim !== null}
+          dimension={groupByDim ?? 'buyer'}
+          rows={filteredPivotDrillRows ?? []}
+          contextLabel={`${pivotDrillStatus.includes(',') ? pivotDrillStatus.split(',').join(' + ') : (pivotDrillStatus || 'All orders')}${pivotDrillMonth ? ` · ${MONTH_NAMES[pivotDrillMonth - 1]} ${currentYear}` : ` · ${currentYear}`}`}
+          onClose={() => setGroupByDim(null)}
+        />
 
         {/* Seller Drilldown Modal */}
         {sellerDrillId !== null && (

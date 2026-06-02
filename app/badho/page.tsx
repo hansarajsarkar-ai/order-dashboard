@@ -79,9 +79,9 @@ const DASHBOARDS: DashboardEntry[] = [
     slug: 'margin-and-growth',
     title: 'Margin and Growth',
     description:
-      'Margin movement and growth signals — period-over-period GMV growth, repeat-buyer rate, AOV trend, and margin delta by brand / SKU.',
+      'Daily Active Buyers trend — distinct buyers opening a buyer-app session each day, with peak / average and a 7-day moving average.',
     icon: '🚀',
-    status: 'coming-soon',
+    status: 'live',
   },
   {
     slug: 'drop-funnel',

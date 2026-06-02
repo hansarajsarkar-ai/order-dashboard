@@ -12171,6 +12171,7 @@ export default function OrderStatusDashboard() {
                       <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200">
                         <tr>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">PO Number</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">View Ticket</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Status</th>
                           <th className="px-3 py-2.5 text-left font-semibold text-slate-600 whitespace-nowrap">Buyer Address</th>
                           <th className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">Amount</th>
@@ -12201,6 +12202,12 @@ export default function OrderStatusDashboard() {
                                   Items
                                 </button>
                               </div>
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              <a href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(r.poNumber)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 hover:bg-sky-100 text-sky-700 text-[10px] font-bold border border-sky-300" title={`Search Freshdesk tickets for PO ${r.poNumber}`}>
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                                View Ticket
+                              </a>
                             </td>
                             <td className="px-3 py-2">
                               <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${

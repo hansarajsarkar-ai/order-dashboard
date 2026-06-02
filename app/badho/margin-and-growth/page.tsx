@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ResponsiveContainer,
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot, LabelList,
 } from 'recharts';
 
 interface DauPoint {
@@ -223,6 +223,32 @@ export default function MarginAndGrowthDashboard() {
 
   const mergedLoading = loading || orderLoading;
   const mergedError = error || orderError;
+  // Inline value labels stay readable only up to a point; past that they
+  // overlap and add noise, so hide labels (and then dots) on dense windows.
+  const showLabels = mergedData.length <= 31;
+  const showDots = mergedData.length <= 70;
+
+  // Renders the value above/below each line point (and the point marker),
+  // so users can read every value without hovering.
+  const lineDot = (key: 'activeBuyers' | 'orderBuyers', color: string, dy: number) =>
+    (props: any) => {
+      const { cx, cy, index, payload } = props;
+      if (cx == null || cy == null) return <g key={index} />;
+      const val = payload?.[key];
+      // The active-buyers peak already has its own green callout — skip the
+      // duplicate point label there to avoid overlap.
+      const isPeak = key === 'activeBuyers' && summary?.peak != null && val === summary.peak;
+      return (
+        <g key={index}>
+          {showLabels && val != null && !isPeak && (
+            <text x={cx} y={cy + dy} textAnchor="middle" fill={color} fontSize={9} fontWeight={600}>
+              {fmtCompact(val)}
+            </text>
+          )}
+          {showDots && <circle cx={cx} cy={cy} r={2.5} fill={color} stroke="#fff" strokeWidth={1} />}
+        </g>
+      );
+    };
 
   if (!authChecked) {
     return (
@@ -378,7 +404,19 @@ export default function MarginAndGrowthDashboard() {
                     radius={[4, 4, 0, 0]}
                     maxBarSize={48}
                     isAnimationActive={false}
-                  />
+                  >
+                    {showLabels && (
+                      <LabelList
+                        dataKey="orders"
+                        position="top"
+                        offset={6}
+                        fill="#bae6fd"
+                        fontSize={9}
+                        fontWeight={600}
+                        formatter={(v: any) => (v == null ? '' : fmtCompact(Number(v)))}
+                      />
+                    )}
+                  </Bar>
                   <Line
                     type="monotone"
                     dataKey="activeBuyers"
@@ -386,7 +424,7 @@ export default function MarginAndGrowthDashboard() {
                     stroke="#d946ef"
                     strokeWidth={2}
                     connectNulls
-                    dot={mergedData.length > 70 ? false : { r: 2.5, fill: '#d946ef', stroke: '#fff', strokeWidth: 1 }}
+                    dot={lineDot('activeBuyers', '#f0abfc', -9)}
                     activeDot={{ r: 5, fill: '#d946ef', stroke: '#fff', strokeWidth: 2 }}
                     isAnimationActive={false}
                   />
@@ -397,7 +435,7 @@ export default function MarginAndGrowthDashboard() {
                     stroke="#f472b6"
                     strokeWidth={2}
                     connectNulls
-                    dot={mergedData.length > 70 ? false : { r: 2.5, fill: '#f472b6', stroke: '#fff', strokeWidth: 1 }}
+                    dot={lineDot('orderBuyers', '#fbcfe8', 16)}
                     activeDot={{ r: 5, fill: '#f472b6', stroke: '#fff', strokeWidth: 2 }}
                     isAnimationActive={false}
                   />

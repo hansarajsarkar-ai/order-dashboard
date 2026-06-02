@@ -273,7 +273,6 @@ export default function MarginAndGrowthDashboard() {
                       fill="#34d399"
                       stroke="#fff"
                       strokeWidth={2}
-                      isFront
                       label={{
                         value: `Peak ${fmtInt(summary.peak)}`,
                         position: 'top',

@@ -144,7 +144,7 @@ export default function MarginAndGrowthDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   // Order creation trend (with day/week/month granularity toggle)
-  const [granularity, setGranularity] = useState<Granularity>('day');
+  const [granularity, setGranularity] = useState<Granularity>('month');
   const [orderData, setOrderData] = useState<OrderTrendPoint[]>([]);
   const [orderSummary, setOrderSummary] = useState<OrderSummary | null>(null);
   const [orderLoading, setOrderLoading] = useState(true);

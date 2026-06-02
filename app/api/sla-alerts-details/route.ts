@@ -51,7 +51,8 @@ interface Row {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get('category'); // 'Fully_Paid' | 'Partially_Paid' | 'COD' | 'Other' | 'all'
-  const sellerBusinessName = searchParams.get('sellerBusinessName'); // optional brand filter
+  const sellerBusinessName = searchParams.get('sellerBusinessName'); // optional exact seller filter
+  const brand = searchParams.get('brand'); // optional normalized-brand filter (matches the brand pivot)
 
   try {
     const params: (string | number)[] = [];
@@ -59,6 +60,10 @@ export async function GET(req: NextRequest) {
     if (category && category !== 'all') {
       params.push(category);
       filterClauses.push(`"category" = $${params.length}`);
+    }
+    if (brand) {
+      params.push(brand);
+      filterClauses.push(`"brand" = $${params.length}`);
     }
     if (sellerBusinessName) {
       params.push(sellerBusinessName);
@@ -71,6 +76,28 @@ export async function GET(req: NextRequest) {
         SELECT DISTINCT
           po."poNumber"::text AS "poNumber",
           po."markedPendingTime" AS "MarkedpendingTime",
+          ROUND(
+            GREATEST(
+              EXTRACT(EPOCH FROM (
+                (NOW() AT TIME ZONE 'Asia/Kolkata')
+                - (po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')
+              ))
+              - COALESCE((
+                  SELECT SUM(EXTRACT(EPOCH FROM (
+                    LEAST(NOW() AT TIME ZONE 'Asia/Kolkata',           d + INTERVAL '1 day')
+                    - GREATEST(po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata', d)
+                  )))
+                  FROM generate_series(
+                    (po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')::date,
+                    (NOW() AT TIME ZONE 'Asia/Kolkata')::date,
+                    INTERVAL '1 day'
+                  ) AS d
+                  WHERE EXTRACT(DOW FROM d) = 0
+                ), 0),
+              0
+            )::numeric / 86400.0,
+            2
+          )                                  AS "daysPassedExclSundays",
           po."markedInProgressTime" AS "markedInProgressTime",
           pop."created_at"       AS "paymentDate",
           pop."event"            AS "paymentEvent",
@@ -194,11 +221,16 @@ export async function GET(req: NextRequest) {
       breached AS (
         SELECT *
         FROM sla_deadline
-        WHERE NOW() >= "sla_breach_at"
+        WHERE "daysPassedExclSundays" > 2
       ),
       categorized AS (
         SELECT
           *,
+          CASE
+            WHEN LOWER(REPLACE(TRIM(SPLIT_PART("sellerBusinessName", '-', 1)), ' ', '')) = 'chukde'
+              THEN 'ChukDe'
+            ELSE TRIM(SPLIT_PART("sellerBusinessName", '-', 1))
+          END                                          AS "brand",
           CASE
             WHEN "paymentEvent" = 'FULL_ADVANCE'                                THEN 'Fully_Paid'
             WHEN "paymentEvent" = 'PARTIAL_ADVANCE'                             THEN 'Partially_Paid'

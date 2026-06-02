@@ -5,8 +5,6 @@ export const dynamic = 'force-dynamic';
 
 interface Row {
   brand: string;
-  sellerBusinessName: string;
-  sellerPhone: string | null;
   category: string;
   poCount: string;
   totalPoAmount: string;
@@ -14,8 +12,6 @@ interface Row {
 
 interface BrandRow {
   brand: string;
-  sellerBusinessName: string;
-  sellerPhone: string | null;
   cells: Record<string, { count: number; amount: number }>;
   total: { count: number; amount: number };
 }
@@ -24,14 +20,38 @@ const CATEGORIES = ['Fully_Paid', 'Partially_Paid', 'COD'] as const;
 
 export async function GET() {
   try {
+    // SLA breach = more than 2 elapsed days since markedPendingTime, with Sunday
+    // time excluded, measured on the IST (Asia/Kolkata) calendar. Brands collapse
+    // ChukDe / CHUKDE / Chuk De spelling variants into a single "ChukDe" brand.
     const sql = `
       WITH base AS (
         SELECT DISTINCT
           po."poNumber" AS "poNumber",
           po."markedPendingTime" AS "MarkedpendingTime",
+          ROUND(
+            GREATEST(
+              EXTRACT(EPOCH FROM (
+                (NOW() AT TIME ZONE 'Asia/Kolkata')
+                - (po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')
+              ))
+              - COALESCE((
+                  SELECT SUM(EXTRACT(EPOCH FROM (
+                    LEAST(NOW() AT TIME ZONE 'Asia/Kolkata',           d + INTERVAL '1 day')
+                    - GREATEST(po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata', d)
+                  )))
+                  FROM generate_series(
+                    (po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')::date,
+                    (NOW() AT TIME ZONE 'Asia/Kolkata')::date,
+                    INTERVAL '1 day'
+                  ) AS d
+                  WHERE EXTRACT(DOW FROM d) = 0
+                ), 0),
+              0
+            )::numeric / 86400.0,
+            2
+          )                                  AS "daysPassedExclSundays",
           pop."event"            AS "paymentEvent",
           s."businessName"       AS "sellerBusinessName",
-          s."phone"              AS "sellerPhone",
           po."amount"            AS "poAmount",
           po."paymentInfo"->>'option' AS "PaymentOption",
           dv."codAmountToBeCollected" AS "codAmountToBeCollected"
@@ -64,50 +84,32 @@ export async function GET() {
         SELECT DISTINCT ON ("poNumber")
           "poNumber",
           "MarkedpendingTime",
+          "daysPassedExclSundays",
           "paymentEvent",
           "PaymentOption",
           "poAmount",
           "codAmountToBeCollected",
-          "sellerBusinessName",
-          "sellerPhone"
+          "sellerBusinessName"
         FROM base
         WHERE "MarkedpendingTime" IS NOT NULL
         ORDER BY "poNumber",
                  CASE "paymentEvent" WHEN 'FULL_ADVANCE' THEN 1 WHEN 'PARTIAL_ADVANCE' THEN 2 ELSE 3 END,
                  "MarkedpendingTime" DESC
       ),
-      sla_step1 AS (
-        SELECT
-          *,
-          "MarkedpendingTime"
-            + INTERVAL '1 day'
-            + CASE WHEN EXTRACT(DOW FROM "MarkedpendingTime" + INTERVAL '1 day') = 0
-                   THEN INTERVAL '1 day' ELSE INTERVAL '0' END
-            AS "sla_after_1wd"
-        FROM dedup
-      ),
-      sla_deadline AS (
-        SELECT
-          *,
-          "sla_after_1wd"
-            + INTERVAL '1 day'
-            + CASE WHEN EXTRACT(DOW FROM "sla_after_1wd" + INTERVAL '1 day') = 0
-                   THEN INTERVAL '1 day' ELSE INTERVAL '0' END
-            AS "sla_breach_at"
-        FROM sla_step1
-      ),
       breached AS (
         SELECT *
-        FROM sla_deadline
-        WHERE NOW() >= "sla_breach_at"
+        FROM dedup
+        WHERE "daysPassedExclSundays" > 2
       ),
       categorized AS (
         SELECT
           "poNumber",
           "poAmount",
-          "sellerBusinessName",
-          "sellerPhone",
-          TRIM(SPLIT_PART("sellerBusinessName", '-', 1)) AS "brand",
+          CASE
+            WHEN LOWER(REPLACE(TRIM(SPLIT_PART("sellerBusinessName", '-', 1)), ' ', '')) = 'chukde'
+              THEN 'ChukDe'
+            ELSE TRIM(SPLIT_PART("sellerBusinessName", '-', 1))
+          END                                          AS "brand",
           CASE
             WHEN "paymentEvent" = 'FULL_ADVANCE'                                THEN 'Fully_Paid'
             WHEN "paymentEvent" = 'PARTIAL_ADVANCE'                             THEN 'Partially_Paid'
@@ -119,14 +121,12 @@ export async function GET() {
       )
       SELECT
         "brand",
-        "sellerBusinessName",
-        "sellerPhone",
         "category",
         COUNT(*)::text                                  AS "poCount",
         SUM(COALESCE("poAmount", 0))::text              AS "totalPoAmount"
       FROM categorized
-      GROUP BY "brand", "sellerBusinessName", "sellerPhone", "category"
-      ORDER BY "sellerBusinessName" ASC;
+      GROUP BY "brand", "category"
+      ORDER BY "brand" ASC;
     `;
 
     const rows = await query<Row>(sql, []);
@@ -136,12 +136,10 @@ export async function GET() {
     const byBrand = new Map<string, BrandRow>();
     for (const r of rows) {
       if (!allowed.has(r.category)) continue; // skip 'Other'
-      const key = r.sellerBusinessName;
+      const key = r.brand;
       if (!byBrand.has(key)) {
         byBrand.set(key, {
           brand: r.brand,
-          sellerBusinessName: r.sellerBusinessName,
-          sellerPhone: r.sellerPhone,
           cells: Object.fromEntries(CATEGORIES.map((c) => [c, { count: 0, amount: 0 }])),
           total: { count: 0, amount: 0 },
         });

@@ -15,7 +15,7 @@ import MultiSelectFilter from './components/MultiSelectFilter';
 import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
 import RejectionReasonPivotTable from './components/RejectionReasonPivotTable';
 import CountdownCalendar from './components/CountdownCalendar';
-import ScanTimeline, { type Scan } from './components/ScanTimeline';
+import { type Scan } from './components/ScanTimeline';
 import GroupByModal, { type GroupDimension } from './components/GroupByModal';
 
 interface OrderListRow {
@@ -444,9 +444,9 @@ export default function OrderStatusDashboard() {
   const [pivotDrillCourierFilter, setPivotDrillCourierFilter] = useState<Set<string>>(new Set());
   const [pivotDrillDeliveryFilter, setPivotDrillDeliveryFilter] = useState<Set<string>>(new Set());
   const [pivotDrillSort, setPivotDrillSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
-  // Last 3 Scan Locations — lazy-loaded per PO, cached, toggled inline under each order row.
-  const [scanCache, setScanCache] = useState<Record<string, { loading: boolean; error: string | null; scans: Scan[] }>>({});
-  const [expandedScans, setExpandedScans] = useState<Set<string>>(new Set());
+  // Last 3 Scan Locations — batch-loaded for all drill rows, rendered as 3 inline columns.
+  const [scansByPo, setScansByPo] = useState<Record<string, Scan[]>>({});
+  const [scansLoading, setScansLoading] = useState(false);
   // Group By — when set, opens the aggregated GroupByModal over the current (filtered) drill rows.
   const [groupByDim, setGroupByDim] = useState<GroupDimension | null>(null);
   const [goalData, setGoalData] = useState<RevenueGoal | null>(null);
@@ -897,8 +897,6 @@ export default function OrderStatusDashboard() {
   interface AlertBrandCell { count: number; amount: number; }
   interface AlertBrandRow {
     brand: string;
-    sellerBusinessName: string;
-    sellerPhone: string | null;
     cells: Record<string, AlertBrandCell>;
     total: AlertBrandCell;
   }
@@ -1883,8 +1881,10 @@ export default function OrderStatusDashboard() {
         if (sellerBusinessName) params.set('sellerBusinessName', sellerBusinessName);
         url = `/api/inprogress-aging-details?${params.toString()}`;
       } else {
+        // SLA brand pivot drills down by normalized brand (the second arg
+        // carries the brand label, not an exact seller businessName).
         const params = new URLSearchParams({ category });
-        if (sellerBusinessName) params.set('sellerBusinessName', sellerBusinessName);
+        if (sellerBusinessName) params.set('brand', sellerBusinessName);
         url = `/api/sla-alerts-details?${params.toString()}`;
       }
       const res = await fetch(url);
@@ -2210,6 +2210,7 @@ export default function OrderStatusDashboard() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to fetch');
       setPivotDrillRows(json.data);
+      fetchScansBatch((json.data as OrderListRow[]).map((r) => r.poNumber).filter(Boolean));
     } catch (err) {
       setPivotDrillError(err instanceof Error ? err.message : 'Error loading orders');
     } finally {
@@ -2340,30 +2341,26 @@ export default function OrderStatusDashboard() {
     setPivotDrillError(null);
     setPivotDrillSearch('');
     setGroupByDim(null);
-    setExpandedScans(new Set());
+    setScansByPo({});
   };
 
-  // Toggle the inline "Last 3 Scan Locations" timeline for a PO, lazy-fetching + caching on first open.
-  const toggleScans = (poNumber: string) => {
-    const willExpand = !expandedScans.has(poNumber);
-    setExpandedScans((prev) => {
-      const next = new Set(prev);
-      if (next.has(poNumber)) next.delete(poNumber);
-      else next.add(poNumber);
-      return next;
-    });
-    if (willExpand && !scanCache[poNumber]) {
-      setScanCache((prev) => ({ ...prev, [poNumber]: { loading: true, error: null, scans: [] } }));
-      fetch(`/api/order-scans?poNumber=${encodeURIComponent(poNumber)}`)
-        .then(async (res) => {
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error || 'Failed to load scans');
-          setScanCache((prev) => ({ ...prev, [poNumber]: { loading: false, error: null, scans: json.data || [] } }));
-        })
-        .catch((err) => {
-          setScanCache((prev) => ({ ...prev, [poNumber]: { loading: false, error: err instanceof Error ? err.message : 'Error loading scans', scans: [] } }));
-        });
-    }
+  // Batch-load the last 3 scan locations for every PO in the drill, in one request,
+  // so the table can show them as inline columns (Latest Scan 1/2/3) responsively.
+  const fetchScansBatch = (poNumbers: string[]) => {
+    setScansByPo({});
+    if (!poNumbers.length) return;
+    setScansLoading(true);
+    fetch('/api/order-scans', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ poNumbers }),
+    })
+      .then(async (res) => {
+        const json = await res.json();
+        if (res.ok) setScansByPo(json.data || {});
+      })
+      .catch(() => { /* leave empty — cells render a dash */ })
+      .finally(() => setScansLoading(false));
   };
 
   const fetchGoal = async () => {
@@ -8721,7 +8718,7 @@ export default function OrderStatusDashboard() {
                     )}
                   </h2>
                   <p className="text-rose-200/80 text-sm mt-1">
-                    Sellers × payment category · click any cell to see those PENDING orders
+                    Brands × payment category · click any cell to see those PENDING orders
                   </p>
                 </div>
               </div>
@@ -8756,9 +8753,7 @@ export default function OrderStatusDashboard() {
                 const q = alertBrandSearch.trim().toLowerCase();
                 const filteredRows = q
                   ? alertBrandData.data.filter((r) =>
-                      r.sellerBusinessName.toLowerCase().includes(q) ||
-                      r.brand.toLowerCase().includes(q) ||
-                      (r.sellerPhone || '').toLowerCase().includes(q)
+                      r.brand.toLowerCase().includes(q)
                     )
                   : alertBrandData.data;
                 const catColorBg: Record<string, string> = {
@@ -8781,7 +8776,7 @@ export default function OrderStatusDashboard() {
                           rowSpan={2}
                           className="px-4 py-3 text-left text-xs font-semibold text-purple-200 uppercase tracking-wide sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 min-w-[280px]"
                         >
-                          Seller (Brand)
+                          Brand
                         </th>
                         {alertBrandData.categories.map((c) => (
                           <th
@@ -8809,29 +8804,11 @@ export default function OrderStatusDashboard() {
                     </thead>
                     <tbody>
                       {filteredRows.map((row) => (
-                        <tr key={row.sellerBusinessName} className="border-b border-white/5 hover:bg-fuchsia-500/10 group">
+                        <tr key={row.brand} className="border-b border-white/5 hover:bg-fuchsia-500/10 group">
                           <td className="px-4 py-2.5 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90">
-                            <button
-                              type="button"
-                              onClick={() => openSellerModal({ phone: row.sellerPhone, businessName: row.sellerBusinessName })}
-                              className="text-white font-semibold text-sm leading-tight hover:text-fuchsia-300 hover:underline cursor-pointer text-left"
-                              title="View seller details"
-                            >
-                              {row.sellerBusinessName}
-                            </button>
-                            <div className="text-[10px] text-purple-300 tabular-nums leading-tight">
-                              {row.sellerPhone ? (
-                                <button
-                                  type="button"
-                                  onClick={() => openSellerModal({ phone: row.sellerPhone, businessName: row.sellerBusinessName })}
-                                  className="hover:text-fuchsia-300 hover:underline cursor-pointer"
-                                  title="View seller details"
-                                >
-                                  {row.sellerPhone}
-                                </button>
-                              ) : '—'}
-                              {' · '}<span className="text-fuchsia-300">{row.brand}</span>
-                            </div>
+                            <span className="text-white font-semibold text-sm leading-tight">
+                              {row.brand}
+                            </span>
                           </td>
                           {alertBrandData.categories.map((c) => {
                             const cell = row.cells[c];
@@ -8839,7 +8816,7 @@ export default function OrderStatusDashboard() {
                             return (
                               <Fragment key={c}>
                                 <td
-                                  onClick={() => has && openAlertModal(c, row.sellerBusinessName)}
+                                  onClick={() => has && openAlertModal(c, row.brand)}
                                   className={`group/cell px-2 py-2.5 text-right text-purple-100 tabular-nums ${catColorBg[c]} ${has ? 'cursor-pointer' : ''}`}
                                 >
                                   {has ? (
@@ -8863,7 +8840,7 @@ export default function OrderStatusDashboard() {
                             );
                           })}
                           <td
-                            onClick={() => row.total.count > 0 && openAlertModal('all', row.sellerBusinessName)}
+                            onClick={() => row.total.count > 0 && openAlertModal('all', row.brand)}
                             className={`group/cell px-2 py-2.5 text-right font-bold text-white tabular-nums bg-purple-500/15 ${row.total.count > 0 ? 'cursor-pointer' : ''}`}
                           >
                             <span className="inline-block transition-all duration-300 ease-out origin-right group-hover/cell:scale-[1.35] group-hover/cell:[text-shadow:0_0_16px_rgba(217,70,239,1),0_0_32px_rgba(168,85,247,0.7)]">
@@ -8921,7 +8898,7 @@ export default function OrderStatusDashboard() {
             {alertBrandData && (
               <div className="px-8 py-3 border-t border-white/10 bg-white/5 text-xs text-purple-300/70 flex items-center justify-between">
                 <span>
-                  {alertBrandData.data.length} sellers · {alertBrandData.grandTotal.count.toLocaleString()} total breached orders
+                  {alertBrandData.data.length} brands · {alertBrandData.grandTotal.count.toLocaleString()} total breached orders
                 </span>
                 <span>Last updated: {new Date(alertBrandData.grandTotal && Date.now()).toLocaleString()}</span>
               </div>
@@ -11004,8 +10981,8 @@ export default function OrderStatusDashboard() {
                           ? 'bg-violet-50'
                           : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50');
                         return (
-                        <Fragment key={r.poNumber}>
                         <tr
+                          key={r.poNumber}
                           className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}
                         >
                           <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[160px] max-w-[160px] w-[160px] px-2.5 py-2 whitespace-nowrap text-amber-800 font-medium`}>
@@ -11037,22 +11014,6 @@ export default function OrderStatusDashboard() {
                             <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
                               AWB: {r.awbNumber || '—'}
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => toggleScans(r.poNumber)}
-                              aria-expanded={expandedScans.has(r.poNumber)}
-                              className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 hover:border-indigo-300 transition-all"
-                              title="Show last 3 scan locations"
-                            >
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <rect x="1" y="3" width="15" height="13" />
-                                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
-                                <circle cx="5.5" cy="18.5" r="2.5" />
-                                <circle cx="18.5" cy="18.5" r="2.5" />
-                              </svg>
-                              {expandedScans.has(r.poNumber) ? 'Hide scans' : 'Track'}
-                              <span className={`transition-transform ${expandedScans.has(r.poNumber) ? 'rotate-180' : ''}`}>▾</span>
-                            </button>
                           </td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             <button

@@ -1403,16 +1403,20 @@ export default function OrderStatusDashboard() {
   const [anomaliesLoading, setAnomaliesLoading] = useState(false);
   const [anomaliesStatuses, setAnomaliesStatuses] = useState<string[]>([]);
   // Order Anomalies — status multiselect. Bars are stacked bottom→top in this
-  // order; ordered meta also drives the legend toggle chips and the tooltip total.
+  // order (matching STATUS_DISPLAY_ORDER); ordered meta also drives the legend
+  // toggle chips and the tooltip total.
   const ANOMALY_STATUS_META = [
     { key: 'PENDING',    color: '#ef4444', labelFill: '#fff' },
+    { key: 'CANCELLED',  color: '#6b7280', labelFill: '#fff' },
+    { key: 'REJECTED',   color: '#fb923c', labelFill: '#fff' },
     { key: 'INPROGRESS', color: '#fbcfe8', labelFill: '#831843' },
     { key: 'DISPATCHED', color: '#818cf8', labelFill: '#fff' },
     { key: 'COMPLETED', color: '#84cc16', labelFill: '#fff' },
   ] as const;
-  // Default selection mirrors the chart legend: all four statuses shown.
+  // Default selection shows every status the API returns, including REJECTED &
+  // CANCELLED. Listed top→bottom so the legend reads COMPLETED-first.
   const [selectedAnomalyStatuses, setSelectedAnomalyStatuses] = useState<string[]>(
-    ['COMPLETED', 'DISPATCHED', 'INPROGRESS', 'PENDING']
+    ['COMPLETED', 'DISPATCHED', 'INPROGRESS', 'REJECTED', 'CANCELLED', 'PENDING']
   );
   const toggleAnomalyStatus = (status: string) =>
     setSelectedAnomalyStatuses((prev) =>
@@ -9112,22 +9116,18 @@ export default function OrderStatusDashboard() {
                 Share of order statuses per day (100% stacked) — last 30 days
               </p>
             </div>
-            {/* Legend = status multiselect. Click a chip to toggle that status in the chart. */}
+            {/* Legend = status multiselect. Click a chip to toggle that status in the chart.
+                Listed top→bottom (COMPLETED-first) — the reverse of the stack order. */}
             <div className="flex items-center gap-2 flex-wrap">
-              {[
-                { label: 'COMPLETED', color: '#84cc16' },
-                { label: 'DISPATCHED', color: '#818cf8' },
-                { label: 'INPROGRESS', color: '#fbcfe8' },
-                { label: 'PENDING',    color: '#ef4444' },
-              ].map((s) => {
-                const selected = selectedAnomalyStatuses.includes(s.label);
+              {[...ANOMALY_STATUS_META].reverse().map((s) => {
+                const selected = selectedAnomalyStatuses.includes(s.key);
                 return (
                   <button
-                    key={s.label}
+                    key={s.key}
                     type="button"
-                    onClick={() => toggleAnomalyStatus(s.label)}
+                    onClick={() => toggleAnomalyStatus(s.key)}
                     aria-pressed={selected}
-                    title={selected ? `Hide ${s.label}` : `Show ${s.label}`}
+                    title={selected ? `Hide ${s.key}` : `Show ${s.key}`}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
                       selected
                         ? 'bg-slate-900/70 border-white/10 hover:border-fuchsia-400/50'
@@ -9138,7 +9138,7 @@ export default function OrderStatusDashboard() {
                       className="inline-block w-3 h-3 rounded-sm"
                       style={{ background: selected ? s.color : 'transparent', border: `1.5px solid ${s.color}` }}
                     />
-                    <span className="text-xs font-bold text-white tracking-wide">{s.label}</span>
+                    <span className="text-xs font-bold text-white tracking-wide">{s.key}</span>
                   </button>
                 );
               })}

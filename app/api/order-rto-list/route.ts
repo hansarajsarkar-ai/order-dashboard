@@ -36,6 +36,8 @@ interface Row {
   buyer_name: string | null;
   buyer_business_name: string | null;
   buyer_phone: string | null;
+  buyer_district: string | null;
+  buyer_state: string | null;
   buyer_full_address: string | null;
   buyer_longitude: string | null;
   buyer_latitude: string | null;
@@ -134,6 +136,8 @@ export async function GET(req: NextRequest) {
           b."state",
           b."pincode"
         )                                                          AS buyer_full_address,
+        b."district"                                               AS buyer_district,
+        b."state"                                                  AS buyer_state,
         b."longitude"::text                                        AS buyer_longitude,
         b."lattitude"::text                                        AS buyer_latitude,
         pop."paidAmount"::text                                     AS paid_amount,
@@ -327,6 +331,8 @@ export async function GET(req: NextRequest) {
       buyerName: r.buyer_name,
       buyerBusinessName: r.buyer_business_name,
       buyerPhone: r.buyer_phone,
+      buyerDistrict: r.buyer_district,
+      buyerState: r.buyer_state,
       buyerFullAddress: r.buyer_full_address,
       buyerLongitude: r.buyer_longitude,
       buyerLatitude: r.buyer_latitude,

@@ -7,8 +7,8 @@ export type { GroupDimension } from './GroupByMenu';
 
 export interface GroupableOrderRow {
   poNumber: string;
-  status?: string;
-  orderStatus?: string;
+  status?: string | null;
+  orderStatus?: string | null;
   poAmount?: number | null;
   paidAmount?: number | null;
   CoupanAmount?: number | null;

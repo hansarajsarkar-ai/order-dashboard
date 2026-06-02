@@ -2,6 +2,8 @@
 
 import { useEffect, useState, Fragment, useRef } from 'react';
 import MultiSelectFilter from './MultiSelectFilter';
+import GroupByMenu, { type GroupDimension } from './GroupByMenu';
+import GroupByModal, { type GroupableOrderRow } from './GroupByModal';
 
 interface DrilldownCell {
   count: number;
@@ -234,6 +236,49 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
   const [modalSort, setModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
 
+  // Group By (multi-select) state
+  const [groupByDims, setGroupByDims] = useState<GroupDimension[]>([]);
+
+  // Latest scans per PO
+  const [scansByPo, setScansByPo] = useState<Record<string, { location: string | null; date: string | null; status: string | null; activity: string | null }[]>>({});
+  const [scansLoading, setScansLoading] = useState(false);
+
+  const awbLink = (awb: string | null | undefined) => awb ? (
+    <a href={`https://one.delhivery.com/shipments/forward/${encodeURIComponent(awb)}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer" title="Track this shipment on Delhivery">{awb}</a>
+  ) : (<span className="text-slate-400">—</span>);
+
+  const formatScanDate = (s: string | null | undefined) => {
+    if (!s) return '—';
+    try {
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return s;
+      return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch {
+      return s;
+    }
+  };
+
+  const fetchScansBatch = (poNumbers: string[]) => {
+    setScansByPo({});
+    if (!poNumbers.length) return;
+    setScansLoading(true);
+    fetch('/api/order-scans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ poNumbers }) })
+      .then(async (r) => { const j = await r.json(); if (r.ok) setScansByPo(j.data || {}); })
+      .catch(() => {})
+      .finally(() => setScansLoading(false));
+  };
+
+  const renderScanCell = (poNumber: string, idx: number) => {
+    const scans = scansByPo[poNumber];
+    const s = scans?.[idx];
+    const sub = s ? [s.status, s.activity].filter((v) => v && String(v).trim() !== '').join(' · ') : '';
+    return (
+      <td className="px-2.5 py-2 align-top bg-indigo-50/20 min-w-[180px]">{!scans ? <span className="text-slate-400">{scansLoading ? '…' : '—'}</span> : !s ? <span className="text-slate-400">—</span> : (
+        <div className="max-w-[230px]"><div className="flex items-start gap-1.5"><span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${idx === 0 ? 'bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.7)]' : 'bg-slate-300'}`} /><div className="min-w-0"><div className="font-semibold text-slate-800 text-[11px] leading-tight break-words">{s.location && s.location.trim() ? s.location : '—'}</div><div className="text-[10px] text-slate-500">{s.date ? formatScanDate(s.date) : '—'}</div>{sub && <div className="text-[10px] text-slate-600 break-words">{sub}</div>}</div></div></div>
+      )}</td>
+    );
+  };
+
   const toggleModalSort = (key: string) => {
     setModalSort((prev) => {
       if (!prev || prev.key !== key) return { key, direction: 'asc' };
@@ -322,6 +367,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
         const json = await res.json();
         if (json.error) throw new Error(json.error);
         setModalData(json.data);
+        fetchScansBatch((json.data as OrderDetail[] | null | undefined)?.map((r) => r.poNumber).filter(Boolean) ?? []);
       } catch (err) {
         setModalError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
@@ -348,6 +394,8 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
     setModalCourierFilter(new Set());
     setModalDeliveryFilter(new Set());
     setModalSort(null);
+    setGroupByDims([]);
+    setScansByPo({});
   };
 
   const toggleExpand = (reason: string) => {
@@ -462,6 +510,27 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
     setModalCourierFilter(new Set());
     setModalDeliveryFilter(new Set());
   };
+
+  const groupRows: GroupableOrderRow[] = (filteredModalData ?? []).map((r) => ({
+    poNumber: r.poNumber,
+    orderStatus: r.orderStatus ?? undefined,
+    status: r.orderStatus ?? undefined,
+    deliveryStatus: r.deliveryStatusDv ?? null,
+    poAmount: r.poAmount != null ? Number(r.poAmount) : null,
+    paidAmount: r.paidAmount != null ? Number(r.paidAmount) : null,
+    CoupanAmount: r.CoupanAmount != null ? Number(r.CoupanAmount) : null,
+    appliedWalletAmount: r.appliedWalletAmount != null ? Number(r.appliedWalletAmount) : null,
+    discountBySeller: r.discountBySeller != null ? Number(r.discountBySeller) : null,
+    PaymentOptionDiscountByBadho: r.PaymentOptionDiscountByBadho != null ? Number(r.PaymentOptionDiscountByBadho) : null,
+    codAmountToBeCollected: r.codAmountToBeCollected != null ? Number(r.codAmountToBeCollected) : null,
+    RefundAmount: r.RefundAmount != null ? Number(r.RefundAmount) : null,
+    buyerBusinessName: r.buyerBusinessName,
+    buyerPhone: r.buyerPhone,
+    buyerState: r.buyerState,
+    buyerDistrict: r.buyerDistrict,
+    sellerBusinessName: r.sellerBusinessName,
+    sellerPhone: r.sellerPhone,
+  }));
 
   return (
     <>
@@ -845,6 +914,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <GroupByMenu selected={groupByDims} onChange={setGroupByDims} align="right" />
                 <button
                   className="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 border border-purple-600 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_2px_8px_-2px_rgba(168,85,247,0.5)]"
                   disabled={!filteredModalData || filteredModalData.length === 0}
@@ -1066,6 +1136,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                             <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50/60" />
                             <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50/60" />
                             <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50/60" />
+                            <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 1</th>
+                            <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 2</th>
+                            <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 3</th>
                           </>
                         );
                       })()}
@@ -1168,7 +1241,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           </td>
                           <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{awbLink(r.awbNumber)}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{formatDate(r.paymentDate)}</td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
@@ -1258,6 +1331,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason ? <div className="whitespace-normal break-words">{r.rejectReason}</div> : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam ? <div className="whitespace-normal break-words">{r.reasonAddedByBadhoTeam}</div> : <span className="text-slate-400">—</span>}</td>
+                          {renderScanCell(r.poNumber, 0)}
+                          {renderScanCell(r.poNumber, 1)}
+                          {renderScanCell(r.poNumber, 2)}
                         </tr>
                       );
                     })}
@@ -1312,6 +1388,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           <td className={cell} />
                           <td className={cell} />
                           <td className={cell} />
+                          <td className={cell} />
+                          <td className={cell} />
+                          <td className={cell} />
                         </tr>
                       );
                     })()}
@@ -1328,6 +1407,15 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
           </div>
         </div>
       )}
+
+      <GroupByModal
+        open={!!modalFilters && groupByDims.length > 0}
+        dimensions={groupByDims}
+        rows={groupRows}
+        contextLabel={modalFilters?.reason ?? ''}
+        onClose={() => setGroupByDims([])}
+        onChangeDimensions={setGroupByDims}
+      />
     </>
   );
 }

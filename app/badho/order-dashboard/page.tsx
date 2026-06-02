@@ -1815,6 +1815,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch RTO orders for modal');
       const json = await res.json();
       setRtoKpiModalData(json.data);
+      fetchScansBatch((json.data as RtoOrderRow[]).map((r) => r.poNumber).filter(Boolean));
     } catch (err) {
       console.error('RTO KPI modal fetch error:', err);
       setRtoKpiModalData([]);
@@ -1846,6 +1847,11 @@ export default function OrderStatusDashboard() {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setRtoKpiModal(null); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, [rtoKpiModal]);
+
+  // Reset RTO Group By selection whenever the RTO KPI modal closes.
+  useEffect(() => {
+    if (!rtoKpiModal) setRtoGroupByDims([]);
   }, [rtoKpiModal]);
 
   // ─── Alert tab — SLA breach brand-wise pivot & details ────────────────────
@@ -10219,6 +10225,7 @@ export default function OrderStatusDashboard() {
                   >
                     ↓ CSV
                   </button>
+                  <GroupByMenu selected={alertGroupByDims} onChange={setAlertGroupByDims} align="right" />
                   <button
                     onClick={closeAlertModal}
                     className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 text-base font-semibold transition-all hover:rotate-90"
@@ -10451,6 +10458,9 @@ export default function OrderStatusDashboard() {
                           <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50" />
                           <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50" />
                           <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50" />
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 1</th>
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 2</th>
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 3</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -10545,7 +10555,7 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? `₹${Number(r.paidAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">{awbLink(r.awbNumber)}</td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
@@ -10619,6 +10629,9 @@ export default function OrderStatusDashboard() {
                               <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason ? <div className="whitespace-normal break-words">{r.rejectReason}</div> : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam ? <div className="whitespace-normal break-words">{r.reasonAddedByBadhoTeam}</div> : <span className="text-slate-400">—</span>}</td>
+                              {renderScanCell(r.poNumber, 0)}
+                              {renderScanCell(r.poNumber, 1)}
+                              {renderScanCell(r.poNumber, 2)}
                             </tr>
                           );
                         })}
@@ -10673,6 +10686,9 @@ export default function OrderStatusDashboard() {
                               <td className={cell} />
                               <td className={cell} />
                               <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
                             </tr>
                           );
                         })()}
@@ -10689,6 +10705,16 @@ export default function OrderStatusDashboard() {
             </div>
           </div>
         )}
+
+        {/* Group By aggregation modal for the SLA-breach / aging alert drill */}
+        <GroupByModal
+          open={!!alertModalCategory && alertGroupByDims.length > 0}
+          dimensions={alertGroupByDims}
+          rows={alertModalData ?? []}
+          contextLabel={`${alertModalSource === 'aging' ? 'InProgress Aging' : 'SLA Breach'}${alertModalCategory ? ` · ${alertModalCategory}` : ''}${alertModalSeller ? ` · ${alertModalSeller}` : ''}`}
+          onClose={() => setAlertGroupByDims([])}
+          onChangeDimensions={setAlertGroupByDims}
+        />
 
         {/* Status × Delivery Status Drilldown Modal */}
         {pivotDrillOpen && (
@@ -11692,13 +11718,16 @@ export default function OrderStatusDashboard() {
                         </>}
                   </p>
                 </div>
-                <button
-                  onClick={() => setRtoKpiModal(null)}
-                  className="text-slate-400 hover:text-slate-700 text-2xl leading-none p-1"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
+                <div className="flex items-center gap-2">
+                  <GroupByMenu selected={rtoGroupByDims} onChange={setRtoGroupByDims} align="right" />
+                  <button
+                    onClick={() => setRtoKpiModal(null)}
+                    className="text-slate-400 hover:text-slate-700 text-2xl leading-none p-1"
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
 
               {/* Stats strip for rate */}
@@ -12131,6 +12160,9 @@ export default function OrderStatusDashboard() {
                           {[1,2,3,4,5,6].map((n) => (
                             <th key={n} className="sticky top-0 z-20 bg-fuchsia-50/70 px-2.5 py-2.5 text-left text-[11px] font-bold text-fuchsia-700 uppercase tracking-wider whitespace-nowrap">Attempt {n}</th>
                           ))}
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 1</th>
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 2</th>
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 3</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -12201,7 +12233,7 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? fmtAmt(r.paidAmount) : dash}</td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentMode || dash}</td>
-                              <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || dash}</td>
+                              <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">{awbLink(r.awbNumber)}</td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.logisticName || dash}</td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate || dash}</td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || dash}</td>
@@ -12247,6 +12279,9 @@ export default function OrderStatusDashboard() {
                               <td className="px-2.5 py-2 bg-fuchsia-50/20">{attemptCell(r.attempt4Time, r.attempt4Remarks)}</td>
                               <td className="px-2.5 py-2 bg-fuchsia-50/20">{attemptCell(r.attempt5Time, r.attempt5Remarks)}</td>
                               <td className="px-2.5 py-2 bg-fuchsia-50/20">{attemptCell(r.attempt6Time, r.attempt6Remarks)}</td>
+                              {renderScanCell(r.poNumber, 0)}
+                              {renderScanCell(r.poNumber, 1)}
+                              {renderScanCell(r.poNumber, 2)}
                             </tr>
                           );
                         })}
@@ -12258,6 +12293,35 @@ export default function OrderStatusDashboard() {
             </div>
           </div>
         )}
+
+        {/* Group By aggregation modal for the RTO trend / KPI drill */}
+        <GroupByModal
+          open={!!rtoKpiModal && rtoGroupByDims.length > 0}
+          dimensions={rtoGroupByDims}
+          rows={(rtoKpiModalData ?? []).map((r) => ({
+            poNumber: r.poNumber,
+            orderStatus: r.poStatus,
+            status: r.poStatus,
+            deliveryStatus: r.shipmentStatus,
+            poAmount: r.orderValue,
+            paidAmount: r.paidAmount,
+            CoupanAmount: r.couponValue,
+            appliedWalletAmount: r.appliedWalletAmount,
+            discountBySeller: r.discountBySeller,
+            PaymentOptionDiscountByBadho: r.PaymentOptionDiscountByBadho,
+            codAmountToBeCollected: r.codCollect,
+            RefundAmount: r.RefundAmount,
+            buyerBusinessName: r.buyerBusinessName,
+            buyerPhone: r.buyerPhone,
+            buyerState: r.buyerState,
+            buyerDistrict: r.buyerDistrict,
+            sellerBusinessName: r.sellerBusinessName,
+            sellerPhone: r.sellerPhone,
+          }))}
+          contextLabel={`RTO${rtoKpiWindow ? ` · ${rtoKpiWindow.label}` : ` · ${currentYear}`}`}
+          onClose={() => setRtoGroupByDims([])}
+          onChangeDimensions={setRtoGroupByDims}
+        />
 
         {/* GMV Goal ACHIEVED → orders modal */}
         {goalModalOpen && (

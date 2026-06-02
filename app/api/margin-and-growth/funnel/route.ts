@@ -22,8 +22,8 @@ const GRANULARITIES: Record<string, 'day' | 'week' | 'month'> = {
 //   cart_buyers    – distinct buyers who created a cart (any purchaseOrder)
 //   order_buyers   – distinct buyers who actually placed an order (status != DRAFT)
 //   orders         – count of placed orders
-// Carts/orders are platform-wide (test/false excluded) so the % reads cleanly
-// against platform-wide DAU.
+// Carts/orders join both seller and buyer and exclude test sellers, test
+// buyers, test orders and false orders, so the % reads cleanly against DAU.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
@@ -78,9 +78,12 @@ export async function GET(req: NextRequest) {
           COUNT(DISTINCT po."buyerId") FILTER (WHERE po."status" != 'DRAFT')    AS order_buyers,
           COUNT(*) FILTER (WHERE po."status" != 'DRAFT')                        AS orders
         FROM "purchaseOrder"."purchaseOrder" po
-        JOIN "users"."buyer" b ON b."id" = po."buyerId"
+        JOIN "users"."seller" s ON s."id" = po."sellerId"
+        JOIN "users"."buyer"  b ON b."id" = po."buyerId"
         WHERE po."isTest"      = FALSE
           AND po."isFalseOrder" = FALSE
+          AND s."isTest"        = FALSE
+          AND s."businessName" NOT ILIKE '%test%'
           AND b."isTest"        = FALSE
           AND b."businessName" NOT ILIKE '%test%'
           AND po."created_at"::date >= $2::date

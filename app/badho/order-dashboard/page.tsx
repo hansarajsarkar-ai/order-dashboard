@@ -10505,6 +10505,9 @@ export default function OrderStatusDashboard() {
                                     </svg>
                                   </a>
                                 </div>
+                                <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
+                                  AWB: {awbLink(r.awbNumber)}
+                                </div>
                               </td>
                               <td className="px-2.5 py-2 whitespace-nowrap">
                                 <button
@@ -12197,6 +12200,9 @@ export default function OrderStatusDashboard() {
                                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200"
                                     title="Open in D2R Support Dashboard"
                                   >Details ↗</a>
+                                </div>
+                                <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
+                                  AWB: {awbLink(r.awbNumber)}
                                 </div>
                               </td>
                               <td className="px-2.5 py-2 whitespace-nowrap">

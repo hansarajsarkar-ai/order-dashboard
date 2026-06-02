@@ -2121,7 +2121,8 @@ export default function OrderStatusDashboard() {
     month: number | null,
     day: number | null = null,
     week: number | null = null,
-    weekLabel: string | null = null
+    weekLabel: string | null = null,
+    initialPayment: string[] = []
   ) => {
     setPivotDrillOpen(true);
     setPivotDrillStatus(status);
@@ -2135,9 +2136,9 @@ export default function OrderStatusDashboard() {
     setPivotDrillSearch('');
     setPivotDrillPushedFilter('all');
     setPivotDrillRejectReasonFilter(new Set());
-    setPivotDrillPaymentFilter(new Set());
     setPivotDrillCourierFilter(new Set());
     setPivotDrillDeliveryFilter(new Set());
+    setPivotDrillPaymentFilter(new Set(initialPayment));
     setPivotDrillSort(null);
     setPivotDrillPage(1);
     setPivotDrillLoading(true);
@@ -2180,6 +2181,54 @@ export default function OrderStatusDashboard() {
     const [, mm, dd] = dateStr.split('-').map((n) => parseInt(n, 10));
     if (Number.isNaN(mm) || Number.isNaN(dd)) return;
     openPivotDrill(status, undefined, mm, dd);
+  };
+
+  // Generic helper: pull a Recharts bar/area/pie entry's original data row.
+  const rechartsPayload = (entry: unknown): Record<string, unknown> =>
+    (entry && typeof entry === 'object' && 'payload' in entry
+      ? (entry as { payload?: Record<string, unknown> }).payload
+      : (entry as Record<string, unknown>)) || {};
+
+  // Payment mix chart → drill that day, pre-filtered to the clicked payment option.
+  const openPaymentDrill = (option: string, entry: unknown) => {
+    const payload = rechartsPayload(entry);
+    const dateStr = typeof payload.date === 'string' ? payload.date : null;
+    const raw = Number(payload[`${option}__raw`] ?? payload[option] ?? 0);
+    if (!dateStr || raw <= 0) return;
+    const [, mm, dd] = dateStr.split('-').map((n) => parseInt(n, 10));
+    if (Number.isNaN(mm) || Number.isNaN(dd)) return;
+    openPivotDrill('', undefined, mm, dd, null, null, [option]);
+  };
+
+  // Daily Order Trend → drill that day. statusFilter '' = all non-DRAFT (Orders sent),
+  // 'DELIVERED,COMPLETED' for the delivered+completed series.
+  const openTrendDrill = (statusFilter: string, entry: unknown) => {
+    const payload = rechartsPayload(entry);
+    const dateStr = typeof payload.date === 'string' ? payload.date
+      : typeof payload.day === 'string' ? payload.day : null;
+    if (!dateStr) return;
+    const [, mm, dd] = dateStr.split('-').map((n) => parseInt(n, 10));
+    if (Number.isNaN(mm) || Number.isNaN(dd)) return;
+    openPivotDrill(statusFilter, undefined, mm, dd);
+  };
+
+  // Monthly charts (AOV, Cumulative Revenue, Monthly Revenue & Orders) → drill all orders that month.
+  const openMonthDrill = (monthIndexOrName: number | string | null | undefined) => {
+    let m: number | null = null;
+    if (typeof monthIndexOrName === 'number') m = monthIndexOrName;
+    else if (typeof monthIndexOrName === 'string') {
+      const idx = MONTH_NAMES.findIndex((n) => n === monthIndexOrName || n.startsWith(monthIndexOrName));
+      m = idx >= 0 ? idx + 1 : null;
+    }
+    if (!m) return;
+    openPivotDrill('', undefined, m);
+  };
+
+  // Status donuts (Order Mix / Revenue Mix) → drill that status for the whole year.
+  const openStatusDrill = (name: unknown) => {
+    const status = typeof name === 'string' ? name : '';
+    if (!status) return;
+    openPivotDrill(status, undefined, null);
   };
 
   const closePivotDrill = () => {
@@ -4263,7 +4312,7 @@ export default function OrderStatusDashboard() {
                 <div className="relative shrink-0" style={{ width: 200, height: 200 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={62} outerRadius={92} paddingAngle={2} stroke="none" isAnimationActive={false}>
+                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={62} outerRadius={92} paddingAngle={2} stroke="none" isAnimationActive={false} cursor="pointer" onClick={(d: any) => openStatusDrill(d?.name ?? d?.payload?.name)}>
                         {data.map((d, i) => <Cell key={d.name} fill={colorFor(d.name, i)} />)}
                       </Pie>
                       <Tooltip
@@ -4279,7 +4328,7 @@ export default function OrderStatusDashboard() {
                 </div>
                 <div className="flex-1 w-full space-y-1.5">
                   {data.map((d, i) => (
-                    <div key={d.name} className="flex items-center gap-2 text-xs">
+                    <div key={d.name} onClick={() => openStatusDrill(d.name)} className="flex items-center gap-2 text-xs cursor-pointer rounded-md px-1.5 py-1 -mx-1.5 hover:bg-white/10 transition-colors">
                       <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: colorFor(d.name, i) }} />
                       <span className="text-white/80 font-medium w-24 truncate">{d.name}</span>
                       <span className="text-white/50 tabular-nums ml-auto">{fmt(d.value)}</span>
@@ -4352,7 +4401,7 @@ export default function OrderStatusDashboard() {
                 </div>
                 <div className="p-6">
                   <ResponsiveContainer width="100%" height={360}>
-                    <ComposedChart data={monthlyTrend} margin={{ top: 28, right: 16, left: 8, bottom: 8 }}>
+                    <ComposedChart data={monthlyTrend} margin={{ top: 28, right: 16, left: 8, bottom: 8 }} style={{ cursor: 'pointer' }} onClick={(s: any) => openMonthDrill(s?.activeLabel)}>
                       <defs>
                         <linearGradient id="gradRevBar" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#a855f7" stopOpacity={0.95} />
@@ -4435,7 +4484,7 @@ export default function OrderStatusDashboard() {
                   </div>
                   <div className="p-5">
                     <ResponsiveContainer width="100%" height={260}>
-                      <AreaChart data={monthSeries} margin={{ top: 10, right: 12, left: 4, bottom: 4 }}>
+                      <AreaChart data={monthSeries} margin={{ top: 10, right: 12, left: 4, bottom: 4 }} style={{ cursor: 'pointer' }} onClick={(s: any) => openMonthDrill(s?.activeLabel)}>
                         <defs>
                           <linearGradient id="gradAov" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#e879f9" stopOpacity={0.55} />
@@ -4476,7 +4525,7 @@ export default function OrderStatusDashboard() {
                   </div>
                   <div className="p-5">
                     <ResponsiveContainer width="100%" height={260}>
-                      <AreaChart data={monthSeries} margin={{ top: 10, right: 12, left: 4, bottom: 4 }}>
+                      <AreaChart data={monthSeries} margin={{ top: 10, right: 12, left: 4, bottom: 4 }} style={{ cursor: 'pointer' }} onClick={(s: any) => openMonthDrill(s?.activeLabel)}>
                         <defs>
                           <linearGradient id="gradCum" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.55} />
@@ -4667,7 +4716,16 @@ export default function OrderStatusDashboard() {
                     strokeWidth={2}
                     fill="url(#gradOrders)"
                     activeDot={{ r: 5 }}
-                    dot={{ r: 2.5, fill: '#d946ef', stroke: '#1e1b4b', strokeWidth: 1 }}
+                    dot={(p: any) => {
+                      const { cx, cy, payload, index } = p;
+                      if (cx == null || cy == null) return <g key={index} />;
+                      return (
+                        <g key={index}>
+                          <circle cx={cx} cy={cy} r={10} fill="transparent" style={{ cursor: 'pointer' }} onClick={() => openTrendDrill('', payload)} />
+                          <circle cx={cx} cy={cy} r={2.5} fill="#d946ef" stroke="#1e1b4b" strokeWidth={1} style={{ pointerEvents: 'none' }} />
+                        </g>
+                      );
+                    }}
                   >
                     <LabelList
                       dataKey={trendMetric === 'count' ? 'ordersCount' : 'ordersAmount'}
@@ -4704,7 +4762,16 @@ export default function OrderStatusDashboard() {
                     strokeWidth={2}
                     fill="url(#gradDelivered)"
                     activeDot={{ r: 5 }}
-                    dot={{ r: 2.5, fill: '#10b981', stroke: '#1e1b4b', strokeWidth: 1 }}
+                    dot={(p: any) => {
+                      const { cx, cy, payload, index } = p;
+                      if (cx == null || cy == null) return <g key={index} />;
+                      return (
+                        <g key={index}>
+                          <circle cx={cx} cy={cy} r={10} fill="transparent" style={{ cursor: 'pointer' }} onClick={() => openTrendDrill('DELIVERED,COMPLETED', payload)} />
+                          <circle cx={cx} cy={cy} r={2.5} fill="#10b981" stroke="#1e1b4b" strokeWidth={1} style={{ pointerEvents: 'none' }} />
+                        </g>
+                      );
+                    }}
                   >
                     <LabelList
                       dataKey={trendMetric === 'count' ? 'deliveredCount' : 'deliveredAmount'}
@@ -4827,7 +4894,7 @@ export default function OrderStatusDashboard() {
                     {paymentTrend.options.map((opt, i) => {
                       const isLast = i === paymentTrend.options.length - 1;
                       return (
-                        <Bar key={opt} dataKey={opt} stackId="pm" fill={colorFor(i)} isAnimationActive={false} radius={isLast ? [4, 4, 0, 0] : [0, 0, 0, 0]}>
+                        <Bar key={opt} dataKey={opt} stackId="pm" fill={colorFor(i)} isAnimationActive={false} radius={isLast ? [4, 4, 0, 0] : [0, 0, 0, 0]} cursor="pointer" onClick={(e: unknown) => openPaymentDrill(opt, e)}>
                           <LabelList
                             dataKey={opt}
                             position="center"
@@ -10370,7 +10437,7 @@ export default function OrderStatusDashboard() {
                 <div>
                   <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900">
                     <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse" />
-                    <span>{pivotDrillStatus.includes(',') ? `Achieved · ${pivotDrillStatus.split(',').join(' + ')}` : pivotDrillStatus}</span>
+                    <span>{pivotDrillStatus.includes(',') ? `Achieved · ${pivotDrillStatus.split(',').join(' + ')}` : (pivotDrillStatus || (pivotDrillPaymentFilter.size > 0 ? Array.from(pivotDrillPaymentFilter).join(' + ') : 'All orders'))}</span>
                     {pivotDrillDelivery !== undefined && (
                       <span className="text-slate-400 text-sm font-normal mx-1">→</span>
                     )}

@@ -8423,7 +8423,7 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-right font-semibold">Coupon</th>
                           <th className="px-4 py-3 text-right font-semibold">Badho Disc</th>
                           <th className="px-4 py-3 text-right font-semibold">Reward</th>
-                          <th className="px-4 py-3 text-right font-semibold">Delivery</th>
+                          <th className="px-4 py-3 text-right font-semibold">Delivery Charge</th>
                           <th className="px-4 py-3 text-left font-semibold">Delivery Status</th>
                           <th className="px-4 py-3 text-left font-semibold">Marked Pending</th>
                           <th className="px-4 py-3 text-left font-semibold">Order Status</th>

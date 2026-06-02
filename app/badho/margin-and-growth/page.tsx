@@ -43,6 +43,21 @@ interface OrderSummary {
   windowDays: number;
 }
 
+interface FunnelRow {
+  bucket: string;
+  dau: number;
+  cartBuyers: number;
+  orderBuyers: number;
+  orders: number;
+}
+
+interface FunnelTotals {
+  dau: number;
+  cartBuyers: number;
+  orderBuyers: number;
+  orders: number;
+}
+
 const fmtCompact = (n: number) => {
   if (n >= 1_00_00_000) return `${(n / 1_00_00_000).toFixed(2)}Cr`;
   if (n >= 1_00_000) return `${(n / 1_00_000).toFixed(2)}L`;
@@ -68,6 +83,18 @@ const computeYtdDays = () => {
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 1);
   return Math.max(1, Math.round((now.getTime() - start.getTime()) / 86_400_000));
+};
+
+const pct = (n: number, d: number) => (d > 0 ? (n / d) * 100 : 0);
+const fmtPct = (n: number, d: number) => `${pct(n, d).toFixed(1)}%`;
+
+// Tailwind text colour for a conversion rate against rough engagement benchmarks.
+const pctTone = (value: number, good: number, ok: number) =>
+  value >= good ? 'text-emerald-300' : value >= ok ? 'text-amber-300' : 'text-rose-300';
+
+const currentMonthStr = () => {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
 };
 
 const RANGES = [
@@ -122,6 +149,14 @@ export default function MarginAndGrowthDashboard() {
   const [orderSummary, setOrderSummary] = useState<OrderSummary | null>(null);
   const [orderLoading, setOrderLoading] = useState(true);
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  // DAU → Cart → Order conversion table (own day/week/month toggle + month picker)
+  const [tableGran, setTableGran] = useState<Granularity>('month');
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => currentMonthStr());
+  const [funnel, setFunnel] = useState<FunnelRow[]>([]);
+  const [funnelTotals, setFunnelTotals] = useState<FunnelTotals | null>(null);
+  const [funnelLoading, setFunnelLoading] = useState(true);
+  const [funnelError, setFunnelError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -188,6 +223,34 @@ export default function MarginAndGrowthDashboard() {
     };
   }, [authChecked, days, granularity]);
 
+  useEffect(() => {
+    if (!authChecked) return;
+    let cancelled = false;
+    setFunnelLoading(true);
+    setFunnelError(null);
+    const monthQ = tableGran === 'day' ? `&month=${selectedMonth}` : '';
+    fetch(`/api/margin-and-growth/funnel?granularity=${tableGran}${monthQ}`)
+      .then(async (r) => {
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error || 'Failed to load');
+        return json;
+      })
+      .then((json) => {
+        if (cancelled) return;
+        setFunnel(json.data || []);
+        setFunnelTotals(json.totals || null);
+      })
+      .catch((e) => {
+        if (!cancelled) setFunnelError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setFunnelLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authChecked, tableGran, selectedMonth]);
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
@@ -223,6 +286,20 @@ export default function MarginAndGrowthDashboard() {
 
   const mergedLoading = loading || orderLoading;
   const mergedError = error || orderError;
+
+  // Months from Jan of the current year through the current month (latest first),
+  // for the day-view month picker.
+  const monthOptions = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const opts: { value: string; label: string }[] = [];
+    for (let m = now.getMonth(); m >= 0; m--) {
+      const value = `${year}-${String(m + 1).padStart(2, '0')}`;
+      const label = new Date(year, m, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+      opts.push({ value, label });
+    }
+    return opts;
+  }, []);
   // Inline value labels stay readable only up to a point; past that they
   // overlap and add noise, so hide labels (and then dots) on dense windows.
   const showLabels = mergedData.length <= 31;
@@ -460,6 +537,111 @@ export default function MarginAndGrowthDashboard() {
               </ResponsiveContainer>
             </div>
           )}
+        </div>
+
+        {/* DAU → Cart → Order conversion table */}
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mt-6">
+          <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-lg font-bold text-white">DAU → Cart → Order Funnel</h2>
+              <p className="text-xs text-purple-300/70 mt-0.5">
+                Active buyers, how many created a cart, how many placed an order, and the conversion at each step
+                {tableGran === 'day' ? ', day-wise for the selected month.' : `, per ${tableGran}.`}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Month picker (day view only) */}
+              {tableGran === 'day' && (
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-purple-100 focus:outline-none focus:border-fuchsia-400/50"
+                >
+                  {monthOptions.map((m) => (
+                    <option key={m.value} value={m.value} className="bg-slate-900">
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {/* Granularity toggle */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+                {GRANULARITIES.map((g) => (
+                  <button
+                    key={g.value}
+                    onClick={() => setTableGran(g.value)}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                      tableGran === g.value
+                        ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-[0_0_18px_rgba(56,189,248,0.45)]'
+                        : 'text-purple-200 hover:bg-white/10'
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {funnelLoading ? (
+            <div className="h-60 flex items-center justify-center text-purple-300 text-sm">Loading funnel…</div>
+          ) : funnelError ? (
+            <div className="h-60 flex items-center justify-center text-rose-300 text-sm">Error: {funnelError}</div>
+          ) : funnel.length === 0 ? (
+            <div className="h-60 flex items-center justify-center text-purple-300/70 text-sm">No data for this window.</div>
+          ) : (
+            <div className="overflow-x-auto max-h-[28rem] overflow-y-auto rounded-xl border border-white/10">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10 bg-slate-900/90 backdrop-blur text-purple-200">
+                  <tr className="text-left">
+                    <th className="px-4 py-3 font-semibold">{tableGran === 'day' ? 'Date' : tableGran === 'week' ? 'Week of' : 'Month'}</th>
+                    <th className="px-4 py-3 font-semibold text-right">DAU</th>
+                    <th className="px-4 py-3 font-semibold text-right">Carts Created</th>
+                    <th className="px-4 py-3 font-semibold text-right">Cart % of DAU</th>
+                    <th className="px-4 py-3 font-semibold text-right">Orders Placed</th>
+                    <th className="px-4 py-3 font-semibold text-right">Cart → Order %</th>
+                    <th className="px-4 py-3 font-semibold text-right">Order % of DAU</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {funnel.map((r) => {
+                    const cartRate = pct(r.cartBuyers, r.dau);
+                    const cartToOrder = pct(r.orderBuyers, r.cartBuyers);
+                    const orderRate = pct(r.orderBuyers, r.dau);
+                    return (
+                      <tr key={r.bucket} className="text-purple-100 hover:bg-white/5 transition-colors">
+                        <td className="px-4 py-2.5 font-medium whitespace-nowrap">{fmtBucket(r.bucket, tableGran)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(r.dau)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(r.cartBuyers)}</td>
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${pctTone(cartRate, 20, 12)}`}>{cartRate.toFixed(1)}%</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(r.orderBuyers)}</td>
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${pctTone(cartToOrder, 60, 40)}`}>{cartToOrder.toFixed(1)}%</td>
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${pctTone(orderRate, 12, 7)}`}>{orderRate.toFixed(1)}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {funnelTotals && (
+                  <tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15">
+                    <tr>
+                      <td className="px-4 py-3">Total</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmtInt(funnelTotals.dau)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmtInt(funnelTotals.cartBuyers)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmtPct(funnelTotals.cartBuyers, funnelTotals.dau)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmtInt(funnelTotals.orderBuyers)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmtPct(funnelTotals.orderBuyers, funnelTotals.cartBuyers)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmtPct(funnelTotals.orderBuyers, funnelTotals.dau)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          )}
+          <p className="text-[11px] text-purple-300/50 mt-3">
+            DAU = distinct buyer-app active buyers. A “cart” is any purchase order created; “order placed” excludes
+            DRAFT carts. Carts/orders are platform-wide with test buyers excluded. Totals sum each bucket (a buyer
+            active on multiple days is counted per day).
+          </p>
         </div>
       </div>
 

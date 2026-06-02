@@ -745,7 +745,7 @@ export default function CallingTeamDashboard() {
               onClick={() => setTab('table')}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'table' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
             >
-              📑 Table
+              📑 Agent Wise
             </button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -2084,8 +2084,43 @@ function DailyTrendTab(props: {
   const last7AvgDelta = summary.prev7Avg > 0 ? ((summary.last7Avg - summary.prev7Avg) / summary.prev7Avg) * 100 : null;
   const last7ConnectDelta = (summary.last7ConnectRate - summary.prev7ConnectRate) * 100;
 
-  // Chart data: include cumulative connect rate per day for a secondary y-axis.
-  const chartData = series.map((s) => ({ ...s, dayLabel: fmtDay(s.day) }));
+  // Chart data: include cumulative connect rate per day for a secondary y-axis,
+  // plus per-segment share-of-total so each stacked bar can show its own %.
+  const chartData = series.map((s) => {
+    const t = Math.max(1, s.total);
+    return {
+      ...s,
+      dayLabel: fmtDay(s.day),
+      connectedPct: s.connected / t,
+      noAnswerPct: s.noAnswer / t,
+      missedPct: s.missed / t,
+    };
+  });
+
+  // Crisp, outlined % label drawn inside each stacked bar segment.
+  // Hidden when the segment is too small to fit readable text.
+  const renderBarPct = (props: any) => {
+    const { x, y, width, height, value, index } = props;
+    if (value == null || width == null || height == null) return null;
+    if (height < 15 || width < 20 || value < 0.04) return <g key={`bp-${index}`} />;
+    return (
+      <text
+        key={`bp-${index}`}
+        x={x + width / 2}
+        y={y + height / 2}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill="#ffffff"
+        stroke="rgba(0,0,0,0.45)"
+        strokeWidth={2.4}
+        paintOrder="stroke"
+        fontSize={11}
+        fontWeight={800}
+      >
+        {`${(value * 100).toFixed(0)}%`}
+      </text>
+    );
+  };
 
   return (
     <div className="space-y-5">

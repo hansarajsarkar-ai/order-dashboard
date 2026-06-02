@@ -7,6 +7,12 @@ interface Row {
   sellerBusinessName: string;
   sellerPhone: string | null;
   brand: string;
+  sellerAddressLine1: string | null;
+  sellerLandmark: string | null;
+  sellerPincode: string | null;
+  sellerCity: string | null;
+  sellerDistrict: string | null;
+  sellerState: string | null;
   poCount: string;
   orderAmount: string;
   c12: string;
@@ -22,6 +28,12 @@ export async function GET() {
           s."businessName"                              AS "sellerBusinessName",
           s."phone"                                     AS "sellerPhone",
           TRIM(SPLIT_PART(s."businessName", '-', 1))    AS "brand",
+          s."addressLine1"                              AS "sellerAddressLine1",
+          s."landmark"                                  AS "sellerLandmark",
+          s."pincode"                                   AS "sellerPincode",
+          s."city"                                      AS "sellerCity",
+          s."district"                                  AS "sellerDistrict",
+          s."state"                                     AS "sellerState",
           po."amount"                                   AS "amount",
           GREATEST(
             EXTRACT(EPOCH FROM (NOW() - po."markedInProgressTime"))
@@ -68,6 +80,12 @@ export async function GET() {
           "sellerBusinessName",
           "sellerPhone",
           "brand",
+          "sellerAddressLine1",
+          "sellerLandmark",
+          "sellerPincode",
+          "sellerCity",
+          "sellerDistrict",
+          "sellerState",
           "amount",
           CASE
             WHEN "daysInProgress" < 1 THEN '<1'
@@ -81,6 +99,12 @@ export async function GET() {
         "sellerBusinessName",
         MAX("sellerPhone")                                                   AS "sellerPhone",
         MAX("brand")                                                         AS "brand",
+        MAX("sellerAddressLine1")                                            AS "sellerAddressLine1",
+        MAX("sellerLandmark")                                                AS "sellerLandmark",
+        MAX("sellerPincode")                                                 AS "sellerPincode",
+        MAX("sellerCity")                                                    AS "sellerCity",
+        MAX("sellerDistrict")                                                AS "sellerDistrict",
+        MAX("sellerState")                                                   AS "sellerState",
         COUNT(*)::text                                                       AS "poCount",
         SUM(COALESCE("amount", 0))::text                                     AS "orderAmount",
         COUNT(*) FILTER (WHERE "bucket" = '12')::text                        AS "c12",
@@ -98,6 +122,18 @@ export async function GET() {
       sellerBusinessName: r.sellerBusinessName || '(unknown)',
       sellerPhone: r.sellerPhone,
       brand: r.brand || '(unknown)',
+      sellerState: r.sellerState || null,
+      sellerDistrict: r.sellerDistrict || null,
+      sellerCity: r.sellerCity || null,
+      sellerPincode: r.sellerPincode || null,
+      sellerFullAddress: [
+        r.sellerAddressLine1,
+        r.sellerLandmark,
+        r.sellerPincode,
+        r.sellerCity,
+        r.sellerDistrict,
+        r.sellerState,
+      ].filter((v) => v != null && String(v).trim() !== '').join(', ') || null,
       poCount: parseInt(r.poCount, 10) || 0,
       orderAmount: parseFloat(r.orderAmount) || 0,
       buckets: {

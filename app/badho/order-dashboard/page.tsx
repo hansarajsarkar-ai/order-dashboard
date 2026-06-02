@@ -844,6 +844,7 @@ export default function OrderStatusDashboard() {
     sellerAddressLine1: string | null;
     sellerCity: string | null;
     sellerState: string | null;
+    sellerFullAddress: string | null;
     createdAt: string;
     category: string;
     slaBreachAt: string;
@@ -1109,11 +1110,30 @@ export default function OrderStatusDashboard() {
     sellerBusinessName: string;
     sellerPhone: string | null;
     brand: string;
+    sellerState: string | null;
+    sellerDistrict: string | null;
+    sellerCity: string | null;
+    sellerPincode: string | null;
+    sellerFullAddress: string | null;
     poCount: number;
     orderAmount: number;
     buckets: Record<'1-2 days' | '2-3 days' | '3+ days', number>;
   }
   const AGING_BUCKETS = ['1-2 days', '2-3 days', '3+ days'] as const;
+  // Geographic Group-By for the Delhivery SLA Breach pivot — nests seller rows
+  // under their address geography (state → district → city → pincode). Empty = no
+  // grouping (flat seller list).
+  type AgingGeoDim = 'sellerState' | 'sellerDistrict' | 'sellerCity' | 'sellerPincode';
+  const AGING_GEO_OPTIONS: { dim: AgingGeoDim; label: string }[] = [
+    { dim: 'sellerState', label: 'State Wise' },
+    { dim: 'sellerDistrict', label: 'District Wise' },
+    { dim: 'sellerCity', label: 'City Wise' },
+    { dim: 'sellerPincode', label: 'Pincode Wise' },
+  ];
+  const AGING_GEO_ORDER: AgingGeoDim[] = ['sellerState', 'sellerDistrict', 'sellerCity', 'sellerPincode'];
+  const [agingGroupDims, setAgingGroupDims] = useState<AgingGeoDim[]>([]);
+  const [agingGroupOpen, setAgingGroupOpen] = useState(false);
+  const [agingCollapsed, setAgingCollapsed] = useState<Set<string>>(new Set());
   const [agingData, setAgingData] = useState<{
     data: AgingRow[];
     grand: { poCount: number; orderAmount: number; buckets: Record<string, number> };
@@ -9047,6 +9067,51 @@ export default function OrderStatusDashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                {/* Geographic Group By (seller address) — nests the breach rows by State/District/City/Pincode */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setAgingGroupOpen((o) => !o)}
+                    className={`px-3 py-2 text-sm font-semibold rounded-lg border flex items-center gap-2 transition-all ${
+                      agingGroupDims.length
+                        ? 'bg-amber-500/30 border-amber-400/60 text-amber-50 ring-1 ring-amber-400/40'
+                        : 'bg-white/10 border-amber-400/40 text-amber-100 hover:bg-white/15'
+                    }`}
+                  >
+                    <span>Group By{agingGroupDims.length ? ` · ${AGING_GEO_ORDER.filter((d) => agingGroupDims.includes(d)).map((d) => AGING_GEO_OPTIONS.find((o) => o.dim === d)!.label.replace(' Wise', '')).join(' › ')}` : ''}</span>
+                    <span className="text-[10px] opacity-70">▾</span>
+                  </button>
+                  {agingGroupOpen && (
+                    <div className="absolute right-0 z-40 mt-1 w-60 bg-slate-900 border border-amber-400/30 rounded-xl shadow-[0_10px_40px_-5px_rgba(0,0,0,0.6)] overflow-hidden">
+                      <div className="px-3 py-2 border-b border-white/10 text-[11px] font-semibold text-amber-200 uppercase tracking-wide">Group By · pick one or more</div>
+                      <button
+                        type="button"
+                        onClick={() => { setAgingGroupDims([]); setAgingCollapsed(new Set()); }}
+                        className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-white/5 ${agingGroupDims.length === 0 ? 'text-amber-300 font-semibold' : 'text-purple-200'}`}
+                      >
+                        <span className={`w-3.5 h-3.5 rounded-full border ${agingGroupDims.length === 0 ? 'border-amber-400 bg-amber-400' : 'border-white/30'}`} />
+                        Seller Wise <span className="text-purple-400/70 text-xs">(no grouping)</span>
+                      </button>
+                      <div className="border-t border-white/10 py-1">
+                        {AGING_GEO_OPTIONS.map((o) => {
+                          const checked = agingGroupDims.includes(o.dim);
+                          return (
+                            <button
+                              key={o.dim}
+                              type="button"
+                              onClick={() => { setAgingGroupDims((prev) => prev.includes(o.dim) ? prev.filter((x) => x !== o.dim) : [...prev, o.dim]); setAgingCollapsed(new Set()); }}
+                              className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-white/5 ${checked ? 'text-amber-100' : 'text-purple-200'}`}
+                            >
+                              <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] ${checked ? 'border-amber-400 bg-amber-400 text-slate-900' : 'border-white/30'}`}>{checked ? '✓' : ''}</span>
+                              {o.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="px-3 py-2 border-t border-white/10 text-[10px] text-purple-400/70">Nests in order: State › District › City › Pincode</div>
+                    </div>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={agingSearch}
@@ -9079,7 +9144,8 @@ export default function OrderStatusDashboard() {
                   ? agingData.data.filter((r) =>
                       r.sellerBusinessName.toLowerCase().includes(q) ||
                       r.brand.toLowerCase().includes(q) ||
-                      (r.sellerPhone || '').toLowerCase().includes(q)
+                      (r.sellerPhone || '').toLowerCase().includes(q) ||
+                      (r.sellerFullAddress || '').toLowerCase().includes(q)
                     )
                   : agingData.data;
                 const bucketBg: Record<string, string> = {
@@ -9092,6 +9158,37 @@ export default function OrderStatusDashboard() {
                   '2-3 days': 'text-orange-200',
                   '3+ days':  'text-rose-200',
                 };
+                // Build a flat render list — geo group nodes (collapsible) + seller leaves —
+                // by nesting the seller rows under the selected address dimensions in order.
+                const geoLabel: Record<AgingGeoDim, string> = { sellerState: 'State', sellerDistrict: 'District', sellerCity: 'City', sellerPincode: 'Pincode' };
+                const activeDims = AGING_GEO_ORDER.filter((d) => agingGroupDims.includes(d));
+                interface AgingRenderRow { kind: 'group' | 'seller'; key: string; depth: number; label: string; geoTag?: string; poCount: number; orderAmount: number; buckets: Record<string, number>; seller?: AgingRow; collapsed?: boolean }
+                const rowsOut: AgingRenderRow[] = [];
+                const aggRows = (rs: AgingRow[]) => rs.reduce((a, r) => {
+                  a.poCount += r.poCount; a.orderAmount += r.orderAmount;
+                  AGING_BUCKETS.forEach((b) => { a.buckets[b] += r.buckets[b]; });
+                  return a;
+                }, { poCount: 0, orderAmount: 0, buckets: { '1-2 days': 0, '2-3 days': 0, '3+ days': 0 } as Record<string, number> });
+                const buildAging = (rs: AgingRow[], di: number, parentKey: string, depth: number): void => {
+                  if (di >= activeDims.length) {
+                    [...rs].sort((a, b) => b.poCount - a.poCount).forEach((r) => {
+                      rowsOut.push({ kind: 'seller', key: `${parentKey}|s:${r.sellerBusinessName}`, depth, label: r.sellerBusinessName, poCount: r.poCount, orderAmount: r.orderAmount, buckets: r.buckets, seller: r });
+                    });
+                    return;
+                  }
+                  const dim = activeDims[di];
+                  const groups = new Map<string, AgingRow[]>();
+                  rs.forEach((r) => { const v = (r[dim] as string | null) || '(unknown)'; if (!groups.has(v)) groups.set(v, []); groups.get(v)!.push(r); });
+                  [...groups.entries()].sort((a, b) => b[1].reduce((s, r) => s + r.poCount, 0) - a[1].reduce((s, r) => s + r.poCount, 0)).forEach(([v, sub]) => {
+                    const key = `${parentKey}|${dim}:${v}`;
+                    const ag = aggRows(sub);
+                    const collapsed = agingCollapsed.has(key);
+                    rowsOut.push({ kind: 'group', key, depth, label: v, geoTag: geoLabel[dim], poCount: ag.poCount, orderAmount: ag.orderAmount, buckets: ag.buckets, collapsed });
+                    if (!collapsed) buildAging(sub, di + 1, key, depth + 1);
+                  });
+                };
+                buildAging(filtered, 0, 'root', 0);
+                const toggleCollapse = (key: string) => setAgingCollapsed((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
                 return (
                   <table className="w-full text-sm">
                     <thead className="bg-white/5 border-b border-white/10">
@@ -9109,11 +9206,38 @@ export default function OrderStatusDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map((row) => (
-                        <tr key={row.sellerBusinessName} className="border-b border-white/5 hover:bg-amber-500/10 group">
+                      {rowsOut.map((rr) => rr.kind === 'group' ? (
+                        <tr key={rr.key} className="border-b border-white/5 bg-amber-500/[0.06] hover:bg-amber-500/[0.12]">
+                          <td
+                            onClick={() => toggleCollapse(rr.key)}
+                            style={{ paddingLeft: rr.depth * 18 + 16 }}
+                            className="py-2.5 pr-4 sticky left-0 bg-slate-900/85 backdrop-blur z-10 border-r border-white/10 cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-block w-3 text-amber-300 transition-transform ${rr.collapsed ? '' : 'rotate-90'}`}>▸</span>
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-amber-300/70 bg-amber-500/15 px-1.5 py-0.5 rounded">{rr.geoTag}</span>
+                              <span className="text-white font-semibold text-sm leading-tight">{rr.label}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-white font-semibold tabular-nums bg-white/[0.05]">{rr.poCount.toLocaleString()}</td>
+                          <td className="px-3 py-2.5 text-right text-amber-200 font-semibold tabular-nums bg-white/[0.05] border-r border-white/10">{formatAmount(rr.orderAmount)}</td>
+                          {AGING_BUCKETS.map((b) => {
+                            const v = rr.buckets[b];
+                            return (
+                              <td key={b} className={`px-3 py-2.5 text-right tabular-nums border-r border-white/10 ${bucketBg[b]}`}>
+                                {v > 0 ? <span className={`font-semibold ${bucketText[b]}`}>{v.toLocaleString()}</span> : <span className="text-amber-500/30">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ) : (() => {
+                        const row = rr.seller!;
+                        return (
+                        <tr key={rr.key} className="border-b border-white/5 hover:bg-amber-500/10 group">
                           <td
                             onClick={() => row.poCount > 0 && openAlertModal('all', row.sellerBusinessName, 'aging')}
-                            className="px-4 py-2.5 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 cursor-pointer"
+                            style={{ paddingLeft: rr.depth * 18 + 16 }}
+                            className="py-2.5 pr-4 sticky left-0 bg-slate-900/80 backdrop-blur z-10 border-r border-white/10 group-hover:bg-slate-800/90 cursor-pointer"
                           >
                             <div className="text-white font-semibold text-sm leading-tight">{row.sellerBusinessName}</div>
                             <div className="text-[10px] text-purple-300 tabular-nums leading-tight">
@@ -9137,6 +9261,9 @@ export default function OrderStatusDashboard() {
                                 {row.brand}
                               </button>
                             </div>
+                            {row.sellerFullAddress && (
+                              <div className="text-[10px] text-amber-200/60 leading-tight mt-0.5 max-w-[420px]" title={row.sellerFullAddress}>📍 {row.sellerFullAddress}</div>
+                            )}
                           </td>
                           <td
                             onClick={() => row.poCount > 0 && openAlertModal('all', row.sellerBusinessName, 'aging')}
@@ -9174,7 +9301,8 @@ export default function OrderStatusDashboard() {
                             );
                           })}
                         </tr>
-                      ))}
+                        );
+                      })())}
                       <tr className="bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-rose-500/20 border-t-2 border-amber-500/50 font-bold">
                         <td
                           onClick={() => agingData.grand.poCount > 0 && openAlertModal('all', undefined, 'aging')}
@@ -10467,6 +10595,7 @@ export default function OrderStatusDashboard() {
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Buyer Address</th>
                           <SortTh k="sellerBusiness" label="Seller Business" />
                           <SortTh k="sellerPhone" label="Seller Phone" />
+                          <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Seller Address</th>
                           <SortTh k="statusMarkedTime" label={statusMarkedHeaderFor(alertModalData)} cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="refundInit" label="Refund Initiated" />
@@ -10637,6 +10766,9 @@ export default function OrderStatusDashboard() {
                                 ) : (
                                   <span className="text-slate-400">—</span>
                                 )}
+                              </td>
+                              <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md" title={r.sellerFullAddress || ''}>
+                                {r.sellerFullAddress ? <div className="whitespace-normal break-words">{r.sellerFullAddress}</div> : <span className="text-slate-400">—</span>}
                               </td>
                               <td className="px-2.5 py-2 whitespace-nowrap bg-amber-50/40">
                                 <div className="text-[9px] font-mono text-amber-700/90 leading-tight">{statusMarkedFieldFor(r.orderStatus)}</div>

@@ -41,7 +41,10 @@ interface Row {
   buyer_district: string | null;
   buyer_state: string | null;
   seller_address_line1: string | null;
+  seller_landmark: string | null;
+  seller_pincode: string | null;
   seller_city: string | null;
+  seller_district: string | null;
   seller_state: string | null;
   created_at: string;
   category: string;
@@ -115,7 +118,10 @@ export async function GET(req: NextRequest) {
           b."district"     AS buyer_district,
           b."state"        AS buyer_state,
           s."addressLine1" AS seller_address_line1,
+          s."landmark"     AS seller_landmark,
+          s."pincode"      AS seller_pincode,
           s."city"         AS seller_city,
+          s."district"     AS seller_district,
           s."state"        AS seller_state,
           po."created_at"  AS created_at,
           GREATEST(
@@ -249,6 +255,14 @@ export async function GET(req: NextRequest) {
       sellerAddressLine1: r.seller_address_line1,
       sellerCity: r.seller_city,
       sellerState: r.seller_state,
+      sellerFullAddress: [
+        r.seller_address_line1,
+        r.seller_landmark,
+        r.seller_pincode,
+        r.seller_city,
+        r.seller_district,
+        r.seller_state,
+      ].filter((v) => v != null && String(v).trim() !== '').join(', ') || null,
       createdAt: r.created_at,
       category: r.category,
       slaBreachAt: r.markedInProgressTime || '',

@@ -561,6 +561,8 @@ export default function OrderStatusDashboard() {
     buyerName: string | null;
     poAmount: number;
     marginRs: number;
+    badhoCommissionPct: number;
+    deliveryStatus: string | null;
     couponRs: number;
     badhoPaymentDiscountRs: number;
     rewardRs: number;
@@ -8303,12 +8305,14 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-left font-semibold">Buyer</th>
                           <th className="px-4 py-3 text-right font-semibold">GTV</th>
                           <th className="px-4 py-3 text-right font-semibold">Margin</th>
+                          <th className="px-4 py-3 text-right font-semibold">Comm %</th>
                           <th className="px-4 py-3 text-right font-semibold">Coupon</th>
                           <th className="px-4 py-3 text-right font-semibold">Badho Disc</th>
                           <th className="px-4 py-3 text-right font-semibold">Reward</th>
                           <th className="px-4 py-3 text-right font-semibold">Delivery</th>
                           <th className="px-4 py-3 text-right font-semibold">Op Cost</th>
                           <th className="px-4 py-3 text-right font-semibold">Net P&amp;L</th>
+                          <th className="px-4 py-3 text-center font-semibold">Delivery</th>
                           <th className="px-4 py-3 text-center font-semibold">Status</th>
                         </tr>
                       </thead>
@@ -8333,12 +8337,14 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-2.5 text-purple-100 max-w-[180px] truncate" title={o.buyerName ?? ''}>{o.buyerName ?? '—'}</td>
                             <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums">{fmtFull(o.poAmount)}</td>
                             <td className="px-4 py-2.5 text-right text-emerald-300 tabular-nums">{fmtFull(o.marginRs)}</td>
+                            <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{o.badhoCommissionPct ? `${o.badhoCommissionPct}%` : '—'}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.couponRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.badhoPaymentDiscountRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.rewardRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.deliveryChargeRs)}</td>
                             <td className="px-4 py-2.5 text-right text-amber-300 tabular-nums">{fmtFull(o.operationalCostRs)}</td>
                             <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${o.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(o.profitAndLossRs)}</td>
+                            <td className="px-4 py-2.5 text-center text-purple-100 text-[11px] whitespace-nowrap">{o.deliveryStatus ?? '—'}</td>
                             <td className="px-4 py-2.5 text-center">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
                                 o.status === 'Profit'
@@ -8353,7 +8359,7 @@ export default function OrderStatusDashboard() {
                           </tr>
                         ))}
                         {marginDayData.length === 0 && (
-                          <tr><td colSpan={12} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
+                          <tr><td colSpan={14} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
                         )}
                       </tbody>
                       {marginDayData.length > 0 && marginDayTotals && (
@@ -8362,12 +8368,14 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-3 text-purple-100" colSpan={3}>Total · {marginDayData.length} orders</td>
                             <td className="px-4 py-3 text-right text-purple-100 tabular-nums">{fmtFull(marginDayTotals.poAmount)}</td>
                             <td className="px-4 py-3 text-right text-emerald-300 tabular-nums">{fmtFull(marginDayTotals.marginRs)}</td>
+                            <td></td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.couponRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.badhoPaymentDiscountRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.rewardRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.deliveryChargeRs)}</td>
                             <td className="px-4 py-3 text-right text-amber-300 tabular-nums">{fmtFull(marginDayTotals.operationalCostRs)}</td>
                             <td className={`px-4 py-3 text-right tabular-nums ${marginDayTotals.profitAndLossRs >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{fmtFull(marginDayTotals.profitAndLossRs)}</td>
+                            <td></td>
                             <td></td>
                           </tr>
                         </tfoot>

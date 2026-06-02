@@ -21,6 +21,8 @@ interface Row {
   buyerName: string | null;
   poAmount: string | null;
   marginRs: string | null;
+  'badhoComission%': string | null;
+  deliveryStatus: string | null;
   couponRs: string | null;
   badhoPaymentDiscountRs: string | null;
   rewardRs: string | null;
@@ -58,6 +60,7 @@ export async function GET(req: NextRequest) {
       SELECT DISTINCT ON (di."purchaseOrderId")
         di."id" AS "deliveryId",
         di."purchaseOrderId",
+        di."status",
         di."created_at",
         di."deliveryCharge"
       FROM "deliveries"."intercityDelivery" di
@@ -81,6 +84,8 @@ export async function GET(req: NextRequest) {
         b."businessName" AS buyer_name,
         po."amount" AS po_amount,
         po."amount" * (COALESCE((s."deliveryChargesJSON"->'badhoFees'->>'value')::numeric, 0) / 100.0) AS badho_margin_rs,
+        COALESCE((s."deliveryChargesJSON"->'badhoFees'->>'value')::numeric, 0) AS "badhoComission%",
+        dv."status" AS delivery_status,
         COALESCE(po."appliedOfferDiscount", 0) AS coupon_rs,
         COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) AS badho_payment_discount_rs,
         COALESCE(wt."rewardAmount", 0) AS reward_rs,
@@ -115,6 +120,8 @@ export async function GET(req: NextRequest) {
       buyer_name                                         AS "buyerName",
       po_amount                                          AS "poAmount",
       badho_margin_rs                                    AS "marginRs",
+      "badhoComission%"                                  AS "badhoComission%",
+      delivery_status                                    AS "deliveryStatus",
       coupon_rs                                          AS "couponRs",
       badho_payment_discount_rs                          AS "badhoPaymentDiscountRs",
       reward_rs                                          AS "rewardRs",
@@ -142,6 +149,8 @@ export async function GET(req: NextRequest) {
       buyerName: r.buyerName,
       poAmount: Number(r.poAmount) || 0,
       marginRs: Number(r.marginRs) || 0,
+      badhoCommissionPct: Number(r['badhoComission%']) || 0,
+      deliveryStatus: r.deliveryStatus ?? null,
       couponRs: Number(r.couponRs) || 0,
       badhoPaymentDiscountRs: Number(r.badhoPaymentDiscountRs) || 0,
       rewardRs: Number(r.rewardRs) || 0,

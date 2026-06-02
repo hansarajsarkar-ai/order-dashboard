@@ -34,6 +34,8 @@ interface Row {
   reasonAddedByBadhoTeam: string | null;
   statusMarkedTime: string | null;
   statusDurationSec: number | null;
+  orderAgeingSec: number | null;
+  brandSlaAgeingSec: number | null;
   buyer_address_line1: string | null;
   buyer_landmark: string | null;
   buyer_pincode: string | null;
@@ -84,6 +86,23 @@ export async function GET(req: NextRequest) {
           po."poNumber"::text AS "poNumber",
           po."markedPendingTime"    AS "MarkedpendingTime",
           po."markedInProgressTime" AS "markedInProgressTime",
+          -- Order ageing since placed, INCLUDING Sundays (raw elapsed seconds).
+          EXTRACT(EPOCH FROM (NOW() - po."markedPendingTime"))::float AS "orderAgeingSec",
+          -- Brand SLA ageing since placed, EXCLUDING Sundays (IST), seconds.
+          GREATEST(
+            EXTRACT(EPOCH FROM ((NOW() AT TIME ZONE 'Asia/Kolkata') - (po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')))
+            - COALESCE((
+                SELECT SUM(EXTRACT(EPOCH FROM (
+                  LEAST(NOW() AT TIME ZONE 'Asia/Kolkata', d + INTERVAL '1 day')
+                  - GREATEST(po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata', d)
+                )))
+                FROM generate_series((po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')::date, (NOW() AT TIME ZONE 'Asia/Kolkata')::date, INTERVAL '1 day') AS d
+                WHERE EXTRACT(DOW FROM d) = 0
+              ), 0),
+            0
+          )::float AS "brandSlaAgeingSec",
+          -- Delhivery pickup SLA ageing (excl. Sundays) is derived in JS from
+          -- the already-computed daysInProgress to avoid a duplicate subquery.
           pop."created_at"          AS "paymentDate",
           pop."event"               AS "paymentEvent",
           s."phone"                 AS "sellerPhone",
@@ -238,6 +257,9 @@ export async function GET(req: NextRequest) {
       reasonAddedByBadhoTeam: r.reasonAddedByBadhoTeam,
       statusMarkedTime: r.statusMarkedTime,
       statusDurationSec: r.statusDurationSec != null ? Number(r.statusDurationSec) : null,
+      orderAgeingSec: r.orderAgeingSec != null ? Number(r.orderAgeingSec) : null,
+      brandSlaAgeingSec: r.brandSlaAgeingSec != null ? Number(r.brandSlaAgeingSec) : null,
+      delhiveryPickupAgeingSec: r.daysInProgress != null ? parseFloat(r.daysInProgress) * 86400 : null,
       buyerAddressLine1: r.buyer_address_line1,
       buyerLandmark: r.buyer_landmark,
       buyerPincode: r.buyer_pincode,

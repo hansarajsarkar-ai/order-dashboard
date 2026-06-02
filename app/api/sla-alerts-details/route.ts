@@ -34,6 +34,8 @@ interface Row {
   reasonAddedByBadhoTeam: string | null;
   statusMarkedTime: string | null;
   statusDurationSec: number | null;
+  orderAgeingSec: number | null;
+  daysPassedExclSundays: string | null;
   buyer_address_line1: string | null;
   buyer_landmark: string | null;
   buyer_pincode: string | null;
@@ -101,6 +103,10 @@ export async function GET(req: NextRequest) {
             )::numeric / 86400.0,
             2
           )                                  AS "daysPassedExclSundays",
+          -- Order ageing since placed, INCLUDING Sundays (raw elapsed seconds).
+          -- Brand SLA ageing (excl. Sundays) is derived in JS from
+          -- daysPassedExclSundays; Delhivery pickup ageing is null here (PENDING).
+          EXTRACT(EPOCH FROM (NOW() - po."markedPendingTime"))::float AS "orderAgeingSec",
           po."markedInProgressTime" AS "markedInProgressTime",
           pop."created_at"       AS "paymentDate",
           pop."event"            AS "paymentEvent",
@@ -286,6 +292,9 @@ export async function GET(req: NextRequest) {
       reasonAddedByBadhoTeam: r.reasonAddedByBadhoTeam,
       statusMarkedTime: r.statusMarkedTime,
       statusDurationSec: r.statusDurationSec != null ? Number(r.statusDurationSec) : null,
+      orderAgeingSec: r.orderAgeingSec != null ? Number(r.orderAgeingSec) : null,
+      brandSlaAgeingSec: r.daysPassedExclSundays != null ? Number(r.daysPassedExclSundays) * 86400 : null,
+      delhiveryPickupAgeingSec: null,
       buyerAddressLine1: r.buyer_address_line1,
       buyerLandmark: r.buyer_landmark,
       buyerPincode: r.buyer_pincode,

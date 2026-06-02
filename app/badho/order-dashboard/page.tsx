@@ -450,7 +450,7 @@ export default function OrderStatusDashboard() {
   const [sellerRange, setSellerRange] = useState<'7d' | '14d' | '15d' | 'custom' | 'all'>('all');
   const [sellerCustomFrom, setSellerCustomFrom] = useState('');
   const [sellerCustomTo, setSellerCustomTo] = useState('');
-  // Demography (India map) state
+  // Geography (India map) state
   const [stateData, setStateData] = useState<StateRow[] | null>(null);
   const [stateLoading, setStateLoading] = useState(false);
   const [stateMetric, setStateMetric] = useState<'count' | 'amount'>('count');
@@ -462,7 +462,7 @@ export default function OrderStatusDashboard() {
   const [districtLoading, setDistrictLoading] = useState(false);
   // selected DB state name for the district view (null = show all districts)
   const [districtSelectedState, setDistrictSelectedState] = useState<string | null>(null);
-  // Brand filter for the demography view — one row per brand prefix.
+  // Brand filter for the geography view — one row per brand prefix.
   // A brand may span multiple sellers (e.g. ChukDe GT + ChukDe NonGT).
   interface BrandEntry {
     brandName: string;
@@ -471,7 +471,7 @@ export default function OrderStatusDashboard() {
     brandLabels: string | null;
     lastOrderAt: string | null;
     daysSinceLastOrder: number | null;
-    isActive: boolean;  // recency-based (last order ≤ 30 days) — used by Demography
+    isActive: boolean;  // recency-based (last order ≤ 30 days) — used by Geography
     isLive: boolean;    // eligibility-based (seller_brand canonical query) — used by Live brand tab
     totalOrders: number;
     totalAmount: number;
@@ -512,7 +512,7 @@ export default function OrderStatusDashboard() {
   const [sellerDrillEndDate, setSellerDrillEndDate] = useState<string>('');
   const [sellerDrillStatus, setSellerDrillStatus] = useState<string>('all');
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'demography' | 'zone' | 'margin' | 'alert'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'geography' | 'zone' | 'margin' | 'alert'>('dashboard');
 
   // Margin Overview tab — daily P&L for D2R brand sellers on third-party INTERCITY orders.
   interface MarginDayRow {
@@ -2229,7 +2229,7 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sellerRange, sellerCustomFrom, sellerCustomTo]);
 
-  // Demography (state-wise map) range + fetcher
+  // Geography (state-wise map) range + fetcher
   const resolveStateRange = (): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
@@ -2267,7 +2267,7 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'demography') return;
+    if (activeTab !== 'geography') return;
     fetchStateData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList]);
@@ -2295,13 +2295,13 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'demography') return;
+    if (activeTab !== 'geography') return;
     if (geoMode !== 'district') return;
     fetchDistrictData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, geoMode, districtSelectedState, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList]);
 
-  // Seller brand list — fetched once when entering Demography tab
+  // Seller brand list — fetched once when entering Geography tab
   const fetchSellerBrandList = async () => {
     try {
       const { startDate, endDate } = resolveStateRange();
@@ -2319,7 +2319,7 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'demography') return;
+    if (activeTab !== 'geography') return;
     fetchSellerBrandList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, stateRange, stateCustomFrom, stateCustomTo]);
@@ -2350,7 +2350,7 @@ export default function OrderStatusDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'demography') return;
+    if (activeTab !== 'geography') return;
     fetchBrandStateData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList, districtSelectedState]);
@@ -2791,7 +2791,7 @@ export default function OrderStatusDashboard() {
             { key: 'trend', label: 'Trend' },
             { key: 'rto', label: 'RTO' },
             { key: 'seller', label: 'Seller wise' },
-            { key: 'demography', label: 'Demography' },
+            { key: 'geography', label: 'Geography' },
             { key: 'zone', label: 'Zone Wise' },
             { key: 'margin', label: 'Margin' },
             { key: 'alert', label: 'Alert' },
@@ -6862,11 +6862,11 @@ export default function OrderStatusDashboard() {
         </Fragment>
         )}
 
-        {activeTab === 'demography' && (
+        {activeTab === 'geography' && (
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
             <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-white">Demography</h2>
+                <h2 className="text-2xl font-bold text-white">Geography</h2>
                 <p className="text-purple-300 text-sm mt-1">
                   {geoMode === 'state'
                     ? 'Delivered + Completed orders across Indian states — click any state to drill into its districts'
@@ -6919,15 +6919,15 @@ export default function OrderStatusDashboard() {
                     if (geoMode === 'state') {
                       if (!stateData) return;
                       downloadCSV(
-                        `demography-state-${currentYear}.csv`,
+                        `geography-state-${currentYear}.csv`,
                         ['State', 'Order Count', 'GMV'],
                         stateData.map((r) => [r.state ?? '(no state)', r.count, r.amount])
                       );
                     } else {
                       if (!districtData) return;
                       const filename = districtSelectedState
-                        ? `demography-district-${districtSelectedState}-${currentYear}.csv`
-                        : `demography-district-${currentYear}.csv`;
+                        ? `geography-district-${districtSelectedState}-${currentYear}.csv`
+                        : `geography-district-${currentYear}.csv`;
                       downloadCSV(
                         filename,
                         ['State', 'District', 'Order Count', 'GMV'],
@@ -7261,7 +7261,7 @@ export default function OrderStatusDashboard() {
                           return String(currentYear);
                         })();
                         downloadCSV(
-                          `demography-brand-state-${suffix}.csv`,
+                          `geography-brand-state-${suffix}.csv`,
                           ['Brand', 'State', 'Orders', 'GMV', 'Districts Covered'],
                           rows
                         );

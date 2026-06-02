@@ -20,7 +20,7 @@ interface Row {
 }
 
 // Returns two distinct status flags per brand:
-//   - is_active = recency-based (last order within 30 days). Used by Demography UI.
+//   - is_active = recency-based (last order within 30 days). Used by Geography UI.
 //   - is_live   = configuration-based, from the user's canonical "active brand" query:
 //                   seller is D2R, isActive, INTERCITY × THIRD_PARTY, has pickup address,
 //                   not test/milko, and has at least one active seller_brand mapping with
@@ -190,7 +190,7 @@ export async function GET(req: NextRequest) {
 
     const data = rows.map((r) => {
       const days = r.days_since_last_order ? parseInt(r.days_since_last_order) : null;
-      // isActive = recency (used by Demography). isLive = eligibility (used by Live brand tab).
+      // isActive = recency (used by Geography). isLive = eligibility (used by Live brand tab).
       const isActive = days !== null && days <= 30;
       const isLive = r.is_live === true || r.is_live === 'true' || r.is_live === 't';
       return {

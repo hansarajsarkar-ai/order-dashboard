@@ -47,7 +47,7 @@ const DASHBOARDS: DashboardEntry[] = [
     slug: 'order-dashboard',
     title: 'Order Dashboard',
     description:
-      'GMV goal, monthly / weekly / daily breakdown by status, seller-wise pivots, demography map, and buyer cohorts.',
+      'GMV goal, monthly / weekly / daily breakdown by status, seller-wise pivots, geography map, and buyer cohorts.',
     icon: '📊',
     status: 'live',
   },

@@ -250,7 +250,9 @@ export default function MarginAndGrowthDashboard() {
                   <XAxis dataKey="dayLabel" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" minTickGap={20} />
                   <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} width={48} />
                   <Tooltip
+                    cursor={{ stroke: '#ffffff', strokeWidth: 1, strokeDasharray: '4 4', strokeOpacity: 0.7 }}
                     contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
+                    labelStyle={{ color: '#e9d5ff', fontWeight: 600, marginBottom: 2 }}
                     formatter={(v, name) => [fmtInt(Number(v)), String(name)]}
                   />
                   <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />

@@ -5,13 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ResponsiveContainer,
-  ComposedChart, Area, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot,
 } from 'recharts';
 
 interface DauPoint {
   day: string;
   buyers: number;
-  ma7: number;
 }
 
 interface Summary {
@@ -52,13 +51,6 @@ const fmtCompact = (n: number) => {
 };
 
 const fmtInt = (n: number) => n.toLocaleString('en-IN');
-
-const fmtDay = (s: string) => {
-  if (!s) return '';
-  const [y, m, d] = s.split('-').map(Number);
-  if (!y || !m || !d) return s;
-  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-};
 
 const fmtBucket = (s: string, gran: Granularity) => {
   if (!s) return '';
@@ -147,7 +139,7 @@ export default function MarginAndGrowthDashboard() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/margin-and-growth/dau?days=${days}`)
+    fetch(`/api/margin-and-growth/dau?days=${days}&granularity=${granularity}`)
       .then(async (r) => {
         const json = await r.json();
         if (!r.ok) throw new Error(json.error || 'Failed to load');
@@ -167,7 +159,7 @@ export default function MarginAndGrowthDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [authChecked, days]);
+  }, [authChecked, days, granularity]);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -208,18 +200,29 @@ export default function MarginAndGrowthDashboard() {
     router.replace('/login');
   };
 
-  const chartData = useMemo(
-    () => data.map((p) => ({ ...p, dayLabel: fmtDay(p.day) })),
-    [data]
-  );
+  // Merge DAU (active buyers) and order-trend (orders + ordering buyers) into a
+  // single series keyed by the shared date bucket, so both render in one chart.
+  const mergedData = useMemo(() => {
+    const map = new Map<
+      string,
+      { bucket: string; activeBuyers: number | null; orders: number | null; orderBuyers: number | null }
+    >();
+    for (const p of data) {
+      map.set(p.day, { bucket: p.day, activeBuyers: p.buyers, orders: null, orderBuyers: null });
+    }
+    for (const p of orderData) {
+      const ex = map.get(p.bucket) || { bucket: p.bucket, activeBuyers: null, orders: null, orderBuyers: null };
+      ex.orders = p.orders;
+      ex.orderBuyers = p.buyers;
+      map.set(p.bucket, ex);
+    }
+    return [...map.values()]
+      .sort((a, b) => a.bucket.localeCompare(b.bucket))
+      .map((r) => ({ ...r, label: fmtBucket(r.bucket, granularity) }));
+  }, [data, orderData, granularity]);
 
-  const orderChartData = useMemo(
-    () => orderData.map((p) => ({ ...p, bucketLabel: fmtBucket(p.bucket, granularity) })),
-    [orderData, granularity]
-  );
-
-  const up = (summary?.changePct ?? 0) >= 0;
-  const ordersUp = (orderSummary?.changePct ?? 0) >= 0;
+  const mergedLoading = loading || orderLoading;
+  const mergedError = error || orderError;
 
   if (!authChecked) {
     return (
@@ -269,7 +272,7 @@ export default function MarginAndGrowthDashboard() {
               🚀 Daily Wise Trend
             </h1>
             <p className="text-purple-200 text-sm mt-1">
-              Daily Active Buyers — distinct buyers who opened a buyer-app session each day.
+              Active buyers, order creation, and ordering buyers — bucketed by day, week, or month.
             </p>
           </div>
           {/* Range toggle */}
@@ -301,116 +304,27 @@ export default function MarginAndGrowthDashboard() {
         </div>
 
         {/* KPIs */}
-        {summary && !loading && !error && (
+        {summary && orderSummary && !mergedLoading && !mergedError && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <KPICard label="Avg Daily Buyers" value={fmtInt(summary.avg)} sub={windowSub} tone="fuchsia" />
+            <KPICard label="Avg Active Buyers" value={fmtInt(summary.avg)} sub={windowSub} tone="fuchsia" />
+            <KPICard label="Total Orders" value={fmtInt(orderSummary.totalOrders)} sub={windowSub} tone="sky" />
+            <KPICard label={`Avg Orders / ${granularity}`} value={fmtInt(orderSummary.avg)} sub={`per ${granularity}`} tone="purple" />
             <KPICard
-              label="Peak Day"
-              value={fmtInt(summary.peak)}
-              sub={summary.peakDay ? fmtDay(summary.peakDay) : '—'}
+              label="Peak Orders"
+              value={fmtInt(orderSummary.peak)}
+              sub={orderSummary.peakBucket ? fmtBucket(orderSummary.peakBucket, granularity) : '—'}
               tone="emerald"
-            />
-            <KPICard label="Latest Day" value={fmtInt(summary.latest)} sub={data.length ? fmtDay(data[data.length - 1].day) : '—'} tone="purple" />
-            <KPICard
-              label="Change vs Start"
-              value={`${up ? '▲' : '▼'} ${Math.abs(summary.changePct).toFixed(1)}%`}
-              sub={`${fmtInt(summary.first)} → ${fmtInt(summary.latest)}`}
-              tone={up ? 'emerald' : 'amber'}
             />
           </div>
         )}
 
-        {/* Chart */}
+        {/* Merged trend: active buyers + orders + ordering buyers */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-bold text-white">DAU — Daily Active Buyers Trend</h2>
-            <p className="text-xs text-purple-300/70 mt-0.5">Distinct active buyers per day.</p>
-          </div>
-
-          {loading ? (
-            <div className="h-80 flex items-center justify-center text-purple-300 text-sm">Loading trend…</div>
-          ) : error ? (
-            <div className="h-80 flex items-center justify-center text-rose-300 text-sm">Error: {error}</div>
-          ) : data.length === 0 ? (
-            <div className="h-80 flex items-center justify-center text-purple-300/70 text-sm">No data for this window.</div>
-          ) : (
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="dauFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#d946ef" stopOpacity={0.65} />
-                      <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.05} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="dayLabel" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" minTickGap={20} />
-                  <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} width={48} />
-                  <Tooltip
-                    cursor={{ stroke: '#ffffff', strokeWidth: 1, strokeDasharray: '4 4', strokeOpacity: 0.7 }}
-                    contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
-                    labelStyle={{ color: '#e9d5ff', fontWeight: 600, marginBottom: 2 }}
-                    formatter={(v, name) => [fmtInt(Number(v)), String(name)]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
-                  <Area
-                    type="monotone"
-                    dataKey="buyers"
-                    name="Active Buyers"
-                    stroke="#d946ef"
-                    strokeWidth={2}
-                    fill="url(#dauFill)"
-                    dot={(props: any) => {
-                      const { cx, cy, index, payload } = props;
-                      if (cx == null || cy == null) return <g key={index} />;
-                      const isPeak = summary?.peak != null && payload.buyers === summary.peak;
-                      // Per-point value labels only stay legible for short windows;
-                      // hide them once the series gets dense (e.g. YTD).
-                      const showLabel = !isPeak && chartData.length <= 45;
-                      const r = chartData.length > 70 ? 2 : 3;
-                      return (
-                        <g key={index}>
-                          {showLabel && (
-                            <text x={cx} y={cy - 10} textAnchor="middle" fill="#f5d0fe" fontSize={10} fontWeight={600}>
-                              {fmtCompact(payload.buyers)}
-                            </text>
-                          )}
-                          <circle cx={cx} cy={cy} r={r} fill="#d946ef" stroke="#fff" strokeWidth={1} />
-                        </g>
-                      );
-                    }}
-                    activeDot={{ r: 5, fill: '#d946ef', stroke: '#fff', strokeWidth: 2 }}
-                  />
-                  {summary?.peakDay && (
-                    <ReferenceDot
-                      x={fmtDay(summary.peakDay)}
-                      y={summary.peak}
-                      r={6}
-                      fill="#34d399"
-                      stroke="#fff"
-                      strokeWidth={2}
-                      label={{
-                        value: `Peak ${fmtInt(summary.peak)}`,
-                        position: 'top',
-                        fill: '#34d399',
-                        fontSize: 11,
-                        fontWeight: 700,
-                      }}
-                    />
-                  )}
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-
-        {/* Order Creation Trend */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mt-6">
           <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <h2 className="text-lg font-bold text-white">Order Creation Trend</h2>
+              <h2 className="text-lg font-bold text-white">Active Buyers &amp; Order Creation Trend</h2>
               <p className="text-xs text-purple-300/70 mt-0.5">
-                D2R intercity (third-party) orders created per {granularity}, and the distinct buyers placing them.
+                Distinct active buyers, D2R intercity orders, and ordering buyers per {granularity}.
               </p>
             </div>
             {/* Granularity toggle */}
@@ -431,35 +345,16 @@ export default function MarginAndGrowthDashboard() {
             </div>
           </div>
 
-          {orderSummary && !orderLoading && !orderError && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-              <KPICard label="Total Orders" value={fmtInt(orderSummary.totalOrders)} sub={windowSub} tone="sky" />
-              <KPICard label={`Avg / ${granularity}`} value={fmtInt(orderSummary.avg)} sub={`per ${granularity}`} tone="purple" />
-              <KPICard
-                label={`Peak ${granularity}`}
-                value={fmtInt(orderSummary.peak)}
-                sub={orderSummary.peakBucket ? fmtBucket(orderSummary.peakBucket, granularity) : '—'}
-                tone="emerald"
-              />
-              <KPICard
-                label="Change vs Start"
-                value={`${ordersUp ? '▲' : '▼'} ${Math.abs(orderSummary.changePct).toFixed(1)}%`}
-                sub={`${fmtInt(orderSummary.first)} → ${fmtInt(orderSummary.latest)}`}
-                tone={ordersUp ? 'emerald' : 'amber'}
-              />
-            </div>
-          )}
-
-          {orderLoading ? (
-            <div className="h-80 flex items-center justify-center text-purple-300 text-sm">Loading trend…</div>
-          ) : orderError ? (
-            <div className="h-80 flex items-center justify-center text-rose-300 text-sm">Error: {orderError}</div>
-          ) : orderData.length === 0 ? (
-            <div className="h-80 flex items-center justify-center text-purple-300/70 text-sm">No data for this window.</div>
+          {mergedLoading ? (
+            <div className="h-96 flex items-center justify-center text-purple-300 text-sm">Loading trend…</div>
+          ) : mergedError ? (
+            <div className="h-96 flex items-center justify-center text-rose-300 text-sm">Error: {mergedError}</div>
+          ) : mergedData.length === 0 ? (
+            <div className="h-96 flex items-center justify-center text-purple-300/70 text-sm">No data for this window.</div>
           ) : (
-            <div className="h-80">
+            <div className="h-96">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={orderChartData} margin={{ top: 16, right: 10, left: 0, bottom: 0 }}>
+                <ComposedChart data={mergedData} margin={{ top: 16, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="ordersBar" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.9} />
@@ -467,13 +362,13 @@ export default function MarginAndGrowthDashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="bucketLabel" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" minTickGap={20} />
+                  <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" minTickGap={20} />
                   <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} width={48} />
                   <Tooltip
                     cursor={{ fill: 'rgba(255,255,255,0.06)' }}
-                    contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
-                    labelStyle={{ color: '#c7d2fe', fontWeight: 600, marginBottom: 2 }}
-                    formatter={(v, name) => [fmtInt(Number(v)), String(name)]}
+                    contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
+                    labelStyle={{ color: '#e9d5ff', fontWeight: 600, marginBottom: 2 }}
+                    formatter={(v, name) => [v == null ? '—' : fmtInt(Number(v)), String(name)]}
                   />
                   <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
                   <Bar
@@ -486,14 +381,43 @@ export default function MarginAndGrowthDashboard() {
                   />
                   <Line
                     type="monotone"
-                    dataKey="buyers"
-                    name="Distinct Buyers"
+                    dataKey="activeBuyers"
+                    name="Active Buyers"
+                    stroke="#d946ef"
+                    strokeWidth={2}
+                    connectNulls
+                    dot={mergedData.length > 70 ? false : { r: 2.5, fill: '#d946ef', stroke: '#fff', strokeWidth: 1 }}
+                    activeDot={{ r: 5, fill: '#d946ef', stroke: '#fff', strokeWidth: 2 }}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="orderBuyers"
+                    name="Ordering Buyers"
                     stroke="#f472b6"
                     strokeWidth={2}
-                    dot={{ r: 3, fill: '#f472b6', stroke: '#fff', strokeWidth: 1 }}
+                    connectNulls
+                    dot={mergedData.length > 70 ? false : { r: 2.5, fill: '#f472b6', stroke: '#fff', strokeWidth: 1 }}
                     activeDot={{ r: 5, fill: '#f472b6', stroke: '#fff', strokeWidth: 2 }}
                     isAnimationActive={false}
                   />
+                  {summary?.peakDay && (
+                    <ReferenceDot
+                      x={fmtBucket(summary.peakDay, granularity)}
+                      y={summary.peak}
+                      r={6}
+                      fill="#34d399"
+                      stroke="#fff"
+                      strokeWidth={2}
+                      label={{
+                        value: `Peak ${fmtInt(summary.peak)}`,
+                        position: 'top',
+                        fill: '#34d399',
+                        fontSize: 11,
+                        fontWeight: 700,
+                      }}
+                    />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

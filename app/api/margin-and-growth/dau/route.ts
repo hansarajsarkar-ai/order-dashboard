@@ -8,6 +8,12 @@ interface Row {
   cnt: string;
 }
 
+const GRANULARITIES: Record<string, 'day' | 'week' | 'month'> = {
+  day: 'day',
+  week: 'week',
+  month: 'month',
+};
+
 // Daily Active Buyers — distinct buyers who started a buyer-app session
 // per day. Mirrors the analyst query: history.session ⋈ users.buyer,
 // excluding test/master-login sessions and test businesses.
@@ -20,23 +26,27 @@ export async function GET(req: NextRequest) {
   const daysParam = parseInt(searchParams.get('days') || '30', 10);
   const days = Number.isFinite(daysParam) && daysParam > 0 && daysParam <= 365 ? daysParam : 30;
 
+  // Bucket granularity: distinct active buyers counted per day / week / month.
+  const granParam = (searchParams.get('granularity') || 'day').toLowerCase();
+  const gran = GRANULARITIES[granParam] || 'day';
+
   try {
-    const params: (string | number)[] = [];
+    const params: (string | number)[] = [gran];
     let whereDate: string;
 
     if (startDate && endDate) {
       params.push(startDate, endDate);
-      whereDate = `AND h."sessionStartTimestamp"::date >= $1::date
-                   AND h."sessionStartTimestamp"::date <= $2::date`;
+      whereDate = `AND h."sessionStartTimestamp"::date >= $2::date
+                   AND h."sessionStartTimestamp"::date <= $3::date`;
     } else {
       params.push(days);
-      whereDate = `AND h."sessionStartTimestamp"::date >= current_date - $1::int`;
+      whereDate = `AND h."sessionStartTimestamp"::date >= current_date - $2::int`;
     }
 
     const sql = `
       SELECT
-        h."sessionStartTimestamp"::date::text AS day,
-        COUNT(DISTINCT h."buyerId")::text      AS cnt
+        date_trunc($1, h."sessionStartTimestamp")::date::text AS day,
+        COUNT(DISTINCT h."buyerId")::text                     AS cnt
       FROM history.session h
       JOIN "users"."buyer" b ON b."id" = h."buyerId"
       WHERE h."isTest"        = FALSE
@@ -58,13 +68,6 @@ export async function GET(req: NextRequest) {
       buyers: parseInt(r.cnt, 10),
     }));
 
-    // 7-day trailing moving average for smoothing the trend line.
-    const withMa = data.map((r, i) => {
-      const window = data.slice(Math.max(0, i - 6), i + 1);
-      const ma7 = Math.round(window.reduce((a, b) => a + b.buyers, 0) / window.length);
-      return { ...r, ma7 };
-    });
-
     const counts = data.map((r) => r.buyers);
     const peak = data.reduce(
       (best, r) => (r.buyers > best.buyers ? r : best),
@@ -76,7 +79,7 @@ export async function GET(req: NextRequest) {
     const changePct = first ? ((latest - first) / first) * 100 : 0;
 
     return NextResponse.json({
-      data: withMa,
+      data,
       summary: {
         avg,
         peak: peak.buyers >= 0 ? peak.buyers : 0,
@@ -84,6 +87,7 @@ export async function GET(req: NextRequest) {
         latest,
         first,
         changePct,
+        granularity: gran,
         windowDays: startDate && endDate ? null : days,
       },
       startDate: startDate || null,

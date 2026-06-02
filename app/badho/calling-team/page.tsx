@@ -214,6 +214,33 @@ function buildQs(f: Filters): string {
   return p.toString();
 }
 
+// Agent Table period toggle — calendar-to-date windows.
+type AgentPeriod = 'day' | 'week' | 'month';
+
+const AGENT_PERIOD_LABEL: Record<AgentPeriod, string> = {
+  day: 'Today',
+  week: 'This week',
+  month: 'This month',
+};
+
+function agentPeriodRange(period: AgentPeriod): { startDate: string; endDate: string } {
+  const today = new Date();
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const endDate = fmt(today);
+  if (period === 'day') return { startDate: endDate, endDate };
+  if (period === 'week') {
+    // Week starts Monday.
+    const mondayOffset = (today.getDay() + 6) % 7;
+    const start = new Date(today);
+    start.setDate(today.getDate() - mondayOffset);
+    return { startDate: fmt(start), endDate };
+  }
+  // month — 1st of the current calendar month through today.
+  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  return { startDate: fmt(start), endDate };
+}
+
 type DatePreset =
   | { label: string; days: number }
   | { label: 'YTD'; ytd: true }
@@ -899,7 +926,7 @@ export default function CallingTeamDashboard() {
         )}
 
         {tab === 'table' && (
-          <TableTab loading={loading} agents={agents} />
+          <TableTab filters={filters} />
         )}
       </div>
 
@@ -912,9 +939,33 @@ export default function CallingTeamDashboard() {
 
 // ───────────────────────── Tab: Table (full agent table) ─────────────────────────
 
-function TableTab({ loading, agents }: { loading: boolean; agents: AgentRow[] }) {
+function TableTab({ filters }: { filters: Filters }) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<{ col: keyof AgentRow; dir: 'asc' | 'desc' }>({ col: 'totalCalls', dir: 'desc' });
+
+  // Period toggle re-scopes the table to a calendar-to-date window, overriding
+  // the global date range for this table only. Other (non-date) global filters
+  // — direction, campaign, call status, etc. — still apply.
+  const [period, setPeriod] = useState<AgentPeriod>('month');
+  const [agents, setAgents] = useState<AgentRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const range = agentPeriodRange(period);
+  const qs = useMemo(
+    () => buildQs({ ...filters, ...agentPeriodRange(period) }),
+    [period, filters],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/calling-team/agents?${qs}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setAgents(d.agents || []); })
+      .catch(() => { if (!cancelled) setAgents([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [qs]);
 
   const COLS: [keyof AgentRow, string][] = [
     ['totalCalls', 'Calls'],
@@ -965,10 +1016,27 @@ function TableTab({ loading, agents }: { loading: boolean; agents: AgentRow[] })
         <div>
           <h2 className="text-lg font-bold text-purple-100">Agent Table</h2>
           <p className="text-purple-300/70 text-xs mt-0.5">
-            {loading ? 'Loading…' : `${rows.length} of ${agents.length} agents — click a column to sort`}
+            {loading
+              ? 'Loading…'
+              : `${AGENT_PERIOD_LABEL[period]} (${range.startDate} → ${range.endDate}) · ${rows.length} of ${agents.length} agents — click a column to sort`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-0.5 bg-white/5 border border-white/10 rounded-lg p-0.5">
+            {(['day', 'week', 'month'] as AgentPeriod[]).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                  period === p
+                    ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow'
+                    : 'text-purple-200 hover:bg-white/5'
+                }`}
+              >
+                {p === 'day' ? 'Day' : p === 'week' ? 'Week' : 'Month'}
+              </button>
+            ))}
+          </div>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -2197,8 +2265,8 @@ function DailyTrendTab(props: {
                   <stop offset="100%" stopColor="#059669" />
                 </linearGradient>
                 <linearGradient id="barNoAnswer" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#fbbf24" />
-                  <stop offset="100%" stopColor="#ea8a04" />
+                  <stop offset="0%" stopColor="#60a5fa" />
+                  <stop offset="100%" stopColor="#2563eb" />
                 </linearGradient>
                 <linearGradient id="barMissed" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#fb7185" />

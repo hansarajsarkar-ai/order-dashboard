@@ -650,16 +650,20 @@ export default function CallingTeamDashboard() {
     loadMom();
   }, [authChecked, tab, loadMom]);
 
-  // Buyer-attempt section — fixed 3-month window, granularity-driven.
+  // Buyer-attempt section — driven by the global date range + granularity toggle.
   const loadBuyerAttempts = useCallback(async () => {
     setBuyerAttemptLoading(true);
     try {
-      const r = await fetch(`/api/calling-team/buyer-attempts?granularity=${buyerAttemptGrain}`).then((r) => r.json());
+      const p = new URLSearchParams();
+      p.set('granularity', buyerAttemptGrain);
+      p.set('startDate', filters.startDate);
+      p.set('endDate', filters.endDate);
+      const r = await fetch(`/api/calling-team/buyer-attempts?${p.toString()}`).then((r) => r.json());
       if (r?.rows) setBuyerAttemptRows(r.rows);
     } finally {
       setBuyerAttemptLoading(false);
     }
-  }, [buyerAttemptGrain]);
+  }, [buyerAttemptGrain, filters.startDate, filters.endDate]);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -1602,7 +1606,7 @@ function BuyerAttemptsSection({ rows, loading, grain, setGrain }: {
         <div>
           <div className="text-base font-semibold text-white">ATC Buyer Attempt Rate</div>
           <div className="text-xs text-purple-200/70 mt-0.5">
-            D2R intercity orders (last 3 months) — was the buyer called on order date or the next day?
+            D2R intercity orders (selected date range) — was the buyer called on order date or the next day?
             Campaigns: Cold Lead, Warm_Lead.
           </div>
         </div>
@@ -2098,16 +2102,19 @@ function DailyTrendTab(props: {
   });
 
   // Crisp, outlined % label drawn inside each stacked bar segment.
-  // Hidden when the segment is too small to fit readable text.
-  const renderBarPct = (props: any) => {
+  // The connect-rate line runs along the connected/no-answer boundary, so we
+  // anchor the bottom segment's label low and the top segment's label high to
+  // keep both clear of the line. Hidden when the segment is too small to read.
+  const makeBarPct = (anchor: 'top' | 'center' | 'bottom') => (props: any) => {
     const { x, y, width, height, value, index } = props;
     if (value == null || width == null || height == null) return null;
     if (height < 15 || width < 20 || value < 0.04) return <g key={`bp-${index}`} />;
+    const ly = anchor === 'top' ? y + 12 : anchor === 'bottom' ? y + height - 12 : y + height / 2;
     return (
       <text
         key={`bp-${index}`}
         x={x + width / 2}
-        y={y + height / 2}
+        y={ly}
         textAnchor="middle"
         dominantBaseline="central"
         fill="#ffffff"
@@ -2214,13 +2221,13 @@ function DailyTrendTab(props: {
               />
               <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
               <Bar yAxisId="l" dataKey="connected" name="Connected" stackId="a" fill="url(#barConnected)">
-                <LabelList dataKey="connectedPct" content={renderBarPct} />
+                <LabelList dataKey="connectedPct" content={makeBarPct('bottom')} />
               </Bar>
               <Bar yAxisId="l" dataKey="noAnswer"  name="No Answer"  stackId="a" fill="url(#barNoAnswer)" radius={[4, 4, 0, 0]}>
-                <LabelList dataKey="noAnswerPct" content={renderBarPct} />
+                <LabelList dataKey="noAnswerPct" content={makeBarPct('top')} />
               </Bar>
               <Bar yAxisId="l" dataKey="missed"    name="Missed"    stackId="a" fill="url(#barMissed)" radius={[4, 4, 0, 0]}>
-                <LabelList dataKey="missedPct" content={renderBarPct} />
+                <LabelList dataKey="missedPct" content={makeBarPct('center')} />
               </Bar>
               <Line
                 yAxisId="r"
@@ -2242,19 +2249,20 @@ function DailyTrendTab(props: {
                     <g key={`crd-${index}`}>
                       <circle cx={cx} cy={cy} r={3.5} fill="#fde047" stroke="#1e1b4b" strokeWidth={1} />
                       {showLabel && rate != null && (
-                        <text
-                          x={cx}
-                          y={cy - 10}
-                          textAnchor="middle"
-                          fill="#fef9c3"
-                          stroke="rgba(0,0,0,0.5)"
-                          strokeWidth={2.4}
-                          paintOrder="stroke"
-                          fontSize={11}
-                          fontWeight={800}
-                        >
-                          {`${(Number(rate) * 100).toFixed(0)}%`}
-                        </text>
+                        <g>
+                          <rect x={cx - 17} y={cy - 26} width={34} height={16} rx={8} fill="rgba(15,10,40,0.82)" stroke="#fbbf24" strokeWidth={0.8} />
+                          <text
+                            x={cx}
+                            y={cy - 18}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#fde047"
+                            fontSize={11}
+                            fontWeight={800}
+                          >
+                            {`${(Number(rate) * 100).toFixed(0)}%`}
+                          </text>
+                        </g>
                       )}
                     </g>
                   );

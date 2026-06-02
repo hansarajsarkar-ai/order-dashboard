@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ResponsiveContainer,
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot,
+  ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot,
 } from 'recharts';
 
 interface DauPoint {
@@ -263,7 +263,21 @@ export default function MarginAndGrowthDashboard() {
                     stroke="#d946ef"
                     strokeWidth={2}
                     fill="url(#dauFill)"
-                    dot={{ r: 3, fill: '#d946ef', stroke: '#fff', strokeWidth: 1 }}
+                    dot={(props: any) => {
+                      const { cx, cy, index, payload } = props;
+                      if (cx == null || cy == null) return <g key={index} />;
+                      const isPeak = summary?.peak != null && payload.buyers === summary.peak;
+                      return (
+                        <g key={index}>
+                          {!isPeak && (
+                            <text x={cx} y={cy - 10} textAnchor="middle" fill="#f5d0fe" fontSize={10} fontWeight={600}>
+                              {fmtCompact(payload.buyers)}
+                            </text>
+                          )}
+                          <circle cx={cx} cy={cy} r={3} fill="#d946ef" stroke="#fff" strokeWidth={1} />
+                        </g>
+                      );
+                    }}
                     activeDot={{ r: 5, fill: '#d946ef', stroke: '#fff', strokeWidth: 2 }}
                   />
                   {summary?.peakDay && (

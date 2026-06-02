@@ -2698,6 +2698,33 @@ export default function OrderStatusDashboard() {
     }
   };
 
+  // Render one "Latest Scan N" table cell (idx 0 = most recent) from the batch-loaded scans.
+  const renderScanCell = (poNumber: string, idx: number) => {
+    const scans = scansByPo[poNumber];
+    const s = scans?.[idx];
+    const sub = s ? [s.status, s.activity].filter((v) => v && String(v).trim() !== '').join(' · ') : '';
+    return (
+      <td className="px-2.5 py-2 align-top bg-indigo-50/20 min-w-[180px]">
+        {!scans ? (
+          <span className="text-slate-400">{scansLoading ? '…' : '—'}</span>
+        ) : !s ? (
+          <span className="text-slate-400">—</span>
+        ) : (
+          <div className="max-w-[230px]">
+            <div className="flex items-start gap-1.5">
+              <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${idx === 0 ? 'bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.7)]' : 'bg-slate-300'}`} />
+              <div className="min-w-0">
+                <div className="font-semibold text-slate-800 text-[11px] leading-tight break-words">{s.location && s.location.trim() ? s.location : '—'}</div>
+                <div className="text-[10px] text-slate-500">{s.date ? formatDateTime(s.date) : '—'}</div>
+                {sub && <div className="text-[10px] text-slate-600 break-words">{sub}</div>}
+              </div>
+            </div>
+          </div>
+        )}
+      </td>
+    );
+  };
+
   // Map an order status to the underlying DB column that backs "statusMarkedTime".
   // Mirrors the CASE in app/api/sla-alerts-details/route.ts and inprogress-aging-details/route.ts.
   const statusMarkedFieldFor = (status: string | null | undefined): string => {
@@ -10965,6 +10992,9 @@ export default function OrderStatusDashboard() {
                               <SortTh k="rejectReason" label="Reject Reason" cls="text-rose-700 bg-rose-50" />
                               <SortTh k="rejectedBy" label="Rejected By" cls="text-rose-700 bg-rose-50" />
                               <SortTh k="reasonByBadho" label="Reason Added By Badho Team" cls="text-rose-700 bg-rose-50" />
+                              <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 1</th>
+                              <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 2</th>
+                              <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Latest Scan 3</th>
                             </>
                           );
                         })()}
@@ -11144,26 +11174,10 @@ export default function OrderStatusDashboard() {
                           <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason ? <div className="whitespace-normal break-words">{r.rejectReason}</div> : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam ? <div className="whitespace-normal break-words">{r.reasonAddedByBadhoTeam}</div> : <span className="text-slate-400">—</span>}</td>
+                          {renderScanCell(r.poNumber, 0)}
+                          {renderScanCell(r.poNumber, 1)}
+                          {renderScanCell(r.poNumber, 2)}
                         </tr>
-                        {expandedScans.has(r.poNumber) && (
-                          <tr className="bg-indigo-50/30 border-b border-indigo-100">
-                            <td colSpan={32} className="p-0">
-                              <div className="sticky left-0 w-[min(640px,92vw)] px-5 py-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.7)]" />
-                                  <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700">Last 3 Scan Locations</h4>
-                                  <span className="text-[10px] text-slate-400">· PO {r.poNumber} · latest first</span>
-                                </div>
-                                <ScanTimeline
-                                  scans={scanCache[r.poNumber]?.scans ?? []}
-                                  loading={scanCache[r.poNumber]?.loading ?? true}
-                                  error={scanCache[r.poNumber]?.error ?? null}
-                                />
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                        </Fragment>
                         );
                       })}
                     </tbody>
@@ -11214,6 +11228,9 @@ export default function OrderStatusDashboard() {
                             <td className={cell} />
                             <td className={cell} />
                             <td className={num}>{money(t.refund)}</td>
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
                             <td className={cell} />
                             <td className={cell} />
                             <td className={cell} />

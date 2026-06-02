@@ -251,7 +251,7 @@ export default function MarginAndGrowthDashboard() {
                   <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} width={48} />
                   <Tooltip
                     contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }}
-                    formatter={(v: number, name: string) => [fmtInt(v), name]}
+                    formatter={(v, name) => [fmtInt(Number(v)), String(name)]}
                   />
                   <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
                   <Area type="monotone" dataKey="buyers" name="Active Buyers" stroke="#d946ef" strokeWidth={2} fill="url(#dauFill)" />

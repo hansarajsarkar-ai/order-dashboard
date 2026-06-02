@@ -1259,6 +1259,44 @@ export default function OrderStatusDashboard() {
   const [funnelRange, setFunnelRange] = useState<'all' | 'year' | '12mo' | '30d' | '7d' | 'today' | 'custom'>('year');
   const [funnelCustomFrom, setFunnelCustomFrom] = useState('');
   const [funnelCustomTo, setFunnelCustomTo] = useState('');
+
+  // MonthWiseOrder cell drill-down (click a stage / totals cell → list those POs)
+  interface FunnelDrillRow {
+    poNumber: string;
+    status: string;
+    amount: number;
+    buyerBusinessName: string | null;
+    buyerPhone: string | null;
+    sellerBusinessName: string | null;
+    createdAt: string | null;
+  }
+  const [funnelDrill, setFunnelDrill] = useState<{ title: string; stage: string } | null>(null);
+  const [funnelDrillRows, setFunnelDrillRows] = useState<FunnelDrillRow[] | null>(null);
+  const [funnelDrillLoading, setFunnelDrillLoading] = useState(false);
+  const [funnelDrillError, setFunnelDrillError] = useState<string | null>(null);
+  const [funnelDrillSearch, setFunnelDrillSearch] = useState('');
+  const [funnelDrillTruncated, setFunnelDrillTruncated] = useState(false);
+
+  const openFunnelDrill = async (year: number, month: number, stage: string, title: string) => {
+    setFunnelDrill({ title, stage });
+    setFunnelDrillRows(null);
+    setFunnelDrillError(null);
+    setFunnelDrillSearch('');
+    setFunnelDrillTruncated(false);
+    setFunnelDrillLoading(true);
+    try {
+      const res = await fetch(`/api/order-funnel-drill?year=${year}&month=${month}&stage=${stage}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to fetch');
+      setFunnelDrillRows(json.data);
+      setFunnelDrillTruncated(!!json.truncated);
+    } catch (err) {
+      setFunnelDrillError(err instanceof Error ? err.message : 'Error loading orders');
+    } finally {
+      setFunnelDrillLoading(false);
+    }
+  };
+
   // RTO sub-tabs (Dashboard / Details / Destination Hub Tracking)
   const [rtoSubTab, setRtoSubTab] = useState<'dashboard' | 'details' | 'hub'>('dashboard');
   interface RtoOrderRow {
@@ -4236,6 +4274,7 @@ export default function OrderStatusDashboard() {
                 {funnelData?.startDate && funnelData?.endDate && ` · ${funnelData.startDate} → ${funnelData.endDate}`}
                 {!funnelData?.startDate && !funnelData?.endDate && ' · all time'}
                 {' · '}<span className="text-purple-300/70">DRAFT included; no delivery-network filter</span>
+                {' · '}<span className="text-fuchsia-300/80">click any cell to drill into orders</span>
               </p>
             </div>
             {funnelData && funnelData.data.length > 0 && (
@@ -4383,7 +4422,7 @@ export default function OrderStatusDashboard() {
                           key={sc.key}
                           className={`bg-slate-900 border-b border-r border-white/10 px-3 py-2 text-left font-semibold ${sc.tone} whitespace-nowrap`}
                         >
-                          {sc.label} <span className="text-purple-300/60 font-normal">(Ct|Amt|%|Buy|Sel)</span>
+                          {sc.label} <span className="text-purple-300/50 font-normal normal-case">· orders · ₹ · buyers/sellers</span>
                         </th>
                       ))}
                     </tr>
@@ -4397,16 +4436,20 @@ export default function OrderStatusDashboard() {
                             {label}, 00:00
                           </td>
                           <td
-                            className={`border-b border-white/10 px-3 py-2 text-right tabular-nums font-bold ${heatText(m.totalCount, cMin, cMax)}`}
+                            onClick={() => openFunnelDrill(m.year, m.month, 'total', `All orders — ${label}`)}
+                            title={`View all orders for ${label}`}
+                            className={`border-b border-white/10 px-3 py-2 text-right tabular-nums font-bold cursor-pointer hover:brightness-125 transition ${heatText(m.totalCount, cMin, cMax)}`}
                             style={{ background: heatColor(m.totalCount, cMin, cMax) }}
                           >
                             {m.totalCount.toLocaleString('en-IN')}
                           </td>
                           <td
-                            className={`border-b border-r border-white/10 px-3 py-2 text-right tabular-nums font-bold ${heatText(m.totalAmount, aMin, aMax)}`}
+                            onClick={() => openFunnelDrill(m.year, m.month, 'total', `All orders — ${label}`)}
+                            title={`View all orders for ${label}`}
+                            className={`border-b border-r border-white/10 px-3 py-2 text-right tabular-nums font-bold cursor-pointer hover:brightness-125 transition ${heatText(m.totalAmount, aMin, aMax)}`}
                             style={{ background: heatColor(m.totalAmount, aMin, aMax) }}
                           >
-                            {m.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                            ₹{m.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                           </td>
                           {stageCols.map((sc) => {
                             const s = m[sc.key];
@@ -4414,9 +4457,24 @@ export default function OrderStatusDashboard() {
                             return (
                               <td
                                 key={sc.key}
-                                className={`border-b border-r border-white/10 px-3 py-2 text-left tabular-nums whitespace-nowrap ${sc.tone}`}
+                                className={`border-b border-r border-white/10 p-1.5 align-top ${sc.tone}`}
                               >
-                                {f.count} <span className="text-purple-400/50">|</span> ₹{f.amount} <span className="text-purple-400/50">|</span> {f.pct}% <span className="text-purple-400/50">|</span> {f.buyers} <span className="text-purple-400/50">|</span> {f.sellers}
+                                <button
+                                  type="button"
+                                  onClick={() => openFunnelDrill(m.year, m.month, sc.key, `${sc.label} — ${label}`)}
+                                  title={`View ${sc.label} orders for ${label}`}
+                                  className="w-full min-w-[140px] text-left rounded-md px-2 py-1.5 hover:bg-white/10 transition-colors cursor-pointer"
+                                >
+                                  <div className="flex items-baseline justify-between gap-2">
+                                    <span className="text-[13px] font-bold tabular-nums text-white">{f.count}</span>
+                                    <span className="text-[10px] font-semibold tabular-nums opacity-80">{f.pct}%</span>
+                                  </div>
+                                  <div className="mt-1 h-1 w-full rounded-full bg-white/10 overflow-hidden">
+                                    <div className="h-full rounded-full bg-current opacity-70" style={{ width: `${Math.min(100, parseFloat(f.pct))}%` }} />
+                                  </div>
+                                  <div className="mt-1 text-[11px] tabular-nums opacity-90">₹{f.amount}</div>
+                                  <div className="text-[10px] tabular-nums opacity-60">{f.buyers} buyers · {f.sellers} sellers</div>
+                                </button>
                               </td>
                             );
                           })}
@@ -9484,6 +9542,116 @@ export default function OrderStatusDashboard() {
             )}
           </div>
         </div>
+        )}
+
+        {/* MonthWiseOrder cell drill — list the POs behind a clicked stage / totals cell */}
+        {funnelDrill && (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md"
+            onClick={() => setFunnelDrill(null)}
+          >
+            <div
+              className="relative bg-slate-900 text-purple-50 rounded-2xl w-[96vw] max-w-5xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(168,85,247,0.45)] border border-white/10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-white/10">
+                <div>
+                  <h3 className="text-base font-bold text-white">{funnelDrill.title}</h3>
+                  <p className="text-xs text-purple-300/70 mt-0.5">
+                    {funnelDrillLoading
+                      ? 'Loading orders…'
+                      : funnelDrillRows
+                      ? `${funnelDrillRows.length.toLocaleString('en-IN')}${funnelDrillTruncated ? '+ (capped at 3,000)' : ''} orders · ₹${funnelDrillRows.reduce((a, r) => a + r.amount, 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+                      : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={funnelDrillSearch}
+                    onChange={(e) => setFunnelDrillSearch(e.target.value)}
+                    placeholder="Search PO / buyer / seller / status…"
+                    className="px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 text-purple-100 placeholder-purple-300/40 focus:outline-none focus:border-fuchsia-400/50 w-64"
+                  />
+                  <button
+                    onClick={() => setFunnelDrill(null)}
+                    className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-purple-200 text-lg leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-auto">
+                {funnelDrillLoading ? (
+                  <div className="py-16 text-center text-purple-300 text-sm">Loading…</div>
+                ) : funnelDrillError ? (
+                  <div className="py-16 text-center text-rose-300 text-sm">Error: {funnelDrillError}</div>
+                ) : !funnelDrillRows || funnelDrillRows.length === 0 ? (
+                  <div className="py-16 text-center text-purple-300/70 text-sm">No orders.</div>
+                ) : (() => {
+                  const q = funnelDrillSearch.trim().toLowerCase();
+                  const rows = q
+                    ? funnelDrillRows.filter((r) =>
+                        [r.poNumber, r.buyerBusinessName, r.sellerBusinessName, r.status]
+                          .some((v) => (v || '').toString().toLowerCase().includes(q))
+                      )
+                    : funnelDrillRows;
+                  return (
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-slate-900/95 backdrop-blur text-purple-300 z-10">
+                        <tr className="text-left">
+                          <th className="px-4 py-2.5 font-semibold">Date</th>
+                          <th className="px-4 py-2.5 font-semibold">PO #</th>
+                          <th className="px-4 py-2.5 font-semibold">Buyer</th>
+                          <th className="px-4 py-2.5 font-semibold">Seller</th>
+                          <th className="px-4 py-2.5 font-semibold">Status</th>
+                          <th className="px-4 py-2.5 font-semibold text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {rows.map((r) => (
+                          <tr key={r.poNumber} className="hover:bg-white/5">
+                            <td className="px-4 py-2 whitespace-nowrap text-purple-200/80">
+                              {r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap">
+                              <button
+                                onClick={() => openPoItemsModal(r.poNumber)}
+                                className="font-mono text-fuchsia-300 hover:text-fuchsia-200 hover:underline"
+                              >
+                                {r.poNumber}
+                              </button>
+                            </td>
+                            <td className="px-4 py-2 max-w-[220px] truncate">
+                              <button
+                                onClick={() => openBuyerModal({ phone: r.buyerPhone, businessName: r.buyerBusinessName })}
+                                className="text-sky-300 hover:text-sky-200 hover:underline text-left"
+                                title={r.buyerBusinessName || ''}
+                              >
+                                {r.buyerBusinessName || '—'}
+                              </button>
+                            </td>
+                            <td className="px-4 py-2 max-w-[220px] truncate text-purple-100" title={r.sellerBusinessName || ''}>
+                              {r.sellerBusinessName || '—'}
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/10 text-purple-100">{r.status}</span>
+                            </td>
+                            <td className="px-4 py-2 text-right tabular-nums text-purple-50">₹{r.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+              {funnelDrillTruncated && (
+                <div className="px-5 py-2 border-t border-white/10 text-[11px] text-amber-300/80">
+                  Showing the most recent 3,000 orders — refine by stage/month for the full set.
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Buyer Details Modal — opens when clicking a Buyer Business cell in any drill modal */}

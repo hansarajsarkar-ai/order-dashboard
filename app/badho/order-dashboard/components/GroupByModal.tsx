@@ -1,6 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import GroupByMenu, { DIM_LABEL, orderDims, type GroupDimension } from './GroupByMenu';
+
+export type { GroupDimension } from './GroupByMenu';
 
 export interface GroupableOrderRow {
   poNumber: string;
@@ -18,26 +21,39 @@ export interface GroupableOrderRow {
   buyerPhone?: string | null;
   buyerState?: string | null;
   buyerDistrict?: string | null;
+  sellerBusinessName?: string | null;
+  sellerPhone?: string | null;
 }
-
-export type GroupDimension = 'buyer' | 'buyerState' | 'buyerDistrict';
 
 interface GroupByModalProps {
   open: boolean;
-  dimension: GroupDimension;
+  dimensions: GroupDimension[];
   rows: GroupableOrderRow[];
   contextLabel?: string;
   onClose: () => void;
+  onChangeDimensions: (dims: GroupDimension[]) => void;
 }
+
+type MetricKey =
+  | 'orders'
+  | 'buyers'
+  | 'sellers'
+  | 'poAmount'
+  | 'paidAmount'
+  | 'coupon'
+  | 'wallet'
+  | 'sellerDiscount'
+  | 'badhoDiscount'
+  | 'cod'
+  | 'refund'
+  | 'aov';
 
 interface GroupAgg {
   key: string;
-  label: string;
-  phone: string | null;
-  state: string | null;
-  district: string | null;
+  labels: string[]; // one per ordered dimension
   orders: number;
   buyers: number;
+  sellers: number;
   poAmount: number;
   paidAmount: number;
   coupon: number;
@@ -49,104 +65,81 @@ interface GroupAgg {
   aov: number;
 }
 
-type SortKey =
-  | 'label'
-  | 'orders'
-  | 'buyers'
-  | 'poAmount'
-  | 'paidAmount'
-  | 'coupon'
-  | 'wallet'
-  | 'sellerDiscount'
-  | 'badhoDiscount'
-  | 'cod'
-  | 'refund'
-  | 'aov';
-
 type SortDir = 'asc' | 'desc';
-
+const SEP = '␟';
 const num = (x: number | null | undefined): number => Number(x) || 0;
+const money = (n: number): string => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
-const money = (n: number): string =>
-  `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-
-interface ColumnDef {
-  key: SortKey;
-  label: string;
-  numeric: boolean;
-  showFor?: GroupDimension[];
-}
-
-const TITLE_BY_DIM: Record<GroupDimension, string> = {
-  buyer: 'Grouped by Buyer',
-  buyerState: 'Buyer State Wise',
-  buyerDistrict: 'Buyer District Wise',
+const dimValue = (r: GroupableOrderRow, d: GroupDimension): string => {
+  switch (d) {
+    case 'buyer':
+      return r.buyerBusinessName || r.buyerPhone || '(unknown)';
+    case 'seller':
+      return r.sellerBusinessName || r.sellerPhone || '(unknown)';
+    case 'buyerState':
+      return r.buyerState || '(unknown)';
+    case 'buyerDistrict':
+      return r.buyerDistrict || '(unknown)';
+  }
 };
+
+interface MetricCol {
+  key: MetricKey;
+  label: string;
+}
 
 export default function GroupByModal({
   open,
-  dimension,
+  dimensions,
   rows,
   contextLabel,
   onClose,
+  onChangeDimensions,
 }: GroupByModalProps) {
   const [search, setSearch] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('orders');
+  const [sortKey, setSortKey] = useState<string>('orders'); // 'dim<i>' or a MetricKey
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-  const showBuyers = dimension === 'buyerState' || dimension === 'buyerDistrict';
-  const showState = dimension === 'buyerDistrict';
+  const dims = useMemo(() => orderDims(dimensions), [dimensions]);
+  const showBuyers = !dims.includes('buyer');
+  const showSellers = !dims.includes('seller');
 
-  const columns = useMemo<ColumnDef[]>(() => {
-    const cols: ColumnDef[] = [
-      { key: 'label', label: TITLE_LABEL_BY_DIM(dimension), numeric: false },
-    ];
-    if (showState) cols.push({ key: 'label', label: 'State', numeric: false });
-    cols.push({ key: 'orders', label: 'Orders', numeric: true });
-    if (showBuyers) cols.push({ key: 'buyers', label: 'Buyers', numeric: true });
+  const metricCols = useMemo<MetricCol[]>(() => {
+    const cols: MetricCol[] = [{ key: 'orders', label: 'Orders' }];
+    if (showBuyers) cols.push({ key: 'buyers', label: 'Buyers' });
+    if (showSellers) cols.push({ key: 'sellers', label: 'Sellers' });
     cols.push(
-      { key: 'poAmount', label: 'PO Amount', numeric: true },
-      { key: 'paidAmount', label: 'Paid', numeric: true },
-      { key: 'coupon', label: 'Coupon', numeric: true },
-      { key: 'wallet', label: 'Wallet', numeric: true },
-      { key: 'sellerDiscount', label: 'Seller Disc.', numeric: true },
-      { key: 'badhoDiscount', label: 'Badho Disc.', numeric: true },
-      { key: 'cod', label: 'COD', numeric: true },
-      { key: 'refund', label: 'Refund', numeric: true },
-      { key: 'aov', label: 'AOV', numeric: true },
+      { key: 'poAmount', label: 'PO Amount' },
+      { key: 'paidAmount', label: 'Paid' },
+      { key: 'coupon', label: 'Coupon' },
+      { key: 'wallet', label: 'Wallet' },
+      { key: 'sellerDiscount', label: 'Seller Disc.' },
+      { key: 'badhoDiscount', label: 'Badho Disc.' },
+      { key: 'cod', label: 'COD' },
+      { key: 'refund', label: 'Refund' },
+      { key: 'aov', label: 'AOV' },
     );
     return cols;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dimension, showBuyers, showState]);
+  }, [showBuyers, showSellers]);
 
   const groups = useMemo<GroupAgg[]>(() => {
+    if (dims.length === 0) return [];
     const map = new Map<string, GroupAgg>();
     const buyerSets = new Map<string, Set<string>>();
+    const sellerSets = new Map<string, Set<string>>();
 
     for (const r of rows) {
-      let key: string;
-      let label: string;
-      if (dimension === 'buyer') {
-        key = r.buyerBusinessName || r.buyerPhone || '(unknown)';
-        label = key;
-      } else if (dimension === 'buyerState') {
-        key = r.buyerState || '(unknown)';
-        label = key;
-      } else {
-        key = r.buyerDistrict || '(unknown)';
-        label = key;
-      }
+      const labels = dims.map((d) => dimValue(r, d));
+      const key = labels.join(SEP);
 
       let g = map.get(key);
       if (!g) {
         g = {
           key,
-          label,
-          phone: r.buyerPhone ?? null,
-          state: r.buyerState ?? null,
-          district: r.buyerDistrict ?? null,
+          labels,
           orders: 0,
           buyers: 0,
+          sellers: 0,
           poAmount: 0,
           paidAmount: 0,
           coupon: 0,
@@ -159,6 +152,7 @@ export default function GroupByModal({
         };
         map.set(key, g);
         buyerSets.set(key, new Set<string>());
+        sellerSets.set(key, new Set<string>());
       }
 
       g.orders += 1;
@@ -173,53 +167,50 @@ export default function GroupByModal({
 
       const buyerId = r.buyerBusinessName || r.buyerPhone;
       if (buyerId) buyerSets.get(key)!.add(buyerId);
+      const sellerId = r.sellerBusinessName || r.sellerPhone;
+      if (sellerId) sellerSets.get(key)!.add(sellerId);
     }
 
     const out: GroupAgg[] = [];
     for (const g of map.values()) {
       g.buyers = buyerSets.get(g.key)?.size ?? 0;
+      g.sellers = sellerSets.get(g.key)?.size ?? 0;
       g.aov = g.orders > 0 ? g.poAmount / g.orders : 0;
       out.push(g);
     }
     return out;
-  }, [rows, dimension]);
+  }, [rows, dims]);
 
   const view = useMemo<GroupAgg[]>(() => {
     const q = search.trim().toLowerCase();
     const filtered = q
-      ? groups.filter((g) => g.label.toLowerCase().includes(q))
+      ? groups.filter((g) => g.labels.some((l) => l.toLowerCase().includes(q)))
       : groups.slice();
 
     const dirMul = sortDir === 'asc' ? 1 : -1;
     filtered.sort((a, b) => {
-      if (sortKey === 'label') {
-        return a.label.localeCompare(b.label) * dirMul;
+      if (sortKey.startsWith('dim')) {
+        const idx = Number(sortKey.slice(3));
+        const cmp = (a.labels[idx] || '').localeCompare(b.labels[idx] || '');
+        return cmp * dirMul;
       }
-      const av = a[sortKey] as number;
-      const bv = b[sortKey] as number;
-      if (av === bv) return a.label.localeCompare(b.label);
+      const av = (a as unknown as Record<string, number>)[sortKey] ?? 0;
+      const bv = (b as unknown as Record<string, number>)[sortKey] ?? 0;
+      if (av === bv) return a.labels.join(SEP).localeCompare(b.labels.join(SEP));
       return (av - bv) * dirMul;
     });
     return filtered;
   }, [groups, search, sortKey, sortDir]);
 
   const totals = useMemo(() => {
-    const t = {
-      orders: 0,
-      buyers: 0,
-      poAmount: 0,
-      paidAmount: 0,
-      coupon: 0,
-      wallet: 0,
-      sellerDiscount: 0,
-      badhoDiscount: 0,
-      cod: 0,
-      refund: 0,
-      aov: 0,
+    const t: Record<MetricKey, number> = {
+      orders: 0, buyers: 0, sellers: 0, poAmount: 0, paidAmount: 0, coupon: 0,
+      wallet: 0, sellerDiscount: 0, badhoDiscount: 0, cod: 0, refund: 0, aov: 0,
     };
     for (const g of view) {
       t.orders += g.orders;
       t.buyers += g.buyers;
+      t.sellers += g.sellers;
       t.poAmount += g.poAmount;
       t.paidAmount += g.paidAmount;
       t.coupon += g.coupon;
@@ -233,76 +224,52 @@ export default function GroupByModal({
     return t;
   }, [view]);
 
-  if (!open) return null;
+  if (!open || dims.length === 0) return null;
 
-  const toggleSort = (key: SortKey) => {
+  const toggleSort = (key: string) => {
     if (key === sortKey) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortKey(key);
-      setSortDir(key === 'label' ? 'asc' : 'desc');
+      setSortDir(key.startsWith('dim') ? 'asc' : 'desc');
     }
   };
 
-  const arrow = (key: SortKey): string => {
+  const arrow = (key: string): string => {
     if (key !== sortKey) return '⇅';
     return sortDir === 'asc' ? '▲' : '▼';
   };
 
-  const exportCsv = () => {
-    const header = ['Group'];
-    if (showState) header.push('State');
-    header.push('Orders');
-    if (showBuyers) header.push('Buyers');
-    header.push(
-      'PO Amount',
-      'Paid',
-      'Coupon',
-      'Wallet',
-      'Seller Discount',
-      'Badho Discount',
-      'COD',
-      'Refund',
-      'AOV',
-    );
+  const title = `Grouped by ${dims.map((d) => DIM_LABEL[d]).join(' › ')}`;
 
+  const exportCsv = () => {
+    const header = [...dims.map((d) => DIM_LABEL[d]), ...metricCols.map((c) => c.label)];
     const esc = (v: string | number): string => {
       const s = String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-
     const lines: string[] = [header.map(esc).join(',')];
     for (const g of view) {
-      const cells: (string | number)[] = [g.label];
-      if (showState) cells.push(g.state ?? '');
-      cells.push(g.orders);
-      if (showBuyers) cells.push(g.buyers);
-      cells.push(
-        g.poAmount,
-        g.paidAmount,
-        g.coupon,
-        g.wallet,
-        g.sellerDiscount,
-        g.badhoDiscount,
-        g.cod,
-        g.refund,
-        Number(g.aov.toFixed(2)),
-      );
+      const cells: (string | number)[] = [...g.labels];
+      for (const c of metricCols) {
+        const v = (g as unknown as Record<string, number>)[c.key] ?? 0;
+        cells.push(c.key === 'aov' ? Number(v.toFixed(2)) : v);
+      }
       lines.push(cells.map(esc).join(','));
     }
-
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `group-by-${dimension}.csv`;
+    a.download = `group-by-${dims.join('-')}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
-  const labelHeader = TITLE_LABEL_BY_DIM(dimension);
+  const totalColCount = dims.length + metricCols.length;
+  const footCell = 'sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap';
 
   return (
     <div
@@ -310,29 +277,29 @@ export default function GroupByModal({
       onClick={onClose}
     >
       <div
-        className="bg-white text-slate-900 border border-purple-400/50 rounded-2xl w-[92vw] max-w-[1100px] h-[88vh] flex flex-col overflow-hidden"
+        className="bg-white text-slate-900 border border-purple-400/50 rounded-2xl w-[94vw] max-w-[1200px] h-[88vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-50 via-white to-fuchsia-50/60 px-5 py-4 flex items-start justify-between border-b border-slate-200">
+        <div className="bg-gradient-to-r from-purple-50 via-white to-fuchsia-50/60 px-5 py-4 flex items-start justify-between gap-3 border-b border-slate-200">
           <div className="min-w-0">
-            <h2 className="text-lg font-extrabold text-slate-900 truncate">
-              {TITLE_BY_DIM[dimension]}
-            </h2>
+            <h2 className="text-lg font-extrabold text-slate-900 truncate">{title}</h2>
             <p className="text-xs text-slate-500 mt-0.5 truncate">
               {contextLabel ? `${contextLabel} · ` : ''}
-              {view.length.toLocaleString('en-IN')} groups ·{' '}
-              {totals.orders.toLocaleString('en-IN')} orders
+              {view.length.toLocaleString('en-IN')} groups · {totals.orders.toLocaleString('en-IN')} orders
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="shrink-0 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 text-lg leading-none"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <GroupByMenu selected={dimensions} onChange={onChangeDimensions} align="right" />
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 text-lg leading-none"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         {/* Toolbar */}
@@ -341,7 +308,7 @@ export default function GroupByModal({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${labelHeader.toLowerCase()}…`}
+            placeholder="Search groups…"
             className="flex-1 min-w-0 bg-white border border-slate-300 rounded-md px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
           />
           <button
@@ -358,39 +325,33 @@ export default function GroupByModal({
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr>
-                {columns.map((c, i) => {
-                  const isLabelCol = i === 0;
-                  const active = c.key === sortKey;
+                {dims.map((d, i) => {
+                  const key = `dim${i}`;
+                  const activeSort = key === sortKey;
                   return (
                     <th
-                      key={`${c.key}-${i}`}
-                      onClick={() => toggleSort(c.key)}
-                      className={[
-                        'sticky top-0 z-10 bg-slate-100 px-2.5 py-2 font-semibold text-slate-600 whitespace-nowrap cursor-pointer select-none',
-                        c.numeric ? 'text-right' : 'text-left',
-                        isLabelCol ? 'left-0 z-20' : '',
-                      ].join(' ')}
+                      key={key}
+                      onClick={() => toggleSort(key)}
+                      className={`sticky top-0 z-10 bg-slate-100 px-2.5 py-2 font-semibold text-slate-600 whitespace-nowrap cursor-pointer select-none text-left ${i === 0 ? 'left-0 z-20' : ''}`}
                     >
                       <span className="inline-flex items-center gap-1">
-                        {c.numeric ? (
-                          <>
-                            <span
-                              className={active ? 'text-purple-600' : 'text-slate-300'}
-                            >
-                              {arrow(c.key)}
-                            </span>
-                            {c.label}
-                          </>
-                        ) : (
-                          <>
-                            {c.label}
-                            <span
-                              className={active ? 'text-purple-600' : 'text-slate-300'}
-                            >
-                              {arrow(c.key)}
-                            </span>
-                          </>
-                        )}
+                        {DIM_LABEL[d]}
+                        <span className={activeSort ? 'text-purple-600' : 'text-slate-300'}>{arrow(key)}</span>
+                      </span>
+                    </th>
+                  );
+                })}
+                {metricCols.map((c) => {
+                  const activeSort = c.key === sortKey;
+                  return (
+                    <th
+                      key={c.key}
+                      onClick={() => toggleSort(c.key)}
+                      className="sticky top-0 z-10 bg-slate-100 px-2.5 py-2 font-semibold text-slate-600 whitespace-nowrap cursor-pointer select-none text-right"
+                    >
+                      <span className="inline-flex items-center gap-1 justify-end w-full">
+                        <span className={activeSort ? 'text-purple-600' : 'text-slate-300'}>{arrow(c.key)}</span>
+                        {c.label}
                       </span>
                     </th>
                   );
@@ -402,61 +363,30 @@ export default function GroupByModal({
                 const zebra = ri % 2 === 0 ? 'bg-white' : 'bg-slate-50';
                 return (
                   <tr key={g.key} className={`${zebra} hover:bg-purple-50`}>
-                    <td
-                      className={`sticky left-0 z-[1] ${zebra} px-2.5 py-2 font-medium text-slate-900 whitespace-nowrap max-w-[260px] truncate`}
-                      title={g.label}
-                    >
-                      {g.label}
-                    </td>
-                    {showState && (
-                      <td className="px-2.5 py-2 text-slate-600 whitespace-nowrap">
-                        {g.state ?? '—'}
+                    {g.labels.map((lab, i) => (
+                      <td
+                        key={i}
+                        className={`px-2.5 py-2 text-slate-900 whitespace-nowrap max-w-[260px] truncate ${i === 0 ? `sticky left-0 z-[1] ${zebra} font-medium` : 'text-slate-600'}`}
+                        title={lab}
+                      >
+                        {lab}
                       </td>
-                    )}
-                    <td className="px-2.5 py-2 text-right tabular-nums text-slate-700">
-                      {g.orders.toLocaleString('en-IN')}
-                    </td>
-                    {showBuyers && (
-                      <td className="px-2.5 py-2 text-right tabular-nums text-slate-700">
-                        {g.buyers.toLocaleString('en-IN')}
-                      </td>
-                    )}
-                    <td className="px-2.5 py-2 text-right tabular-nums text-slate-800">
-                      {money(g.poAmount)}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular-nums text-slate-700">
-                      {money(g.paidAmount)}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular-nums text-slate-700">
-                      {money(g.coupon)}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular-nums text-slate-700">
-                      {money(g.wallet)}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular-nums text-slate-700">
-                      {money(g.sellerDiscount)}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular-nums text-slate-700">
-                      {money(g.badhoDiscount)}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular-nums text-slate-700">
-                      {money(g.cod)}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular-nums text-slate-700">
-                      {money(g.refund)}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular-nums text-slate-800">
-                      {money(g.aov)}
-                    </td>
+                    ))}
+                    {metricCols.map((c) => {
+                      const v = (g as unknown as Record<string, number>)[c.key] ?? 0;
+                      const isCount = c.key === 'orders' || c.key === 'buyers' || c.key === 'sellers';
+                      return (
+                        <td key={c.key} className="px-2.5 py-2 text-right tabular-nums text-slate-700">
+                          {isCount ? v.toLocaleString('en-IN') : money(v)}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
               {view.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={columns.length}
-                    className="px-2.5 py-10 text-center text-slate-400"
-                  >
+                  <td colSpan={totalColCount} className="px-2.5 py-10 text-center text-slate-400">
                     No groups match your search.
                   </td>
                 </tr>
@@ -464,48 +394,21 @@ export default function GroupByModal({
             </tbody>
             <tfoot>
               <tr>
-                <td className="sticky bottom-0 left-0 z-30 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap">
-                  Total · {view.length.toLocaleString('en-IN')}{' '}
-                  {view.length === 1 ? 'group' : 'groups'}
+                <td className={`${footCell} left-0 z-30`}>
+                  Total · {view.length.toLocaleString('en-IN')} {view.length === 1 ? 'group' : 'groups'}
                 </td>
-                {showState && (
-                  <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap" />
-                )}
-                <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                  {totals.orders.toLocaleString('en-IN')}
-                </td>
-                {showBuyers && (
-                  <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                    {totals.buyers.toLocaleString('en-IN')}
-                  </td>
-                )}
-                <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                  {money(totals.poAmount)}
-                </td>
-                <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                  {money(totals.paidAmount)}
-                </td>
-                <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                  {money(totals.coupon)}
-                </td>
-                <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                  {money(totals.wallet)}
-                </td>
-                <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                  {money(totals.sellerDiscount)}
-                </td>
-                <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                  {money(totals.badhoDiscount)}
-                </td>
-                <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                  {money(totals.cod)}
-                </td>
-                <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                  {money(totals.refund)}
-                </td>
-                <td className="sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white text-right tabular-nums whitespace-nowrap">
-                  {money(totals.aov)}
-                </td>
+                {dims.slice(1).map((_, i) => (
+                  <td key={i} className={footCell} />
+                ))}
+                {metricCols.map((c) => {
+                  const v = totals[c.key];
+                  const isCount = c.key === 'orders' || c.key === 'buyers' || c.key === 'sellers';
+                  return (
+                    <td key={c.key} className={`${footCell} text-right tabular-nums`}>
+                      {isCount ? v.toLocaleString('en-IN') : money(v)}
+                    </td>
+                  );
+                })}
               </tr>
             </tfoot>
           </table>
@@ -513,15 +416,4 @@ export default function GroupByModal({
       </div>
     </div>
   );
-}
-
-function TITLE_LABEL_BY_DIM(dimension: GroupDimension): string {
-  switch (dimension) {
-    case 'buyer':
-      return 'Buyer';
-    case 'buyerState':
-      return 'State';
-    case 'buyerDistrict':
-      return 'District';
-  }
 }

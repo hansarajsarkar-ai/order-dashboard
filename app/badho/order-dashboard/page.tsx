@@ -552,6 +552,18 @@ export default function OrderStatusDashboard() {
   const [marginCustomTo, setMarginCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [marginSubTab, setMarginSubTab] = useState<'trend' | 'details'>('trend');
 
+  // Active Agent Count — distinct agents making outbound Warm_Lead / Cold Lead
+  // calls per day (smartFlo.call_logs). Shares the P&L tab's date window.
+  interface ActiveAgentResp {
+    days: number | null;
+    range?: { days?: number; startDate?: string; endDate?: string };
+    data: { date: string; activeAgentCount: number }[];
+    totals: { totalDistinctAgents: number; activeDays: number; peak: number; avgPerActiveDay: number };
+    timestamp: string;
+    error?: string;
+  }
+  const [activeAgentData, setActiveAgentData] = useState<ActiveAgentResp | null>(null);
+
   // Per-day drill-down modal (opened by clicking a day's Orders count in the Details table)
   interface MarginDayOrder {
     poId: string;
@@ -629,6 +641,31 @@ export default function OrderStatusDashboard() {
         }
       } finally {
         if (!cancelled) setMarginLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, marginRange, marginCustomFrom, marginCustomTo]);
+
+  // Active Agent Count — loaded alongside the P&L tab, using the same window.
+  useEffect(() => {
+    if (activeTab !== 'margin') return;
+    const params = new URLSearchParams();
+    if (marginRange === 'custom') {
+      if (!marginCustomFrom || !marginCustomTo) return;
+      params.set('startDate', marginCustomFrom);
+      params.set('endDate', marginCustomTo);
+    } else {
+      params.set('days', marginRange === 'last7' ? '7' : marginRange === 'last15' ? '15' : '30');
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/active-agents?${params.toString()}`, { cache: 'no-store' });
+        const json: ActiveAgentResp = await res.json();
+        if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+        if (!cancelled) setActiveAgentData(json);
+      } catch {
+        if (!cancelled) setActiveAgentData(null);
       }
     })();
     return () => { cancelled = true; };
@@ -7905,6 +7942,9 @@ export default function OrderStatusDashboard() {
           const chartData = marginData
             ? [...marginData.data].reverse().map((d) => ({ ...d, label: fmtMDay(d.date) }))
             : [];
+          const agentChartData = activeAgentData
+            ? [...activeAgentData.data].reverse().map((d) => ({ ...d, label: fmtMDay(d.date) }))
+            : [];
           const accentRing: Record<string, string> = {
             purple: 'from-purple-500/20 to-fuchsia-500/10 border-purple-400/20',
             indigo: 'from-indigo-500/20 to-blue-500/10 border-indigo-400/20',
@@ -8010,13 +8050,19 @@ export default function OrderStatusDashboard() {
                   {marginSubTab === 'trend' && (
                   <>
                   {/* KPI cards */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
                     <Kpi label="Total Orders" value={totals.totalOrders.toLocaleString('en-IN')} accent="purple" />
                     <Kpi label="Total GTV" value={fmtINR(totals.totalPoAmount)} sub={fmtFull(totals.totalPoAmount)} accent="indigo" />
                     <Kpi label="Total Margin" value={fmtINR(totals.totalMargin)} sub={fmtFull(totals.totalMargin)} accent="emerald" />
                     <Kpi label="Operational Cost" value={fmtINR(totals.totalOperationalCost)} sub={fmtFull(totals.totalOperationalCost)} accent="amber" />
                     <Kpi label="Net P&L" value={fmtINR(totals.profitAndLossRs)} sub={totals.profitAndLossRs >= 0 ? 'Profit' : 'Loss'} accent={totals.profitAndLossRs >= 0 ? 'emerald' : 'rose'} />
                     <Kpi label="P&L % of GTV" value={totals.pnlPercentOfGtv === null ? '—' : `${totals.pnlPercentOfGtv}%`} sub={`${totals.profitDays} profit · ${totals.lossDays} loss days`} accent={(totals.pnlPercentOfGtv ?? 0) >= 0 ? 'emerald' : 'rose'} />
+                    <Kpi
+                      label="Active Agents"
+                      value={activeAgentData ? activeAgentData.totals.totalDistinctAgents.toLocaleString('en-IN') : '—'}
+                      sub={activeAgentData ? `outbound · ${activeAgentData.totals.activeDays} active days · peak ${activeAgentData.totals.peak}/day` : 'Warm/Cold Lead outbound'}
+                      accent="indigo"
+                    />
                   </div>
 
                   {/* Daily P&L % of GTV */}
@@ -8065,6 +8111,49 @@ export default function OrderStatusDashboard() {
                                   style={{ fill: '#ffffff', fontSize: 10, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
                                 >
                                   {`${val.toFixed(0)}%`}
+                                </text>
+                              );
+                            }}
+                          />
+                        </Bar>
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Daily Active Agent Count */}
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 mb-6 animate-corner-breath">
+                    <div className="mb-3">
+                      <div className="text-base font-semibold text-white">Daily Active Agent Count</div>
+                      <div className="text-xs text-purple-200/70 mt-0.5">Distinct agents making outbound calls (Warm_Lead &amp; Cold Lead Campaign) · value shown on each bar</div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <ComposedChart data={agentChartData} margin={{ top: 24, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} allowDecimals={false} width={36} />
+                        <Tooltip
+                          cursor={{ fill: 'rgba(99,102,241,0.12)' }}
+                          contentStyle={{ background: '#ffffff', border: '1px solid rgba(99,102,241,0.5)', borderRadius: 12, color: '#1e1b4b', fontSize: 13, padding: '10px 14px', boxShadow: '0 8px 24px rgba(30,27,75,0.2)' }}
+                          labelStyle={{ color: '#4338ca', fontWeight: 700, marginBottom: 4 }}
+                          itemStyle={{ color: '#1e1b4b' }}
+                          formatter={(value) => [`${Number(value).toLocaleString('en-IN')} agents`, 'Active Agents']}
+                        />
+                        <Bar dataKey="activeAgentCount" name="Active Agents" fill="#818cf8" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                          <LabelList
+                            dataKey="activeAgentCount"
+                            content={(props: any) => {
+                              const { x, y, width, value } = props;
+                              const val = Number(value);
+                              if (!Number.isFinite(val)) return null;
+                              const cx = Number(x) + Number(width) / 2;
+                              return (
+                                <text
+                                  x={cx}
+                                  y={Number(y) - 5}
+                                  textAnchor="middle"
+                                  style={{ fill: '#ffffff', fontSize: 10, fontWeight: 700, paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3, strokeLinejoin: 'round' }}
+                                >
+                                  {val.toFixed(0)}
                                 </text>
                               );
                             }}

@@ -10520,6 +10520,60 @@ export default function OrderStatusDashboard() {
                           );
                         })}
                       </tbody>
+                      <tfoot>
+                        {(() => {
+                          const t = filtered.reduce((a, r) => {
+                            a.po     += Number(r.poAmount) || 0;
+                            a.coupon += Number(r.CoupanAmount) || 0;
+                            a.wallet += Number(r.appliedWalletAmount) || 0;
+                            a.seller += Number(r.discountBySeller) || 0;
+                            a.badho  += Number(r.PaymentOptionDiscountByBadho) || 0;
+                            a.cod    += Number(r.codAmountToBeCollected) || 0;
+                            a.paid   += Number(r.paidAmount) || 0;
+                            a.refund += Number(r.RefundAmount) || 0;
+                            return a;
+                          }, { po: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0 });
+                          const money = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+                          const cell = 'sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap';
+                          const num = `${cell} text-right tabular-nums`;
+                          return (
+                            <tr className="shadow-[0_-2px_0_rgba(168,85,247,0.6)]">
+                              <td className={`${cell} left-0 z-30 min-w-[160px] max-w-[160px] w-[160px] uppercase tracking-wider`}>Total</td>
+                              <td className={`${cell} left-[160px] z-30 min-w-[120px] max-w-[120px] w-[120px]`}>{filtered.length.toLocaleString('en-IN')} orders</td>
+                              <td className={`${cell} left-[280px] z-30 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)]`} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={num}>{money(t.po)}</td>
+                              <td className={num}>{money(t.coupon)}</td>
+                              <td className={num}>{money(t.wallet)}</td>
+                              <td className={num}>{money(t.seller)}</td>
+                              <td className={num}>{money(t.badho)}</td>
+                              <td className={num}>{money(t.cod)}</td>
+                              <td className={cell} />
+                              <td className={num}>{money(t.paid)}</td>
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={num}>{money(t.refund)}</td>
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
+                            </tr>
+                          );
+                        })()}
+                      </tfoot>
                     </table>
                   );
                 })()}

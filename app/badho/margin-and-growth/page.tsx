@@ -596,9 +596,9 @@ export default function MarginAndGrowthDashboard() {
                   <tr className="text-left">
                     <th className="px-4 py-3 font-semibold">{tableGran === 'day' ? 'Date' : tableGran === 'week' ? 'Week of' : 'Month'}</th>
                     <th className="px-4 py-3 font-semibold text-right">DAU</th>
-                    <th className="px-4 py-3 font-semibold text-right">Carts Created</th>
+                    <th className="px-4 py-3 font-semibold text-right">Cart Created Buyer</th>
                     <th className="px-4 py-3 font-semibold text-right">Cart % of DAU</th>
-                    <th className="px-4 py-3 font-semibold text-right">Orders Placed</th>
+                    <th className="px-4 py-3 font-semibold text-right">Order Placed Buyer</th>
                     <th className="px-4 py-3 font-semibold text-right">Cart → Order %</th>
                     <th className="px-4 py-3 font-semibold text-right">Order % of DAU</th>
                   </tr>

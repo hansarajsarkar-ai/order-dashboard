@@ -48,8 +48,6 @@ export async function GET(req: NextRequest) {
         AND s."businessName" NOT ILIKE '%milko%'
         AND b."isTest"           = FALSE
         AND b."businessName" NOT ILIKE '%test%'
-        AND po."deliveryNetwork" = 'THIRD_PARTY'
-        AND po."deliveryType"    = 'INTERCITY'
         AND po."isFalseOrder"    = FALSE
       GROUP BY 1
       ORDER BY 1;

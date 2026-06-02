@@ -1148,6 +1148,8 @@ export default function OrderStatusDashboard() {
   // KPI tile → orders modal
   type RtoKpiKind = 'count' | 'value' | 'rate' | 'avg';
   const [rtoKpiModal, setRtoKpiModal] = useState<RtoKpiKind | null>(null);
+  // When set, the RTO KPI modal is scoped to a single trend bucket (date window) instead of the full year.
+  const [rtoKpiWindow, setRtoKpiWindow] = useState<{ startDate: string; endDate: string; label: string } | null>(null);
   const [rtoKpiModalSearch, setRtoKpiModalSearch] = useState('');
   const [rtoKpiModalPushedFilter, setRtoKpiModalPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
   const [rtoKpiModalPaymentFilter, setRtoKpiModalPaymentFilter] = useState<Set<string>>(new Set());
@@ -1754,10 +1756,13 @@ export default function OrderStatusDashboard() {
   }, [activeTab]);
 
   // Modal fetcher — current year RTO orders (defaults; no params)
-  const fetchRtoKpiModalData = async () => {
+  const fetchRtoKpiModalData = async (win?: { startDate?: string; endDate?: string } | null) => {
     try {
       setRtoKpiModalLoading(true);
-      const res = await fetch(`/api/order-rto-list`);
+      const qs = new URLSearchParams();
+      if (win?.startDate) qs.set('startDate', win.startDate);
+      if (win?.endDate) qs.set('endDate', win.endDate);
+      const res = await fetch(`/api/order-rto-list${qs.toString() ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('Failed to fetch RTO orders for modal');
       const json = await res.json();
       setRtoKpiModalData(json.data);
@@ -1780,9 +1785,11 @@ export default function OrderStatusDashboard() {
     setRtoKpiModalReasonFilter(new Set());
     setRtoKpiModalAttemptFilter(new Set());
     setRtoKpiModalSort(null);
-    if (!rtoKpiModalData) fetchRtoKpiModalData();
+    // Always refetch on open / window change — windowed (bucket) and year-wide share the same cache slot.
+    setRtoKpiModalData(null);
+    fetchRtoKpiModalData(rtoKpiWindow);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rtoKpiModal]);
+  }, [rtoKpiModal, rtoKpiWindow]);
 
   // ESC closes modal
   useEffect(() => {
@@ -2222,6 +2229,45 @@ export default function OrderStatusDashboard() {
     }
     if (!m) return;
     openPivotDrill('', undefined, m);
+  };
+
+  // RTO trend bar → open the RTO KPI modal scoped to the clicked bucket's date window.
+  // RTO buckets on markedRejectedTime, so the window filters the RTO list by rejection date.
+  const openRtoTrendDrill = (entry: unknown) => {
+    const p = rechartsPayload(entry);
+    const bucket = p.bucket != null ? String(p.bucket) : '';
+    const label = typeof p.label === 'string' ? p.label : bucket;
+    const count = Number(p.count ?? 0);
+    if (!bucket || count <= 0) return;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    let startDate = '';
+    let endDate = '';
+    if (rtoTrendGranularity === 'day') {
+      startDate = bucket;
+      endDate = bucket;
+    } else if (rtoTrendGranularity === 'week') {
+      // label like "W18 · 27 Apr" — derive the Monday start, span 7 days.
+      const part = label.includes('·') ? label.split('·')[1].trim() : '';
+      const d = part ? new Date(`${part} ${currentYear}`) : null;
+      if (!d || isNaN(d.getTime())) return;
+      const e = new Date(d.getTime());
+      e.setDate(e.getDate() + 6);
+      startDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      endDate = `${e.getFullYear()}-${pad(e.getMonth() + 1)}-${pad(e.getDate())}`;
+    } else {
+      // month (and custom, which the API buckets by month) — bucket is the month number.
+      const m = parseInt(bucket, 10);
+      if (Number.isNaN(m)) return;
+      const last = new Date(currentYear, m, 0).getDate();
+      startDate = `${currentYear}-${pad(m)}-01`;
+      endDate = `${currentYear}-${pad(m)}-${pad(last)}`;
+      if (rtoTrendGranularity === 'custom') {
+        if (rtoTrendCustomFrom && rtoTrendCustomFrom > startDate) startDate = rtoTrendCustomFrom;
+        if (rtoTrendCustomTo && rtoTrendCustomTo < endDate) endDate = rtoTrendCustomTo;
+      }
+    }
+    setRtoKpiWindow({ startDate, endDate, label });
+    setRtoKpiModal('count');
   };
 
   // Status donuts (Order Mix / Revenue Mix) → drill that status for the whole year.
@@ -5310,7 +5356,7 @@ export default function OrderStatusDashboard() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <button
                       type="button"
-                      onClick={() => setRtoKpiModal('count')}
+                      onClick={() => { setRtoKpiWindow(null); setRtoKpiModal('count'); }}
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">Total RTO orders</div>
@@ -5319,7 +5365,7 @@ export default function OrderStatusDashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setRtoKpiModal('value')}
+                      onClick={() => { setRtoKpiWindow(null); setRtoKpiModal('value'); }}
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">RTO order value</div>
@@ -5328,7 +5374,7 @@ export default function OrderStatusDashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setRtoKpiModal('rate')}
+                      onClick={() => { setRtoKpiWindow(null); setRtoKpiModal('rate'); }}
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">RTO rate</div>
@@ -5338,7 +5384,7 @@ export default function OrderStatusDashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setRtoKpiModal('avg')}
+                      onClick={() => { setRtoKpiWindow(null); setRtoKpiModal('avg'); }}
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">Avg RTO value</div>
@@ -5455,6 +5501,8 @@ export default function OrderStatusDashboard() {
                             fill="#f43f5e"
                             radius={[5, 5, 0, 0]}
                             maxBarSize={42}
+                            cursor="pointer"
+                            onClick={(e: unknown) => openRtoTrendDrill(e)}
                           >
                             <LabelList
                               dataKey="count"
@@ -5524,6 +5572,8 @@ export default function OrderStatusDashboard() {
                             fill="#f59e0b"
                             radius={[5, 5, 0, 0]}
                             maxBarSize={42}
+                            cursor="pointer"
+                            onClick={(e: unknown) => openRtoTrendDrill(e)}
                           >
                             <LabelList
                               dataKey="amount"
@@ -11310,21 +11360,29 @@ export default function OrderStatusDashboard() {
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-rose-50 to-fuchsia-50">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">
-                    {rtoKpiModal === 'count' && 'Total RTO orders'}
-                    {rtoKpiModal === 'value' && 'RTO order value'}
-                    {rtoKpiModal === 'rate' && 'RTO rate'}
-                    {rtoKpiModal === 'avg' && 'Avg RTO value'}
-                    <span className="text-slate-500 text-base font-normal"> — {currentYear}</span>
+                    RTO orders
+                    {rtoKpiWindow
+                      ? <span className="text-slate-500 text-base font-normal"> — {rtoKpiWindow.label}</span>
+                      : (<>
+                          {rtoKpiModal === 'value' && <span className="text-slate-700 text-base font-normal"> · by value</span>}
+                          {rtoKpiModal === 'rate' && <span className="text-slate-700 text-base font-normal"> · rate</span>}
+                          {rtoKpiModal === 'avg' && <span className="text-slate-700 text-base font-normal"> · avg value</span>}
+                          <span className="text-slate-500 text-base font-normal"> — {currentYear}</span>
+                        </>)}
                   </h3>
                   <p className="text-slate-500 text-sm mt-0.5">
-                    {rtoKpiModal === 'count' && `All ${rtoData?.grand.count.toLocaleString() ?? '—'} RTO orders this year`}
-                    {rtoKpiModal === 'value' && `Total value across all RTO orders — ${formatAmount(rtoData?.grand.amount ?? 0)}`}
-                    {rtoKpiModal === 'rate' && (
-                      <>
-                        {rtoData?.rtoRate.toFixed(2)}% = <span className="font-semibold text-rose-600">{rtoData?.grand.count.toLocaleString()} RTO</span> ÷ (<span className="font-semibold text-emerald-600">{rtoData?.deliveredCount.toLocaleString()} Delivered+Completed</span> + RTO)
-                      </>
-                    )}
-                    {rtoKpiModal === 'avg' && `Avg value per RTO order — ${formatAmount(rtoData?.avgRtoValue ?? 0)} across ${rtoData?.grand.count.toLocaleString()} orders`}
+                    {rtoKpiWindow
+                      ? `${rtoKpiModalLoading ? '…' : (rtoKpiModalData?.length ?? 0).toLocaleString()} RTO orders in this bucket`
+                      : <>
+                          {rtoKpiModal === 'count' && `All ${rtoData?.grand.count.toLocaleString() ?? '—'} RTO orders this year`}
+                          {rtoKpiModal === 'value' && `Total value across all RTO orders — ${formatAmount(rtoData?.grand.amount ?? 0)}`}
+                          {rtoKpiModal === 'rate' && (
+                            <>
+                              {rtoData?.rtoRate.toFixed(2)}% = <span className="font-semibold text-rose-600">{rtoData?.grand.count.toLocaleString()} RTO</span> ÷ (<span className="font-semibold text-emerald-600">{rtoData?.deliveredCount.toLocaleString()} Delivered+Completed</span> + RTO)
+                            </>
+                          )}
+                          {rtoKpiModal === 'avg' && `Avg value per RTO order — ${formatAmount(rtoData?.avgRtoValue ?? 0)} across ${rtoData?.grand.count.toLocaleString()} orders`}
+                        </>}
                   </p>
                 </div>
                 <button

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -22,12 +23,37 @@ interface Props {
  */
 export default function MonthMultiSelect({ selected, onChange, year }: Props) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // Anchor coords for the portal-rendered menu (fixed positioning).
+  const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+
+  useEffect(() => setMounted(true), []);
+
+  // Position the menu just below the button, right-aligned to it.
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return;
+    const place = () => {
+      const r = btnRef.current!.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (ref.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -48,6 +74,7 @@ export default function MonthMultiSelect({ selected, onChange, year }: Props) {
   return (
     <div ref={ref} className="relative shrink-0">
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={`px-3 py-1.5 text-xs font-semibold rounded-lg border flex items-center gap-2 transition-colors ${
@@ -60,8 +87,11 @@ export default function MonthMultiSelect({ selected, onChange, year }: Props) {
         <span className="truncate max-w-[140px]">{summary}</span>
         <span className="text-[10px] opacity-70">▾</span>
       </button>
-      {open && (
-        <div className="absolute right-0 z-40 mt-1 w-52 bg-slate-900 border border-white/15 rounded-xl shadow-[0_10px_40px_-5px_rgba(0,0,0,0.6)] overflow-hidden">
+      {open && mounted && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: pos.top, right: pos.right }}
+          className="z-[9999] w-52 bg-slate-900 border border-white/15 rounded-xl shadow-[0_10px_40px_-5px_rgba(0,0,0,0.6)] overflow-hidden">
           <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
             <span className="text-[11px] font-semibold text-purple-200 uppercase tracking-wide">Months · {year}</span>
             {!isAll && (
@@ -94,7 +124,8 @@ export default function MonthMultiSelect({ selected, onChange, year }: Props) {
               );
             })}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

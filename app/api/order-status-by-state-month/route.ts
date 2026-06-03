@@ -18,6 +18,12 @@ interface Row {
   rejected_amount: string;
   cancelled_count: string;
   cancelled_amount: string;
+  pending_count: string;
+  pending_amount: string;
+  inprogress_count: string;
+  inprogress_amount: string;
+  dispatched_count: string;
+  dispatched_amount: string;
   inflight_count: string;
   inflight_amount: string;
 }
@@ -66,8 +72,14 @@ export async function GET(req: NextRequest) {
         COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'REJECTED'), 0)::text            AS rejected_amount,
         COUNT(*) FILTER (WHERE po."status" = 'CANCELLED')                                               AS cancelled_count,
         COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'CANCELLED'), 0)::text           AS cancelled_amount,
-        COUNT(*) FILTER (WHERE po."status" NOT IN ('DELIVERED','COMPLETED','REJECTED','CANCELLED'))     AS inflight_count,
-        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" NOT IN ('DELIVERED','COMPLETED','REJECTED','CANCELLED')), 0)::text AS inflight_amount
+        COUNT(*) FILTER (WHERE po."status" = 'PENDING')                                                 AS pending_count,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'PENDING'), 0)::text             AS pending_amount,
+        COUNT(*) FILTER (WHERE po."status" = 'INPROGRESS')                                              AS inprogress_count,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'INPROGRESS'), 0)::text          AS inprogress_amount,
+        COUNT(*) FILTER (WHERE po."status" = 'DISPATCHED')                                              AS dispatched_count,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" = 'DISPATCHED'), 0)::text          AS dispatched_amount,
+        COUNT(*) FILTER (WHERE po."status" NOT IN ('DELIVERED','COMPLETED','REJECTED','CANCELLED','PENDING','INPROGRESS','DISPATCHED'))     AS inflight_count,
+        COALESCE(SUM(po."amount"::numeric) FILTER (WHERE po."status" NOT IN ('DELIVERED','COMPLETED','REJECTED','CANCELLED','PENDING','INPROGRESS','DISPATCHED')), 0)::text AS inflight_amount
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
@@ -96,6 +108,9 @@ export async function GET(req: NextRequest) {
       delivered: { count: parseInt(r.delivered_count), amount: parseFloat(r.delivered_amount) },
       rejected:  { count: parseInt(r.rejected_count),  amount: parseFloat(r.rejected_amount) },
       cancelled: { count: parseInt(r.cancelled_count), amount: parseFloat(r.cancelled_amount) },
+      pending:    { count: parseInt(r.pending_count),    amount: parseFloat(r.pending_amount) },
+      inprogress: { count: parseInt(r.inprogress_count), amount: parseFloat(r.inprogress_amount) },
+      dispatched: { count: parseInt(r.dispatched_count), amount: parseFloat(r.dispatched_amount) },
       inflight:  { count: parseInt(r.inflight_count),  amount: parseFloat(r.inflight_amount) },
     }));
 

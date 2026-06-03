@@ -549,6 +549,9 @@ export default function OrderStatusDashboard() {
     delivered: StatusBucket;
     rejected: StatusBucket;
     cancelled: StatusBucket;
+    pending: StatusBucket;
+    inprogress: StatusBucket;
+    dispatched: StatusBucket;
     inflight: StatusBucket;
   }
   const [stateMonthData, setStateMonthData] = useState<StateMonthRow[] | null>(null);
@@ -2584,7 +2587,10 @@ export default function OrderStatusDashboard() {
     delivered: { status: 'DELIVERED,COMPLETED', exclude: '',                                       label: 'Delivered' },
     rejected:  { status: 'REJECTED',            exclude: '',                                       label: 'Rejected' },
     cancelled: { status: 'CANCELLED',           exclude: '',                                       label: 'Cancelled' },
-    inflight:  { status: '',                    exclude: 'DELIVERED,COMPLETED,REJECTED,CANCELLED', label: 'In-flight' },
+    pending:    { status: 'PENDING',            exclude: '',                                       label: 'Pending' },
+    inprogress: { status: 'INPROGRESS',         exclude: '',                                       label: 'In-progress' },
+    dispatched: { status: 'DISPATCHED',         exclude: '',                                       label: 'Dispatched' },
+    inflight:  { status: '',                    exclude: 'DELIVERED,COMPLETED,REJECTED,CANCELLED,PENDING,INPROGRESS,DISPATCHED', label: 'In-flight' },
   };
   const STATEWISE_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -8187,13 +8193,16 @@ export default function OrderStatusDashboard() {
             )}
 
             {geographySubTab === 'statewise' && (() => {
-              type SKey = 'punched' | 'delivered' | 'rejected' | 'cancelled' | 'inflight';
+              type SKey = 'punched' | 'delivered' | 'rejected' | 'cancelled' | 'pending' | 'inprogress' | 'dispatched' | 'inflight';
               const STATUS_COLS: { key: SKey; label: string; short: string; hex: string; isPunched?: boolean }[] = [
-                { key: 'punched',   label: 'Punched',   short: 'Pun', hex: '#e9d5ff', isPunched: true },
-                { key: 'delivered', label: 'Delivered', short: 'Del', hex: '#34d399' },
-                { key: 'rejected',  label: 'Rejected',  short: 'Rej', hex: '#fb7185' },
-                { key: 'cancelled', label: 'Cancelled', short: 'Can', hex: '#fbbf24' },
-                { key: 'inflight',  label: 'In-flight', short: 'Inf', hex: '#38bdf8' },
+                { key: 'punched',    label: 'Punched',     short: 'Pun', hex: '#e9d5ff', isPunched: true },
+                { key: 'pending',    label: 'Pending',     short: 'Pen', hex: '#94a3b8' },
+                { key: 'inprogress', label: 'In-progress', short: 'Inp', hex: '#a78bfa' },
+                { key: 'dispatched', label: 'Dispatched',  short: 'Dis', hex: '#22d3ee' },
+                { key: 'delivered',  label: 'Delivered',   short: 'Del', hex: '#34d399' },
+                { key: 'rejected',   label: 'Rejected',    short: 'Rej', hex: '#fb7185' },
+                { key: 'cancelled',  label: 'Cancelled',   short: 'Can', hex: '#fbbf24' },
+                { key: 'inflight',   label: 'In-flight',   short: 'Inf', hex: '#38bdf8' },
               ];
               const pct = (n: number, base: number) => (base > 0 ? (n / base) * 100 : 0);
               const fmtPct = (p: number) => `${p.toFixed(1)}%`;
@@ -8220,7 +8229,8 @@ export default function OrderStatusDashboard() {
               const emptyB = (): Record<SKey, StatusBucket> => ({
                 punched: { count: 0, amount: 0 }, delivered: { count: 0, amount: 0 },
                 rejected: { count: 0, amount: 0 }, cancelled: { count: 0, amount: 0 },
-                inflight: { count: 0, amount: 0 },
+                pending: { count: 0, amount: 0 }, inprogress: { count: 0, amount: 0 },
+                dispatched: { count: 0, amount: 0 }, inflight: { count: 0, amount: 0 },
               });
               const addB = (acc: Record<SKey, StatusBucket>, r: Record<SKey, StatusBucket>) => {
                 for (const c of STATUS_COLS) { acc[c.key].count += r[c.key].count; acc[c.key].amount += r[c.key].amount; }
@@ -8294,7 +8304,7 @@ export default function OrderStatusDashboard() {
               return (
                 <div>
                   {/* Hero funnel strip — overall picture across the whole period */}
-                  <div className="px-8 pt-6 pb-2 grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="px-8 pt-6 pb-2 grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                       <div className="text-[11px] font-semibold text-purple-300/70 uppercase tracking-wider">Punched</div>
                       <div className="mt-1 text-2xl font-extrabold text-white tabular-nums">{grand.punched.count.toLocaleString('en-IN')}</div>
@@ -8371,7 +8381,7 @@ export default function OrderStatusDashboard() {
                           {groups.map((g, gi) => (
                             <th
                               key={g.ym}
-                              colSpan={5}
+                              colSpan={STATUS_COLS.length}
                               className={`sticky top-0 z-20 h-8 px-2 text-center text-[11px] font-bold uppercase tracking-wider border-b border-l-2 border-white/15 ${gi === 0 ? 'text-fuchsia-200' : 'text-purple-100'}`}
                               style={{ backgroundColor: '#1b1340' }}
                             >

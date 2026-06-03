@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
         -- Index-friendly markedPendingTime bounds derived from the IST call window;
         -- order date resolved in IST.
         SELECT
-          po."id" AS order_id,
+          po."poNumber" AS po_number,
           RIGHT(REGEXP_REPLACE(b."phone", '[^0-9]', '', 'g'), 10) AS phone,
           (po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')::date AS order_date
         FROM "purchaseOrder"."purchaseOrder" po
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
         SELECT
           cc.agent_name,
           COUNT(DISTINCT cc.phone) AS order_placed_buyer,
-          COUNT(DISTINCT o.order_id) AS order_count
+          COUNT(DISTINCT o.po_number) AS order_count
         FROM connected_calls cc
         JOIN buyer_orders o ON o.phone = cc.phone AND o.order_date = cc.call_date
         GROUP BY cc.agent_name

@@ -8,6 +8,14 @@ export async function GET(req: NextRequest) {
   const f = parseFilters(req);
   const { sql: where, params } = buildWhere(f);
 
+  // Index-friendly IST timestamp bounds for the order side (an AT TIME ZONE
+  // expression on created_at would defeat the index and full-scan purchaseOrder).
+  const startTs = `${f.startDate}T00:00:00+05:30`;
+  const endExclusive = new Date(`${f.endDate}T00:00:00+05:30`);
+  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+  const pStart = params.push(startTs);
+  const pEnd = params.push(endExclusive.toISOString());
+
   try {
     // Two queries share the same filtered call window (`where` / `params`).
     // buildWhere always pushes startDate as $1 and endDate as $2, so the
@@ -91,8 +99,8 @@ export async function GET(req: NextRequest) {
             AND s."isTest" = FALSE AND s."businessName" NOT ILIKE '%test%'
             AND po."isTest" = FALSE AND po."isFalseOrder" = FALSE
             AND po."deliveryNetwork" = 'THIRD_PARTY' AND po."deliveryType" = 'INTERCITY'
-            AND (po."created_at" AT TIME ZONE 'Asia/Kolkata')::date >= $1::date
-            AND (po."created_at" AT TIME ZONE 'Asia/Kolkata')::date <= $2::date
+            AND po."created_at" >= $${pStart}::timestamptz
+            AND po."created_at" <  $${pEnd}::timestamptz
         ),
         matched AS (
           SELECT c.agent_name, c.phone, o.order_id, o.order_hour, o.amount

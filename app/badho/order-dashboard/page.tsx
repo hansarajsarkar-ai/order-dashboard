@@ -6902,9 +6902,9 @@ export default function OrderStatusDashboard() {
                                     </div>
                                   </div>
                                 </td>
-                                <td className="px-3 py-1.5 border-b border-white/5"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/15 bg-white/10 text-white">{r.poStatus}</span></td>
-                                <td className="px-3 py-1.5 border-b border-white/5"><span className="text-xs font-semibold text-purple-100">{r.brandName ?? '—'}</span></td>
-                                <td className="px-3 py-1.5 border-b border-white/5"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-400/30 bg-amber-500/15 text-amber-200">{r.shipmentStatus ?? '—'}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5 align-middle"><span className="inline-block whitespace-nowrap text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/15 bg-white/10 text-white">{r.poStatus}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5 align-middle"><span className="whitespace-nowrap text-xs font-semibold text-purple-100">{r.brandName ?? '—'}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5 align-middle"><span className="inline-block whitespace-nowrap text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-400/30 bg-amber-500/15 text-amber-200">{r.shipmentStatus ?? '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className="text-xs font-extrabold tabular-nums text-white">{formatAmount(r.orderValue)}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className={`text-xs font-bold tabular-nums ${r.paidAmount != null && r.paidAmount > 0 ? 'text-emerald-200' : 'text-white/40'}`}>{r.paidAmount != null && r.paidAmount > 0 ? formatAmount(r.paidAmount) : '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className={`text-xs font-bold tabular-nums ${r.appliedWalletAmount != null && r.appliedWalletAmount > 0 ? 'text-cyan-200' : 'text-white/40'}`}>{r.appliedWalletAmount != null && r.appliedWalletAmount > 0 ? formatAmount(r.appliedWalletAmount) : '—'}</span></td>

@@ -8202,7 +8202,6 @@ export default function OrderStatusDashboard() {
                 { key: 'delivered',  label: 'Delivered',   short: 'Del', hex: '#34d399' },
                 { key: 'rejected',   label: 'Rejected',    short: 'Rej', hex: '#fb7185' },
                 { key: 'cancelled',  label: 'Cancelled',   short: 'Can', hex: '#fbbf24' },
-                { key: 'inflight',   label: 'In-flight',   short: 'Inf', hex: '#38bdf8' },
               ];
               const pct = (n: number, base: number) => (base > 0 ? (n / base) * 100 : 0);
               const fmtPct = (p: number) => `${p.toFixed(1)}%`;

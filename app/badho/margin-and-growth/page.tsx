@@ -58,6 +58,21 @@ interface FunnelTotals {
   orders: number;
 }
 
+interface FoldRow {
+  date: string;
+  totalClicked: number;
+  cartBuyers: number;
+  placedBuyers: number;
+}
+
+interface FoldTotals {
+  totalClicked: number;
+  cartBuyers: number;
+  placedBuyers: number;
+}
+
+type Tab = 'trend' | 'fold';
+
 const fmtCompact = (n: number) => {
   if (n >= 1_00_00_000) return `${(n / 1_00_00_000).toFixed(2)}Cr`;
   if (n >= 1_00_000) return `${(n / 1_00_000).toFixed(2)}L`;
@@ -134,6 +149,8 @@ export default function MarginAndGrowthDashboard() {
   const [employeeName, setEmployeeName] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  const [activeTab, setActiveTab] = useState<Tab>('trend');
+
   const ytdDays = useMemo(() => computeYtdDays(), []);
   const [days, setDays] = useState<number>(() => computeYtdDays());
   const isYtd = days === ytdDays;
@@ -158,6 +175,12 @@ export default function MarginAndGrowthDashboard() {
   const [funnelTotals, setFunnelTotals] = useState<FunnelTotals | null>(null);
   const [funnelLoading, setFunnelLoading] = useState(true);
   const [funnelError, setFunnelError] = useState<string | null>(null);
+
+  // ₹1 fold click → cart → order table
+  const [fold, setFold] = useState<FoldRow[]>([]);
+  const [foldTotals, setFoldTotals] = useState<FoldTotals | null>(null);
+  const [foldLoading, setFoldLoading] = useState(true);
+  const [foldError, setFoldError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -251,6 +274,33 @@ export default function MarginAndGrowthDashboard() {
       cancelled = true;
     };
   }, [authChecked, tableGran, selectedMonth]);
+
+  useEffect(() => {
+    if (!authChecked || activeTab !== 'fold') return;
+    let cancelled = false;
+    setFoldLoading(true);
+    setFoldError(null);
+    fetch('/api/margin-and-growth/fold-click')
+      .then(async (r) => {
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error || 'Failed to load');
+        return json;
+      })
+      .then((json) => {
+        if (cancelled) return;
+        setFold(json.data || []);
+        setFoldTotals(json.totals || null);
+      })
+      .catch((e) => {
+        if (!cancelled) setFoldError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setFoldLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authChecked, activeTab]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -363,37 +413,63 @@ export default function MarginAndGrowthDashboard() {
               🚀 Daily Wise Trend
             </h1>
             <p className="text-purple-200 text-sm mt-1">
-              Active buyers, order creation, and ordering buyers — bucketed by day, week, or month.
+              {activeTab === 'trend'
+                ? 'Active buyers, order creation, and ordering buyers — bucketed by day, week, or month.'
+                : 'Daily ₹1 fold clicks and how many of those buyers created a cart and placed an order.'}
             </p>
           </div>
-          {/* Range toggle */}
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
-            {RANGES.map((r) => (
+          {/* Range toggle — only applies to the trend tab */}
+          {activeTab === 'trend' && (
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+              {RANGES.map((r) => (
+                <button
+                  key={r.days}
+                  onClick={() => setDays(r.days)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                    days === r.days
+                      ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-[0_0_18px_rgba(217,70,239,0.45)]'
+                      : 'text-purple-200 hover:bg-white/10'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
               <button
-                key={r.days}
-                onClick={() => setDays(r.days)}
+                onClick={() => setDays(ytdDays)}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  days === r.days
+                  isYtd
                     ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-[0_0_18px_rgba(217,70,239,0.45)]'
                     : 'text-purple-200 hover:bg-white/10'
                 }`}
               >
-                {r.label}
+                YTD
               </button>
-            ))}
+            </div>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-6 flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10 w-fit">
+          {([
+            { value: 'trend' as const, label: 'Daily Wise Trend' },
+            { value: 'fold' as const, label: '₹1 Fold Click' },
+          ]).map((t) => (
             <button
-              onClick={() => setDays(ytdDays)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                isYtd
+              key={t.value}
+              onClick={() => setActiveTab(t.value)}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                activeTab === t.value
                   ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-[0_0_18px_rgba(217,70,239,0.45)]'
                   : 'text-purple-200 hover:bg-white/10'
               }`}
             >
-              YTD
+              {t.label}
             </button>
-          </div>
+          ))}
         </div>
 
+        {activeTab === 'trend' && (
+        <>
         {/* KPIs */}
         {summary && orderSummary && !mergedLoading && !mergedError && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -617,6 +693,78 @@ export default function MarginAndGrowthDashboard() {
             buyer counts match that table. Totals sum each bucket (a buyer active on multiple days is counted per day).
           </p>
         </div>
+        </>
+        )}
+
+        {/* ₹1 Fold Click → Cart → Order table */}
+        {activeTab === 'fold' && (
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-white">₹1 Fold Click → Cart → Order</h2>
+              <p className="text-xs text-purple-300/70 mt-0.5">
+                Each day: buyers who clicked the ₹1 fold, how many created a D2R intercity cart that
+                same day, and how many went on to place an order.
+              </p>
+            </div>
+
+            {foldLoading ? (
+              <div className="h-60 flex items-center justify-center text-purple-300 text-sm">Loading fold clicks…</div>
+            ) : foldError ? (
+              <div className="h-60 flex items-center justify-center text-rose-300 text-sm">Error: {foldError}</div>
+            ) : fold.length === 0 ? (
+              <div className="h-60 flex items-center justify-center text-purple-300/70 text-sm">No fold clicks for this window.</div>
+            ) : (
+              <div className="overflow-x-auto max-h-[32rem] overflow-y-auto rounded-xl border border-white/10">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-900/90 backdrop-blur text-purple-200">
+                    <tr className="text-left">
+                      <th className="px-4 py-3 font-semibold">Date</th>
+                      <th className="px-4 py-3 font-semibold text-right">Total Buyers Clicked Fold</th>
+                      <th className="px-4 py-3 font-semibold text-right">Buyers Who Created Cart</th>
+                      <th className="px-4 py-3 font-semibold text-right">Click to Cart %</th>
+                      <th className="px-4 py-3 font-semibold text-right">Buyers Who Placed Order</th>
+                      <th className="px-4 py-3 font-semibold text-right">Click to Placed %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {fold.map((r) => {
+                      const cartRate = pct(r.cartBuyers, r.totalClicked);
+                      const placedRate = pct(r.placedBuyers, r.totalClicked);
+                      return (
+                        <tr key={r.date} className="text-purple-100 hover:bg-white/5 transition-colors">
+                          <td className="px-4 py-2.5 font-medium whitespace-nowrap">{fmtBucket(r.date, 'day')}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(r.totalClicked)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(r.cartBuyers)}</td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${pctTone(cartRate, 20, 12)}`}>{cartRate.toFixed(2)}%</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(r.placedBuyers)}</td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${pctTone(placedRate, 12, 7)}`}>{placedRate.toFixed(2)}%</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  {foldTotals && (
+                    <tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15">
+                      <tr>
+                        <td className="px-4 py-3">Total</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{fmtInt(foldTotals.totalClicked)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{fmtInt(foldTotals.cartBuyers)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{fmtPct(foldTotals.cartBuyers, foldTotals.totalClicked)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{fmtInt(foldTotals.placedBuyers)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{fmtPct(foldTotals.placedBuyers, foldTotals.totalClicked)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            )}
+            <p className="text-[11px] text-purple-300/50 mt-3">
+              A buyer is counted under cart/order only if they created a cart / placed an order the
+              <span className="whitespace-nowrap"> same day</span> they clicked the fold. Carts/orders are scoped to D2R
+              THIRD_PARTY intercity sellers; test buyers/sellers excluded. “Placed” excludes DRAFT, REJECTED and
+              CANCELLED. Year to date.
+            </p>
+          </div>
+        )}
       </div>
 
       <style jsx>{`

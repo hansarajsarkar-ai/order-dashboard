@@ -398,8 +398,9 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
     a.wallet += Number(r.appliedWalletAmount) || 0; a.seller += Number(r.discountBySeller) || 0;
     a.badho += Number(r.PaymentOptionDiscountByBadho) || 0; a.cod += Number(r.codAmountToBeCollected) || 0;
     a.paid += Number(r.paidAmount) || 0; a.refund += Number(r.RefundAmount) || 0;
+    a.callSec += Number(r.callDurationSec) || 0;
     return a;
-  }, { po: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0 }), [filtered]);
+  }, { po: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0, callSec: 0 }), [filtered]);
 
   const chip = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] border border-slate-300 font-medium';
 
@@ -593,23 +594,32 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
                       const cell = 'sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap';
                       const num = `${cell} text-right tabular-nums`;
                       const m = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+                      // One cell per thead column (37 total), so the money totals
+                      // sit exactly under their columns.
                       return (
                         <>
-                          <td className={`${cell} left-0 z-30 min-w-[160px] uppercase tracking-wider`}>Total</td>
-                          <td className={cell}>{(filtered?.length ?? 0).toLocaleString('en-IN')} orders</td>
-                          <td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} />
-                          <td className={num}>{m(totals.po)}</td>
-                          <td className={num}>{m(totals.coupon)}</td>
-                          <td className={num}>{m(totals.wallet)}</td>
-                          <td className={num}>{m(totals.seller)}</td>
-                          <td className={num}>{m(totals.badho)}</td>
-                          <td className={num}>{m(totals.cod)}</td>
-                          <td className={cell} />
-                          <td className={num}>{m(totals.paid)}</td>
+                          {/* 1 Marked Pending */}<td className={`${cell} left-0 z-30 min-w-[160px] uppercase tracking-wider`}>Total</td>
+                          {/* 2 Pushed */}<td className={cell}>{(filtered?.length ?? 0).toLocaleString('en-IN')} orders</td>
+                          {/* 3 PO Number */}<td className={cell} />
+                          {/* 4 Call Duration */}<td className={`${cell} text-purple-50`}>{fmtDur(totals.callSec) ?? dash}</td>
+                          {/* 5 Recording */}<td className={cell} />
+                          {/* 6 Items */}<td className={cell} />
+                          {/* 7 View Ticket */}<td className={cell} />
+                          {/* 8 Order Status */}<td className={cell} />
+                          {/* 9 PO Amount */}<td className={num}>{m(totals.po)}</td>
+                          {/* 10 Coupon */}<td className={num}>{m(totals.coupon)}</td>
+                          {/* 11 Wallet */}<td className={num}>{m(totals.wallet)}</td>
+                          {/* 12 Seller Discount */}<td className={num}>{m(totals.seller)}</td>
+                          {/* 13 Badho Discount */}<td className={num}>{m(totals.badho)}</td>
+                          {/* 14 COD */}<td className={num}>{m(totals.cod)}</td>
+                          {/* 15 Delivery Status */}<td className={cell} />
+                          {/* 16 Paid Amount */}<td className={num}>{m(totals.paid)}</td>
+                          {/* 17-30 Payment Option … Refund Completed (14) */}
                           <td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} />
                           <td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} />
-                          <td className={cell} /><td className={cell} /><td className={cell} />
-                          <td className={num}>{m(totals.refund)}</td>
+                          <td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} />
+                          {/* 31 Refund Amount */}<td className={num}>{m(totals.refund)}</td>
+                          {/* 32-37 Reject Reason … Latest Scan 3 (6) */}
                           <td className={cell} /><td className={cell} /><td className={cell} />
                           <td className={cell} /><td className={cell} /><td className={cell} />
                         </>

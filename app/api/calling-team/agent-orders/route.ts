@@ -1,12 +1,14 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { queryNoNestloop } from '@/lib/db';
 import { parseFilters, buildWhere } from '../_filters';
 
 export const dynamic = 'force-dynamic';
 
 // Agent-wise order summary: per agent on the Warm/Cold lead campaigns, calls
 // initiated (outbound) vs connected vs buyers who placed a same-day qualified
-// D2R intercity order (order placement = markedPendingTime).
+// D2R intercity order (order placement = markedPendingTime). Orders are
+// attributed last-touch — each order goes to the agent of the most recent
+// answered call to that buyer that day — so no order double-counts across agents.
 export async function GET(req: NextRequest) {
   const f = parseFilters(req);
   const { sql: where, params } = buildWhere(f);
@@ -22,7 +24,7 @@ export async function GET(req: NextRequest) {
   const pEnd = params.push(endExclusive.toISOString());
 
   try {
-    const rows = await query<{
+    const rows = await queryNoNestloop<{
       agent_name: string;
       total_calls: string;
       unique_buyer_attempt: string;
@@ -43,6 +45,7 @@ export async function GET(req: NextRequest) {
             THEN RIGHT(REGEXP_REPLACE(SPLIT_PART(call_to_number, '-', 1), '[^0-9]', '', 'g'), 10)
             ELSE RIGHT(REGEXP_REPLACE(call_to_number, '[^0-9]', '', 'g'), 10) END AS phone,
           start_date::date AS call_date,
+          start_stamp::timestamp AS call_ts,
           (call_status = 'Answer') AS connected,
           COALESCE(NULLIF(duration,'')::int, 0) AS dur
         FROM "smartFlo"."call_logs"
@@ -65,9 +68,6 @@ export async function GET(req: NextRequest) {
           SUM(dur) AS total_talk_time
         FROM base GROUP BY agent_name
       ),
-      connected_calls AS MATERIALIZED (
-        SELECT DISTINCT agent_name, phone, call_date FROM base WHERE connected
-      ),
       buyer_orders AS MATERIALIZED (
         -- Qualified D2R intercity (third-party) orders, placement = markedPendingTime.
         -- Index-friendly markedPendingTime bounds derived from the IST call window;
@@ -89,14 +89,27 @@ export async function GET(req: NextRequest) {
           AND po."isTest" = FALSE AND po."isFalseOrder" = FALSE
           AND po."deliveryNetwork" = 'THIRD_PARTY' AND po."deliveryType" = 'INTERCITY'
       ),
+      assigned AS (
+        -- Last-touch: each order to the agent of the most recent answered call
+        -- to that buyer that day (tiebreak: longest call, then agent name).
+        SELECT po_number, phone, agent_name FROM (
+          SELECT o.po_number, o.phone, b.agent_name,
+            ROW_NUMBER() OVER (
+              PARTITION BY o.po_number
+              ORDER BY b.call_ts DESC, b.dur DESC, b.agent_name
+            ) AS rn
+          FROM base b
+          JOIN buyer_orders o ON o.phone = b.phone AND o.order_date = b.call_date
+          WHERE b.connected
+        ) x WHERE rn = 1
+      ),
       order_placed AS (
         SELECT
-          cc.agent_name,
-          COUNT(DISTINCT cc.phone) AS order_placed_buyer,
-          COUNT(DISTINCT o.po_number) AS order_count
-        FROM connected_calls cc
-        JOIN buyer_orders o ON o.phone = cc.phone AND o.order_date = cc.call_date
-        GROUP BY cc.agent_name
+          agent_name,
+          COUNT(DISTINCT phone) AS order_placed_buyer,
+          COUNT(DISTINCT po_number) AS order_count
+        FROM assigned
+        GROUP BY agent_name
       )
       SELECT
         a.agent_name,

@@ -30,16 +30,15 @@ export async function GET(req: NextRequest) {
             THEN RIGHT(REGEXP_REPLACE(SPLIT_PART(call_to_number, '-', 1), '[^0-9]', '', 'g'), 10)
             ELSE RIGHT(REGEXP_REPLACE(call_to_number, '[^0-9]', '', 'g'), 10) END AS phone,
           start_date::date AS call_date,
-          (call_status = 'Answer') AS connected
+          start_stamp::timestamp AS call_ts,
+          (call_status = 'Answer') AS connected,
+          COALESCE(NULLIF(duration,'')::int, 0) AS dur
         FROM "smartFlo"."call_logs"
         WHERE ${where}
           AND (LOWER(direction) = 'outbound' OR direction = 'Manual')
           AND campaign_name IN ('Warm_Lead', 'Cold Lead Campaign')
           AND agent_name IS NOT NULL AND agent_name <> ''
           AND call_to_number IS NOT NULL AND call_to_number <> ''
-      ),
-      connected_calls AS MATERIALIZED (
-        SELECT DISTINCT agent_name, phone, call_date FROM ct WHERE connected
       ),
       buyer_orders AS MATERIALIZED (
         SELECT
@@ -58,14 +57,27 @@ export async function GET(req: NextRequest) {
           AND s."businessName" NOT ILIKE '%milko%'
           AND po."isTest" = FALSE AND po."isFalseOrder" = FALSE
           AND po."deliveryNetwork" = 'THIRD_PARTY' AND po."deliveryType" = 'INTERCITY'
+      ),
+      assigned AS (
+        -- Last-touch: each order to the agent of the most recent answered call
+        -- to that buyer that day (tiebreak: longest call, then agent name).
+        SELECT po_number, agent_name, day FROM (
+          SELECT o.po_number, b.agent_name, o.order_date AS day,
+            ROW_NUMBER() OVER (
+              PARTITION BY o.po_number
+              ORDER BY b.call_ts DESC, b.dur DESC, b.agent_name
+            ) AS rn
+          FROM ct b
+          JOIN buyer_orders o ON o.phone = b.phone AND o.order_date = b.call_date
+          WHERE b.connected
+        ) x WHERE rn = 1
       )
       SELECT
-        cc.agent_name,
-        cc.call_date::text AS day,
-        COUNT(DISTINCT o.po_number)::text AS order_count
-      FROM connected_calls cc
-      JOIN buyer_orders o ON o.phone = cc.phone AND o.order_date = cc.call_date
-      GROUP BY cc.agent_name, cc.call_date
+        agent_name,
+        day::text AS day,
+        COUNT(DISTINCT po_number)::text AS order_count
+      FROM assigned
+      GROUP BY agent_name, day
       `,
       params,
     );

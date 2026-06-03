@@ -60,6 +60,22 @@ const fmtDateTime = (s: string | null | undefined) => {
 };
 const fmtMoney = (n: number | null | undefined) =>
   n != null ? `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : null;
+// Clickable AWB → Delhivery shipment tracking (matches the order-dashboard drill).
+const awbLink = (awb: string | null | undefined) =>
+  awb ? (
+    <a
+      href={`https://one.delhivery.com/shipments/forward/${encodeURIComponent(awb)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+      title="Track this shipment on Delhivery"
+    >
+      {awb}
+    </a>
+  ) : (
+    <span className="text-slate-400">—</span>
+  );
 
 // One order row in the Daily-Orders drill-down (order detail + the attributing call).
 interface DrillOrderRow {
@@ -1858,6 +1874,9 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
                               Ticket ↗
                             </a>
                           </div>
+                          <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
+                            AWB: {awbLink(r.awbNumber)}
+                          </div>
                         </td>
                         <td className="px-2.5 py-2 whitespace-nowrap bg-purple-50/40">
                           <div className="font-semibold text-purple-800 tabular-nums">{r.callDurationSec != null ? fmtDuration(r.callDurationSec) : dash}</div>
@@ -1886,7 +1905,7 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
                         <td className="px-2.5 py-2 whitespace-nowrap">{r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : dash}</td>
                         <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? fmtMoney(r.paidAmount) : dash}</td>
                         <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || dash}</td>
-                        <td className="px-2.5 py-2 tabular-nums whitespace-nowrap text-slate-700">{r.awbNumber || dash}</td>
+                        <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">{awbLink(r.awbNumber)}</td>
                         <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || dash}</td>
                         <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate ? fmtDateTime(r.paymentDate) : dash}</td>
                         <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || dash}</td>

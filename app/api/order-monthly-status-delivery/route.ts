@@ -120,6 +120,8 @@ export async function GET(req: NextRequest) {
       data,
       totals: { byMonth, grand },
       year,
+      query: sql.trim(),
+      queryParams: params,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

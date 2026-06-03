@@ -151,6 +151,8 @@ interface MonthlyStatusDeliveryData {
     grand: MonthCell;
   };
   year: number;
+  query?: string;
+  queryParams?: (string | number)[];
 }
 
 interface DeliveryWeekSubRow {
@@ -170,6 +172,8 @@ interface WeeklyStatusDeliveryData {
   weekStartLabels: Record<string, string>;
   totals: { byWeek: Record<string, MonthCell>; grand: MonthCell };
   year: number;
+  query?: string;
+  queryParams?: (string | number)[];
 }
 
 interface DeliveryDaySubRow {
@@ -189,6 +193,8 @@ interface DailyStatusDeliveryData {
   year: number;
   month: number;
   daysInMonth: number;
+  query?: string;
+  queryParams?: (string | number)[];
 }
 
 interface SellerRow {
@@ -382,6 +388,8 @@ export default function OrderStatusDashboard() {
   const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(new Set());
   // Granularity for the Status × Delivery Status pivot
   const [pivotGranularity, setPivotGranularity] = useState<'month' | 'week' | 'day'>('month');
+  // Toggle to reveal the raw SQL query behind the Monthly Breakdown by Order Status pivot
+  const [showPivotQuery, setShowPivotQuery] = useState(false);
   const [pivotDayMonth, setPivotDayMonth] = useState<number>(new Date().getMonth() + 1);
   // "Filter to selected months" for the Monthly Breakdown by Order Status pivot
   // (empty = all months). Applies to Month & Week views; Day view keeps its
@@ -3636,6 +3644,16 @@ export default function OrderStatusDashboard() {
                   ))}
                 </select>
               )}
+              <button
+                onClick={() => setShowPivotQuery((v) => !v)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                  showPivotQuery
+                    ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white border-transparent shadow-[0_0_18px_rgba(217,70,239,0.5)]'
+                    : 'text-purple-200 border-white/10 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                {showPivotQuery ? 'Hide Query' : 'View Query'}
+              </button>
             </div>
             {pivotGranularity === 'month' && pivotData && (
               <div className="flex items-center gap-6 text-sm">
@@ -3734,6 +3752,45 @@ export default function OrderStatusDashboard() {
               </div>
             )}
           </div>
+          {showPivotQuery && (() => {
+            const active =
+              pivotGranularity === 'month' ? pivotData
+              : pivotGranularity === 'week' ? pivotWeekData
+              : pivotDayData;
+            const sql = active?.query;
+            const sqlParams = active?.queryParams;
+            return (
+              <div className="px-8 py-5 border-b border-white/10 bg-slate-950/60">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-purple-300 text-xs uppercase tracking-wider font-semibold">
+                    SQL Query — {pivotGranularity} view
+                  </p>
+                  {sql && (
+                    <button
+                      onClick={() => navigator.clipboard?.writeText(sql)}
+                      className="px-3 py-1 rounded-lg text-[11px] font-semibold text-purple-200 border border-white/10 bg-white/5 hover:bg-white/10 transition-all"
+                    >
+                      Copy
+                    </button>
+                  )}
+                </div>
+                {sql ? (
+                  <>
+                    <pre className="text-[11px] leading-relaxed text-emerald-200/90 font-mono whitespace-pre-wrap overflow-x-auto max-h-[480px] overflow-y-auto bg-black/40 rounded-xl p-4 border border-white/10">
+{sql}
+                    </pre>
+                    {sqlParams && sqlParams.length > 0 && (
+                      <p className="text-purple-300/70 text-[11px] mt-2 font-mono">
+                        params: [{sqlParams.map((p) => JSON.stringify(p)).join(', ')}]
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-purple-300 text-xs">Query unavailable — load this view first.</p>
+                )}
+              </div>
+            );
+          })()}
           <div className="overflow-x-auto">
             {pivotGranularity === 'month' && (
             <>

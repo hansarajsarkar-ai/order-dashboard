@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
 
     const daysInMonth = new Date(year, month, 0).getDate();
 
-    return NextResponse.json({ data, totals: { byDay, grand }, year, month, daysInMonth, timestamp: new Date().toISOString() });
+    return NextResponse.json({ data, totals: { byDay, grand }, year, month, daysInMonth, query: sql.trim(), queryParams: [year, month], timestamp: new Date().toISOString() });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err) || 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });

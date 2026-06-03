@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
 
     const weeks = Object.keys(byWeek).map(Number).sort((a, b) => a - b);
 
-    return NextResponse.json({ data, weeks, weekStartLabels, totals: { byWeek, grand }, year, timestamp: new Date().toISOString() });
+    return NextResponse.json({ data, weeks, weekStartLabels, totals: { byWeek, grand }, year, query: sql.trim(), queryParams: params, timestamp: new Date().toISOString() });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err) || 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });

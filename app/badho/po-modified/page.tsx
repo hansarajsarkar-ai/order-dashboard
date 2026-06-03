@@ -83,6 +83,37 @@ export default function PoModifiedDashboard() {
   const [search, setSearch] = useState('');
   const [drill, setDrill] = useState<{ po: PoRow; items: ItemRow[] | null } | null>(null);
   const [drillLoading, setDrillLoading] = useState(false);
+  const [editPo, setEditPo] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [savingInform, setSavingInform] = useState(false);
+  const [informError, setInformError] = useState<string | null>(null);
+
+  const saveInform = async (poNumber: string) => {
+    setSavingInform(true);
+    setInformError(null);
+    try {
+      const res = await fetch('/api/po-modified/inform', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poNumber,
+          text: draft,
+          employeeId: typeof window !== 'undefined' ? localStorage.getItem('employeeId') : null,
+          employeeEmail: typeof window !== 'undefined' ? localStorage.getItem('employeeEmail') : null,
+          employeeName: typeof window !== 'undefined' ? localStorage.getItem('employeeName') : null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      setResp((prev) => prev ? { ...prev, data: prev.data.map((d) => d.poNumber === poNumber ? { ...d, buyerInformed: json.value } : d) } : prev);
+      setEditPo(null);
+      setDraft('');
+    } catch (err) {
+      setInformError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSavingInform(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -363,10 +394,29 @@ export default function PoModifiedDashboard() {
                       <div className="truncate">{r.buyerBusiness ?? '—'}</div>
                       <div className="text-[11px] text-sky-300/80 tabular-nums">{r.buyerPhone ?? ''}</div>
                     </td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap">
-                      {r.buyerInformed ? (
-                        <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-400/30">{r.buyerInformed}</span>
-                      ) : <span className="text-purple-300/40">—</span>}
+                    <td className="px-4 py-3 text-xs" onClick={(e) => e.stopPropagation()}>
+                      {editPo === r.poNumber ? (
+                        <div className="flex items-center gap-1 min-w-[240px]">
+                          <input
+                            autoFocus
+                            value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !savingInform) saveInform(r.poNumber!); if (e.key === 'Escape') { setEditPo(null); setInformError(null); } }}
+                            placeholder="Enter remark…"
+                            className="flex-1 min-w-0 bg-white/10 border border-fuchsia-400/40 rounded-md px-2 py-1 text-xs text-white placeholder-purple-300/40 focus:outline-none focus:ring-1 focus:ring-fuchsia-400/50"
+                          />
+                          <button onClick={() => saveInform(r.poNumber!)} disabled={savingInform} className="px-2 py-1 rounded-md bg-emerald-500/25 hover:bg-emerald-500/40 border border-emerald-400/40 text-emerald-100 text-[11px] font-bold disabled:opacity-50">{savingInform ? '…' : 'Save'}</button>
+                          <button onClick={() => { setEditPo(null); setInformError(null); }} className="px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 text-purple-200 text-[11px]">✕</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          {r.buyerInformed ? (
+                            <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-400/30 max-w-[280px] truncate" title={r.buyerInformed}>{r.buyerInformed}</span>
+                          ) : <span className="text-purple-300/40">—</span>}
+                          <button onClick={() => { setEditPo(r.poNumber); setDraft(''); setInformError(null); }} title="Add / edit remark" className="px-1.5 py-0.5 rounded text-[11px] text-fuchsia-300 hover:text-white hover:bg-fuchsia-500/20 border border-transparent hover:border-fuchsia-400/30">✎</button>
+                        </div>
+                      )}
+                      {editPo === r.poNumber && informError && <div className="text-[10px] text-rose-300 mt-1 max-w-[260px]">{informError}</div>}
                     </td>
                   </tr>
                 ))}

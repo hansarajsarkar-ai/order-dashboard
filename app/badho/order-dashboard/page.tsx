@@ -298,6 +298,18 @@ const formatAmount = (n: number): string => {
   return `₹${n.toFixed(0)}`;
 };
 
+// Buckets the "days stuck at destination hub" value (daysSinceReachedAtDestination)
+// for the Hub Tracking "Stuck time" filter. Returns null when unknown.
+const hubStuckBucketOf = (d: number | null | undefined): string | null => {
+  if (d == null) return null;
+  if (d < 1) return '<1';
+  if (d < 2) return '1-2';
+  if (d < 3) return '2-3';
+  if (d < 4) return '3-4';
+  if (d < 5) return '4-5';
+  return '5+';
+};
+
 // Compact stat shown in the filtered-summary bars above order tables.
 const SummaryStat = ({ label, value }: { label: string; value: string }) => (
   <div className="flex items-baseline gap-1.5">
@@ -1431,6 +1443,8 @@ export default function OrderStatusDashboard() {
   const [hubAttemptFilter, setHubAttemptFilter] = useState<Set<string>>(new Set());
   const [hubStuckOnly, setHubStuckOnly] = useState(false);
   const [hubMinDays, setHubMinDays] = useState<number | ''>('');
+  const [hubStuckBucketFilter, setHubStuckBucketFilter] = useState<Set<string>>(new Set());
+  const [hubStuckSort, setHubStuckSort] = useState<'none' | 'desc' | 'asc'>('none');
   const [hubPage, setHubPage] = useState(1);
   const [hubSize, setHubSize] = useState(50);
   const [hubExpanded, setHubExpanded] = useState<Set<string>>(new Set());
@@ -2158,7 +2172,7 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, rtoSubTab]);
 
-  useEffect(() => { setHubPage(1); }, [hubSearch, hubShipmentFilter, hubBrandFilter, hubPaymentFilter, hubAttemptFilter, hubStuckOnly, hubMinDays, hubSize]);
+  useEffect(() => { setHubPage(1); }, [hubSearch, hubShipmentFilter, hubBrandFilter, hubPaymentFilter, hubAttemptFilter, hubStuckOnly, hubMinDays, hubStuckBucketFilter, hubStuckSort, hubSize]);
 
   const filteredHubRows = (() => {
     if (!hubData) return null;
@@ -2203,6 +2217,23 @@ export default function OrderStatusDashboard() {
     if (hubMinDays !== '' && !Number.isNaN(Number(hubMinDays))) {
       const min = Number(hubMinDays);
       out = out.filter((r) => r.daysSinceReachedAtDestination != null && r.daysSinceReachedAtDestination >= min);
+    }
+    if (hubStuckBucketFilter.size > 0) {
+      out = out.filter((r) => {
+        const b = hubStuckBucketOf(r.daysSinceReachedAtDestination);
+        return b != null && hubStuckBucketFilter.has(b);
+      });
+    }
+    if (hubStuckSort !== 'none') {
+      const dir = hubStuckSort === 'asc' ? 1 : -1;
+      out = [...out].sort((a, b) => {
+        const av = a.daysSinceReachedAtDestination;
+        const bv = b.daysSinceReachedAtDestination;
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;   // unknowns always last
+        if (bv == null) return -1;
+        return (av - bv) * dir;
+      });
     }
     return out;
   })();
@@ -6612,6 +6643,48 @@ export default function OrderStatusDashboard() {
                       {hubAttemptFilter.size > 0 && (
                         <button onClick={() => setHubAttemptFilter(new Set())} className="px-2 py-1 rounded text-[10px] font-bold bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25">✕ Clear</button>
                       )}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-purple-300/70 mt-1.5 w-20 shrink-0">Stuck time</span>
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      {([
+                        { key: '<1',  label: '< 1 day' },
+                        { key: '1-2', label: '1–2 days' },
+                        { key: '2-3', label: '2–3 days' },
+                        { key: '3-4', label: '3–4 days' },
+                        { key: '4-5', label: '4–5 days' },
+                        { key: '5+',  label: '> 5 days' },
+                      ] as const).map((opt) => {
+                        const active = hubStuckBucketFilter.has(opt.key);
+                        const count = hubData?.data.filter((r) => hubStuckBucketOf(r.daysSinceReachedAtDestination) === opt.key).length ?? 0;
+                        const accent = opt.key === '<1'
+                          ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30'
+                          : opt.key === '1-2' || opt.key === '2-3'
+                            ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'
+                            : 'bg-rose-500/15 text-rose-200 border-rose-400/30';
+                        return (
+                          <button key={opt.key} onClick={() => toggleSet(hubStuckBucketFilter, opt.key, setHubStuckBucketFilter)} className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${active ? `${accent} ring-1 ring-fuchsia-400/40 brightness-125` : 'bg-white/5 text-purple-200/80 border-white/10 hover:bg-white/10 hover:text-white'}`}>
+                            {opt.label} <span className="opacity-60 tabular-nums">({count})</span>
+                          </button>
+                        );
+                      })}
+                      {hubStuckBucketFilter.size > 0 && (
+                        <button onClick={() => setHubStuckBucketFilter(new Set())} className="px-2 py-1 rounded text-[10px] font-bold bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25">✕ Clear</button>
+                      )}
+                      <span className="w-px h-5 bg-white/15 mx-1"></span>
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-purple-300/50">Sort</span>
+                      {([
+                        { key: 'desc', label: 'High → Low' },
+                        { key: 'asc',  label: 'Low → High' },
+                      ] as const).map((opt) => {
+                        const active = hubStuckSort === opt.key;
+                        return (
+                          <button key={opt.key} onClick={() => setHubStuckSort(active ? 'none' : opt.key)} className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${active ? 'bg-fuchsia-500/25 text-fuchsia-100 border-fuchsia-400/60 ring-1 ring-fuchsia-400/40' : 'bg-white/5 text-purple-200/80 border-white/10 hover:bg-white/10 hover:text-white'}`}>
+                            {opt.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

@@ -77,6 +77,12 @@ interface AgentRow {
   usersCalled: number; sameDayUsers: number; sameDayRate: number;
   timeslotUsers: number; timeslotRate: number; orderCount: number; gmv: number;
 }
+interface AgentOrderRow {
+  agentName: string; totalCalls: number; uniqueBuyerAttempt: number;
+  connected: number; connectedRate: number; connectedUniqueBuyer: number;
+  orderPlacedBuyer: number; orderConvRate: number; avgHaltingCall: number;
+  connectedGte15: number; connectedLt15: number; totalTalkTime: number;
+}
 interface DistBucket { bucket: string; customers: number; }
 interface Reach { total: number; reachable: number; unreachable: number; frequentlyMissed: number; }
 interface DurBucket { bucket: string; calls: number; }
@@ -109,7 +115,7 @@ interface LogsResp {
 
 // ───────────────────────── filters bar ─────────────────────────
 
-type Tab = 'dashboard' | 'analytics' | 'daily' | 'logs' | 'table';
+type Tab = 'dashboard' | 'analytics' | 'daily' | 'logs' | 'table' | 'orders';
 
 // Per-day types used by the Daily Trend tab.
 export interface DailyDetailedRow {
@@ -781,6 +787,12 @@ export default function CallingTeamDashboard() {
             >
               📑 Agent Wise
             </button>
+            <button
+              onClick={() => setTab('orders')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'orders' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+            >
+              🧾 Agent Wise Order
+            </button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {DATE_PRESETS.map((p) => {
@@ -930,6 +942,10 @@ export default function CallingTeamDashboard() {
 
         {tab === 'table' && (
           <TableTab filters={filters} />
+        )}
+
+        {tab === 'orders' && (
+          <AgentOrdersTab filters={filters} />
         )}
       </div>
 
@@ -1115,6 +1131,177 @@ function TableTab({ filters }: { filters: Filters }) {
                 </td>
                 <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.orderCount)}</td>
                 <td className="py-2 px-2 text-right text-fuchsia-200 tabular-nums">₹{fmtCompact(a.gmv)}</td>
+              </tr>
+            ))}
+            {!loading && !rows.length && (
+              <tr>
+                <td colSpan={COLS.length + 2} className="py-8 text-center text-purple-300/50">
+                  {agents.length ? 'No agents match your search.' : 'No agent data for this range.'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Tab: Agent Wise Order ─────────────────────────
+
+function AgentOrdersTab({ filters }: { filters: Filters }) {
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<{ col: keyof AgentOrderRow; dir: 'asc' | 'desc' }>({ col: 'totalCalls', dir: 'desc' });
+  const [period, setPeriod] = useState<AgentPeriod>('day');
+  const [agents, setAgents] = useState<AgentOrderRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const range = agentPeriodRange(period);
+  const qs = useMemo(
+    () => buildQs({ ...filters, ...agentPeriodRange(period) }),
+    [period, filters],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/calling-team/agent-orders?${qs}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setAgents(d.agents || []); })
+      .catch(() => { if (!cancelled) setAgents([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [qs]);
+
+  const COLS: [keyof AgentOrderRow, string][] = [
+    ['totalCalls', 'Total Calls Initiated'],
+    ['uniqueBuyerAttempt', 'Unique Buyer Attempt'],
+    ['connected', 'Connected'],
+    ['connectedRate', 'Connected %'],
+    ['connectedUniqueBuyer', 'Connected Unique Buyer'],
+    ['orderPlacedBuyer', 'Order Placed Buyer'],
+    ['orderConvRate', 'Order Placed / Conn. Uniq.'],
+    ['avgHaltingCall', 'Avg Halting Call'],
+    ['connectedGte15', '≥15s Connected'],
+    ['connectedLt15', '<15s Connected'],
+    ['totalTalkTime', 'Total Talk Time'],
+  ];
+
+  const rows = agents
+    .filter((a) => a.agentName.toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((a, b) => {
+      const av = a[sort.col], bv = b[sort.col];
+      const cmp = typeof av === 'string' && typeof bv === 'string'
+        ? av.localeCompare(bv)
+        : Number(av) - Number(bv);
+      return sort.dir === 'desc' ? -cmp : cmp;
+    });
+
+  const toggleSort = (col: keyof AgentOrderRow) =>
+    setSort((s) => ({ col, dir: s.col === col && s.dir === 'desc' ? 'asc' : 'desc' }));
+
+  const exportCsv = () => {
+    const header = ['Agent', ...COLS.map(([, label]) => label)];
+    const lines = rows.map((a) => [
+      `"${a.agentName.replace(/"/g, '""')}"`,
+      a.totalCalls, a.uniqueBuyerAttempt, a.connected, (a.connectedRate * 100).toFixed(1) + '%',
+      a.connectedUniqueBuyer, a.orderPlacedBuyer, (a.orderConvRate * 100).toFixed(1) + '%',
+      a.avgHaltingCall, a.connectedGte15, a.connectedLt15, a.totalTalkTime,
+    ].join(','));
+    const csv = [header.join(','), ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'calling-team-agent-orders.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-purple-100">Agent Wise Order</h2>
+          <p className="text-purple-300/70 text-xs mt-0.5">
+            {loading
+              ? 'Loading…'
+              : `${AGENT_PERIOD_LABEL[period]} (${range.startDate} → ${range.endDate}) · outbound calls · ${rows.length} of ${agents.length} agents — click a column to sort`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-0.5 bg-white/5 border border-white/10 rounded-lg p-0.5">
+            {(['day', 'week', 'month'] as AgentPeriod[]).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                  period === p
+                    ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow'
+                    : 'text-purple-200 hover:bg-white/5'
+                }`}
+              >
+                {p === 'day' ? 'Day' : p === 'week' ? 'Week' : 'Month'}
+              </button>
+            ))}
+          </div>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search agent…"
+            className="px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 text-purple-100 placeholder:text-purple-300/40 focus:outline-none focus:border-purple-400/40"
+          />
+          <button
+            onClick={exportCsv}
+            disabled={!rows.length}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border border-fuchsia-400/30 text-fuchsia-200 disabled:opacity-40"
+          >
+            ⬇ Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="text-purple-300/70 uppercase tracking-wider text-[10px] border-b border-white/10">
+            <tr>
+              <th className="text-left py-2 pr-2">#</th>
+              <th className="text-left py-2 pr-2">Agent</th>
+              {COLS.map(([col, label]) => (
+                <th
+                  key={col}
+                  className="text-right py-2 px-2 cursor-pointer hover:text-purple-100 select-none"
+                  onClick={() => toggleSort(col)}
+                >
+                  {label} {sort.col === col ? (sort.dir === 'desc' ? '↓' : '↑') : ''}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((a, i) => (
+              <tr key={a.agentName} className="border-b border-white/5 hover:bg-white/5">
+                <td className="py-2 pr-2 text-purple-300/60">{i + 1}</td>
+                <td className="py-2 pr-2 text-purple-100 font-medium">{a.agentName}</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(a.totalCalls)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.uniqueBuyerAttempt)}</td>
+                <td className="py-2 px-2 text-right text-emerald-300 tabular-nums">{fmtInt(a.connected)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">
+                  <span className={a.connectedRate >= 0.6 ? 'text-emerald-300' : a.connectedRate >= 0.4 ? 'text-amber-300' : 'text-rose-300'}>
+                    {fmtPct(a.connectedRate, 1)}
+                  </span>
+                </td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.connectedUniqueBuyer)}</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(a.orderPlacedBuyer)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">
+                  <span className={a.orderConvRate >= 0.1 ? 'text-emerald-300' : a.orderConvRate >= 0.05 ? 'text-amber-300' : 'text-rose-300'}>
+                    {fmtPct(a.orderConvRate, 1)}
+                  </span>
+                </td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtDuration(a.avgHaltingCall)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.connectedGte15)}</td>
+                <td className="py-2 px-2 text-right text-rose-200/80 tabular-nums">{fmtInt(a.connectedLt15)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtTalkTime(a.totalTalkTime)}</td>
               </tr>
             ))}
             {!loading && !rows.length && (

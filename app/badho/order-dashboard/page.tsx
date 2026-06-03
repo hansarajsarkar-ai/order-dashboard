@@ -474,6 +474,10 @@ export default function OrderStatusDashboard() {
   const [pivotDrillCourierFilter, setPivotDrillCourierFilter] = useState<Set<string>>(new Set());
   const [pivotDrillDeliveryFilter, setPivotDrillDeliveryFilter] = useState<Set<string>>(new Set());
   const [pivotDrillSort, setPivotDrillSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  // State-wise pivot drill context (overrides the drill modal title when set).
+  const [pivotDrillStateName, setPivotDrillStateName] = useState<string | null>(null);
+  const [pivotDrillBucketLabel, setPivotDrillBucketLabel] = useState<string | null>(null);
+  const [pivotDrillMonthLabel, setPivotDrillMonthLabel] = useState<string | null>(null);
   // Last 3 Scan Locations — batch-loaded for all drill rows, rendered as 3 inline columns.
   const [scansByPo, setScansByPo] = useState<Record<string, Scan[]>>({});
   const [scansLoading, setScansLoading] = useState(false);
@@ -2506,8 +2510,80 @@ export default function OrderStatusDashboard() {
     setPivotDrillRows(null);
     setPivotDrillError(null);
     setPivotDrillSearch('');
+    setPivotDrillStateName(null);
+    setPivotDrillBucketLabel(null);
+    setPivotDrillMonthLabel(null);
     setGroupByDims([]);
     setScansByPo({});
+  };
+
+  // State-wise pivot drill: click a (state, month, status-bucket) cell → open the
+  // same order-list drill modal, filtered to that exact slice. Mirrors the pivot's
+  // own bucket definitions so the modal's row count reconciles with the cell.
+  const STATEWISE_BUCKETS: Record<string, { status: string; exclude: string; label: string }> = {
+    punched:   { status: '',                    exclude: '',                                       label: 'Punched' },
+    delivered: { status: 'DELIVERED,COMPLETED', exclude: '',                                       label: 'Delivered' },
+    rejected:  { status: 'REJECTED',            exclude: '',                                       label: 'Rejected' },
+    cancelled: { status: 'CANCELLED',           exclude: '',                                       label: 'Cancelled' },
+    inflight:  { status: '',                    exclude: 'DELIVERED,COMPLETED,REJECTED,CANCELLED', label: 'In-flight' },
+  };
+  const STATEWISE_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const openStateMonthDrill = async (stateName: string | null, ym: string, bucketKey: string) => {
+    const bucket = STATEWISE_BUCKETS[bucketKey];
+    if (!bucket) return;
+    const monthLabel = ym === '__total__'
+      ? 'All months'
+      : (() => { const [y, m] = ym.split('-'); return `${STATEWISE_MON[parseInt(m, 10) - 1]} '${y.slice(2)}`; })();
+
+    setPivotDrillOpen(true);
+    setPivotDrillStatus(bucket.status);
+    setPivotDrillDelivery(undefined);
+    setPivotDrillMonth(null);
+    setPivotDrillDay(null);
+    setPivotDrillWeek(null);
+    setPivotDrillWeekLabel(null);
+    setPivotDrillZone(null);
+    setPivotDrillStateName(stateName ?? 'All states');
+    setPivotDrillBucketLabel(bucket.label);
+    setPivotDrillMonthLabel(monthLabel);
+    setPivotDrillRows(null);
+    setPivotDrillError(null);
+    setPivotDrillSearch('');
+    setPivotDrillPushedFilter('all');
+    setPivotDrillRejectReasonFilter(new Set());
+    setPivotDrillCourierFilter(new Set());
+    setPivotDrillDeliveryFilter(new Set());
+    setPivotDrillPaymentFilter(new Set());
+    setPivotDrillSort(null);
+    setPivotDrillLoading(true);
+    try {
+      const params = new URLSearchParams({ year: String(currentYear) });
+      if (bucket.status) params.append('status', bucket.status);
+      if (bucket.exclude) params.append('excludeStatus', bucket.exclude);
+      if (stateName) params.append('state', stateName);
+      if (ym === '__total__') {
+        const { startDate, endDate } = resolveStateRange();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+      } else {
+        const [y, m] = ym.split('-');
+        const lastDay = new Date(parseInt(y, 10), parseInt(m, 10), 0).getDate();
+        params.append('startDate', `${ym}-01`);
+        params.append('endDate', `${ym}-${String(lastDay).padStart(2, '0')}`);
+      }
+      const brands = selectedBrandNames.join(',');
+      if (brands) params.append('brand', brands);
+      const res = await fetch(`/api/order-list?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to fetch');
+      setPivotDrillRows(json.data);
+      fetchScansBatch((json.data as OrderListRow[]).map((r) => r.poNumber).filter(Boolean));
+    } catch (err) {
+      setPivotDrillError(err instanceof Error ? err.message : 'Error loading orders');
+    } finally {
+      setPivotDrillLoading(false);
+    }
   };
 
   // Batch-load the last 3 scan locations for every PO in the drill, in one request,
@@ -7993,13 +8069,20 @@ export default function OrderStatusDashboard() {
               const grandBuckets = (ym: string) => (ym === '__total__' ? grand : grandByMonth[ym]);
 
               // A compact pivot cell: count (colored) · ₹value · % of that cell's punched.
-              const Cell = (b: Record<SKey, StatusBucket> | undefined, col: typeof STATUS_COLS[number], gi: number, ci: number) => {
+              // Clickable when it has data — opens the order-list drill for (state, month, bucket).
+              const Cell = (b: Record<SKey, StatusBucket> | undefined, col: typeof STATUS_COLS[number], gi: number, ci: number, stateName: string | null, ym: string) => {
                 const bucket = b?.[col.key];
                 const base = b?.punched.count ?? 0;
                 const groupBg = gi === 0 ? 'bg-fuchsia-500/[0.06]' : gi % 2 === 1 ? 'bg-white/[0.022]' : '';
                 const leftBorder = ci === 0 ? 'border-l-2 border-white/15' : 'border-l border-white/[0.04]';
+                const clickable = !!bucket && bucket.count > 0;
                 return (
-                  <td className={`px-2.5 py-2 text-right align-middle ${leftBorder} ${groupBg}`} style={{ minWidth: 62 }}>
+                  <td
+                    className={`px-2.5 py-2 text-right align-middle ${leftBorder} ${groupBg} ${clickable ? 'cursor-pointer hover:bg-fuchsia-500/20 hover:ring-1 hover:ring-inset hover:ring-fuchsia-400/40 transition-colors' : ''}`}
+                    style={{ minWidth: 62 }}
+                    onClick={clickable ? () => openStateMonthDrill(stateName, ym, col.key) : undefined}
+                    title={clickable ? `View ${col.label} orders — ${stateName ?? 'All states'}${ym === '__total__' ? '' : ', ' + ym}` : undefined}
+                  >
                     {!bucket || bucket.count === 0 ? (
                       <span className="text-purple-300/20">·</span>
                     ) : (
@@ -8131,7 +8214,7 @@ export default function OrderStatusDashboard() {
                             {groups.map((g, gi) => {
                               const b = bucketsFor(e, g.ym);
                               return STATUS_COLS.map((c, ci) => (
-                                <Fragment key={`${g.ym}_${c.key}`}>{Cell(b, c, gi, ci)}</Fragment>
+                                <Fragment key={`${g.ym}_${c.key}`}>{Cell(b, c, gi, ci, e.state, g.ym)}</Fragment>
                               ));
                             })}
                           </tr>
@@ -8149,8 +8232,14 @@ export default function OrderStatusDashboard() {
                               const base = b?.punched.count ?? 0;
                               const groupBg = 'bg-[#1b1340]';
                               const leftBorder = ci === 0 ? 'border-l-2 border-white/15' : 'border-l border-white/[0.04]';
+                              const clickable = !!bucket && bucket.count > 0;
                               return (
-                                <td key={`${g.ym}_${c.key}`} className={`sticky bottom-0 z-10 px-2.5 py-2.5 text-right align-middle border-t border-white/10 ${leftBorder} ${groupBg}`}>
+                                <td
+                                  key={`${g.ym}_${c.key}`}
+                                  className={`sticky bottom-0 z-10 px-2.5 py-2.5 text-right align-middle border-t border-white/10 ${leftBorder} ${groupBg} ${clickable ? 'cursor-pointer hover:bg-fuchsia-500/20 hover:ring-1 hover:ring-inset hover:ring-fuchsia-400/40 transition-colors' : ''}`}
+                                  onClick={clickable ? () => openStateMonthDrill(null, g.ym, c.key) : undefined}
+                                  title={clickable ? `View ${c.label} orders — All states${g.ym === '__total__' ? '' : ', ' + g.ym}` : undefined}
+                                >
                                   {!bucket || bucket.count === 0 ? (
                                     <span className="text-purple-300/20">·</span>
                                   ) : (
@@ -11569,7 +11658,7 @@ export default function OrderStatusDashboard() {
                 <div>
                   <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900">
                     <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse" />
-                    <span>{pivotDrillZone ? `Zone ${pivotDrillZone.zone}` : pivotDrillStatus.includes(',') ? `Achieved · ${pivotDrillStatus.split(',').join(' + ')}` : (pivotDrillStatus || (pivotDrillPaymentFilter.size > 0 ? Array.from(pivotDrillPaymentFilter).join(' + ') : 'All orders'))}</span>
+                    <span>{pivotDrillStateName ? `${pivotDrillStateName} · ${pivotDrillBucketLabel}` : pivotDrillZone ? `Zone ${pivotDrillZone.zone}` : pivotDrillStatus.includes(',') ? `Achieved · ${pivotDrillStatus.split(',').join(' + ')}` : (pivotDrillStatus || (pivotDrillPaymentFilter.size > 0 ? Array.from(pivotDrillPaymentFilter).join(' + ') : 'All orders'))}</span>
                     {pivotDrillDelivery !== undefined && (
                       <span className="text-slate-400 text-sm font-normal mx-1">→</span>
                     )}
@@ -11580,7 +11669,9 @@ export default function OrderStatusDashboard() {
                     )}
                   </h3>
                   <p className="text-slate-500 text-xs mt-1">
-                    {pivotDrillZone
+                    {pivotDrillStateName
+                      ? pivotDrillMonthLabel
+                      : pivotDrillZone
                       ? pivotDrillZone.label
                       : pivotDrillWeek
                       ? `Week ${pivotDrillWeek}${pivotDrillWeekLabel ? ` (w/c ${pivotDrillWeekLabel})` : ''} · ${currentYear}`

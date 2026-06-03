@@ -53,6 +53,8 @@ export async function GET(req: NextRequest) {
   const weekParam = searchParams.get('week');                  // optional Postgres EXTRACT(WEEK) number — matches the weekly status pivot
   const zone = searchParams.get('zone');                       // optional Delhivery zone (A/B/C1/…); filters via intercityDelivery, windowed by startDate/endDate on icd.created_at
   const status = searchParams.get('status');                  // optional now — when omitted, all non-DRAFT statuses are included
+  const excludeStatus = searchParams.get('excludeStatus');    // optional comma-separated — po.status NOT IN (...); used by the State-wise "In-flight" bucket
+  const stateParam = searchParams.get('state');               // optional buyer state filter (b."state") — used by the State-wise pivot drill
   const deliveryStatusParam = searchParams.get('deliveryStatus'); // value | "__NULL__" | null
   const startDate = searchParams.get('startDate');            // optional YYYY-MM-DD — when set, replaces year-based filter
   const endDate   = searchParams.get('endDate');              // optional YYYY-MM-DD
@@ -73,6 +75,24 @@ export async function GET(req: NextRequest) {
         const placeholders = statusValues.map((_, i) => `$${i + 1}`).join(', ');
         statusFilter = ` AND po."status" IN (${placeholders})`;
       }
+    }
+
+    // excludeStatus: po.status NOT IN (...) — mirrors the State-wise pivot's
+    // "In-flight" bucket (everything that isn't delivered/rejected/cancelled).
+    let excludeStatusFilter = '';
+    if (excludeStatus) {
+      const vals = excludeStatus.split(',').map((s) => s.trim()).filter(Boolean);
+      if (vals.length > 0) {
+        const ph = vals.map((v) => { params.push(v); return `$${params.length}`; }).join(', ');
+        excludeStatusFilter = ` AND po."status" NOT IN (${ph})`;
+      }
+    }
+
+    // state: buyer state exact match (b."state").
+    let stateFilter = '';
+    if (stateParam) {
+      params.push(stateParam);
+      stateFilter = ` AND b."state" = $${params.length}`;
     }
 
     // Date window: explicit startDate/endDate take precedence over year.
@@ -283,6 +303,8 @@ export async function GET(req: NextRequest) {
         AND po."deliveryType"    = 'INTERCITY'
         AND po."isFalseOrder"    = FALSE
         ${statusFilter}
+        ${excludeStatusFilter}
+        ${stateFilter}
         ${dateFilter}
         ${monthFilter}
         ${weekFilter}

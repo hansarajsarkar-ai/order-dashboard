@@ -96,26 +96,10 @@ interface FilterOpts {
   campaigns: { value: string; calls: number }[];
   statuses: { value: string; calls: number }[];
 }
-interface LogRow {
-  id: string; callId: string; startStamp: string; startDate: string; startTime: string; endStamp: string;
-  direction: string; duration: number; callStatus: string; agentName: string; agentNumber: string;
-  callToNumber: string; callerIdNumber: string; campaignName: string; campaignId: string;
-  dispositionCode: string; dispositionName: string; subDisposition: string;
-  recordingUrl: string; leadId: string;
-}
-interface LogsResp {
-  summary: {
-    total: number; connected: number; missed: number; noAnswer: number;
-    connectionRate: number; uniqueCustomers: number; uniqueAgents: number;
-    totalTalkTime: number; avgDuration: number;
-  };
-  rows: LogRow[];
-  page: number; pageSize: number;
-}
 
 // ───────────────────────── filters bar ─────────────────────────
 
-type Tab = 'dashboard' | 'analytics' | 'daily' | 'logs' | 'table' | 'orders' | 'orders-daily';
+type Tab = 'dashboard' | 'analytics' | 'daily' | 'table' | 'orders' | 'orders-daily';
 
 // Per-day types used by the Daily Trend tab.
 export interface DailyDetailedRow {
@@ -552,9 +536,6 @@ export default function CallingTeamDashboard() {
 
   const [filterOpts, setFilterOpts] = useState<FilterOpts>({ agents: [], campaigns: [], statuses: [] });
 
-  const [logsResp, setLogsResp] = useState<LogsResp | null>(null);
-  const [logsPage, setLogsPage] = useState(1);
-  const [logsLoading, setLogsLoading] = useState(false);
 
   const [dailyResp, setDailyResp] = useState<DailyResp | null>(null);
   const [dailyLoading, setDailyLoading] = useState(false);
@@ -650,27 +631,6 @@ export default function CallingTeamDashboard() {
     if (tab !== 'analytics' && tab !== 'dashboard' && tab !== 'table') return;
     loadAnalytics();
   }, [authChecked, tab, loadAnalytics]);
-
-  // Logs (Tab 2)
-  const loadLogs = useCallback(async (page: number) => {
-    setLogsLoading(true);
-    try {
-      const p = new URLSearchParams(qs);
-      p.set('page', String(page));
-      p.set('pageSize', '50');
-      const r = await fetch(`/api/calling-team/logs?${p.toString()}`).then((r) => r.json());
-      if (r?.summary) setLogsResp(r);
-    } finally {
-      setLogsLoading(false);
-    }
-  }, [qs]);
-
-  useEffect(() => {
-    if (!authChecked) return;
-    if (tab !== 'logs') return;
-    setLogsPage(1);
-    loadLogs(1);
-  }, [authChecked, tab, qs, loadLogs]);
 
   // Daily Trend tab — loads per-day rich metrics and (optionally) hour breakdown for a focused day.
   const loadDaily = useCallback(async () => {
@@ -796,12 +756,6 @@ export default function CallingTeamDashboard() {
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${tab === 'daily' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
             >
               📅 Daily Trend
-            </button>
-            <button
-              onClick={() => setTab('logs')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${tab === 'logs' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
-            >
-              📋 Detailed Call Logs
             </button>
             <button
               onClick={() => setTab('table')}
@@ -956,18 +910,6 @@ export default function CallingTeamDashboard() {
             loading={dailyLoading}
             focusDay={dailyFocusDay}
             setFocusDay={setDailyFocusDay}
-          />
-        )}
-
-        {tab === 'logs' && (
-          <LogsTab
-            filters={filters}
-            setFilters={setFilters}
-            filterOpts={filterOpts}
-            logsResp={logsResp}
-            logsLoading={logsLoading}
-            logsPage={logsPage}
-            loadLogs={(p) => { setLogsPage(p); loadLogs(p); }}
           />
         )}
 
@@ -2380,261 +2322,6 @@ function MomSection({ rows, loading }: { rows: MomRow[]; loading: boolean }) {
         </div>
       )}
     </section>
-  );
-}
-
-// ───────────────────────── Tab 2: Logs ─────────────────────────
-
-function LogsTab(props: {
-  filters: Filters;
-  setFilters: (f: Filters) => void;
-  filterOpts: FilterOpts;
-  logsResp: LogsResp | null;
-  logsLoading: boolean;
-  logsPage: number;
-  loadLogs: (p: number) => void;
-}) {
-  const { filters, setFilters, filterOpts, logsResp, logsLoading, logsPage, loadLogs } = props;
-  const [drill, setDrill] = useState<{ type: 'agent' | 'customer' | 'status'; value: string } | null>(null);
-
-  return (
-    <div className="space-y-5">
-      {/* Filters */}
-      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-        <div className="text-xs uppercase tracking-wider text-purple-300/70 font-semibold mb-3">Advanced Filters</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-          <MultiSelect
-            label="Agent"
-            value={filters.agent}
-            options={filterOpts.agents.map((a) => ({ value: a.value, count: a.calls }))}
-            onChange={(v) => setFilters({ ...filters, agent: v })}
-          />
-          <MultiSelect
-            label="Campaign"
-            value={filters.campaign}
-            options={filterOpts.campaigns.map((a) => ({ value: a.value, count: a.calls }))}
-            onChange={(v) => setFilters({ ...filters, campaign: v })}
-          />
-          <MultiSelect
-            label="Call Status"
-            value={filters.status}
-            options={[
-              { value: 'connected', label: 'Connected (bucket)' },
-              { value: 'no_answer', label: 'No Answer (bucket)' },
-              { value: 'missed',    label: 'Missed (bucket)' },
-              ...filterOpts.statuses.map((s) => ({ value: s.value, label: s.value, count: s.calls })),
-            ]}
-            onChange={(v) => setFilters({ ...filters, status: v })}
-          />
-          <MultiSelect
-            label="Direction"
-            value={filters.direction}
-            options={[
-              { value: 'outbound', label: 'Outbound (incl. Manual)' },
-              { value: 'inbound',  label: 'Inbound' },
-            ]}
-            onChange={(v) => setFilters({ ...filters, direction: v })}
-          />
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold mb-1">Customer (last 10 digits)</div>
-            <input
-              value={filters.customer}
-              onChange={(e) => setFilters({ ...filters, customer: e.target.value })}
-              placeholder="e.g. 9876543210"
-              className="w-full text-sm bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-purple-100 placeholder-purple-300/40 focus:outline-none"
-            />
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold mb-1">Duration (sec)</div>
-            <div className="flex items-center gap-1">
-              <input
-                value={filters.minDuration}
-                onChange={(e) => setFilters({ ...filters, minDuration: e.target.value.replace(/\D/g, '') })}
-                placeholder="min"
-                className="w-full text-sm bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-purple-100 placeholder-purple-300/40 focus:outline-none"
-              />
-              <span className="text-purple-300/60">→</span>
-              <input
-                value={filters.maxDuration}
-                onChange={(e) => setFilters({ ...filters, maxDuration: e.target.value.replace(/\D/g, '') })}
-                placeholder="max"
-                className="w-full text-sm bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-purple-100 placeholder-purple-300/40 focus:outline-none"
-              />
-            </div>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold mb-1">Hour of Day</div>
-            <select
-              value={filters.hour}
-              onChange={(e) => setFilters({ ...filters, hour: e.target.value })}
-              className="w-full text-sm bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-purple-100 focus:outline-none"
-            >
-              <option value="">Any</option>
-              {Array.from({ length: 24 }).map((_, h) => <option key={h} value={h}>{h}:00</option>)}
-            </select>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold mb-1">Day of Week</div>
-            <select
-              value={filters.weekday}
-              onChange={(e) => setFilters({ ...filters, weekday: e.target.value })}
-              className="w-full text-sm bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-purple-100 focus:outline-none"
-            >
-              <option value="">Any</option>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((n, i) => <option key={i} value={i}>{n}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            onClick={() => setFilters({ ...filters, agent: [], campaign: [], status: [], direction: [], customer: '', minDuration: '', maxDuration: '', hour: '', weekday: '' })}
-            className="text-xs px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-purple-200"
-          >
-            Clear filters
-          </button>
-        </div>
-      </div>
-
-      {/* Smart summary */}
-      {logsResp && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          <KPICard label="Total Calls" value={fmtCompact(logsResp.summary.total)} tone="fuchsia" />
-          <KPICard label="Connected" value={fmtCompact(logsResp.summary.connected)} tone="emerald" />
-          <KPICard label="Connect Rate" value={fmtPct(logsResp.summary.connectionRate)} tone="emerald" />
-          <KPICard label="Missed" value={fmtCompact(logsResp.summary.missed)} tone="amber" />
-          <KPICard label="Unique Customers" value={fmtCompact(logsResp.summary.uniqueCustomers)} tone="purple" />
-          <KPICard label="Avg Duration" value={fmtDuration(logsResp.summary.avgDuration)} tone="indigo" />
-          <KPICard label="Total Talk Time" value={fmtTalkTime(logsResp.summary.totalTalkTime)} tone="sky" />
-        </div>
-      )}
-
-      {/* Table */}
-      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-        {logsLoading && !logsResp ? (
-          <div className="text-purple-200 text-sm py-10 text-center">Loading…</div>
-        ) : !logsResp ? (
-          <div className="text-purple-200/70 text-sm py-10 text-center">No data.</div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="text-purple-300/70 uppercase tracking-wider text-[10px] border-b border-white/10 sticky top-0 bg-slate-900/80 backdrop-blur">
-                  <tr>
-                    <th className="text-left py-2 px-2">Start</th>
-                    <th className="text-left py-2 px-2">Agent</th>
-                    <th className="text-left py-2 px-2">Customer</th>
-                    <th className="text-left py-2 px-2">Direction</th>
-                    <th className="text-right py-2 px-2">Duration</th>
-                    <th className="text-left py-2 px-2">Status</th>
-                    <th className="text-left py-2 px-2">Disposition</th>
-                    <th className="text-left py-2 px-2">Campaign</th>
-                    <th className="text-left py-2 px-2">Recording</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logsResp.rows.map((r) => (
-                    <tr key={r.id} className="border-b border-white/5 hover:bg-white/5">
-                      <td className="py-2 px-2 text-purple-100 whitespace-nowrap">
-                        <div>{r.startDate}</div>
-                        <div className="text-[10px] text-purple-300/60">{r.startTime}</div>
-                      </td>
-                      <td className="py-2 px-2">
-                        <button
-                          className="text-purple-100 hover:text-fuchsia-300 underline-offset-2 hover:underline disabled:cursor-default disabled:hover:no-underline disabled:text-purple-300/60"
-                          disabled={!r.agentName}
-                          onClick={() => r.agentName && setDrill({ type: 'agent', value: r.agentName })}
-                        >
-                          {r.agentName || '—'}
-                        </button>
-                      </td>
-                      <td className="py-2 px-2">
-                        <button
-                          className="text-purple-100 hover:text-fuchsia-300 underline-offset-2 hover:underline disabled:cursor-default disabled:hover:no-underline disabled:text-purple-300/60"
-                          disabled={!r.callToNumber}
-                          onClick={() => r.callToNumber && setDrill({ type: 'customer', value: r.callToNumber })}
-                        >
-                          {r.callToNumber || '—'}
-                        </button>
-                      </td>
-                      <td className="py-2 px-2 text-purple-200/80">{r.direction || '—'}</td>
-                      <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtDuration(r.duration)}</td>
-                      <td className="py-2 px-2">
-                        <button
-                          onClick={() => r.callStatus && setDrill({ type: 'status', value: r.callStatus })}
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                            r.callStatus && /answer/i.test(r.callStatus) ? 'bg-emerald-400/15 text-emerald-200' :
-                            r.callStatus === 'Missed' ? 'bg-rose-400/15 text-rose-200' :
-                            r.callStatus === 'No Answer' ? 'bg-amber-400/15 text-amber-200' :
-                            'bg-white/10 text-purple-200'
-                          }`}
-                        >
-                          {r.callStatus || '—'}
-                        </button>
-                      </td>
-                      <td className="py-2 px-2 text-purple-200/80">
-                        <span className="text-purple-100">{r.dispositionName || '—'}</span>
-                        {r.dispositionCode && <span className="ml-1 text-[10px] text-purple-300/60">({r.dispositionCode})</span>}
-                      </td>
-                      <td className="py-2 px-2 text-purple-200/80">{r.campaignName || '—'}</td>
-                      <td className="py-2 px-2">
-                        {r.recordingUrl ? (
-                          <a href={r.recordingUrl} target="_blank" rel="noreferrer" className="text-fuchsia-300 hover:text-fuchsia-200 underline-offset-2 hover:underline">▶ Play</a>
-                        ) : <span className="text-purple-300/40">—</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {/* Pagination */}
-            <div className="mt-3 flex items-center justify-between text-xs text-purple-300/70">
-              <div>Page {logsPage} — showing {logsResp.rows.length} of {fmtInt(logsResp.summary.total)} matching calls</div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => logsPage > 1 && loadLogs(logsPage - 1)}
-                  disabled={logsPage === 1 || logsLoading}
-                  className="px-3 py-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-40"
-                >
-                  ← Prev
-                </button>
-                <button
-                  onClick={() => logsResp.rows.length === logsResp.pageSize && loadLogs(logsPage + 1)}
-                  disabled={logsResp.rows.length < logsResp.pageSize || logsLoading}
-                  className="px-3 py-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-40"
-                >
-                  Next →
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Drill applies the value into the live filters so the table & summary update */}
-      {drill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4" onClick={() => setDrill(null)}>
-          <div className="bg-slate-900 border border-white/10 rounded-2xl p-5 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="text-sm text-purple-200/80">Filter call logs by</div>
-            <div className="text-xl font-bold text-white mt-1">{drill.type === 'agent' ? 'Agent' : drill.type === 'customer' ? 'Customer' : 'Status'}</div>
-            <div className="mt-2 text-fuchsia-300 font-semibold break-all">{drill.value}</div>
-            <div className="mt-4 flex gap-2 justify-end">
-              <button onClick={() => setDrill(null)} className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-purple-200 text-sm">Cancel</button>
-              <button
-                onClick={() => {
-                  if (drill.type === 'agent') setFilters({ ...filters, agent: [drill.value] });
-                  else if (drill.type === 'customer') setFilters({ ...filters, customer: drill.value });
-                  else setFilters({ ...filters, status: [drill.value] });
-                  setDrill(null);
-                }}
-                className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white text-sm font-semibold"
-              >
-                Apply filter
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 

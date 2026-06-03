@@ -10829,19 +10829,29 @@ export default function OrderStatusDashboard() {
                                   AWB: {awbLink(r.awbNumber)}
                                 </div>
                                 <div
-                                  className="text-[10px] text-indigo-600 tabular-nums mt-0.5 flex flex-wrap items-center gap-x-1.5"
-                                  title="Ageing — Placed: time since the order was placed (incl. Sundays) · Brand: working-day ageing since placed, the Brand SLA clock (excl. Sundays) · Pickup: working-day ageing since marked In-Progress, the Delhivery pickup SLA clock (excl. Sundays)"
+                                  className="mt-1.5 text-[10px] leading-tight"
+                                  title="Ageing clocks — Order age: total time since the order was placed (includes Sundays). Brand SLA: working-day ageing since placed, excludes Sundays. Delhivery pickup SLA: working-day ageing since the order was marked In-Progress (pushed to Delhivery), excludes Sundays."
                                 >
-                                  <span className="text-indigo-400" aria-hidden="true">⏱</span>
-                                  <span><span className="text-slate-400">Placed</span> {formatDuration(r.orderAgeingSec)}</span>
-                                  <span className="text-slate-300">·</span>
-                                  <span><span className="text-slate-400">Brand</span> {formatDuration(r.brandSlaAgeingSec)}</span>
-                                  {r.delhiveryPickupAgeingSec != null && (
-                                    <>
-                                      <span className="text-slate-300">·</span>
-                                      <span><span className="text-slate-400">Pickup</span> {formatDuration(r.delhiveryPickupAgeingSec)}</span>
-                                    </>
-                                  )}
+                                  <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">
+                                    <span aria-hidden="true">⏱</span> Ageing
+                                  </div>
+                                  <div className="grid grid-cols-[auto_auto] gap-x-2 gap-y-px tabular-nums">
+                                    <span className="text-slate-500">Order age</span>
+                                    <span className="font-semibold text-slate-700">{formatDuration(r.orderAgeingSec)} <span className="font-normal text-slate-400">· incl. Sun</span></span>
+                                    <span className="text-slate-500">Brand SLA</span>
+                                    <span className="font-semibold text-indigo-700">{formatDuration(r.brandSlaAgeingSec)} <span className="font-normal text-slate-400">· excl. Sun</span></span>
+                                    {r.delhiveryPickupAgeingSec != null ? (
+                                      <>
+                                        <span className="text-slate-500">Pickup SLA</span>
+                                        <span className="font-semibold text-fuchsia-700">{formatDuration(r.delhiveryPickupAgeingSec)} <span className="font-normal text-slate-400">· excl. Sun</span></span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="text-slate-400">Pickup SLA</span>
+                                        <span className="text-slate-400">not pushed yet</span>
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-2.5 py-2 whitespace-nowrap">

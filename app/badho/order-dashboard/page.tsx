@@ -537,18 +537,20 @@ export default function OrderStatusDashboard() {
   // Geography sub-tabs: the map view vs. the per-state status funnel table
   const [geographySubTab, setGeographySubTab] = useState<'geography' | 'statewise'>('geography');
   interface StatusBucket { count: number; amount: number; }
-  interface StateStatusRow {
+  // State × Month × status pivot (State wise tab)
+  interface StateMonthRow {
     state: string | null;
+    ym: string;
     punched: StatusBucket;
     delivered: StatusBucket;
     rejected: StatusBucket;
     cancelled: StatusBucket;
     inflight: StatusBucket;
   }
-  const [stateStatusData, setStateStatusData] = useState<StateStatusRow[] | null>(null);
-  const [stateStatusLoading, setStateStatusLoading] = useState(false);
-  const [stateStatusSearch, setStateStatusSearch] = useState('');
-  const [stateStatusSort, setStateStatusSort] = useState<'punched' | 'delivered' | 'rejected' | 'cancelled' | 'inflight' | 'deliveryRate' | 'state'>('punched');
+  const [stateMonthData, setStateMonthData] = useState<StateMonthRow[] | null>(null);
+  const [stateMonthMonths, setStateMonthMonths] = useState<string[]>([]);
+  const [stateMonthLoading, setStateMonthLoading] = useState(false);
+  const [stateMonthSearch, setStateMonthSearch] = useState('');
 
   // Flatten selected brand names → comma-separated sellerIds for the API
   const resolveSelectedSellerIds = (): string => {
@@ -2793,10 +2795,10 @@ export default function OrderStatusDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList, districtSelectedState, stateMonths]);
 
-  // State-wise order-status funnel table
-  const fetchStateStatusData = async () => {
+  // State × Month × status pivot (State wise tab)
+  const fetchStateMonthData = async () => {
     try {
-      setStateStatusLoading(true);
+      setStateMonthLoading(true);
       const { startDate, endDate } = resolveStateRange();
       const params = new URLSearchParams({ year: String(currentYear) });
       if (startDate) params.append('startDate', startDate);
@@ -2804,22 +2806,24 @@ export default function OrderStatusDashboard() {
       const sids = resolveSelectedSellerIds();
       if (sids) params.append('sellerIds', sids);
       if (stateMonths.length) params.append('months', stateMonths.join(','));
-      const res = await fetch(`/api/order-status-by-state?${params.toString()}`);
+      const res = await fetch(`/api/order-status-by-state-month?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
-      setStateStatusData(json.data);
+      setStateMonthData(json.data);
+      setStateMonthMonths(json.months || []);
     } catch (err) {
-      console.error('State-status fetch error:', err);
-      setStateStatusData([]);
+      console.error('State-month fetch error:', err);
+      setStateMonthData([]);
+      setStateMonthMonths([]);
     } finally {
-      setStateStatusLoading(false);
+      setStateMonthLoading(false);
     }
   };
 
   useEffect(() => {
     if (activeTab !== 'geography') return;
     if (geographySubTab !== 'statewise') return;
-    fetchStateStatusData();
+    fetchStateMonthData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, geographySubTab, stateRange, stateCustomFrom, stateCustomTo, selectedBrandNames, sellerBrandList, stateMonths]);
 
@@ -7915,76 +7919,98 @@ export default function OrderStatusDashboard() {
             )}
 
             {geographySubTab === 'statewise' && (() => {
-              const STATUS_META = [
-                { key: 'delivered' as const, label: 'Delivered', hex: '#34d399', text: 'text-emerald-300', good: true },
-                { key: 'rejected'  as const, label: 'Rejected',  hex: '#fb7185', text: 'text-rose-300',    good: false },
-                { key: 'cancelled' as const, label: 'Cancelled', hex: '#fbbf24', text: 'text-amber-300',   good: false },
-                { key: 'inflight'  as const, label: 'In-flight', hex: '#38bdf8', text: 'text-sky-300',     good: false },
+              type SKey = 'punched' | 'delivered' | 'rejected' | 'cancelled' | 'inflight';
+              const STATUS_COLS: { key: SKey; label: string; short: string; hex: string; isPunched?: boolean }[] = [
+                { key: 'punched',   label: 'Punched',   short: 'Pun', hex: '#e9d5ff', isPunched: true },
+                { key: 'delivered', label: 'Delivered', short: 'Del', hex: '#34d399' },
+                { key: 'rejected',  label: 'Rejected',  short: 'Rej', hex: '#fb7185' },
+                { key: 'cancelled', label: 'Cancelled', short: 'Can', hex: '#fbbf24' },
+                { key: 'inflight',  label: 'In-flight', short: 'Inf', hex: '#38bdf8' },
               ];
               const pct = (n: number, base: number) => (base > 0 ? (n / base) * 100 : 0);
               const fmtPct = (p: number) => `${p.toFixed(1)}%`;
+              const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+              const monthLabel = (ym: string) => {
+                const [y, m] = ym.split('-');
+                return `${MON[parseInt(m, 10) - 1]} '${y.slice(2)}`;
+              };
 
-              if (stateStatusLoading || !stateStatusData) {
+              if (stateMonthLoading || !stateMonthData) {
                 return (
                   <div className="h-[420px] flex items-center justify-center text-purple-300">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
-                      Loading state-wise status…
+                      Loading state × month breakdown…
                     </div>
                   </div>
                 );
               }
-              if (stateStatusData.length === 0) {
+              if (stateMonthData.length === 0) {
                 return <div className="px-8 py-16 text-center text-purple-300">No orders in this slice</div>;
               }
 
-              const q = stateStatusSearch.trim().toLowerCase();
-              const filtered = q
-                ? stateStatusData.filter((r) => (r.state || '').toLowerCase().includes(q))
-                : stateStatusData;
-              const sorted = [...filtered].sort((a, b) => {
-                switch (stateStatusSort) {
-                  case 'state':        return (a.state || '').localeCompare(b.state || '');
-                  case 'deliveryRate': return pct(b.delivered.count, b.punched.count) - pct(a.delivered.count, a.punched.count);
-                  default:             return b[stateStatusSort].count - a[stateStatusSort].count;
-                }
+              const emptyB = (): Record<SKey, StatusBucket> => ({
+                punched: { count: 0, amount: 0 }, delivered: { count: 0, amount: 0 },
+                rejected: { count: 0, amount: 0 }, cancelled: { count: 0, amount: 0 },
+                inflight: { count: 0, amount: 0 },
               });
+              const addB = (acc: Record<SKey, StatusBucket>, r: Record<SKey, StatusBucket>) => {
+                for (const c of STATUS_COLS) { acc[c.key].count += r[c.key].count; acc[c.key].amount += r[c.key].amount; }
+              };
 
-              // Grand totals (over the filtered set) for the hero strip + footer
-              const tot = filtered.reduce(
-                (acc, r) => {
-                  acc.punched.count   += r.punched.count;   acc.punched.amount   += r.punched.amount;
-                  acc.delivered.count += r.delivered.count; acc.delivered.amount += r.delivered.amount;
-                  acc.rejected.count  += r.rejected.count;  acc.rejected.amount  += r.rejected.amount;
-                  acc.cancelled.count += r.cancelled.count; acc.cancelled.amount += r.cancelled.amount;
-                  acc.inflight.count  += r.inflight.count;  acc.inflight.amount  += r.inflight.amount;
-                  return acc;
-                },
-                {
-                  punched:   { count: 0, amount: 0 }, delivered: { count: 0, amount: 0 },
-                  rejected:  { count: 0, amount: 0 }, cancelled: { count: 0, amount: 0 },
-                  inflight:  { count: 0, amount: 0 },
-                }
-              );
+              // Pivot rows: one per state, holding a grand total + per-month buckets.
+              const sm = new Map<string, { state: string | null; total: Record<SKey, StatusBucket>; byMonth: Record<string, Record<SKey, StatusBucket>> }>();
+              for (const r of stateMonthData) {
+                const key = r.state ?? '__none__';
+                let e = sm.get(key);
+                if (!e) { e = { state: r.state, total: emptyB(), byMonth: {} }; sm.set(key, e); }
+                addB(e.total, r);
+                if (!e.byMonth[r.ym]) e.byMonth[r.ym] = emptyB();
+                addB(e.byMonth[r.ym], r);
+              }
 
-              const sortIndicator = (col: typeof stateStatusSort) => (stateStatusSort === col ? ' ↓' : '');
+              const q = stateMonthSearch.trim().toLowerCase();
+              let rows = [...sm.values()];
+              if (q) rows = rows.filter((e) => (e.state || '').toLowerCase().includes(q));
+              rows.sort((a, b) => b.total.punched.count - a.total.punched.count);
 
-              // A status cell: count (colored) · ₹value · % of punched with a mini bar
-              const statusCell = (bucket: StatusBucket, base: number, hex: string, text: string, isPunched = false) => {
-                const p = pct(bucket.count, base);
+              const months = stateMonthMonths;
+              const groups: { ym: string; label: string }[] = [
+                { ym: '__total__', label: 'Total' },
+                ...months.map((m) => ({ ym: m, label: monthLabel(m) })),
+              ];
+
+              // Footer + hero totals.
+              const grand = emptyB();
+              for (const e of rows) addB(grand, e.total);
+              const grandByMonth: Record<string, Record<SKey, StatusBucket>> = {};
+              for (const m of months) grandByMonth[m] = emptyB();
+              for (const e of rows) for (const m of months) if (e.byMonth[m]) addB(grandByMonth[m], e.byMonth[m]);
+
+              const bucketsFor = (e: { total: Record<SKey, StatusBucket>; byMonth: Record<string, Record<SKey, StatusBucket>> }, ym: string) =>
+                ym === '__total__' ? e.total : e.byMonth[ym];
+              const grandBuckets = (ym: string) => (ym === '__total__' ? grand : grandByMonth[ym]);
+
+              // A compact pivot cell: count (colored) · ₹value · % of that cell's punched.
+              const Cell = (b: Record<SKey, StatusBucket> | undefined, col: typeof STATUS_COLS[number], gi: number, ci: number) => {
+                const bucket = b?.[col.key];
+                const base = b?.punched.count ?? 0;
+                const groupBg = gi === 0 ? 'bg-fuchsia-500/[0.06]' : gi % 2 === 1 ? 'bg-white/[0.022]' : '';
+                const leftBorder = ci === 0 ? 'border-l-2 border-white/15' : 'border-l border-white/[0.04]';
                 return (
-                  <td className="px-4 py-3 text-right align-middle">
-                    <div className={`tabular-nums font-bold text-[15px] leading-tight ${isPunched ? 'text-white' : text}`}>
-                      {bucket.count.toLocaleString('en-IN')}
-                    </div>
-                    <div className="text-[11px] text-purple-300/55 tabular-nums leading-tight">{formatAmount(bucket.amount)}</div>
-                    {!isPunched && (
-                      <div className="mt-1.5 flex items-center justify-end gap-1.5">
-                        <div className="h-1.5 w-14 rounded-full bg-white/10 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${Math.min(p, 100)}%`, background: hex }} />
+                  <td className={`px-2.5 py-2 text-right align-middle ${leftBorder} ${groupBg}`} style={{ minWidth: 62 }}>
+                    {!bucket || bucket.count === 0 ? (
+                      <span className="text-purple-300/20">·</span>
+                    ) : (
+                      <>
+                        <div className="tabular-nums font-bold text-[13px] leading-tight" style={{ color: col.hex }}>
+                          {bucket.count.toLocaleString('en-IN')}
                         </div>
-                        <span className="text-[11px] font-bold tabular-nums w-11 text-right" style={{ color: hex }}>{fmtPct(p)}</span>
-                      </div>
+                        <div className="text-[10px] text-purple-300/50 tabular-nums leading-tight">{formatAmount(bucket.amount)}</div>
+                        {!col.isPunched && (
+                          <div className="text-[10px] font-semibold tabular-nums leading-tight" style={{ color: col.hex }}>{fmtPct(pct(bucket.count, base))}</div>
+                        )}
+                      </>
                     )}
                   </td>
                 );
@@ -7992,24 +8018,24 @@ export default function OrderStatusDashboard() {
 
               return (
                 <div>
-                  {/* Hero funnel strip — instant read of the overall picture */}
+                  {/* Hero funnel strip — overall picture across the whole period */}
                   <div className="px-8 pt-6 pb-2 grid grid-cols-2 md:grid-cols-5 gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                       <div className="text-[11px] font-semibold text-purple-300/70 uppercase tracking-wider">Punched</div>
-                      <div className="mt-1 text-2xl font-extrabold text-white tabular-nums">{tot.punched.count.toLocaleString('en-IN')}</div>
-                      <div className="text-[11px] text-purple-300/60 tabular-nums">{formatAmount(tot.punched.amount)}</div>
+                      <div className="mt-1 text-2xl font-extrabold text-white tabular-nums">{grand.punched.count.toLocaleString('en-IN')}</div>
+                      <div className="text-[11px] text-purple-300/60 tabular-nums">{formatAmount(grand.punched.amount)}</div>
                     </div>
-                    {STATUS_META.map((m) => {
-                      const p = pct(tot[m.key].count, tot.punched.count);
+                    {STATUS_COLS.filter((c) => !c.isPunched).map((m) => {
+                      const p = pct(grand[m.key].count, grand.punched.count);
                       return (
                         <div key={m.key} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 relative overflow-hidden">
                           <div className="absolute inset-x-0 bottom-0 h-1" style={{ width: `${Math.min(p, 100)}%`, background: m.hex, opacity: 0.85 }} />
                           <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: m.hex }}>{m.label}</div>
                           <div className="mt-1 flex items-baseline gap-2">
                             <span className="text-2xl font-extrabold text-white tabular-nums">{fmtPct(p)}</span>
-                            <span className="text-xs text-purple-300/70 tabular-nums">{tot[m.key].count.toLocaleString('en-IN')}</span>
+                            <span className="text-xs text-purple-300/70 tabular-nums">{grand[m.key].count.toLocaleString('en-IN')}</span>
                           </div>
-                          <div className="text-[11px] text-purple-300/60 tabular-nums">{formatAmount(tot[m.key].amount)}</div>
+                          <div className="text-[11px] text-purple-300/60 tabular-nums">{formatAmount(grand[m.key].amount)}</div>
                         </div>
                       );
                     })}
@@ -8018,34 +8044,35 @@ export default function OrderStatusDashboard() {
                   {/* Table header bar */}
                   <div className="px-8 py-4 flex items-center justify-between flex-wrap gap-3">
                     <div>
-                      <h3 className="text-base font-bold text-white">State × order-status funnel</h3>
+                      <h3 className="text-base font-bold text-white">State × month × order-status</h3>
                       <p className="text-purple-300/70 text-xs mt-0.5">
-                        % is share of that state&apos;s punched orders · {filtered.length.toLocaleString('en-IN')} states
+                        Each month splits into status sub-columns — count · ₹GMV · % of that month&apos;s punched · {rows.length.toLocaleString('en-IN')} states · {months.length} months
                       </p>
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
                       <input
                         type="text"
-                        value={stateStatusSearch}
-                        onChange={(e) => setStateStatusSearch(e.target.value)}
+                        value={stateMonthSearch}
+                        onChange={(e) => setStateMonthSearch(e.target.value)}
                         placeholder="Search state…"
                         className="px-3 py-1.5 text-xs bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-[200px]"
                       />
                       <button
                         className={DOWNLOAD_BTN_CLASS}
                         onClick={() => {
-                          downloadCSV(
-                            `geography-statewise-${currentYear}.csv`,
-                            ['State', 'Punched', 'Punched GMV', 'Delivered', 'Delivered GMV', 'Delivered %', 'Rejected', 'Rejected GMV', 'Rejected %', 'Cancelled', 'Cancelled GMV', 'Cancelled %', 'In-flight', 'In-flight GMV', 'In-flight %'],
-                            sorted.map((r) => [
-                              r.state ?? '(no state)',
-                              r.punched.count, r.punched.amount,
-                              r.delivered.count, r.delivered.amount, pct(r.delivered.count, r.punched.count).toFixed(1),
-                              r.rejected.count, r.rejected.amount, pct(r.rejected.count, r.punched.count).toFixed(1),
-                              r.cancelled.count, r.cancelled.amount, pct(r.cancelled.count, r.punched.count).toFixed(1),
-                              r.inflight.count, r.inflight.amount, pct(r.inflight.count, r.punched.count).toFixed(1),
-                            ])
-                          );
+                          const header = ['State', 'Month', ...STATUS_COLS.flatMap((c) => [`${c.label} #`, `${c.label} GMV`, `${c.label} %`])];
+                          const csvRows: CsvCell[][] = [];
+                          for (const e of rows) {
+                            for (const g of groups) {
+                              const b = bucketsFor(e, g.ym);
+                              if (!b || b.punched.count === 0) continue;
+                              csvRows.push([
+                                e.state ?? '(no state)', g.label,
+                                ...STATUS_COLS.flatMap((c) => [b[c.key].count, b[c.key].amount.toFixed(0), c.isPunched ? '' : pct(b[c.key].count, b.punched.count).toFixed(1)]),
+                              ]);
+                            }
+                          }
+                          downloadCSV(`geography-statewise-month-${currentYear}.csv`, header, csvRows);
                         }}
                       >
                         ↓ CSV
@@ -8053,81 +8080,103 @@ export default function OrderStatusDashboard() {
                     </div>
                   </div>
 
-                  {/* Funnel table */}
-                  <div className="overflow-auto max-h-[640px] border-t border-white/10">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-white/10">
+                  {/* Pivot table — rows = states, column groups = months, sub-cols = status */}
+                  <div className="overflow-auto max-h-[680px] border-t border-white/10">
+                    <table className="text-sm border-separate border-spacing-0">
+                      <thead>
+                        {/* Row 1 — month groups */}
                         <tr>
-                          <th className="px-4 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider w-12">#</th>
                           <th
-                            onClick={() => setStateStatusSort('state')}
-                            className="px-4 py-3 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white sticky left-0 bg-slate-900/95"
+                            rowSpan={2}
+                            className="sticky left-0 top-0 z-30 bg-slate-900/95 backdrop-blur px-4 py-2 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider border-b border-r border-white/10 align-bottom"
                           >
-                            State{sortIndicator('state')}
+                            State
                           </th>
-                          <th
-                            onClick={() => setStateStatusSort('punched')}
-                            className="px-4 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white"
-                          >
-                            Punched{sortIndicator('punched')}
-                          </th>
-                          {STATUS_META.map((m) => (
+                          {groups.map((g, gi) => (
                             <th
-                              key={m.key}
-                              onClick={() => setStateStatusSort(m.key)}
-                              className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:brightness-125"
-                              style={{ color: m.hex }}
+                              key={g.ym}
+                              colSpan={5}
+                              className={`sticky top-0 z-20 h-8 bg-slate-900/95 backdrop-blur px-2 text-center text-[11px] font-bold uppercase tracking-wider border-b border-l-2 border-white/15 ${gi === 0 ? 'text-fuchsia-200' : 'text-purple-100'}`}
                             >
-                              {m.label}{sortIndicator(m.key)}
+                              {g.label}
                             </th>
                           ))}
-                          <th
-                            onClick={() => setStateStatusSort('deliveryRate')}
-                            className="px-4 py-3 text-right text-[11px] font-semibold text-purple-200 uppercase tracking-wider cursor-pointer hover:text-white"
-                          >
-                            Deliv. rate{sortIndicator('deliveryRate')}
-                          </th>
+                        </tr>
+                        {/* Row 2 — status sub-columns under each month */}
+                        <tr>
+                          {groups.map((g, gi) =>
+                            STATUS_COLS.map((c, ci) => (
+                              <th
+                                key={`${g.ym}_${c.key}`}
+                                title={c.label}
+                                className={`sticky top-8 z-20 bg-slate-900/95 backdrop-blur px-2.5 py-2 text-right text-[10px] font-bold uppercase tracking-wide border-b border-white/10 ${ci === 0 ? 'border-l-2 border-white/15' : 'border-l border-white/[0.04]'} ${gi === 0 ? 'bg-fuchsia-500/[0.08]' : ''}`}
+                                style={{ color: c.hex, minWidth: 62 }}
+                              >
+                                {c.short}
+                              </th>
+                            ))
+                          )}
                         </tr>
                       </thead>
                       <tbody>
-                        {sorted.map((r, i) => {
-                          const dr = pct(r.delivered.count, r.punched.count);
-                          const drHex = dr >= 60 ? '#34d399' : dr >= 35 ? '#fbbf24' : '#fb7185';
-                          return (
-                            <tr key={r.state ?? `_${i}`} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                              <td className="px-4 py-3 text-purple-300/50 tabular-nums align-middle">{i + 1}</td>
-                              <td className="px-4 py-3 text-white font-semibold whitespace-nowrap align-middle sticky left-0 bg-transparent">
-                                {r.state || <span className="italic text-purple-400/60">(no state)</span>}
-                              </td>
-                              {statusCell(r.punched, r.punched.count, '#ffffff', 'text-white', true)}
-                              {statusCell(r.delivered, r.punched.count, '#34d399', 'text-emerald-300')}
-                              {statusCell(r.rejected,  r.punched.count, '#fb7185', 'text-rose-300')}
-                              {statusCell(r.cancelled, r.punched.count, '#fbbf24', 'text-amber-300')}
-                              {statusCell(r.inflight,  r.punched.count, '#38bdf8', 'text-sky-300')}
-                              <td className="px-4 py-3 text-right align-middle">
-                                <span className="inline-flex items-center justify-center min-w-[58px] px-2 py-1 rounded-lg text-xs font-bold tabular-nums" style={{ color: drHex, background: `${drHex}1f`, border: `1px solid ${drHex}55` }}>
-                                  {fmtPct(dr)}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {rows.map((e, i) => (
+                          <tr key={e.state ?? `_${i}`} className="hover:bg-white/[0.04] transition-colors group/row">
+                            <td className="sticky left-0 z-10 bg-slate-900/90 backdrop-blur px-4 py-2 text-white font-semibold whitespace-nowrap align-middle border-b border-r border-white/10 group-hover/row:bg-slate-800/90">
+                              <span className="text-purple-300/40 tabular-nums text-[11px] mr-2">{i + 1}</span>
+                              {e.state || <span className="italic text-purple-400/60">(no state)</span>}
+                            </td>
+                            {groups.map((g, gi) => {
+                              const b = bucketsFor(e, g.ym);
+                              return STATUS_COLS.map((c, ci) => (
+                                <Fragment key={`${g.ym}_${c.key}`}>{Cell(b, c, gi, ci)}</Fragment>
+                              ));
+                            })}
+                          </tr>
+                        ))}
                       </tbody>
-                      <tfoot className="sticky bottom-0 bg-slate-900/95 backdrop-blur border-t border-white/10">
+                      <tfoot>
                         <tr>
-                          <td className="px-4 py-3" />
-                          <td className="px-4 py-3 text-purple-200 font-bold uppercase text-[11px] tracking-wider sticky left-0 bg-slate-900/95">All states</td>
-                          {statusCell(tot.punched, tot.punched.count, '#ffffff', 'text-white', true)}
-                          {statusCell(tot.delivered, tot.punched.count, '#34d399', 'text-emerald-300')}
-                          {statusCell(tot.rejected,  tot.punched.count, '#fb7185', 'text-rose-300')}
-                          {statusCell(tot.cancelled, tot.punched.count, '#fbbf24', 'text-amber-300')}
-                          {statusCell(tot.inflight,  tot.punched.count, '#38bdf8', 'text-sky-300')}
-                          <td className="px-4 py-3 text-right align-middle">
-                            <span className="text-emerald-300 font-extrabold tabular-nums">{fmtPct(pct(tot.delivered.count, tot.punched.count))}</span>
+                          <td className="sticky left-0 bottom-0 z-20 bg-slate-900/95 backdrop-blur px-4 py-2.5 text-purple-200 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap border-t border-r border-white/10">
+                            All states
                           </td>
+                          {groups.map((g, gi) => {
+                            const b = grandBuckets(g.ym);
+                            return STATUS_COLS.map((c, ci) => {
+                              const bucket = b?.[c.key];
+                              const base = b?.punched.count ?? 0;
+                              const groupBg = gi === 0 ? 'bg-fuchsia-500/[0.1]' : gi % 2 === 1 ? 'bg-white/[0.03]' : '';
+                              const leftBorder = ci === 0 ? 'border-l-2 border-white/15' : 'border-l border-white/[0.04]';
+                              return (
+                                <td key={`${g.ym}_${c.key}`} className={`sticky bottom-0 z-10 bg-slate-900/95 backdrop-blur px-2.5 py-2.5 text-right align-middle border-t border-white/10 ${leftBorder} ${groupBg}`}>
+                                  {!bucket || bucket.count === 0 ? (
+                                    <span className="text-purple-300/20">·</span>
+                                  ) : (
+                                    <>
+                                      <div className="tabular-nums font-extrabold text-[13px] leading-tight" style={{ color: c.hex }}>{bucket.count.toLocaleString('en-IN')}</div>
+                                      <div className="text-[10px] text-purple-300/55 tabular-nums leading-tight">{formatAmount(bucket.amount)}</div>
+                                      {!c.isPunched && <div className="text-[10px] font-bold tabular-nums leading-tight" style={{ color: c.hex }}>{fmtPct(pct(bucket.count, base))}</div>}
+                                    </>
+                                  )}
+                                </td>
+                              );
+                            });
+                          })}
                         </tr>
                       </tfoot>
                     </table>
+                  </div>
+
+                  {/* Legend */}
+                  <div className="px-8 py-3 flex items-center gap-4 flex-wrap text-[11px] text-purple-300/70 border-t border-white/10">
+                    <span className="font-semibold uppercase tracking-wider text-purple-300/50">Status</span>
+                    {STATUS_COLS.map((c) => (
+                      <span key={c.key} className="inline-flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-sm" style={{ background: c.hex }} />
+                        <span style={{ color: c.hex }} className="font-semibold">{c.short}</span>
+                        <span>{c.label}</span>
+                      </span>
+                    ))}
+                    <span className="ml-auto text-purple-300/45">Each cell: count · ₹GMV · % of month&apos;s punched</span>
                   </div>
                 </div>
               );

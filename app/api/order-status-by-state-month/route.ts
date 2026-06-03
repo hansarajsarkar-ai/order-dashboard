@@ -4,14 +4,12 @@ import { appendMonthsFilter } from '@/lib/monthsFilter';
 
 export const dynamic = 'force-dynamic';
 
-// One row per buyer state, broken into the order-status funnel:
-//   punched   = every order placed (markedPendingTime set) — the denominator
-//   delivered = DELIVERED + COMPLETED
-//   rejected  = REJECTED
-//   cancelled = CANCELLED
-//   inflight  = everything else still moving (DISPATCHED, INPROGRESS, PENDING, …)
+// One row per (buyer state, calendar month), broken into the order-status funnel.
+// Drives the State wise pivot: rows = states, column groups = months,
+// sub-columns = status (count / % of punched / amount).
 interface Row {
   state: string | null;
+  ym: string; // 'YYYY-MM'
   punched_count: string;
   punched_amount: string;
   delivered_count: string;
@@ -30,7 +28,6 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
-  // Accept comma-separated list of seller IDs (a brand may span multiple sellers, e.g. ChukDe).
   const sellerIdsParam = searchParams.get('sellerIds') || searchParams.get('sellerId');
 
   try {
@@ -57,11 +54,10 @@ export async function GET(req: NextRequest) {
       whereSeller = ` AND po."sellerId"::text = ANY(string_to_array($${params.length}, ','))`;
     }
 
-    // NOTE: same universe filters as /api/order-by-state, but WITHOUT the
-    // status filter — here we keep every status so we can split the funnel.
     const sql = `
       SELECT
         b."state" AS state,
+        to_char(po."markedPendingTime", 'YYYY-MM') AS ym,
         COUNT(*)                                                                                        AS punched_count,
         COALESCE(SUM(po."amount"::numeric), 0)::text                                                    AS punched_amount,
         COUNT(*) FILTER (WHERE po."status" IN ('DELIVERED', 'COMPLETED'))                               AS delivered_count,
@@ -87,14 +83,15 @@ export async function GET(req: NextRequest) {
         AND po."markedPendingTime" IS NOT NULL
         ${whereDate}
         ${whereSeller}
-      GROUP BY b."state"
-      ORDER BY punched_count DESC;
+      GROUP BY b."state", to_char(po."markedPendingTime", 'YYYY-MM')
+      ORDER BY ym ASC;
     `;
 
     const rows = await query<Row>(sql, params);
 
     const data = rows.map((r) => ({
       state: r.state,
+      ym: r.ym,
       punched:   { count: parseInt(r.punched_count),   amount: parseFloat(r.punched_amount) },
       delivered: { count: parseInt(r.delivered_count), amount: parseFloat(r.delivered_amount) },
       rejected:  { count: parseInt(r.rejected_count),  amount: parseFloat(r.rejected_amount) },
@@ -102,26 +99,12 @@ export async function GET(req: NextRequest) {
       inflight:  { count: parseInt(r.inflight_count),  amount: parseFloat(r.inflight_amount) },
     }));
 
-    const grand = data.reduce(
-      (acc, r) => ({
-        punched:   { count: acc.punched.count   + r.punched.count,   amount: acc.punched.amount   + r.punched.amount },
-        delivered: { count: acc.delivered.count + r.delivered.count, amount: acc.delivered.amount + r.delivered.amount },
-        rejected:  { count: acc.rejected.count  + r.rejected.count,  amount: acc.rejected.amount  + r.rejected.amount },
-        cancelled: { count: acc.cancelled.count + r.cancelled.count, amount: acc.cancelled.amount + r.cancelled.amount },
-        inflight:  { count: acc.inflight.count  + r.inflight.count,  amount: acc.inflight.amount  + r.inflight.amount },
-      }),
-      {
-        punched:   { count: 0, amount: 0 },
-        delivered: { count: 0, amount: 0 },
-        rejected:  { count: 0, amount: 0 },
-        cancelled: { count: 0, amount: 0 },
-        inflight:  { count: 0, amount: 0 },
-      }
-    );
+    // Distinct months present, ascending — these become the column groups.
+    const months = Array.from(new Set(data.map((d) => d.ym))).sort();
 
     return NextResponse.json({
       data,
-      grand,
+      months,
       year,
       startDate: startDate || null,
       endDate: endDate || null,

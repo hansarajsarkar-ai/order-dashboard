@@ -4,18 +4,17 @@ import { parseFilters, buildWhere } from '../_filters';
 
 export const dynamic = 'force-dynamic';
 
-// Agent-wise order summary: per agent, calls initiated (outbound) vs connected
-// vs buyers who placed a same-day qualified D2R intercity order.
-// buildWhere always pushes startDate as $1 and endDate as $2; the order side
-// reuses them as index-friendly IST timestamp bounds.
+// Agent-wise order summary: per agent on the Warm/Cold lead campaigns, calls
+// initiated (outbound) vs connected vs buyers who placed a same-day qualified
+// D2R intercity order (order placement = markedPendingTime).
 export async function GET(req: NextRequest) {
   const f = parseFilters(req);
   const { sql: where, params } = buildWhere(f);
 
   // Index-friendly IST timestamp bounds for the order side. Passing these as
-  // explicit timestamptz params lets Postgres range-scan the created_at index
-  // instead of full-scanning purchaseOrder (an AT TIME ZONE expression on the
-  // column would defeat the index).
+  // explicit timestamptz params lets Postgres range-scan the markedPendingTime
+  // index instead of full-scanning purchaseOrder (an AT TIME ZONE expression on
+  // the column would defeat the index).
   const startTs = `${f.startDate}T00:00:00+05:30`;
   const endExclusive = new Date(`${f.endDate}T00:00:00+05:30`);
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
@@ -43,11 +42,12 @@ export async function GET(req: NextRequest) {
             THEN RIGHT(REGEXP_REPLACE(SPLIT_PART(call_to_number, '-', 1), '[^0-9]', '', 'g'), 10)
             ELSE RIGHT(REGEXP_REPLACE(call_to_number, '[^0-9]', '', 'g'), 10) END AS phone,
           start_date::date AS call_date,
-          (UPPER(call_status) IN ('ANSWERED','ANSWER')) AS connected,
+          (call_status = 'Answer') AS connected,
           COALESCE(NULLIF(duration,'')::int, 0) AS dur
         FROM "smartFlo"."call_logs"
         WHERE ${where}
           AND (LOWER(direction) = 'outbound' OR direction = 'Manual')
+          AND campaign_name IN ('Warm_Lead', 'Cold Lead Campaign')
           AND agent_name IS NOT NULL AND agent_name <> ''
           AND call_to_number IS NOT NULL AND call_to_number <> ''
       ),
@@ -68,20 +68,22 @@ export async function GET(req: NextRequest) {
         SELECT DISTINCT agent_name, phone, call_date FROM base WHERE connected
       ),
       buyer_orders AS MATERIALIZED (
-        -- Qualified D2R intercity (third-party) orders; index-friendly created_at
-        -- bounds derived from the IST call window, order date resolved in IST.
+        -- Qualified D2R intercity (third-party) orders, placement = markedPendingTime.
+        -- Index-friendly markedPendingTime bounds derived from the IST call window;
+        -- order date resolved in IST.
         SELECT
           RIGHT(REGEXP_REPLACE(b."phone", '[^0-9]', '', 'g'), 10) AS phone,
-          (po."created_at" AT TIME ZONE 'Asia/Kolkata')::date AS order_date
+          (po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')::date AS order_date
         FROM "purchaseOrder"."purchaseOrder" po
         JOIN "users"."seller" s ON s."id" = po."sellerId"
         JOIN "users"."buyer" b ON b."id" = po."buyerId"
-        WHERE po."created_at" >= $${pStart}::timestamptz
-          AND po."created_at" <  $${pEnd}::timestamptz
+        WHERE po."markedPendingTime" >= $${pStart}::timestamptz
+          AND po."markedPendingTime" <  $${pEnd}::timestamptz
           AND po."status" != 'DRAFT'
           AND s."isD2RBrandSeller" = TRUE
           AND b."isTest" = FALSE AND b."businessName" NOT ILIKE '%test%'
           AND s."isTest" = FALSE AND s."businessName" NOT ILIKE '%test%'
+          AND s."businessName" NOT ILIKE '%milko%'
           AND po."isTest" = FALSE AND po."isFalseOrder" = FALSE
           AND po."deliveryNetwork" = 'THIRD_PARTY' AND po."deliveryType" = 'INTERCITY'
       ),
@@ -125,10 +127,11 @@ export async function GET(req: NextRequest) {
         connectedUniqueBuyer,
         orderPlacedBuyer,
         orderConvRate: connectedUniqueBuyer ? orderPlacedBuyer / connectedUniqueBuyer : 0,
-        avgHaltingCall: Math.round(Number(r.avg_halting_call || 0)),
+        // Avg connected-call duration in minutes; total talk time in hours.
+        avgHaltingMins: Number(r.avg_halting_call || 0) / 60,
         connectedGte15: Number(r.ge15 || 0),
         connectedLt15: Number(r.lt15 || 0),
-        totalTalkTime: Number(r.total_talk_time || 0),
+        totalTalkHours: Number(r.total_talk_time || 0) / 3600,
       };
     });
 

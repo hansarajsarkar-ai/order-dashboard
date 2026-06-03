@@ -80,8 +80,8 @@ interface AgentRow {
 interface AgentOrderRow {
   agentName: string; totalCalls: number; uniqueBuyerAttempt: number;
   connected: number; connectedRate: number; connectedUniqueBuyer: number;
-  orderPlacedBuyer: number; orderConvRate: number; avgHaltingCall: number;
-  connectedGte15: number; connectedLt15: number; totalTalkTime: number;
+  orderPlacedBuyer: number; orderConvRate: number; avgHaltingMins: number;
+  connectedGte15: number; connectedLt15: number; totalTalkHours: number;
 }
 interface DistBucket { bucket: string; customers: number; }
 interface Reach { total: number; reachable: number; unreachable: number; frequentlyMissed: number; }
@@ -1181,10 +1181,10 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
     ['connectedUniqueBuyer', 'Connected Unique Buyer'],
     ['orderPlacedBuyer', 'Order Placed Buyer'],
     ['orderConvRate', 'Order Placed / Conn. Uniq.'],
-    ['avgHaltingCall', 'Avg Halting Call'],
+    ['avgHaltingMins', 'Avg Halting Call (Mins)'],
     ['connectedGte15', '≥15s Connected'],
     ['connectedLt15', '<15s Connected'],
-    ['totalTalkTime', 'Total Talk Time'],
+    ['totalTalkHours', 'Total Talk Time (Hrs)'],
   ];
 
   const rows = agents
@@ -1206,7 +1206,7 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
       `"${a.agentName.replace(/"/g, '""')}"`,
       a.totalCalls, a.uniqueBuyerAttempt, a.connected, (a.connectedRate * 100).toFixed(1) + '%',
       a.connectedUniqueBuyer, a.orderPlacedBuyer, (a.orderConvRate * 100).toFixed(1) + '%',
-      a.avgHaltingCall, a.connectedGte15, a.connectedLt15, a.totalTalkTime,
+      a.avgHaltingMins.toFixed(2), a.connectedGte15, a.connectedLt15, a.totalTalkHours.toFixed(2),
     ].join(','));
     const csv = [header.join(','), ...lines].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -1298,10 +1298,10 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
                     {fmtPct(a.orderConvRate, 1)}
                   </span>
                 </td>
-                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtDuration(a.avgHaltingCall)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{a.avgHaltingMins.toFixed(2)}</td>
                 <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.connectedGte15)}</td>
                 <td className="py-2 px-2 text-right text-rose-200/80 tabular-nums">{fmtInt(a.connectedLt15)}</td>
-                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtTalkTime(a.totalTalkTime)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{a.totalTalkHours.toFixed(2)}</td>
               </tr>
             ))}
             {!loading && !rows.length && (

@@ -1488,6 +1488,15 @@ export default function OrderStatusDashboard() {
   const [paymentTrendLoading, setPaymentTrendLoading] = useState(false);
   const [paymentTrendView, setPaymentTrendView] = useState<'count' | 'percent'>('count');
 
+  // Trend tab — RTO insights (COD×Coupon, order-value buckets, city tier)
+  interface RtoInsights {
+    codCoupon: Array<{ couponStatus: string; paymentMode: string; totalOrders: number; deliveredCount: number; rtoCount: number; rtoPct: number | null }>;
+    bucket: Array<{ bucket: string; deliveredCount: number; rtoCount: number; rtoPct: number | null; rtoAmount: number; rtoAmountPct: number | null }>;
+    tier: Array<{ cityTier: string; rtoOrders: number; contributionPct: number | null }>;
+  }
+  const [rtoInsights, setRtoInsights] = useState<RtoInsights | null>(null);
+  const [rtoInsightsLoading, setRtoInsightsLoading] = useState(false);
+
   // Zone Wise tab — Delhivery pivot: seller × zone × status (count + kg)
   interface ZoneCell { count: number; modeKg: number; avgKg?: number; medianKg?: number; }
   interface ZonePivot {

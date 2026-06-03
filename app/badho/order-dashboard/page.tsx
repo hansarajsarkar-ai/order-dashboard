@@ -851,8 +851,13 @@ export default function OrderStatusDashboard() {
     statusMarkedTime: string | null;
     statusDurationSec: number | null;
     orderAgeingSec: number | null;
-    brandSlaAgeingSec: number | null;
-    delhiveryPickupAgeingSec: number | null;
+    markedDispatchedTime: string | null;
+    // Brand SLA span = PENDING -> INPROGRESS; Pickup SLA span = INPROGRESS -> DISPATCHED.
+    // *Ongoing flags mean the order is still in that phase, so the span is measured to "now".
+    brandSpanSec: number | null;
+    brandSpanOngoing: boolean;
+    pickupSpanSec: number | null;
+    pickupSpanOngoing: boolean;
   }
   const [alertModalCategory, setAlertModalCategory] = useState<string | null>(null);
   const [alertModalSeller, setAlertModalSeller] = useState<string | null>(null);
@@ -10769,9 +10774,9 @@ export default function OrderStatusDashboard() {
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Seller Address</th>
                           <SortTh k="statusMarkedTime" label={statusMarkedHeaderFor(alertModalData)} cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
-                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Order Ageing<div className="text-[8px] font-normal normal-case text-indigo-500/80">since placed · incl. Sundays</div></th>
-                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Brand SLA Ageing<div className="text-[8px] font-normal normal-case text-indigo-500/80">since placed · excl. Sundays</div></th>
-                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Delhivery Pickup Ageing<div className="text-[8px] font-normal normal-case text-indigo-500/80">since In-Progress · excl. Sundays</div></th>
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Order Age<div className="text-[8px] font-normal normal-case text-indigo-500/80">placed &rarr; now</div></th>
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Brand SLA<div className="text-[8px] font-normal normal-case text-indigo-500/80">PENDING &rarr; INPROGRESS</div></th>
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Pickup SLA<div className="text-[8px] font-normal normal-case text-indigo-500/80">INPROGRESS &rarr; DISPATCHED</div></th>
                           <SortTh k="refundInit" label="Refund Initiated" />
                           <SortTh k="refundDone" label="Refund Completed" />
                           <SortTh k="refundAmount" label="Refund Amount" />
@@ -10830,26 +10835,34 @@ export default function OrderStatusDashboard() {
                                 </div>
                                 <div
                                   className="mt-1.5 text-[10px] leading-tight"
-                                  title="Ageing clocks — Order age: total time since the order was placed (includes Sundays). Brand SLA: working-day ageing since placed, excludes Sundays. Delhivery pickup SLA: working-day ageing since the order was marked In-Progress (pushed to Delhivery), excludes Sundays."
+                                  title="Ageing — Order age: total time since the order was placed (PENDING), includes everything. Brand SLA: time the brand took from PENDING to INPROGRESS (accepting the order). Pickup SLA: time from INPROGRESS to DISPATCHED (handed to courier). 'ongoing' = the order is still in that phase, so the clock is still running."
                                 >
                                   <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">
                                     <span aria-hidden="true">⏱</span> Ageing
                                   </div>
-                                  <div className="grid grid-cols-[auto_auto] gap-x-2 gap-y-px tabular-nums">
+                                  <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 tabular-nums">
                                     <span className="text-slate-500">Order age</span>
-                                    <span className="font-semibold text-slate-700">{formatDuration(r.orderAgeingSec)} <span className="font-normal text-slate-400">· incl. Sun</span></span>
+                                    <span>
+                                      <span className="font-semibold text-slate-700">{formatDuration(r.orderAgeingSec)}</span>
+                                      <span className="block text-slate-400">placed &rarr; now</span>
+                                    </span>
+
                                     <span className="text-slate-500">Brand SLA</span>
-                                    <span className="font-semibold text-indigo-700">{formatDuration(r.brandSlaAgeingSec)} <span className="font-normal text-slate-400">· excl. Sun</span></span>
-                                    {r.delhiveryPickupAgeingSec != null ? (
-                                      <>
-                                        <span className="text-slate-500">Pickup SLA</span>
-                                        <span className="font-semibold text-fuchsia-700">{formatDuration(r.delhiveryPickupAgeingSec)} <span className="font-normal text-slate-400">· excl. Sun</span></span>
-                                      </>
+                                    <span>
+                                      <span className="font-semibold text-indigo-700">{formatDuration(r.brandSpanSec)}</span>
+                                      {r.brandSpanOngoing && <span className="ml-1 text-amber-600 font-medium">· ongoing</span>}
+                                      <span className="block text-slate-400">PENDING &rarr; {r.brandSpanOngoing ? 'now' : 'INPROGRESS'}</span>
+                                    </span>
+
+                                    <span className="text-slate-500">Pickup SLA</span>
+                                    {r.pickupSpanSec != null ? (
+                                      <span>
+                                        <span className="font-semibold text-fuchsia-700">{formatDuration(r.pickupSpanSec)}</span>
+                                        {r.pickupSpanOngoing && <span className="ml-1 text-amber-600 font-medium">· ongoing</span>}
+                                        <span className="block text-slate-400">INPROGRESS &rarr; {r.pickupSpanOngoing ? 'now' : 'DISPATCHED'}</span>
+                                      </span>
                                     ) : (
-                                      <>
-                                        <span className="text-slate-400">Pickup SLA</span>
-                                        <span className="text-slate-400">not pushed yet</span>
-                                      </>
+                                      <span className="text-slate-400">not in progress yet</span>
                                     )}
                                   </div>
                                 </div>
@@ -10975,8 +10988,8 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium" title={r.statusDurationSec != null ? `${r.statusDurationSec.toFixed(0)} seconds` : undefined}>{formatDuration(r.statusDurationSec)}</td>
                               <td className="px-2.5 py-2 text-indigo-700 tabular-nums whitespace-nowrap bg-indigo-50/50 font-medium" title="Time since the order was placed (markedPendingTime), including Sundays">{formatDuration(r.orderAgeingSec)}</td>
-                              <td className="px-2.5 py-2 text-indigo-700 tabular-nums whitespace-nowrap bg-indigo-50/50 font-medium" title="Working-day ageing since placed (Sundays excluded) — the Brand SLA clock">{formatDuration(r.brandSlaAgeingSec)}</td>
-                              <td className="px-2.5 py-2 text-indigo-700 tabular-nums whitespace-nowrap bg-indigo-50/50 font-medium" title="Working-day ageing since marked In-Progress (Sundays excluded) — the Delhivery pickup SLA clock">{r.delhiveryPickupAgeingSec != null ? formatDuration(r.delhiveryPickupAgeingSec) : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-indigo-700 tabular-nums whitespace-nowrap bg-indigo-50/50 font-medium" title="Brand SLA — time from PENDING to INPROGRESS (the brand accepting the order). 'ongoing' = still PENDING.">{formatDuration(r.brandSpanSec)}{r.brandSpanOngoing && <span className="ml-1 text-amber-600 text-[10px] font-medium">ongoing</span>}</td>
+                              <td className="px-2.5 py-2 text-fuchsia-700 tabular-nums whitespace-nowrap bg-indigo-50/50 font-medium" title="Pickup SLA — time from INPROGRESS to DISPATCHED (handed to courier). 'ongoing' = in progress, not yet dispatched.">{r.pickupSpanSec != null ? (<>{formatDuration(r.pickupSpanSec)}{r.pickupSpanOngoing && <span className="ml-1 text-amber-600 text-[10px] font-medium">ongoing</span>}</>) : <span className="text-slate-400">not in progress</span>}</td>
                               <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? formatDateTime(r.RefundIntiatedTime) : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime ? formatDateTime(r.RefundCompletedTime) : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.RefundAmount != null ? `₹${Number(r.RefundAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>

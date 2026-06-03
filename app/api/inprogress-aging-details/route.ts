@@ -35,7 +35,11 @@ interface Row {
   statusMarkedTime: string | null;
   statusDurationSec: number | null;
   orderAgeingSec: number | null;
-  brandSlaAgeingSec: number | null;
+  markedDispatchedTime: string | null;
+  brandSpanSec: number | null;
+  brandSpanOngoing: boolean;
+  pickupSpanSec: number | null;
+  pickupSpanOngoing: boolean;
   buyer_address_line1: string | null;
   buyer_landmark: string | null;
   buyer_pincode: string | null;
@@ -88,21 +92,17 @@ export async function GET(req: NextRequest) {
           po."markedInProgressTime" AS "markedInProgressTime",
           -- Order ageing since placed, INCLUDING Sundays (raw elapsed seconds).
           EXTRACT(EPOCH FROM (NOW() - po."markedPendingTime"))::float AS "orderAgeingSec",
-          -- Brand SLA ageing since placed, EXCLUDING Sundays (IST), seconds.
-          GREATEST(
-            EXTRACT(EPOCH FROM ((NOW() AT TIME ZONE 'Asia/Kolkata') - (po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')))
-            - COALESCE((
-                SELECT SUM(EXTRACT(EPOCH FROM (
-                  LEAST(NOW() AT TIME ZONE 'Asia/Kolkata', d + INTERVAL '1 day')
-                  - GREATEST(po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata', d)
-                )))
-                FROM generate_series((po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')::date, (NOW() AT TIME ZONE 'Asia/Kolkata')::date, INTERVAL '1 day') AS d
-                WHERE EXTRACT(DOW FROM d) = 0
-              ), 0),
-            0
-          )::float AS "brandSlaAgeingSec",
-          -- Delhivery pickup SLA ageing (excl. Sundays) is derived in JS from
-          -- the already-computed daysInProgress to avoid a duplicate subquery.
+          po."markedDispatchedTime" AS "markedDispatchedTime",
+          -- Brand SLA span: PENDING -> INPROGRESS (raw elapsed seconds).
+          -- Still ongoing (measured to NOW) if the order has not reached INPROGRESS.
+          EXTRACT(EPOCH FROM (COALESCE(po."markedInProgressTime", NOW()) - po."markedPendingTime"))::float AS "brandSpanSec",
+          (po."markedInProgressTime" IS NULL) AS "brandSpanOngoing",
+          -- Pickup SLA span: INPROGRESS -> DISPATCHED (raw elapsed seconds).
+          -- NULL until the order reaches INPROGRESS; ongoing (to NOW) until DISPATCHED.
+          CASE WHEN po."markedInProgressTime" IS NULL THEN NULL
+               ELSE EXTRACT(EPOCH FROM (COALESCE(po."markedDispatchedTime", NOW()) - po."markedInProgressTime"))::float
+          END AS "pickupSpanSec",
+          (po."markedInProgressTime" IS NOT NULL AND po."markedDispatchedTime" IS NULL) AS "pickupSpanOngoing",
           pop."created_at"          AS "paymentDate",
           pop."event"               AS "paymentEvent",
           s."phone"                 AS "sellerPhone",
@@ -258,8 +258,11 @@ export async function GET(req: NextRequest) {
       statusMarkedTime: r.statusMarkedTime,
       statusDurationSec: r.statusDurationSec != null ? Number(r.statusDurationSec) : null,
       orderAgeingSec: r.orderAgeingSec != null ? Number(r.orderAgeingSec) : null,
-      brandSlaAgeingSec: r.brandSlaAgeingSec != null ? Number(r.brandSlaAgeingSec) : null,
-      delhiveryPickupAgeingSec: r.daysInProgress != null ? parseFloat(r.daysInProgress) * 86400 : null,
+      markedDispatchedTime: r.markedDispatchedTime,
+      brandSpanSec: r.brandSpanSec != null ? Number(r.brandSpanSec) : null,
+      brandSpanOngoing: r.brandSpanOngoing === true,
+      pickupSpanSec: r.pickupSpanSec != null ? Number(r.pickupSpanSec) : null,
+      pickupSpanOngoing: r.pickupSpanOngoing === true,
       buyerAddressLine1: r.buyer_address_line1,
       buyerLandmark: r.buyer_landmark,
       buyerPincode: r.buyer_pincode,

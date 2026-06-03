@@ -36,6 +36,11 @@ interface Row {
   statusDurationSec: number | null;
   orderAgeingSec: number | null;
   daysPassedExclSundays: string | null;
+  markedDispatchedTime: string | null;
+  brandSpanSec: number | null;
+  brandSpanOngoing: boolean;
+  pickupSpanSec: number | null;
+  pickupSpanOngoing: boolean;
   buyer_address_line1: string | null;
   buyer_landmark: string | null;
   buyer_pincode: string | null;
@@ -108,6 +113,18 @@ export async function GET(req: NextRequest) {
           -- daysPassedExclSundays; Delhivery pickup ageing is null here (PENDING).
           EXTRACT(EPOCH FROM (NOW() - po."markedPendingTime"))::float AS "orderAgeingSec",
           po."markedInProgressTime" AS "markedInProgressTime",
+          po."markedDispatchedTime" AS "markedDispatchedTime",
+          -- Brand SLA span: PENDING -> INPROGRESS (raw elapsed seconds). These rows are
+          -- still PENDING, so it is ongoing (measured to NOW) — i.e. how long the brand
+          -- has sat on the order without accepting it.
+          EXTRACT(EPOCH FROM (COALESCE(po."markedInProgressTime", NOW()) - po."markedPendingTime"))::float AS "brandSpanSec",
+          (po."markedInProgressTime" IS NULL) AS "brandSpanOngoing",
+          -- Pickup SLA span: INPROGRESS -> DISPATCHED. NULL here since the order has not
+          -- yet reached INPROGRESS.
+          CASE WHEN po."markedInProgressTime" IS NULL THEN NULL
+               ELSE EXTRACT(EPOCH FROM (COALESCE(po."markedDispatchedTime", NOW()) - po."markedInProgressTime"))::float
+          END AS "pickupSpanSec",
+          (po."markedInProgressTime" IS NOT NULL AND po."markedDispatchedTime" IS NULL) AS "pickupSpanOngoing",
           pop."created_at"       AS "paymentDate",
           pop."event"            AS "paymentEvent",
           s."phone"              AS "sellerPhone",
@@ -293,8 +310,11 @@ export async function GET(req: NextRequest) {
       statusMarkedTime: r.statusMarkedTime,
       statusDurationSec: r.statusDurationSec != null ? Number(r.statusDurationSec) : null,
       orderAgeingSec: r.orderAgeingSec != null ? Number(r.orderAgeingSec) : null,
-      brandSlaAgeingSec: r.daysPassedExclSundays != null ? Number(r.daysPassedExclSundays) * 86400 : null,
-      delhiveryPickupAgeingSec: null,
+      markedDispatchedTime: r.markedDispatchedTime,
+      brandSpanSec: r.brandSpanSec != null ? Number(r.brandSpanSec) : null,
+      brandSpanOngoing: r.brandSpanOngoing === true,
+      pickupSpanSec: r.pickupSpanSec != null ? Number(r.pickupSpanSec) : null,
+      pickupSpanOngoing: r.pickupSpanOngoing === true,
       buyerAddressLine1: r.buyer_address_line1,
       buyerLandmark: r.buyer_landmark,
       buyerPincode: r.buyer_pincode,

@@ -17,6 +17,7 @@ interface PoRow {
   buyerPhone: string | null;
   paymentMode: string | null;
   paidAmount: number | null;
+  buyerInformed: string | null;
   remarks: string | null;
   refundableAmount: number;
   refundStatus: string | null;
@@ -169,14 +170,14 @@ export default function PoModifiedDashboard() {
 
   const exportCsv = () => {
     if (!resp) return;
-    const headers = ['PO Number', 'Order Date & Time', 'Remarks', 'Previous PO Amount', 'New PO Amount', 'Value Lost', 'Payment Type', 'Buyer Paid', 'Refundable Amount', 'Refund Amount', 'Refund Status', 'Refund Time', 'Refund Id', 'PO Status', 'Brand', 'Buyer Business', 'Buyer Phone'];
+    const headers = ['PO Number', 'Order Date & Time', 'Remarks', 'Previous PO Amount', 'New PO Amount', 'Value Lost', 'Payment Type', 'Buyer Paid', 'Refundable Amount', 'Refund Amount', 'Refund Status', 'Refund Time', 'Refund Id', 'PO Status', 'Brand', 'Buyer Business', 'Buyer Phone', 'Buyer Informed'];
     const esc = (v: string | number | null) => {
       const s = String(v ?? '');
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers.map(esc).join(',')];
     for (const r of rows) {
-      lines.push([r.poNumber, r.orderDateTime, r.remarks, r.prevAmount, r.newAmount, r.valueLost, r.paymentMode, r.paidAmount ?? '', r.refundableAmount, r.refundAmount ?? '', r.refundStatus ?? (r.refundableAmount > 0 ? 'PENDING' : ''), r.refundTime ?? '', r.refundId ?? '', r.poStatus, r.brandName, r.buyerBusiness, r.buyerPhone].map(esc).join(','));
+      lines.push([r.poNumber, r.orderDateTime, r.remarks, r.prevAmount, r.newAmount, r.valueLost, r.paymentMode, r.paidAmount ?? '', r.refundableAmount, r.refundAmount ?? '', r.refundStatus ?? (r.refundableAmount > 0 ? 'PENDING' : ''), r.refundTime ?? '', r.refundId ?? '', r.poStatus, r.brandName, r.buyerBusiness, r.buyerPhone, r.buyerInformed ?? ''].map(esc).join(','));
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -317,6 +318,7 @@ export default function PoModifiedDashboard() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">PO Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Brand</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer Informed</th>
                 </tr>
               </thead>
               <tbody>
@@ -361,10 +363,15 @@ export default function PoModifiedDashboard() {
                       <div className="truncate">{r.buyerBusiness ?? '—'}</div>
                       <div className="text-[11px] text-sky-300/80 tabular-nums">{r.buyerPhone ?? ''}</div>
                     </td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">
+                      {r.buyerInformed ? (
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-400/30">{r.buyerInformed}</span>
+                      ) : <span className="text-purple-300/40">—</span>}
+                    </td>
                   </tr>
                 ))}
                 {!loading && rows.length === 0 && (
-                  <tr><td colSpan={15} className="px-4 py-10 text-center text-purple-300/60">No modified POs in this range.</td></tr>
+                  <tr><td colSpan={16} className="px-4 py-10 text-center text-purple-300/60">No modified POs in this range.</td></tr>
                 )}
               </tbody>
             </table>

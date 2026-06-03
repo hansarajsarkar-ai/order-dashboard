@@ -22,6 +22,7 @@ interface Row {
   buyerPhone: string | null;
   paymentMode: string | null;
   paidAmount: string | null;
+  buyerInformed: string | null;
   remarks: string | null;
   refundableAmount: string | null;
   refundStatus: string | null;
@@ -63,6 +64,7 @@ export async function GET(req: NextRequest) {
         b."businessName"       AS buyer_business,
         b."phone"              AS buyer_phone,
         po."paymentInfo"->>'option' AS payment_mode,
+        po."poModifiedBuyerInformed" AS buyer_informed,
         CASE
           WHEN poi."isArchived" = TRUE  AND poi."originalSnapshot" IS NULL     THEN 'Item Removed'
           WHEN poi."isArchived" = FALSE AND poi."originalSnapshot" IS NOT NULL THEN 'Quantity Decreased'
@@ -102,6 +104,7 @@ export async function GET(req: NextRequest) {
         MAX(buyer_business)                     AS buyer_business,
         MAX(buyer_phone)                        AS buyer_phone,
         MAX(payment_mode)                       AS payment_mode,
+        MAX(buyer_informed)                     AS buyer_informed,
         STRING_AGG(DISTINCT change_type, ', ')  AS remarks
       FROM seller_mods
       GROUP BY po_number
@@ -118,6 +121,7 @@ export async function GET(req: NextRequest) {
       p.buyer_phone                                         AS "buyerPhone",
       p.payment_mode                                        AS "paymentMode",
       pay."paidAmount"                                      AS "paidAmount",
+      p.buyer_informed                                      AS "buyerInformed",
       p.remarks                                             AS "remarks",
       p.refundable_amount                                   AS "refundableAmount",
       rf."refundStatus"                                     AS "refundStatus",
@@ -167,6 +171,7 @@ export async function GET(req: NextRequest) {
         buyerPhone: r.buyerPhone,
         paymentMode: r.paymentMode,
         paidAmount: r.paidAmount == null ? null : Number(r.paidAmount),
+        buyerInformed: r.buyerInformed,
         remarks: r.remarks,
         refundableAmount: Number(r.refundableAmount) || 0,
         refundStatus: r.refundStatus,

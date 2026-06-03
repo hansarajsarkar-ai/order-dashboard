@@ -14,6 +14,7 @@ import { Funnel } from './components/Funnel';
 import { Heatmap } from './components/Heatmap';
 import { MultiSelect } from './components/MultiSelect';
 import OrderDrillModal, { type DrillOrderRow } from './components/OrderDrillModal';
+import ConnectedCallsModal from './components/ConnectedCallsModal';
 
 // ───────────────────────── helpers ─────────────────────────
 
@@ -946,6 +947,8 @@ function TableTab({ filters }: { filters: Filters }) {
   const [period, setPeriod] = useState<AgentPeriod>('month');
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Clicking a "Connected" count opens that agent's connected-call list.
+  const [connAgent, setConnAgent] = useState<string | null>(null);
 
   const range = agentPeriodRange(period);
   const qs = useMemo(
@@ -1017,6 +1020,7 @@ function TableTab({ filters }: { filters: Filters }) {
   };
 
   return (
+    <>
     <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div>
@@ -1082,7 +1086,19 @@ function TableTab({ filters }: { filters: Filters }) {
                 <td className="py-2 pr-2 text-purple-300/60">{i + 1}</td>
                 <td className="py-2 pr-2 text-purple-100 font-medium">{a.agentName}</td>
                 <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(a.totalCalls)}</td>
-                <td className="py-2 px-2 text-right text-emerald-300 tabular-nums">{fmtInt(a.connectedCalls)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">
+                  {a.connectedCalls > 0 ? (
+                    <button
+                      onClick={() => setConnAgent(a.agentName)}
+                      className="text-emerald-300 hover:text-emerald-100 underline decoration-dotted underline-offset-2 hover:decoration-solid cursor-pointer transition-colors"
+                      title={`View ${fmtInt(a.connectedCalls)} connected calls — buyer, city, address & recording`}
+                    >
+                      {fmtInt(a.connectedCalls)}
+                    </button>
+                  ) : (
+                    <span className="text-emerald-300/40">0</span>
+                  )}
+                </td>
                 <td className="py-2 px-2 text-right tabular-nums">
                   <span className={a.connectionRate >= 0.6 ? 'text-emerald-300' : a.connectionRate >= 0.4 ? 'text-amber-300' : 'text-rose-300'}>
                     {fmtPct(a.connectionRate, 1)}
@@ -1122,6 +1138,17 @@ function TableTab({ filters }: { filters: Filters }) {
         </table>
       </div>
     </div>
+
+    {connAgent && (
+      <ConnectedCallsModal
+        agentName={connAgent}
+        qs={qs}
+        startDate={range.startDate}
+        endDate={range.endDate}
+        onClose={() => setConnAgent(null)}
+      />
+    )}
+    </>
   );
 }
 
@@ -1610,7 +1637,7 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
                       onClick={v ? () => setDrill({ agentName: a.agentName, day: d, count: v }) : undefined}
                       title={v ? `${v} order${v > 1 ? 's' : ''} · ${a.agentName} · ${dayLabel(d)} — click for details` : undefined}
                       style={{ backgroundColor: isAgentPeak ? 'rgba(134,239,172,0.22)' : h.bg }}
-                      className={`py-1.5 px-2 text-right tabular-nums border-b border-white/5 ${isAgentPeak ? 'text-emerald-100 font-bold' : h.cls} ${newMonthIdx.has(i) ? 'border-l border-l-white/10' : ''} ${h.peak ? 'ring-1 ring-inset ring-emerald-200/80' : ''} ${v ? 'cursor-pointer hover:ring-1 hover:ring-inset hover:ring-fuchsia-300/70' : ''}`}
+                      className={`py-1.5 px-2 text-right tabular-nums border-b border-white/5 transition-all duration-100 ${isAgentPeak ? 'text-emerald-100 font-bold' : h.cls} ${newMonthIdx.has(i) ? 'border-l border-l-white/10' : ''} ${h.peak ? 'ring-1 ring-inset ring-emerald-200/80' : ''} ${v ? 'cursor-pointer hover:ring-1 hover:ring-inset hover:ring-fuchsia-300/80 hover:brightness-110 hover:saturate-[2.2] active:saturate-[3] active:brightness-125' : ''}`}
                     >
                       {v || '·'}
                     </td>

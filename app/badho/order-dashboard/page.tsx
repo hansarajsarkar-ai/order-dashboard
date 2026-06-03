@@ -1838,10 +1838,30 @@ export default function OrderStatusDashboard() {
     }
   };
 
+  const fetchRtoInsights = async () => {
+    try {
+      setRtoInsightsLoading(true);
+      const { startDate, endDate } = resolveTrendRange();
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const res = await fetch(`/api/order-rto-insights${params.toString() ? `?${params}` : ''}`);
+      if (!res.ok) throw new Error('Failed to fetch rto-insights');
+      const json = await res.json();
+      setRtoInsights(json);
+    } catch (err) {
+      console.error('RTO-insights fetch error:', err);
+      setRtoInsights(null);
+    } finally {
+      setRtoInsightsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab !== 'trend') return;
     fetchTrend();
     fetchPaymentTrend();
+    fetchRtoInsights();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, trendRange, trendCustomFrom, trendCustomTo, trendMonths]);
 
@@ -5057,6 +5077,136 @@ export default function OrderStatusDashboard() {
             </div>
           );
         })()}
+
+        {/* === RTO Insights (COD×Coupon · order-value buckets · city tier) === */}
+        {rtoInsights && (
+          <div className={`mb-8 space-y-6 ${rtoInsightsLoading ? 'opacity-60 transition-opacity' : ''}`}>
+            {/* COD vs. Coupon Applied vs. RTO */}
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
+              <div className="px-6 py-5 border-b border-white/10 bg-white/5">
+                <h3 className="text-lg font-bold text-white">COD vs. Coupon Applied vs. RTO</h3>
+                <p className="text-purple-300 text-xs mt-0.5">RTO rate by coupon status × payment mode · % of (RTO + Delivered) · D2R third-party INTERCITY</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200 w-8">#</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Coupon Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Payment Mode</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Total Orders</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Delivered Count</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">RTO Count</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">RTO % (of RTO+Delivered)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rtoInsights.codCoupon.map((r, i) => {
+                      const pct = r.rtoPct ?? 0;
+                      const pctClass = pct >= 30 ? 'text-rose-300' : pct >= 15 ? 'text-amber-300' : 'text-emerald-300';
+                      return (
+                        <tr key={`${r.couponStatus}|${r.paymentMode}`} className="border-b border-white/5 hover:bg-fuchsia-500/10 transition-colors">
+                          <td className="px-4 py-3 text-purple-300/60 tabular-nums">{i + 1}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-semibold ${r.couponStatus === 'Coupon Applied' ? 'bg-emerald-500/15 text-emerald-200 border border-emerald-400/30' : 'bg-sky-500/15 text-sky-200 border border-sky-400/30'}`}>{r.couponStatus}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-semibold ${r.paymentMode === 'COD' ? 'bg-amber-500/15 text-amber-200 border border-amber-400/30' : 'bg-emerald-500/15 text-emerald-200 border border-emerald-400/30'}`}>{r.paymentMode}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums text-white">{r.totalOrders.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-purple-100">{r.deliveredCount.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-rose-200 font-semibold">{r.rtoCount.toLocaleString('en-IN')}</td>
+                          <td className={`px-4 py-3 text-right tabular-nums font-bold ${pctClass}`}>{r.rtoPct === null ? '—' : `${r.rtoPct}%`}</td>
+                        </tr>
+                      );
+                    })}
+                    {rtoInsights.codCoupon.length === 0 && (
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-purple-300/60">No orders in this range.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* Order Amount Bucket wise RTO Count & % */}
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
+                <div className="px-6 py-5 border-b border-white/10 bg-white/5">
+                  <h3 className="text-lg font-bold text-white">Order Amount Bucket wise RTO</h3>
+                  <p className="text-purple-300 text-xs mt-0.5">RTO count, rate & ₹ value by order-value band</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Order Value Bucket</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Delivered</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">RTO Count</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">RTO %</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">RTO Amount</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">RTO Amt %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rtoInsights.bucket.map((r) => {
+                        const pct = r.rtoPct ?? 0;
+                        const pctClass = pct >= 30 ? 'text-rose-300' : pct >= 15 ? 'text-amber-300' : 'text-emerald-300';
+                        return (
+                          <tr key={r.bucket} className="border-b border-white/5 hover:bg-fuchsia-500/10 transition-colors">
+                            <td className="px-4 py-3 text-white font-medium">{r.bucket}</td>
+                            <td className="px-4 py-3 text-right tabular-nums text-purple-100">{r.deliveredCount.toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-3 text-right tabular-nums text-rose-200 font-semibold">{r.rtoCount.toLocaleString('en-IN')}</td>
+                            <td className={`px-4 py-3 text-right tabular-nums font-bold ${pctClass}`}>{r.rtoPct === null ? '—' : `${r.rtoPct}%`}</td>
+                            <td className="px-4 py-3 text-right tabular-nums text-purple-100">{formatAmount(r.rtoAmount)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums text-purple-200/80">{r.rtoAmountPct === null ? '—' : `${r.rtoAmountPct}%`}</td>
+                          </tr>
+                        );
+                      })}
+                      {rtoInsights.bucket.length === 0 && (
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-purple-300/60">No orders in this range.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* RTO by TIER 1/2/3/4 City */}
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
+                <div className="px-6 py-5 border-b border-white/10 bg-white/5">
+                  <h3 className="text-lg font-bold text-white">RTO by TIER 1/2/3/4 City</h3>
+                  <p className="text-purple-300 text-xs mt-0.5">Share of RTO orders by buyer-city tier</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">City Tier</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">RTO Orders</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Contribution %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rtoInsights.tier.map((r) => {
+                        const c = r.contributionPct ?? 0;
+                        const cClass = c >= 50 ? 'text-rose-300' : c >= 20 ? 'text-amber-300' : 'text-emerald-300';
+                        return (
+                          <tr key={r.cityTier} className="border-b border-white/5 hover:bg-fuchsia-500/10 transition-colors">
+                            <td className="px-4 py-3 text-white font-medium">{r.cityTier}</td>
+                            <td className="px-4 py-3 text-right tabular-nums text-rose-200 font-semibold">{r.rtoOrders.toLocaleString('en-IN')}</td>
+                            <td className={`px-4 py-3 text-right tabular-nums font-bold ${cClass}`}>{r.contributionPct === null ? '—' : `${r.contributionPct}%`}</td>
+                          </tr>
+                        );
+                      })}
+                      {rtoInsights.tier.length === 0 && (
+                        <tr><td colSpan={3} className="px-4 py-8 text-center text-purple-300/60">No RTO orders in this range.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Daily Order Trend — line chart */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">

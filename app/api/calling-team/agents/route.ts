@@ -73,6 +73,9 @@ export async function GET(req: NextRequest) {
           FROM called GROUP BY agent_name
         ),
         buyer_orders AS (
+          -- Qualified D2R intercity (third-party) orders only — the universe the
+          -- calling team drives. order_date/hour resolved in IST. created_at is the
+          -- placement timestamp (markedPendingTime is null for COMPLETED/CANCELLED).
           SELECT
             RIGHT(REGEXP_REPLACE(b."phone", '[^0-9]', '', 'g'), 10) AS phone,
             po."id" AS order_id,
@@ -80,9 +83,14 @@ export async function GET(req: NextRequest) {
             EXTRACT(HOUR FROM (po."created_at" AT TIME ZONE 'Asia/Kolkata')) AS order_hour,
             po."amount"::numeric AS amount
           FROM "purchaseOrder"."purchaseOrder" po
+          JOIN "users"."seller" s ON s."id" = po."sellerId"
           JOIN "users"."buyer" b ON b."id" = po."buyerId"
-          WHERE po."status" != 'DRAFT' AND po."isTest" = FALSE
+          WHERE po."status" != 'DRAFT'
+            AND s."isD2RBrandSeller" = TRUE
             AND b."isTest" = FALSE AND b."businessName" NOT ILIKE '%test%'
+            AND s."isTest" = FALSE AND s."businessName" NOT ILIKE '%test%'
+            AND po."isTest" = FALSE AND po."isFalseOrder" = FALSE
+            AND po."deliveryNetwork" = 'THIRD_PARTY' AND po."deliveryType" = 'INTERCITY'
             AND (po."created_at" AT TIME ZONE 'Asia/Kolkata')::date >= $1::date
             AND (po."created_at" AT TIME ZONE 'Asia/Kolkata')::date <= $2::date
         ),

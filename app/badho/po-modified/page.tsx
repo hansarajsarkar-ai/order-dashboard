@@ -32,6 +32,15 @@ interface ApiResp {
   timestamp: string;
 }
 
+interface ItemRow {
+  productName: string | null;
+  itemChangeType: string;
+  prevQty: number | null;
+  newQty: number | null;
+  itemAmount: number;
+  modifiedByRole: string | null;
+}
+
 type RangeKey = '7d' | '30d' | '90d' | 'ytd' | 'custom';
 
 function fmtAmount(n: number): string {
@@ -60,6 +69,8 @@ export default function PoModifiedDashboard() {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [search, setSearch] = useState('');
+  const [drill, setDrill] = useState<{ po: PoRow; items: ItemRow[] | null } | null>(null);
+  const [drillLoading, setDrillLoading] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -129,6 +140,21 @@ export default function PoModifiedDashboard() {
         .some((v) => (v ?? '').toString().toLowerCase().includes(q))
     );
   }, [resp, search]);
+
+  const openDrill = async (po: PoRow) => {
+    if (!po.poNumber) return;
+    setDrill({ po, items: null });
+    setDrillLoading(true);
+    try {
+      const res = await fetch(`/api/po-modified/items?poNumber=${encodeURIComponent(po.poNumber)}`, { cache: 'no-store' });
+      const json = await res.json();
+      setDrill({ po, items: res.ok ? (json.data as ItemRow[]) : [] });
+    } catch {
+      setDrill({ po, items: [] });
+    } finally {
+      setDrillLoading(false);
+    }
+  };
 
   const exportCsv = () => {
     if (!resp) return;
@@ -277,8 +303,13 @@ export default function PoModifiedDashboard() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.poNumber} className="border-b border-white/5 hover:bg-fuchsia-500/10 transition-colors">
-                    <td className="px-4 py-3 tabular-nums font-semibold text-fuchsia-200">{r.poNumber ?? '—'}</td>
+                  <tr
+                    key={r.poNumber}
+                    onClick={() => openDrill(r)}
+                    className="border-b border-white/5 hover:bg-fuchsia-500/10 transition-colors cursor-pointer"
+                    title="View item-level detail"
+                  >
+                    <td className="px-4 py-3 tabular-nums font-semibold text-fuchsia-200 whitespace-nowrap">{r.poNumber ?? '—'} <span className="text-purple-300/40">↗</span></td>
                     <td className="px-4 py-3 text-purple-100 whitespace-nowrap text-xs">{r.orderDateTime ?? '—'}</td>
                     <td className="px-4 py-3">
                       {(r.remarks ?? '').split(', ').filter(Boolean).map((rm) => (
@@ -308,6 +339,64 @@ export default function PoModifiedDashboard() {
           <p className="mt-3 text-xs text-purple-300/50">Updated {new Date(resp.timestamp).toLocaleString('en-IN')}</p>
         )}
       </div>
+
+      {/* Item-level drill modal */}
+      {drill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" onClick={() => setDrill(null)}>
+          <div className="bg-slate-900 border border-fuchsia-400/30 rounded-2xl w-[94vw] max-w-[900px] max-h-[85vh] flex flex-col overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-white/10 bg-gradient-to-r from-fuchsia-500/10 to-purple-500/10 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-white">PO {drill.po.poNumber} · item detail</h2>
+                <p className="text-xs text-purple-300/80 mt-0.5">
+                  {drill.po.orderDateTime} · {drill.po.poStatus} · {drill.po.brandName}
+                  {' · '}
+                  <span className="text-purple-100">{fmtFull(drill.po.prevAmount)} → {fmtFull(drill.po.newAmount)}</span>
+                  {drill.po.valueLost > 0 && <span className="text-rose-300 font-semibold"> (−{fmtFull(drill.po.valueLost)})</span>}
+                </p>
+              </div>
+              <button onClick={() => setDrill(null)} aria-label="Close" className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-purple-100 text-lg leading-none shrink-0">×</button>
+            </div>
+            <div className="overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-slate-900">
+                  <tr className="bg-white/5 border-b border-white/10">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Product Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Change</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Prev Qty</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">New Qty</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Item Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {drillLoading && (
+                    <tr><td colSpan={5} className="px-4 py-10 text-center text-purple-300/60">Loading items…</td></tr>
+                  )}
+                  {!drillLoading && drill.items?.map((it, i) => {
+                    const badge = it.itemChangeType === 'ITEM REMOVED'
+                      ? 'bg-rose-500/15 text-rose-200 border-rose-400/30'
+                      : it.itemChangeType === 'QUANTITY DECREASED'
+                        ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'
+                        : 'bg-white/5 text-purple-200/70 border-white/15';
+                    const removed = it.itemChangeType === 'ITEM REMOVED';
+                    return (
+                      <tr key={`${it.productName}-${i}`} className={`border-b border-white/5 ${removed ? 'bg-rose-500/[0.04]' : ''}`}>
+                        <td className={`px-4 py-2.5 ${removed ? 'text-purple-200/70 line-through' : 'text-white'}`}>{it.productName ?? '—'}</td>
+                        <td className="px-4 py-2.5"><span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border ${badge}`}>{it.itemChangeType}</span></td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{it.prevQty ?? '—'}</td>
+                        <td className={`px-4 py-2.5 text-right tabular-nums ${it.itemChangeType !== 'UNCHANGED' ? 'text-rose-300 font-semibold' : 'text-purple-100'}`}>{it.newQty ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{fmtFull(it.itemAmount)}</td>
+                      </tr>
+                    );
+                  })}
+                  {!drillLoading && drill.items && drill.items.length === 0 && (
+                    <tr><td colSpan={5} className="px-4 py-10 text-center text-purple-300/60">No items found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .animation-delay-2000 { animation-delay: 2s; }

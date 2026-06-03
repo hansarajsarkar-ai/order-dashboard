@@ -17,6 +17,12 @@ interface PoRow {
   buyerPhone: string | null;
   paymentMode: string | null;
   remarks: string | null;
+  refundableAmount: number;
+  refundStatus: string | null;
+  refundAmount: number | null;
+  refundTime: string | null;
+  refundId: string | null;
+  refundType: string | null;
 }
 interface Kpis {
   modifiedPos: number;
@@ -25,6 +31,10 @@ interface Kpis {
   prevAmountSum: number;
   newAmountSum: number;
   valueLost: number;
+  refundableTotal: number;
+  refundCompletedPos: number;
+  refundCompletedAmount: number;
+  refundPendingPos: number;
 }
 interface ApiResp {
   data: PoRow[];
@@ -158,14 +168,14 @@ export default function PoModifiedDashboard() {
 
   const exportCsv = () => {
     if (!resp) return;
-    const headers = ['PO Number', 'Order Date & Time', 'Remarks', 'Previous PO Amount', 'New PO Amount', 'Value Lost', 'PO Status', 'Brand', 'Buyer Business', 'Buyer Phone', 'Payment Mode'];
+    const headers = ['PO Number', 'Order Date & Time', 'Remarks', 'Previous PO Amount', 'New PO Amount', 'Value Lost', 'Refundable Amount', 'Refund Amount', 'Refund Status', 'Refund Time', 'Refund Id', 'PO Status', 'Brand', 'Buyer Business', 'Buyer Phone', 'Payment Mode'];
     const esc = (v: string | number | null) => {
       const s = String(v ?? '');
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers.map(esc).join(',')];
     for (const r of rows) {
-      lines.push([r.poNumber, r.orderDateTime, r.remarks, r.prevAmount, r.newAmount, r.valueLost, r.poStatus, r.brandName, r.buyerBusiness, r.buyerPhone, r.paymentMode].map(esc).join(','));
+      lines.push([r.poNumber, r.orderDateTime, r.remarks, r.prevAmount, r.newAmount, r.valueLost, r.refundableAmount, r.refundAmount ?? '', r.refundStatus ?? (r.refundableAmount > 0 ? 'PENDING' : ''), r.refundTime ?? '', r.refundId ?? '', r.poStatus, r.brandName, r.buyerBusiness, r.buyerPhone, r.paymentMode].map(esc).join(','));
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -273,11 +283,12 @@ export default function PoModifiedDashboard() {
         </div>
 
         {/* KPI strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
           <Kpi label="Modified POs" value={fmtCount(k?.modifiedPos ?? 0)} sub="seller item edits" tone="fuchsia" />
           <Kpi label="Item Removed" value={fmtCount(k?.itemRemovedPos ?? 0)} sub="POs with a removal" tone="rose" />
           <Kpi label="Quantity Decreased" value={fmtCount(k?.qtyDecreasedPos ?? 0)} sub="POs with a qty cut" tone="amber" />
           <Kpi label="Value Lost" value={fmtAmount(k?.valueLost ?? 0)} sub={`of ${fmtAmount(k?.prevAmountSum ?? 0)} original`} tone="emerald" />
+          <Kpi label="Refund Owed" value={fmtAmount(k?.refundableTotal ?? 0)} sub={`${fmtCount(k?.refundCompletedPos ?? 0)} done · ${fmtCount(k?.refundPendingPos ?? 0)} pending`} tone="sky" />
         </div>
 
         {/* Table */}
@@ -296,6 +307,10 @@ export default function PoModifiedDashboard() {
                   <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Previous PO Amount</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">New PO Amount</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Value Lost</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Refundable</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Refund Amount</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Refund Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Refund Time</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">PO Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Brand</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer</th>
@@ -319,6 +334,18 @@ export default function PoModifiedDashboard() {
                     <td className="px-4 py-3 text-right tabular-nums text-purple-100">{fmtFull(r.prevAmount)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-white">{fmtFull(r.newAmount)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-rose-300 font-semibold">{r.valueLost > 0 ? `−${fmtFull(r.valueLost)}` : '—'}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-sky-200">{r.refundableAmount > 0 ? fmtFull(r.refundableAmount) : '—'}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-purple-100">{r.refundAmount != null ? fmtFull(r.refundAmount) : '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {r.refundStatus ? (
+                        <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border ${r.refundStatus === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30' : 'bg-amber-500/15 text-amber-200 border-amber-400/30'}`} title={r.refundId ? `Refund id: ${r.refundId}${r.refundType ? ` · ${r.refundType}` : ''}` : undefined}>{r.refundStatus}</span>
+                      ) : r.refundableAmount > 0 ? (
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border bg-rose-500/15 text-rose-200 border-rose-400/30">PENDING</span>
+                      ) : (
+                        <span className="text-purple-300/40">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-purple-100 text-xs whitespace-nowrap">{r.refundTime ?? '—'}</td>
                     <td className="px-4 py-3 text-purple-100 text-xs whitespace-nowrap">{r.poStatus ?? '—'}</td>
                     <td className="px-4 py-3 text-purple-100 text-xs max-w-[160px] truncate" title={r.brandName ?? ''}>{r.brandName ?? '—'}</td>
                     <td className="px-4 py-3 text-purple-100 text-xs max-w-[200px] truncate" title={`${r.buyerBusiness ?? ''} ${r.buyerPhone ?? ''}`}>
@@ -328,7 +355,7 @@ export default function PoModifiedDashboard() {
                   </tr>
                 ))}
                 {!loading && rows.length === 0 && (
-                  <tr><td colSpan={9} className="px-4 py-10 text-center text-purple-300/60">No modified POs in this range.</td></tr>
+                  <tr><td colSpan={13} className="px-4 py-10 text-center text-purple-300/60">No modified POs in this range.</td></tr>
                 )}
               </tbody>
             </table>
@@ -353,6 +380,16 @@ export default function PoModifiedDashboard() {
                   <span className="text-purple-100">{fmtFull(drill.po.prevAmount)} → {fmtFull(drill.po.newAmount)}</span>
                   {drill.po.valueLost > 0 && <span className="text-rose-300 font-semibold"> (−{fmtFull(drill.po.valueLost)})</span>}
                 </p>
+                {(drill.po.refundableAmount > 0 || drill.po.refundStatus) && (
+                  <p className="text-xs mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="text-purple-300/70">Refund</span>
+                    <span className={`px-1.5 py-0.5 rounded font-semibold ${drill.po.refundStatus === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-200' : drill.po.refundStatus ? 'bg-amber-500/15 text-amber-200' : 'bg-rose-500/15 text-rose-200'}`}>{drill.po.refundStatus ?? 'PENDING'}</span>
+                    <span className="text-sky-200">{fmtFull(drill.po.refundAmount ?? drill.po.refundableAmount)}</span>
+                    {drill.po.refundType && <span className="text-purple-300/60">{drill.po.refundType}</span>}
+                    {drill.po.refundTime && <span className="text-purple-200/80">· {drill.po.refundTime}</span>}
+                    {drill.po.refundId && <span className="text-purple-300/50 font-mono text-[10px]">· {drill.po.refundId}</span>}
+                  </p>
+                )}
               </div>
               <button onClick={() => setDrill(null)} aria-label="Close" className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-purple-100 text-lg leading-none shrink-0">×</button>
             </div>
@@ -405,12 +442,13 @@ export default function PoModifiedDashboard() {
   );
 }
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone: 'fuchsia' | 'rose' | 'amber' | 'emerald' }) {
+function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone: 'fuchsia' | 'rose' | 'amber' | 'emerald' | 'sky' }) {
   const tones: Record<string, { border: string; glow: string; value: string; label: string }> = {
     fuchsia: { border: 'border-fuchsia-400/30', glow: 'from-fuchsia-500/20 to-fuchsia-600/0', value: 'text-fuchsia-100', label: 'text-fuchsia-300' },
     rose: { border: 'border-rose-400/30', glow: 'from-rose-500/20 to-rose-600/0', value: 'text-rose-100', label: 'text-rose-300' },
     amber: { border: 'border-amber-400/30', glow: 'from-amber-500/20 to-amber-600/0', value: 'text-amber-100', label: 'text-amber-300' },
     emerald: { border: 'border-emerald-400/30', glow: 'from-emerald-500/20 to-emerald-600/0', value: 'text-emerald-100', label: 'text-emerald-300' },
+    sky: { border: 'border-sky-400/30', glow: 'from-sky-500/20 to-sky-600/0', value: 'text-sky-100', label: 'text-sky-300' },
   };
   const s = tones[tone];
   return (

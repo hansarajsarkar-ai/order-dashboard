@@ -22,6 +22,12 @@ interface Row {
   buyerPhone: string | null;
   paymentMode: string | null;
   remarks: string | null;
+  refundableAmount: string | null;
+  refundStatus: string | null;
+  refundAmount: string | null;
+  refundTime: string | null;
+  refundId: string | null;
+  refundType: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -45,10 +51,12 @@ export async function GET(req: NextRequest) {
   const sql = `
     WITH seller_mods AS (
       SELECT
+        po."id"                AS po_id,
         po."poNumber"          AS po_number,
         po."markedPendingTime" AS order_ts,
         po."originalPOAmount"  AS prev_amount,
         po."amount"            AS new_amount,
+        po."refundableAmount"  AS refundable_amount,
         po."status"            AS po_status,
         TRIM(SPLIT_PART(s."businessName", '-', 1)) AS brand_name,
         b."businessName"       AS buyer_business,
@@ -79,22 +87,53 @@ export async function GET(req: NextRequest) {
           OR (poi."isArchived" = FALSE AND poi."originalSnapshot" IS NOT NULL)
         )
         ${dateFilter}
+    ),
+    per_po AS (
+      SELECT
+        po_number,
+        MAX(po_id)                              AS po_id,
+        MAX(order_ts)                           AS order_ts,
+        MAX(prev_amount)                        AS prev_amount,
+        MAX(new_amount)                         AS new_amount,
+        MAX(refundable_amount)                  AS refundable_amount,
+        MAX(po_status)                          AS po_status,
+        MAX(brand_name)                         AS brand_name,
+        MAX(buyer_business)                     AS buyer_business,
+        MAX(buyer_phone)                        AS buyer_phone,
+        MAX(payment_mode)                       AS payment_mode,
+        STRING_AGG(DISTINCT change_type, ', ')  AS remarks
+      FROM seller_mods
+      GROUP BY po_number
     )
     SELECT
-      po_number::text                                       AS "poNumber",
-      MAX(order_ts)                                         AS "orderTs",
-      TO_CHAR(MAX(order_ts), 'DD Mon YYYY HH12:MI AM')      AS "orderDateTime",
-      MAX(prev_amount)                                      AS "prevAmount",
-      MAX(new_amount)                                       AS "newAmount",
-      MAX(po_status)                                        AS "poStatus",
-      MAX(brand_name)                                       AS "brandName",
-      MAX(buyer_business)                                   AS "buyerBusiness",
-      MAX(buyer_phone)                                      AS "buyerPhone",
-      MAX(payment_mode)                                     AS "paymentMode",
-      STRING_AGG(DISTINCT change_type, ', ')                AS "remarks"
-    FROM seller_mods
-    GROUP BY po_number
-    ORDER BY MAX(order_ts) DESC;
+      p.po_number::text                                     AS "poNumber",
+      p.order_ts                                            AS "orderTs",
+      TO_CHAR(p.order_ts, 'DD Mon YYYY HH12:MI AM')         AS "orderDateTime",
+      p.prev_amount                                         AS "prevAmount",
+      p.new_amount                                          AS "newAmount",
+      p.po_status                                           AS "poStatus",
+      p.brand_name                                          AS "brandName",
+      p.buyer_business                                      AS "buyerBusiness",
+      p.buyer_phone                                         AS "buyerPhone",
+      p.payment_mode                                        AS "paymentMode",
+      p.remarks                                             AS "remarks",
+      p.refundable_amount                                   AS "refundableAmount",
+      rf."refundStatus"                                     AS "refundStatus",
+      rf."refundAmount"                                     AS "refundAmount",
+      TO_CHAR(rf."refundInitiationTime", 'DD Mon YYYY HH12:MI AM') AS "refundTime",
+      rf."id"                                               AS "refundId",
+      rf."refundType"                                       AS "refundType"
+    FROM per_po p
+    LEFT JOIN LATERAL (
+      -- The refund record for this PO: prefer a COMPLETED refund, else the latest attempt.
+      SELECT pop."id", pop."refundStatus", pop."refundAmount", pop."refundInitiationTime", pop."refundType"
+      FROM "purchaseOrder"."purchaseOrderPayment" pop
+      WHERE pop."purchaseOrderId" = p.po_id
+        AND pop."refundStatus" IS NOT NULL
+      ORDER BY (pop."refundStatus" = 'COMPLETED') DESC, pop."refundInitiationTime" DESC NULLS LAST
+      LIMIT 1
+    ) rf ON TRUE
+    ORDER BY p.order_ts DESC;
   `;
 
   try {
@@ -116,6 +155,12 @@ export async function GET(req: NextRequest) {
         buyerPhone: r.buyerPhone,
         paymentMode: r.paymentMode,
         remarks: r.remarks,
+        refundableAmount: Number(r.refundableAmount) || 0,
+        refundStatus: r.refundStatus,
+        refundAmount: r.refundAmount == null ? null : Number(r.refundAmount),
+        refundTime: r.refundTime,
+        refundId: r.refundId,
+        refundType: r.refundType,
       };
     });
 
@@ -127,9 +172,16 @@ export async function GET(req: NextRequest) {
         acc.prevAmountSum += d.prevAmount;
         acc.newAmountSum += d.newAmount;
         acc.valueLost += d.valueLost;
+        acc.refundableTotal += d.refundableAmount;
+        if (d.refundStatus === 'COMPLETED') {
+          acc.refundCompletedPos += 1;
+          acc.refundCompletedAmount += d.refundAmount ?? 0;
+        } else if (d.refundableAmount > 0) {
+          acc.refundPendingPos += 1;
+        }
         return acc;
       },
-      { modifiedPos: 0, itemRemovedPos: 0, qtyDecreasedPos: 0, prevAmountSum: 0, newAmountSum: 0, valueLost: 0 }
+      { modifiedPos: 0, itemRemovedPos: 0, qtyDecreasedPos: 0, prevAmountSum: 0, newAmountSum: 0, valueLost: 0, refundableTotal: 0, refundCompletedPos: 0, refundCompletedAmount: 0, refundPendingPos: 0 }
     );
 
     return NextResponse.json({ data, kpis, timestamp: new Date().toISOString() });

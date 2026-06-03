@@ -515,6 +515,14 @@ export default function CallingTeamDashboard() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [filters, setFilters] = useState<Filters>(defaultFilters);
 
+  // Agent Wise Order defaults the global date range to today when opened; the
+  // top date presets (Today/7d/30d/…) still re-scope it from there.
+  useEffect(() => {
+    if (tab === 'orders') {
+      setFilters((prev) => ({ ...prev, ...presetRange({ label: 'Today', days: 0 }) }));
+    }
+  }, [tab]);
+
   const [overview, setOverview] = useState<Overview | null>(null);
   const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
@@ -1228,11 +1236,6 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div>
           <h2 className="text-lg font-bold text-purple-100">Agent Wise Order</h2>
-          <p className="text-purple-300/70 text-xs mt-0.5">
-            {loading
-              ? 'Loading…'
-              : `${filters.startDate} → ${filters.endDate} · outbound · Warm/Cold campaigns · ${rows.length} of ${agents.length} agents — click a column to sort`}
-          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <input

@@ -73,6 +73,9 @@ interface AgentRow {
   agentName: string; totalCalls: number; connectedCalls: number; meaningfulCalls: number;
   missedCalls: number; avgDuration: number; totalTalkTime: number; uniqueCustomers: number;
   connectionRate: number; meaningfulRate: number;
+  // Same-day order conversion from called customers.
+  usersCalled: number; sameDayUsers: number; sameDayRate: number;
+  timeslotUsers: number; timeslotRate: number; orderCount: number; gmv: number;
 }
 interface DistBucket { bucket: string; customers: number; }
 interface Reach { total: number; reachable: number; unreachable: number; frequentlyMissed: number; }
@@ -977,6 +980,13 @@ function TableTab({ filters }: { filters: Filters }) {
     ['avgDuration', 'Avg Dur'],
     ['totalTalkTime', 'Talk Time'],
     ['uniqueCustomers', 'Unique Cust'],
+    ['usersCalled', 'Users Called'],
+    ['sameDayUsers', 'Ordered (SD)'],
+    ['sameDayRate', 'SD Conv %'],
+    ['timeslotUsers', 'Ordered 10–7'],
+    ['timeslotRate', '10–7 Conv %'],
+    ['orderCount', 'Orders'],
+    ['gmv', 'GMV'],
   ];
 
   const rows = agents
@@ -999,6 +1009,8 @@ function TableTab({ filters }: { filters: Filters }) {
       a.totalCalls, a.connectedCalls, (a.connectionRate * 100).toFixed(1) + '%',
       a.meaningfulCalls, (a.meaningfulRate * 100).toFixed(1) + '%', a.missedCalls,
       a.avgDuration, a.totalTalkTime, a.uniqueCustomers,
+      a.usersCalled, a.sameDayUsers, (a.sameDayRate * 100).toFixed(1) + '%',
+      a.timeslotUsers, (a.timeslotRate * 100).toFixed(1) + '%', a.orderCount, Math.round(a.gmv),
     ].join(','));
     const csv = [header.join(','), ...lines].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -1088,6 +1100,21 @@ function TableTab({ filters }: { filters: Filters }) {
                 <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtDuration(a.avgDuration)}</td>
                 <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtTalkTime(a.totalTalkTime)}</td>
                 <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.uniqueCustomers)}</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(a.usersCalled)}</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(a.sameDayUsers)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">
+                  <span className={a.sameDayRate >= 0.1 ? 'text-emerald-300' : a.sameDayRate >= 0.05 ? 'text-amber-300' : 'text-rose-300'}>
+                    {fmtPct(a.sameDayRate, 1)}
+                  </span>
+                </td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(a.timeslotUsers)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">
+                  <span className={a.timeslotRate >= 0.1 ? 'text-emerald-300' : a.timeslotRate >= 0.05 ? 'text-amber-300' : 'text-rose-300'}>
+                    {fmtPct(a.timeslotRate, 1)}
+                  </span>
+                </td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.orderCount)}</td>
+                <td className="py-2 px-2 text-right text-fuchsia-200 tabular-nums">₹{fmtCompact(a.gmv)}</td>
               </tr>
             ))}
             {!loading && !rows.length && (

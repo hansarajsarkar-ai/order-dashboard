@@ -10828,6 +10828,21 @@ export default function OrderStatusDashboard() {
                                 <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
                                   AWB: {awbLink(r.awbNumber)}
                                 </div>
+                                <div
+                                  className="text-[10px] text-indigo-600 tabular-nums mt-0.5 flex flex-wrap items-center gap-x-1.5"
+                                  title="Ageing — Placed: time since the order was placed (incl. Sundays) · Brand: working-day ageing since placed, the Brand SLA clock (excl. Sundays) · Pickup: working-day ageing since marked In-Progress, the Delhivery pickup SLA clock (excl. Sundays)"
+                                >
+                                  <span className="text-indigo-400" aria-hidden="true">⏱</span>
+                                  <span><span className="text-slate-400">Placed</span> {formatDuration(r.orderAgeingSec)}</span>
+                                  <span className="text-slate-300">·</span>
+                                  <span><span className="text-slate-400">Brand</span> {formatDuration(r.brandSlaAgeingSec)}</span>
+                                  {r.delhiveryPickupAgeingSec != null && (
+                                    <>
+                                      <span className="text-slate-300">·</span>
+                                      <span><span className="text-slate-400">Pickup</span> {formatDuration(r.delhiveryPickupAgeingSec)}</span>
+                                    </>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-2.5 py-2 whitespace-nowrap">
                                 <button

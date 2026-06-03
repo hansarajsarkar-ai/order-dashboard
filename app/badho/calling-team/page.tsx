@@ -948,7 +948,7 @@ export default function CallingTeamDashboard() {
         )}
 
         {tab === 'orders' && (
-          <AgentOrdersTab />
+          <AgentOrdersTab filters={filters} />
         )}
       </div>
 
@@ -1152,19 +1152,18 @@ function TableTab({ filters }: { filters: Filters }) {
 
 // ───────────────────────── Tab: Agent Wise Order ─────────────────────────
 
-function AgentOrdersTab() {
+function AgentOrdersTab({ filters }: { filters: Filters }) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<{ col: keyof AgentOrderRow; dir: 'asc' | 'desc' }>({ col: 'totalCalls', dir: 'desc' });
-  const [period, setPeriod] = useState<AgentPeriod>('day');
   const [agents, setAgents] = useState<AgentOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Self-scoped: ignores the global filter bar entirely (outbound · Warm/Cold
-  // campaigns are fixed server-side); only the Day/Week/Month window applies.
-  const range = agentPeriodRange(period);
+  // Driven by the global date-range picker; campaign/direction/status are fixed
+  // server-side (outbound · Warm/Cold) so the rest of the global filter bar is
+  // intentionally ignored here.
   const qs = useMemo(
-    () => buildQs({ ...defaultFilters(), ...agentPeriodRange(period) }),
-    [period],
+    () => buildQs({ ...defaultFilters(), startDate: filters.startDate, endDate: filters.endDate }),
+    [filters.startDate, filters.endDate],
   );
 
   useEffect(() => {
@@ -1232,25 +1231,10 @@ function AgentOrdersTab() {
           <p className="text-purple-300/70 text-xs mt-0.5">
             {loading
               ? 'Loading…'
-              : `${AGENT_PERIOD_LABEL[period]} (${range.startDate} → ${range.endDate}) · outbound calls · ${rows.length} of ${agents.length} agents — click a column to sort`}
+              : `${filters.startDate} → ${filters.endDate} · outbound · Warm/Cold campaigns · ${rows.length} of ${agents.length} agents — click a column to sort`}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-0.5 bg-white/5 border border-white/10 rounded-lg p-0.5">
-            {(['day', 'week', 'month'] as AgentPeriod[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                  period === p
-                    ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow'
-                    : 'text-purple-200 hover:bg-white/5'
-                }`}
-              >
-                {p === 'day' ? 'Day' : p === 'week' ? 'Week' : 'Month'}
-              </button>
-            ))}
-          </div>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}

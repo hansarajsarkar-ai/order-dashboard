@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       total_talk_time: string | null;
     }>(
       `
-      WITH base AS (
+      WITH base AS MATERIALIZED (
         SELECT
           agent_name,
           CASE WHEN call_to_number LIKE '%-%'
@@ -64,10 +64,10 @@ export async function GET(req: NextRequest) {
           SUM(dur) AS total_talk_time
         FROM base GROUP BY agent_name
       ),
-      connected_calls AS (
+      connected_calls AS MATERIALIZED (
         SELECT DISTINCT agent_name, phone, call_date FROM base WHERE connected
       ),
-      buyer_orders AS (
+      buyer_orders AS MATERIALIZED (
         -- Qualified D2R intercity (third-party) orders; index-friendly created_at
         -- bounds derived from the IST call window, order date resolved in IST.
         SELECT

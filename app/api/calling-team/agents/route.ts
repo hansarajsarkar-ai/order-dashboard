@@ -8,13 +8,17 @@ export async function GET(req: NextRequest) {
   const f = parseFilters(req);
   const { sql: where, params } = buildWhere(f);
 
-  // Index-friendly IST timestamp bounds for the order side (an AT TIME ZONE
-  // expression on created_at would defeat the index and full-scan purchaseOrder).
+  // The call-metrics query uses only the buildWhere params; the conversion query
+  // additionally needs index-friendly IST timestamp bounds for the order side (an
+  // AT TIME ZONE expression on created_at would defeat the index). Keep separate
+  // param arrays so neither query is bound with parameters it doesn't reference.
+  const callParams = params;
   const startTs = `${f.startDate}T00:00:00+05:30`;
   const endExclusive = new Date(`${f.endDate}T00:00:00+05:30`);
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
-  const pStart = params.push(startTs);
-  const pEnd = params.push(endExclusive.toISOString());
+  const convParams = [...params];
+  const pStart = convParams.push(startTs);
+  const pEnd = convParams.push(endExclusive.toISOString());
 
   try {
     // Two queries share the same filtered call window (`where` / `params`).
@@ -49,7 +53,7 @@ export async function GET(req: NextRequest) {
         ORDER BY COUNT(*) DESC
         LIMIT 100
         `,
-        params,
+        callParams,
       ),
       // Same-day order conversion: of the unique customers an agent called,
       // how many placed an order on the same calendar day (IST) as the call,
@@ -64,7 +68,7 @@ export async function GET(req: NextRequest) {
         gmv: string | null;
       }>(
         `
-        WITH called AS (
+        WITH called AS MATERIALIZED (
           SELECT DISTINCT
             agent_name,
             CASE WHEN call_to_number LIKE '%-%'
@@ -80,7 +84,7 @@ export async function GET(req: NextRequest) {
           SELECT agent_name, COUNT(DISTINCT phone) AS users_called
           FROM called GROUP BY agent_name
         ),
-        buyer_orders AS (
+        buyer_orders AS MATERIALIZED (
           -- Qualified D2R intercity (third-party) orders only — the universe the
           -- calling team drives. order_date/hour resolved in IST. created_at is the
           -- placement timestamp (markedPendingTime is null for COMPLETED/CANCELLED).
@@ -126,7 +130,7 @@ export async function GET(req: NextRequest) {
         FROM called_counts cc
         LEFT JOIN conv cv ON cv.agent_name = cc.agent_name
         `,
-        params,
+        convParams,
       ),
     ]);
 

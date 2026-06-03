@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
       connected: string;
       connected_unique_buyer: string;
       order_placed_buyer: string;
+      order_count: string;
       avg_halting_call: string | null;
       ge15: string;
       lt15: string;
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest) {
         -- Index-friendly markedPendingTime bounds derived from the IST call window;
         -- order date resolved in IST.
         SELECT
+          po."id" AS order_id,
           RIGHT(REGEXP_REPLACE(b."phone", '[^0-9]', '', 'g'), 10) AS phone,
           (po."markedPendingTime" AT TIME ZONE 'Asia/Kolkata')::date AS order_date
         FROM "purchaseOrder"."purchaseOrder" po
@@ -88,7 +90,10 @@ export async function GET(req: NextRequest) {
           AND po."deliveryNetwork" = 'THIRD_PARTY' AND po."deliveryType" = 'INTERCITY'
       ),
       order_placed AS (
-        SELECT cc.agent_name, COUNT(DISTINCT cc.phone) AS order_placed_buyer
+        SELECT
+          cc.agent_name,
+          COUNT(DISTINCT cc.phone) AS order_placed_buyer,
+          COUNT(DISTINCT o.order_id) AS order_count
         FROM connected_calls cc
         JOIN buyer_orders o ON o.phone = cc.phone AND o.order_date = cc.call_date
         GROUP BY cc.agent_name
@@ -100,6 +105,7 @@ export async function GET(req: NextRequest) {
         a.connected::text                         AS connected,
         a.connected_unique_buyer::text            AS connected_unique_buyer,
         COALESCE(op.order_placed_buyer, 0)::text  AS order_placed_buyer,
+        COALESCE(op.order_count, 0)::text         AS order_count,
         a.avg_halting_call::text                  AS avg_halting_call,
         a.ge15::text                              AS ge15,
         a.lt15::text                              AS lt15,
@@ -126,6 +132,7 @@ export async function GET(req: NextRequest) {
         connectedRate: totalCalls ? connected / totalCalls : 0,
         connectedUniqueBuyer,
         orderPlacedBuyer,
+        orderCount: Number(r.order_count || 0),
         orderConvRate: connectedUniqueBuyer ? orderPlacedBuyer / connectedUniqueBuyer : 0,
         // Avg connected-call duration in minutes; total talk time in hours.
         avgHaltingMins: Number(r.avg_halting_call || 0) / 60,

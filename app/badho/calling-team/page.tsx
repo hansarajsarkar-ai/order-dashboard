@@ -80,7 +80,7 @@ interface AgentRow {
 interface AgentOrderRow {
   agentName: string; totalCalls: number; uniqueBuyerAttempt: number;
   connected: number; connectedRate: number; connectedUniqueBuyer: number;
-  orderPlacedBuyer: number; orderConvRate: number; avgHaltingMins: number;
+  orderPlacedBuyer: number; orderCount: number; orderConvRate: number; avgHaltingMins: number;
   connectedGte15: number; connectedLt15: number; totalTalkHours: number;
 }
 interface DistBucket { bucket: string; customers: number; }
@@ -1185,6 +1185,7 @@ function AgentOrdersTab() {
     ['connectedRate', 'Connected %'],
     ['connectedUniqueBuyer', 'Connected Unique Buyer'],
     ['orderPlacedBuyer', 'Order Placed Buyer'],
+    ['orderCount', 'Order Count'],
     ['orderConvRate', 'Order Placed / Conn. Uniq.'],
     ['avgHaltingMins', 'Avg Halting Call (Mins)'],
     ['connectedGte15', '≥15s Connected'],
@@ -1210,7 +1211,7 @@ function AgentOrdersTab() {
     const lines = rows.map((a) => [
       `"${a.agentName.replace(/"/g, '""')}"`,
       a.totalCalls, a.uniqueBuyerAttempt, a.connected, (a.connectedRate * 100).toFixed(1) + '%',
-      a.connectedUniqueBuyer, a.orderPlacedBuyer, (a.orderConvRate * 100).toFixed(1) + '%',
+      a.connectedUniqueBuyer, a.orderPlacedBuyer, a.orderCount, (a.orderConvRate * 100).toFixed(1) + '%',
       a.avgHaltingMins.toFixed(2), a.connectedGte15, a.connectedLt15, a.totalTalkHours.toFixed(2),
     ].join(','));
     const csv = [header.join(','), ...lines].join('\n');
@@ -1298,6 +1299,7 @@ function AgentOrdersTab() {
                 </td>
                 <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.connectedUniqueBuyer)}</td>
                 <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(a.orderPlacedBuyer)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.orderCount)}</td>
                 <td className="py-2 px-2 text-right tabular-nums">
                   <span className={a.orderConvRate >= 0.1 ? 'text-emerald-300' : a.orderConvRate >= 0.05 ? 'text-amber-300' : 'text-rose-300'}>
                     {fmtPct(a.orderConvRate, 1)}

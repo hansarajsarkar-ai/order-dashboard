@@ -644,6 +644,7 @@ export default function OrderStatusDashboard() {
     badhoPaymentDiscountRs: number;
     rewardRs: number;
     deliveryChargeRs: number;
+    rtoChargeRs: number;
     operationalCostRs: number;
     profitAndLossRs: number;
     status: string;
@@ -676,7 +677,7 @@ export default function OrderStatusDashboard() {
   }
   const [marginDayModal, setMarginDayModal] = useState<string | null>(null); // selected order_date
   const [marginDayData, setMarginDayData] = useState<MarginDayOrder[] | null>(null);
-  const [marginDayTotals, setMarginDayTotals] = useState<{ poAmount: number; marginRs: number; couponRs: number; badhoPaymentDiscountRs: number; rewardRs: number; deliveryChargeRs: number; operationalCostRs: number; profitAndLossRs: number } | null>(null);
+  const [marginDayTotals, setMarginDayTotals] = useState<{ poAmount: number; marginRs: number; couponRs: number; badhoPaymentDiscountRs: number; rewardRs: number; deliveryChargeRs: number; rtoChargeRs: number; operationalCostRs: number; profitAndLossRs: number } | null>(null);
   const [marginDayLoading, setMarginDayLoading] = useState(false);
   const [marginDayError, setMarginDayError] = useState<string | null>(null);
 
@@ -9282,6 +9283,7 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-right font-semibold">Reward</th>
                           <th className="px-4 py-3 text-right font-semibold">Delivery Charge</th>
                           <th className="px-4 py-3 text-right font-semibold">DB Delivery Charge</th>
+                          <th className="px-4 py-3 text-right font-semibold">RTO Charge</th>
                           <th className="px-4 py-3 text-center font-semibold">Forward Delivery Cost To Seller</th>
                           <th className="px-4 py-3 text-left font-semibold">Delivery Status</th>
                           <th className="px-4 py-3 text-left font-semibold">Marked Pending</th>
@@ -9345,6 +9347,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.rewardRs)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{fmtFull(o.deliveryChargeRs)}</td>
                             <td className="px-4 py-2.5 text-right text-sky-300 tabular-nums">{o.dbDeliveryChargeRs != null ? fmtFull(o.dbDeliveryChargeRs) : '—'}</td>
+                            <td className={`px-4 py-2.5 text-right tabular-nums ${o.rtoChargeRs > 0 ? 'text-rose-300 font-semibold' : 'text-purple-300/50'}`}>{o.rtoChargeRs > 0 ? fmtFull(o.rtoChargeRs) : '—'}</td>
                             <td className="px-4 py-2.5 text-center whitespace-nowrap">
                               {o.forwardDeliveryCostToSeller == null ? (
                                 <span className="text-purple-300/50">—</span>
@@ -9383,7 +9386,7 @@ export default function OrderStatusDashboard() {
                           </tr>
                         ))}
                         {marginDayData.length === 0 && (
-                          <tr><td colSpan={35} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
+                          <tr><td colSpan={36} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
                         )}
                       </tbody>
                       {marginDayData.length > 0 && marginDayTotals && (
@@ -9401,6 +9404,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.rewardRs)}</td>
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.deliveryChargeRs)}</td>
                             <td className="px-4 py-3 text-right text-sky-300 tabular-nums">{fmtFull(marginDayData.reduce((s, o) => s + (o.dbDeliveryChargeRs ?? 0), 0))}</td>
+                            <td className="px-4 py-3 text-right text-rose-300 tabular-nums">{fmtFull(marginDayTotals.rtoChargeRs)}</td>
                             <td colSpan={23}></td>
                           </tr>
                         </tfoot>

@@ -24,6 +24,7 @@ interface Row {
   totalPoAmount: string | null;
   totalMargin: string | null;
   totalOperationalCost: string | null;
+  totalRtoCharge: string | null;
   profitAndLossRs: string | null;
   status: string;
   profitAndLossPercentage_Of_GTV: string | null;
@@ -84,7 +85,13 @@ export async function GET(req: NextRequest) {
           (COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) + COALESCE(po."appliedOfferDiscount", 0) + COALESCE(dv."deliveryCharge", 0) + COALESCE(wt."rewardAmount", 0))
         ELSE
           (COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) + COALESCE(po."appliedOfferDiscount", 0) + COALESCE(wt."rewardAmount", 0))
-        END AS operational_cost_rs
+        END AS operational_cost_rs,
+        -- RTO return charge = 90% of the raw DB delivery charge, billed to us only
+        -- when the shipment went RTO *and* the PO was REJECTED. Counted as op cost / loss.
+        CASE WHEN dv."status" ILIKE '%rto%' AND po."status" = 'REJECTED'
+          THEN ROUND(0.9 * COALESCE(dv."deliveryCharge", 0)::numeric, 2)
+          ELSE 0
+        END AS rto_charge_rs
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
@@ -112,15 +119,16 @@ export async function GET(req: NextRequest) {
       COUNT(po_id)                                                   AS "totalOrders",
       SUM(po_amount)                                                 AS "totalPoAmount",
       SUM(badho_margin_rs)                                           AS "totalMargin",
-      SUM(operational_cost_rs)                                       AS "totalOperationalCost",
-      SUM(badho_margin_rs) - SUM(operational_cost_rs)               AS "profitAndLossRs",
+      SUM(operational_cost_rs) + SUM(rto_charge_rs)                  AS "totalOperationalCost",
+      SUM(rto_charge_rs)                                             AS "totalRtoCharge",
+      SUM(badho_margin_rs) - (SUM(operational_cost_rs) + SUM(rto_charge_rs))  AS "profitAndLossRs",
       CASE
-        WHEN (SUM(badho_margin_rs) - SUM(operational_cost_rs)) > 0 THEN 'Profit'
-        WHEN (SUM(badho_margin_rs) - SUM(operational_cost_rs)) < 0 THEN 'Loss'
+        WHEN (SUM(badho_margin_rs) - (SUM(operational_cost_rs) + SUM(rto_charge_rs))) > 0 THEN 'Profit'
+        WHEN (SUM(badho_margin_rs) - (SUM(operational_cost_rs) + SUM(rto_charge_rs))) < 0 THEN 'Loss'
         ELSE 'Breakeven'
       END AS "status",
       ROUND(
-        (((SUM(badho_margin_rs) - SUM(operational_cost_rs)) * 100.0) / NULLIF(SUM(po_amount), 0))::numeric,
+        (((SUM(badho_margin_rs) - (SUM(operational_cost_rs) + SUM(rto_charge_rs))) * 100.0) / NULLIF(SUM(po_amount), 0))::numeric,
         2
       ) AS "profitAndLossPercentage_Of_GTV"
     FROM order_base
@@ -137,6 +145,7 @@ export async function GET(req: NextRequest) {
       totalPoAmount: Number(r.totalPoAmount) || 0,
       totalMargin: Number(r.totalMargin) || 0,
       totalOperationalCost: Number(r.totalOperationalCost) || 0,
+      totalRtoCharge: Number(r.totalRtoCharge) || 0,
       profitAndLossRs: Number(r.profitAndLossRs) || 0,
       status: r.status,
       pnlPercentOfGtv: r.profitAndLossPercentage_Of_GTV === null ? null : Number(r.profitAndLossPercentage_Of_GTV),
@@ -148,10 +157,11 @@ export async function GET(req: NextRequest) {
         acc.totalPoAmount += d.totalPoAmount;
         acc.totalMargin += d.totalMargin;
         acc.totalOperationalCost += d.totalOperationalCost;
+        acc.totalRtoCharge += d.totalRtoCharge;
         acc.profitAndLossRs += d.profitAndLossRs;
         return acc;
       },
-      { totalOrders: 0, totalPoAmount: 0, totalMargin: 0, totalOperationalCost: 0, profitAndLossRs: 0 }
+      { totalOrders: 0, totalPoAmount: 0, totalMargin: 0, totalOperationalCost: 0, totalRtoCharge: 0, profitAndLossRs: 0 }
     );
 
     const pnlPercentOfGtv = totals.totalPoAmount > 0

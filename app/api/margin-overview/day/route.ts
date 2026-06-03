@@ -28,6 +28,7 @@ interface Row {
   badhoPaymentDiscountRs: string | null;
   rewardRs: string | null;
   deliveryChargeRs: string | null;
+  rtoChargeRs: string | null;
   operationalCostRs: string | null;
   profitAndLossRs: string | null;
   status: string;
@@ -138,6 +139,12 @@ export async function GET(req: NextRequest) {
           THEN COALESCE(dv."deliveryCharge", 0)
           ELSE 0
         END AS delivery_charge_rs,
+        -- RTO return charge = 90% of the raw DB delivery charge, billed to us only
+        -- when the shipment went RTO *and* the PO was REJECTED. This is a loss.
+        CASE WHEN dv."status" ILIKE '%rto%' AND po."status" = 'REJECTED'
+          THEN ROUND(0.9 * COALESCE(dv."deliveryCharge", 0)::numeric, 2)
+          ELSE 0
+        END AS rto_charge_rs,
         -- Detailed order-list fields (appended to the P&L drill-down so the
         -- modal mirrors the Monthly Breakdown by Order Status drill-down).
         po."markedPendingTime"                                   AS marked_pending_time,
@@ -229,11 +236,12 @@ export async function GET(req: NextRequest) {
       badho_payment_discount_rs                          AS "badhoPaymentDiscountRs",
       reward_rs                                          AS "rewardRs",
       delivery_charge_rs                                 AS "deliveryChargeRs",
-      (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs) AS "operationalCostRs",
-      badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs) AS "profitAndLossRs",
+      rto_charge_rs                                      AS "rtoChargeRs",
+      (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs + rto_charge_rs) AS "operationalCostRs",
+      badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs + rto_charge_rs) AS "profitAndLossRs",
       CASE
-        WHEN badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs) > 0 THEN 'Profit'
-        WHEN badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs) < 0 THEN 'Loss'
+        WHEN badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs + rto_charge_rs) > 0 THEN 'Profit'
+        WHEN badho_margin_rs - (coupon_rs + badho_payment_discount_rs + reward_rs + delivery_charge_rs + rto_charge_rs) < 0 THEN 'Loss'
         ELSE 'Breakeven'
       END AS "status",
       marked_pending_time                                AS "markedPendingTime",
@@ -287,6 +295,7 @@ export async function GET(req: NextRequest) {
       badhoPaymentDiscountRs: Number(r.badhoPaymentDiscountRs) || 0,
       rewardRs: Number(r.rewardRs) || 0,
       deliveryChargeRs: Number(r.deliveryChargeRs) || 0,
+      rtoChargeRs: Number(r.rtoChargeRs) || 0,
       operationalCostRs: Number(r.operationalCostRs) || 0,
       profitAndLossRs: Number(r.profitAndLossRs) || 0,
       status: r.status,
@@ -331,11 +340,12 @@ export async function GET(req: NextRequest) {
         acc.badhoPaymentDiscountRs += d.badhoPaymentDiscountRs;
         acc.rewardRs += d.rewardRs;
         acc.deliveryChargeRs += d.deliveryChargeRs;
+        acc.rtoChargeRs += d.rtoChargeRs;
         acc.operationalCostRs += d.operationalCostRs;
         acc.profitAndLossRs += d.profitAndLossRs;
         return acc;
       },
-      { poAmount: 0, marginRs: 0, couponRs: 0, badhoPaymentDiscountRs: 0, rewardRs: 0, deliveryChargeRs: 0, operationalCostRs: 0, profitAndLossRs: 0 }
+      { poAmount: 0, marginRs: 0, couponRs: 0, badhoPaymentDiscountRs: 0, rewardRs: 0, deliveryChargeRs: 0, rtoChargeRs: 0, operationalCostRs: 0, profitAndLossRs: 0 }
     );
 
     return NextResponse.json({

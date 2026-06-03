@@ -755,46 +755,46 @@ export default function CallingTeamDashboard() {
         </div>
 
         {/* Tabs + Filters bar */}
-        <div className="mb-5 flex items-center justify-between flex-wrap gap-3">
-          <div className="inline-flex p-1 bg-white/5 border border-white/10 rounded-xl backdrop-blur-xl">
+        <div className="mb-5 flex items-center justify-between gap-3 flex-nowrap overflow-x-auto">
+          <div className="inline-flex p-0.5 bg-white/5 border border-white/10 rounded-xl backdrop-blur-xl">
             <button
               onClick={() => setTab('dashboard')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${tab === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
             >
               🏠 Dashboard
             </button>
             <button
               onClick={() => setTab('analytics')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'analytics' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${tab === 'analytics' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
             >
               📊 Trends & Insights
             </button>
             <button
               onClick={() => setTab('daily')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'daily' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${tab === 'daily' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
             >
               📅 Daily Trend
             </button>
             <button
               onClick={() => setTab('logs')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'logs' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${tab === 'logs' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
             >
               📋 Detailed Call Logs
             </button>
             <button
               onClick={() => setTab('table')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'table' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${tab === 'table' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
             >
               📑 Agent Wise
             </button>
             <button
               onClick={() => setTab('orders')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'orders' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${tab === 'orders' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
             >
               🧾 Agent Wise Order
             </button>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
             {DATE_PRESETS.map((p) => {
               const r = presetRange(p);
               const active = filters.startDate === r.startDate && filters.endDate === r.endDate;
@@ -803,7 +803,7 @@ export default function CallingTeamDashboard() {
                   key={p.label}
                   onClick={() => setFilters({ ...filters, ...r })}
                   aria-pressed={active}
-                  className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                  className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition-colors whitespace-nowrap ${
                     active
                       ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 border-transparent text-white shadow-lg'
                       : 'bg-white/5 border-white/10 hover:bg-white/10 text-purple-200'
@@ -813,21 +813,21 @@ export default function CallingTeamDashboard() {
                 </button>
               );
             })}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5 border border-white/10 shrink-0">
               <input
                 type="date"
                 value={filters.startDate}
                 max={filters.endDate}
                 onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                className="bg-transparent text-xs text-purple-100 focus:outline-none"
+                className="bg-transparent text-[11px] text-purple-100 focus:outline-none"
               />
-              <span className="text-purple-300/60 text-xs">→</span>
+              <span className="text-purple-300/60 text-[11px]">→</span>
               <input
                 type="date"
                 value={filters.endDate}
                 min={filters.startDate}
                 onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                className="bg-transparent text-xs text-purple-100 focus:outline-none"
+                className="bg-transparent text-[11px] text-purple-100 focus:outline-none"
               />
             </div>
           </div>
@@ -839,7 +839,9 @@ export default function CallingTeamDashboard() {
           </div>
         )}
 
-        {/* Global filter row — applies across all tabs */}
+        {/* Global filter row — applies across all tabs except Agent Wise Order,
+            which is self-scoped (outbound · Warm/Cold campaigns) and ignores them. */}
+        {tab !== 'orders' && (
         <div className="relative z-20 mb-5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
           <div className="flex items-center gap-2 flex-wrap mb-3">
             <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold">Global Filters</div>
@@ -886,6 +888,7 @@ export default function CallingTeamDashboard() {
             />
           </div>
         </div>
+        )}
 
         {tab === 'dashboard' && (
           <DashboardTab
@@ -945,7 +948,7 @@ export default function CallingTeamDashboard() {
         )}
 
         {tab === 'orders' && (
-          <AgentOrdersTab filters={filters} />
+          <AgentOrdersTab />
         )}
       </div>
 
@@ -1149,17 +1152,19 @@ function TableTab({ filters }: { filters: Filters }) {
 
 // ───────────────────────── Tab: Agent Wise Order ─────────────────────────
 
-function AgentOrdersTab({ filters }: { filters: Filters }) {
+function AgentOrdersTab() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<{ col: keyof AgentOrderRow; dir: 'asc' | 'desc' }>({ col: 'totalCalls', dir: 'desc' });
   const [period, setPeriod] = useState<AgentPeriod>('day');
   const [agents, setAgents] = useState<AgentOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Self-scoped: ignores the global filter bar entirely (outbound · Warm/Cold
+  // campaigns are fixed server-side); only the Day/Week/Month window applies.
   const range = agentPeriodRange(period);
   const qs = useMemo(
-    () => buildQs({ ...filters, ...agentPeriodRange(period) }),
-    [period, filters],
+    () => buildQs({ ...defaultFilters(), ...agentPeriodRange(period) }),
+    [period],
   );
 
   useEffect(() => {

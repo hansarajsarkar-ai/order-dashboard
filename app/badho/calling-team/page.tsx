@@ -1553,18 +1553,22 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((a) => (
+            {rows.map((a) => {
+              // Each agent's personal best single day — highlighted light green.
+              const agentMax = Math.max(0, ...Object.values(a.days));
+              return (
               <tr key={a.agentName} className="group hover:bg-white/[0.03]">
                 <td className="py-1.5 pr-3 text-purple-100 font-medium sticky left-0 bg-[#1a0f2e] z-10 border-b border-white/5 whitespace-nowrap group-hover:text-white">{a.agentName}</td>
                 {days.map((d, i) => {
                   const v = a.days[d] || 0;
                   const m = dayMeta(d);
                   const h = heat(v, m.isWeekend);
+                  const isAgentPeak = v > 0 && v === agentMax;
                   return (
                     <td
                       key={d}
-                      style={{ backgroundColor: h.bg }}
-                      className={`py-1.5 px-2 text-right tabular-nums border-b border-white/5 ${h.cls} ${newMonthIdx.has(i) ? 'border-l border-l-white/10' : ''} ${h.peak ? 'ring-1 ring-inset ring-fuchsia-300/70' : ''}`}
+                      style={{ backgroundColor: isAgentPeak ? 'rgba(134,239,172,0.22)' : h.bg }}
+                      className={`py-1.5 px-2 text-right tabular-nums border-b border-white/5 ${isAgentPeak ? 'text-emerald-100 font-bold' : h.cls} ${newMonthIdx.has(i) ? 'border-l border-l-white/10' : ''} ${h.peak ? 'ring-1 ring-inset ring-emerald-200/80' : ''}`}
                     >
                       {v || '·'}
                     </td>
@@ -1578,7 +1582,8 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
                   />
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {!loading && !rows.length && (
               <tr>
                 <td colSpan={days.length + 2} className="py-8 text-center text-purple-300/50">

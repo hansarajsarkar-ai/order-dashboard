@@ -21,6 +21,7 @@ interface Row {
   buyerBusiness: string | null;
   buyerPhone: string | null;
   paymentMode: string | null;
+  paidAmount: string | null;
   remarks: string | null;
   refundableAmount: string | null;
   refundStatus: string | null;
@@ -116,6 +117,7 @@ export async function GET(req: NextRequest) {
       p.buyer_business                                      AS "buyerBusiness",
       p.buyer_phone                                         AS "buyerPhone",
       p.payment_mode                                        AS "paymentMode",
+      pay."paidAmount"                                      AS "paidAmount",
       p.remarks                                             AS "remarks",
       p.refundable_amount                                   AS "refundableAmount",
       rf."refundStatus"                                     AS "refundStatus",
@@ -133,6 +135,16 @@ export async function GET(req: NextRequest) {
       ORDER BY (pop."refundStatus" = 'COMPLETED') DESC, pop."refundInitiationTime" DESC NULLS LAST
       LIMIT 1
     ) rf ON TRUE
+    LEFT JOIN LATERAL (
+      -- How much the buyer actually paid up-front (completed advance payment).
+      SELECT pop."paidAmount"
+      FROM "purchaseOrder"."purchaseOrderPayment" pop
+      WHERE pop."purchaseOrderId" = p.po_id
+        AND pop."status" = 'COMPLETED'
+        AND pop."event" IN ('FULL_ADVANCE','PARTIAL_ADVANCE')
+      ORDER BY pop."created_at" DESC
+      LIMIT 1
+    ) pay ON TRUE
     ORDER BY p.order_ts DESC;
   `;
 
@@ -154,6 +166,7 @@ export async function GET(req: NextRequest) {
         buyerBusiness: r.buyerBusiness,
         buyerPhone: r.buyerPhone,
         paymentMode: r.paymentMode,
+        paidAmount: r.paidAmount == null ? null : Number(r.paidAmount),
         remarks: r.remarks,
         refundableAmount: Number(r.refundableAmount) || 0,
         refundStatus: r.refundStatus,

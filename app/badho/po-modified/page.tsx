@@ -16,6 +16,7 @@ interface PoRow {
   buyerBusiness: string | null;
   buyerPhone: string | null;
   paymentMode: string | null;
+  paidAmount: number | null;
   remarks: string | null;
   refundableAmount: number;
   refundStatus: string | null;
@@ -168,14 +169,14 @@ export default function PoModifiedDashboard() {
 
   const exportCsv = () => {
     if (!resp) return;
-    const headers = ['PO Number', 'Order Date & Time', 'Remarks', 'Previous PO Amount', 'New PO Amount', 'Value Lost', 'Refundable Amount', 'Refund Amount', 'Refund Status', 'Refund Time', 'Refund Id', 'PO Status', 'Brand', 'Buyer Business', 'Buyer Phone', 'Payment Mode'];
+    const headers = ['PO Number', 'Order Date & Time', 'Remarks', 'Previous PO Amount', 'New PO Amount', 'Value Lost', 'Payment Type', 'Buyer Paid', 'Refundable Amount', 'Refund Amount', 'Refund Status', 'Refund Time', 'Refund Id', 'PO Status', 'Brand', 'Buyer Business', 'Buyer Phone'];
     const esc = (v: string | number | null) => {
       const s = String(v ?? '');
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers.map(esc).join(',')];
     for (const r of rows) {
-      lines.push([r.poNumber, r.orderDateTime, r.remarks, r.prevAmount, r.newAmount, r.valueLost, r.refundableAmount, r.refundAmount ?? '', r.refundStatus ?? (r.refundableAmount > 0 ? 'PENDING' : ''), r.refundTime ?? '', r.refundId ?? '', r.poStatus, r.brandName, r.buyerBusiness, r.buyerPhone, r.paymentMode].map(esc).join(','));
+      lines.push([r.poNumber, r.orderDateTime, r.remarks, r.prevAmount, r.newAmount, r.valueLost, r.paymentMode, r.paidAmount ?? '', r.refundableAmount, r.refundAmount ?? '', r.refundStatus ?? (r.refundableAmount > 0 ? 'PENDING' : ''), r.refundTime ?? '', r.refundId ?? '', r.poStatus, r.brandName, r.buyerBusiness, r.buyerPhone].map(esc).join(','));
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -307,6 +308,8 @@ export default function PoModifiedDashboard() {
                   <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Previous PO Amount</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">New PO Amount</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Value Lost</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Payment Type</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Buyer Paid</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Refundable</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Refund Amount</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Refund Status</th>
@@ -334,6 +337,12 @@ export default function PoModifiedDashboard() {
                     <td className="px-4 py-3 text-right tabular-nums text-purple-100">{fmtFull(r.prevAmount)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-white">{fmtFull(r.newAmount)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-rose-300 font-semibold">{r.valueLost > 0 ? `−${fmtFull(r.valueLost)}` : '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {r.paymentMode ? (
+                        <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border ${r.paymentMode === 'COD' ? 'bg-amber-500/15 text-amber-200 border-amber-400/30' : r.paymentMode === 'FULLY_PAID' ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30' : 'bg-sky-500/15 text-sky-200 border-sky-400/30'}`}>{r.paymentMode}</span>
+                      ) : <span className="text-purple-300/40">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-emerald-200">{r.paidAmount != null && r.paidAmount > 0 ? fmtFull(r.paidAmount) : '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-sky-200">{r.refundableAmount > 0 ? fmtFull(r.refundableAmount) : '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-purple-100">{r.refundAmount != null ? fmtFull(r.refundAmount) : '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -355,7 +364,7 @@ export default function PoModifiedDashboard() {
                   </tr>
                 ))}
                 {!loading && rows.length === 0 && (
-                  <tr><td colSpan={13} className="px-4 py-10 text-center text-purple-300/60">No modified POs in this range.</td></tr>
+                  <tr><td colSpan={15} className="px-4 py-10 text-center text-purple-300/60">No modified POs in this range.</td></tr>
                 )}
               </tbody>
             </table>

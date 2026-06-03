@@ -8088,7 +8088,8 @@ export default function OrderStatusDashboard() {
                         <tr>
                           <th
                             rowSpan={2}
-                            className="sticky left-0 top-0 z-30 bg-slate-900/95 backdrop-blur px-4 py-2 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider border-b border-r border-white/10 align-bottom"
+                            className="sticky left-0 top-0 z-30 px-4 py-2 text-left text-[11px] font-semibold text-purple-200 uppercase tracking-wider border-b border-r border-white/10 align-bottom"
+                            style={{ backgroundColor: '#0f172a' }}
                           >
                             State
                           </th>
@@ -8096,7 +8097,8 @@ export default function OrderStatusDashboard() {
                             <th
                               key={g.ym}
                               colSpan={5}
-                              className={`sticky top-0 z-20 h-8 bg-slate-900/95 backdrop-blur px-2 text-center text-[11px] font-bold uppercase tracking-wider border-b border-l-2 border-white/15 ${gi === 0 ? 'text-fuchsia-200' : 'text-purple-100'}`}
+                              className={`sticky top-0 z-20 h-8 px-2 text-center text-[11px] font-bold uppercase tracking-wider border-b border-l-2 border-white/15 ${gi === 0 ? 'text-fuchsia-200' : 'text-purple-100'}`}
+                              style={{ backgroundColor: gi === 0 ? '#1a1330' : '#0f172a' }}
                             >
                               {g.label}
                             </th>
@@ -8109,8 +8111,8 @@ export default function OrderStatusDashboard() {
                               <th
                                 key={`${g.ym}_${c.key}`}
                                 title={c.label}
-                                className={`sticky top-8 z-20 bg-slate-900/95 backdrop-blur px-2.5 py-2 text-right text-[10px] font-bold uppercase tracking-wide border-b border-white/10 ${ci === 0 ? 'border-l-2 border-white/15' : 'border-l border-white/[0.04]'} ${gi === 0 ? 'bg-fuchsia-500/[0.08]' : ''}`}
-                                style={{ color: c.hex, minWidth: 62 }}
+                                className={`sticky top-8 z-20 px-2.5 py-2 text-right text-[10px] font-bold uppercase tracking-wide border-b border-white/10 ${ci === 0 ? 'border-l-2 border-white/15' : 'border-l border-white/[0.04]'}`}
+                                style={{ color: c.hex, minWidth: 62, backgroundColor: gi === 0 ? '#1a1330' : gi % 2 === 1 ? '#141a2e' : '#0f172a' }}
                               >
                                 {c.short}
                               </th>
@@ -8121,7 +8123,7 @@ export default function OrderStatusDashboard() {
                       <tbody>
                         {rows.map((e, i) => (
                           <tr key={e.state ?? `_${i}`} className="hover:bg-white/[0.04] transition-colors group/row">
-                            <td className="sticky left-0 z-10 bg-slate-900/90 backdrop-blur px-4 py-2 text-white font-semibold whitespace-nowrap align-middle border-b border-r border-white/10 group-hover/row:bg-slate-800/90">
+                            <td className="sticky left-0 z-10 bg-[#0f172a] px-4 py-2 text-white font-semibold whitespace-nowrap align-middle border-b border-r border-white/10 group-hover/row:bg-[#1c1733]">
                               <span className="text-purple-300/40 tabular-nums text-[11px] mr-2">{i + 1}</span>
                               {e.state || <span className="italic text-purple-400/60">(no state)</span>}
                             </td>
@@ -8136,7 +8138,7 @@ export default function OrderStatusDashboard() {
                       </tbody>
                       <tfoot>
                         <tr>
-                          <td className="sticky left-0 bottom-0 z-20 bg-slate-900/95 backdrop-blur px-4 py-2.5 text-purple-200 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap border-t border-r border-white/10">
+                          <td className="sticky left-0 bottom-0 z-20 bg-[#0f172a] px-4 py-2.5 text-purple-200 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap border-t border-r border-white/10">
                             All states
                           </td>
                           {groups.map((g, gi) => {
@@ -8144,10 +8146,10 @@ export default function OrderStatusDashboard() {
                             return STATUS_COLS.map((c, ci) => {
                               const bucket = b?.[c.key];
                               const base = b?.punched.count ?? 0;
-                              const groupBg = gi === 0 ? 'bg-fuchsia-500/[0.1]' : gi % 2 === 1 ? 'bg-white/[0.03]' : '';
+                              const groupBg = gi === 0 ? 'bg-[#1a1330]' : gi % 2 === 1 ? 'bg-[#141a2e]' : 'bg-[#0f172a]';
                               const leftBorder = ci === 0 ? 'border-l-2 border-white/15' : 'border-l border-white/[0.04]';
                               return (
-                                <td key={`${g.ym}_${c.key}`} className={`sticky bottom-0 z-10 bg-slate-900/95 backdrop-blur px-2.5 py-2.5 text-right align-middle border-t border-white/10 ${leftBorder} ${groupBg}`}>
+                                <td key={`${g.ym}_${c.key}`} className={`sticky bottom-0 z-10 px-2.5 py-2.5 text-right align-middle border-t border-white/10 ${leftBorder} ${groupBg}`}>
                                   {!bucket || bucket.count === 0 ? (
                                     <span className="text-purple-300/20">·</span>
                                   ) : (

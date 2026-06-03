@@ -1210,6 +1210,28 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
       return sort.dir === 'desc' ? -cmp : cmp;
     });
 
+  // Totals across the visible (search-filtered) rows. Counts sum; rates and the
+  // avg are recomputed from the aggregates rather than summed.
+  const t = rows.reduce(
+    (acc, a) => {
+      acc.totalCalls += a.totalCalls;
+      acc.uniqueBuyerAttempt += a.uniqueBuyerAttempt;
+      acc.connected += a.connected;
+      acc.connectedUniqueBuyer += a.connectedUniqueBuyer;
+      acc.orderPlacedBuyer += a.orderPlacedBuyer;
+      acc.orderCount += a.orderCount;
+      acc.connectedGte15 += a.connectedGte15;
+      acc.connectedLt15 += a.connectedLt15;
+      acc.totalTalkHours += a.totalTalkHours;
+      acc.haltWeighted += a.avgHaltingMins * a.connected;
+      return acc;
+    },
+    { totalCalls: 0, uniqueBuyerAttempt: 0, connected: 0, connectedUniqueBuyer: 0, orderPlacedBuyer: 0, orderCount: 0, connectedGte15: 0, connectedLt15: 0, totalTalkHours: 0, haltWeighted: 0 },
+  );
+  const totalConnectedRate = t.totalCalls ? t.connected / t.totalCalls : 0;
+  const totalOrderConvRate = t.connectedUniqueBuyer ? t.orderPlacedBuyer / t.connectedUniqueBuyer : 0;
+  const totalAvgHaltingMins = t.connected ? t.haltWeighted / t.connected : 0;
+
   const toggleSort = (col: keyof AgentOrderRow) =>
     setSort((s) => ({ col, dir: s.col === col && s.dir === 'desc' ? 'asc' : 'desc' }));
 
@@ -1221,7 +1243,13 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
       a.connectedUniqueBuyer, a.orderPlacedBuyer, a.orderCount, (a.orderConvRate * 100).toFixed(1) + '%',
       a.avgHaltingMins.toFixed(2), a.connectedGte15, a.connectedLt15, a.totalTalkHours.toFixed(2),
     ].join(','));
-    const csv = [header.join(','), ...lines].join('\n');
+    const totalLine = [
+      'Total',
+      t.totalCalls, t.uniqueBuyerAttempt, t.connected, (totalConnectedRate * 100).toFixed(1) + '%',
+      t.connectedUniqueBuyer, t.orderPlacedBuyer, t.orderCount, (totalOrderConvRate * 100).toFixed(1) + '%',
+      totalAvgHaltingMins.toFixed(2), t.connectedGte15, t.connectedLt15, t.totalTalkHours.toFixed(2),
+    ].join(',');
+    const csv = [header.join(','), ...lines, totalLine].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1306,6 +1334,26 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
               </tr>
             )}
           </tbody>
+          {rows.length > 0 && (
+            <tfoot className="border-t-2 border-fuchsia-400/30 bg-fuchsia-500/10 text-purple-100 font-semibold">
+              <tr>
+                <td className="py-2 pr-2"></td>
+                <td className="py-2 pr-2">Total</td>
+                <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.totalCalls)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.uniqueBuyerAttempt)}</td>
+                <td className="py-2 px-2 text-right text-emerald-300 tabular-nums">{fmtInt(t.connected)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{fmtPct(totalConnectedRate, 1)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.connectedUniqueBuyer)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.orderPlacedBuyer)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.orderCount)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{fmtPct(totalOrderConvRate, 1)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{totalAvgHaltingMins.toFixed(2)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.connectedGte15)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.connectedLt15)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{t.totalTalkHours.toFixed(2)}</td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>

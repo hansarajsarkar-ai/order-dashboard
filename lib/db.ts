@@ -40,3 +40,27 @@ export async function query<T = Record<string, unknown>>(
     throw err;
   }
 }
+
+// Like query(), but disables nested-loop joins for this statement only (via a
+// transaction-scoped SET LOCAL). Use for the calling-team order joins, where a
+// rows=1 estimate on materialized CTEs otherwise makes Postgres nested-loop two
+// large sets over a date range — fine for a single day, catastrophic for 30.
+export async function queryNoNestloop<T = Record<string, unknown>>(
+  sql: string,
+  params?: unknown[]
+): Promise<T[]> {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET LOCAL enable_nestloop = off');
+    const result = await client.query(sql, params);
+    await client.query('COMMIT');
+    return result.rows as T[];
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    console.error('Query error:', err);
+    throw err;
+  } finally {
+    client.release();
+  }
+}

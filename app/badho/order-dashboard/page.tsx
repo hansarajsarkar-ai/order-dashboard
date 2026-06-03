@@ -463,7 +463,7 @@ export default function OrderStatusDashboard() {
   const [pivotDrillDay, setPivotDrillDay] = useState<number | null>(null); // when set, drill is scoped to a single day within pivotDrillMonth
   const [pivotDrillWeek, setPivotDrillWeek] = useState<number | null>(null); // when set, drill is scoped to a single ISO week (Postgres EXTRACT(WEEK))
   const [pivotDrillWeekLabel, setPivotDrillWeekLabel] = useState<string | null>(null); // human label for the week (e.g. "05 May")
-  const [pivotDrillZone, setPivotDrillZone] = useState<{ zone: string; label: string } | null>(null); // when set, drill is scoped to a Delhivery zone + date window
+  const [pivotDrillZone, setPivotDrillZone] = useState<{ zone: string; label: string; seller?: string; zoneStatus?: string } | null>(null); // when set, drill is scoped to a Delhivery zone (+ optional seller / delivery status) + date window
   const [pivotDrillRows, setPivotDrillRows] = useState<OrderListRow[] | null>(null);
   const [pivotDrillLoading, setPivotDrillLoading] = useState(false);
   const [pivotDrillError, setPivotDrillError] = useState<string | null>(null);
@@ -2336,7 +2336,7 @@ export default function OrderStatusDashboard() {
     week: number | null = null,
     weekLabel: string | null = null,
     initialPayment: string[] = [],
-    zone: { zone: string; label: string; start: string; end: string } | null = null
+    zone: { zone: string; label: string; start: string; end: string; seller?: string; zoneStatus?: string; zoneAny?: boolean } | null = null
   ) => {
     setPivotDrillOpen(true);
     setPivotDrillStatus(status);
@@ -2345,7 +2345,7 @@ export default function OrderStatusDashboard() {
     setPivotDrillDay(day);
     setPivotDrillWeek(week);
     setPivotDrillWeekLabel(weekLabel);
-    setPivotDrillZone(zone ? { zone: zone.zone, label: zone.label } : null);
+    setPivotDrillZone(zone ? { zone: zone.zone, label: zone.label, seller: zone.seller, zoneStatus: zone.zoneStatus } : null);
     setPivotDrillRows(null);
     setPivotDrillError(null);
     setPivotDrillSearch('');
@@ -2360,7 +2360,10 @@ export default function OrderStatusDashboard() {
       const params = new URLSearchParams({ status, year: String(currentYear) });
       if (zone) {
         // Zone drill: filter via intercityDelivery, windowed by created_at.
-        params.append('zone', zone.zone);
+        if (zone.zoneAny) params.append('zoneAny', '1');
+        else params.append('zone', zone.zone);
+        if (zone.seller) params.append('sellerName', zone.seller);
+        if (zone.zoneStatus) params.append('zoneStatus', zone.zoneStatus);
         params.append('startDate', zone.start);
         params.append('endDate', zone.end);
       } else if (week !== null) {
@@ -2497,6 +2500,32 @@ export default function OrderStatusDashboard() {
     const { startDate, endDate } = resolveZoneRange();
     const label = `Zone ${z} · ${startDate} → ${endDate}`;
     openPivotDrill('', undefined, null, null, null, null, [], { zone: z, label, start: startDate, end: endDate });
+  };
+
+  // Zone Wise · Delhivery table → open the same order-list drill modal scoped to
+  // the clicked cell. seller = full businessName (null = all sellers / footer),
+  // zone = Delhivery zone (null = seller's grand total across all zones),
+  // zoneStatus = the delivery-status column when a zone is expanded (null = all).
+  const openZoneCellDrill = (
+    seller: string | null,
+    zone: string | null,
+    zoneStatus: string | null,
+  ) => {
+    const { startDate, endDate } = resolveZoneRange();
+    const parts: string[] = [];
+    if (seller) parts.push(seller);
+    parts.push(zone ? `Zone ${zone}` : 'All zones');
+    if (zoneStatus) parts.push(zoneStatus);
+    const label = `${parts.join(' · ')} · ${startDate} → ${endDate}`;
+    openPivotDrill('', undefined, null, null, null, null, [], {
+      zone: zone ?? '',
+      label,
+      start: startDate,
+      end: endDate,
+      seller: seller ?? undefined,
+      zoneStatus: zoneStatus ?? undefined,
+      zoneAny: !zone,
+    });
   };
 
   const closePivotDrill = () => {
@@ -8313,13 +8342,6 @@ export default function OrderStatusDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              {zoneRange === 'custom' && (
-                <div className="flex items-center gap-2 text-xs">
-                  <input type="date" value={zoneFrom} onChange={(e) => setZoneFrom(e.target.value)} className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400" />
-                  <span className="text-purple-300/60">→</span>
-                  <input type="date" value={zoneTo} onChange={(e) => setZoneTo(e.target.value)} className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400" />
-                </div>
-              )}
               <div className="inline-flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
                 {([
                   { k: 'today', l: 'Today' },
@@ -8340,6 +8362,13 @@ export default function OrderStatusDashboard() {
                   );
                 })}
               </div>
+              {zoneRange === 'custom' && (
+                <div className="flex items-center gap-2 text-xs">
+                  <input type="date" value={zoneFrom} onChange={(e) => setZoneFrom(e.target.value)} className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                  <span className="text-purple-300/60">→</span>
+                  <input type="date" value={zoneTo} onChange={(e) => setZoneTo(e.target.value)} className="px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                </div>
+              )}
               <MonthMultiSelect selected={zoneMonths} onChange={setZoneMonths} year={currentYear} />
               <button
                 onClick={() => setCommercialOpen(true)}
@@ -8643,7 +8672,9 @@ export default function OrderStatusDashboard() {
                                     return (
                                       <td
                                         key={`${seller}|${zone}|rollup`}
-                                        className={`px-2 py-2 text-center tabular-nums border-r border-white/10 ${dim ? 'text-white/20' : 'text-white'}`}
+                                        className={`px-2 py-2 text-center tabular-nums border-r border-white/10 ${dim ? 'text-white/20' : 'text-white cursor-pointer hover:bg-fuchsia-500/15 transition-colors'}`}
+                                        onClick={dim ? undefined : () => openZoneCellDrill(seller, zone, null)}
+                                        title={dim ? undefined : `View ${seller} · Zone ${zone} orders`}
                                       >
                                         {dim ? '—' : (
                                           <div className="leading-tight">
@@ -8661,7 +8692,9 @@ export default function OrderStatusDashboard() {
                                     return (
                                       <td
                                         key={`${seller}|${zone}|${st}`}
-                                        className={`px-2 py-2 text-center tabular-nums ${si === zonePivot.statuses.length - 1 ? 'border-r border-white/10' : ''} ${dim ? 'text-white/20' : 'text-white'}`}
+                                        className={`px-2 py-2 text-center tabular-nums ${si === zonePivot.statuses.length - 1 ? 'border-r border-white/10' : ''} ${dim ? 'text-white/20' : 'text-white cursor-pointer hover:bg-fuchsia-500/15 transition-colors'}`}
+                                        onClick={dim ? undefined : () => openZoneCellDrill(seller, zone, st)}
+                                        title={dim ? undefined : `View ${seller} · Zone ${zone} · ${st} orders`}
                                       >
                                         {dim ? '—' : (
                                           <div className="leading-tight">
@@ -8673,7 +8706,11 @@ export default function OrderStatusDashboard() {
                                     );
                                   });
                                 })}
-                                <td className="px-3 py-2.5 text-right tabular-nums sticky right-0 bg-slate-900/80 backdrop-blur z-10 border-l border-white/10">
+                                <td
+                                  className={`px-3 py-2.5 text-right tabular-nums sticky right-0 bg-slate-900/80 backdrop-blur z-10 border-l border-white/10 ${sellerTot.count === 0 ? '' : 'cursor-pointer hover:bg-fuchsia-500/15 transition-colors'}`}
+                                  onClick={sellerTot.count === 0 ? undefined : () => openZoneCellDrill(seller, null, null)}
+                                  title={sellerTot.count === 0 ? undefined : `View all ${seller} orders (all zones)`}
+                                >
                                   <div className="font-bold text-sm text-emerald-300">{sellerTot.count.toLocaleString('en-IN')}</div>
                                   <div className="text-[10px] text-emerald-300/60">{fmtKg(sellerTot.modeKg)} kg</div>
                                 </td>
@@ -8687,7 +8724,12 @@ export default function OrderStatusDashboard() {
                                 const ztot = zonePivot.zoneTotals[zone] || { count: 0, modeKg: 0 };
                                 const dim = ztot.count === 0;
                                 return (
-                                  <td key={`tot|${zone}|rollup`} className={`px-2 py-2.5 text-center tabular-nums border-r border-white/15 ${dim ? 'text-white/30' : 'text-white'}`}>
+                                  <td
+                                    key={`tot|${zone}|rollup`}
+                                    className={`px-2 py-2.5 text-center tabular-nums border-r border-white/15 ${dim ? 'text-white/30' : 'text-white cursor-pointer hover:bg-fuchsia-500/15 transition-colors'}`}
+                                    onClick={dim ? undefined : () => openZoneCellDrill(null, zone, null)}
+                                    title={dim ? undefined : `View all Zone ${zone} orders`}
+                                  >
                                     {dim ? '—' : (
                                       <div className="leading-tight">
                                         <div className="font-bold text-sm">{ztot.count.toLocaleString('en-IN')}</div>
@@ -11662,7 +11704,7 @@ export default function OrderStatusDashboard() {
                 <div>
                   <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900">
                     <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse" />
-                    <span>{pivotDrillStateName ? `${pivotDrillStateName} · ${pivotDrillBucketLabel}` : pivotDrillZone ? `Zone ${pivotDrillZone.zone}` : pivotDrillStatus.includes(',') ? `Achieved · ${pivotDrillStatus.split(',').join(' + ')}` : (pivotDrillStatus || (pivotDrillPaymentFilter.size > 0 ? Array.from(pivotDrillPaymentFilter).join(' + ') : 'All orders'))}</span>
+                    <span>{pivotDrillStateName ? `${pivotDrillStateName} · ${pivotDrillBucketLabel}` : pivotDrillZone ? `${pivotDrillZone.seller ? `${pivotDrillZone.seller} · ` : ''}${pivotDrillZone.zone ? `Zone ${pivotDrillZone.zone}` : 'All zones'}${pivotDrillZone.zoneStatus ? ` · ${pivotDrillZone.zoneStatus}` : ''}` : pivotDrillStatus.includes(',') ? `Achieved · ${pivotDrillStatus.split(',').join(' + ')}` : (pivotDrillStatus || (pivotDrillPaymentFilter.size > 0 ? Array.from(pivotDrillPaymentFilter).join(' + ') : 'All orders'))}</span>
                     {pivotDrillDelivery !== undefined && (
                       <span className="text-slate-400 text-sm font-normal mx-1">→</span>
                     )}

@@ -52,6 +52,9 @@ export async function GET(req: NextRequest) {
   const monthParam = searchParams.get('month');
   const weekParam = searchParams.get('week');                  // optional Postgres EXTRACT(WEEK) number — matches the weekly status pivot
   const zone = searchParams.get('zone');                       // optional Delhivery zone (A/B/C1/…); filters via intercityDelivery, windowed by startDate/endDate on icd.created_at
+  const zoneAny = searchParams.get('zoneAny');                  // optional "1" — any Delhivery zone (non-NULL); used by the zone-table seller/grand totals
+  const zoneStatus = searchParams.get('zoneStatus');           // optional intercityDelivery.status (delivery status column in the zone pivot); '(unknown)' → icd.status IS NULL
+  const sellerName = searchParams.get('sellerName');           // optional exact seller businessName (zone-table rows are keyed by full businessName, not the brand prefix)
   const status = searchParams.get('status');                  // optional now — when omitted, all non-DRAFT statuses are included
   const excludeStatus = searchParams.get('excludeStatus');    // optional comma-separated — po.status NOT IN (...); used by the State-wise "In-flight" bucket
   const stateParam = searchParams.get('state');               // optional buyer state filter (b."state") — used by the State-wise pivot drill
@@ -99,7 +102,7 @@ export async function GET(req: NextRequest) {
     // For a zone drill the window applies to intercityDelivery.created_at inside the
     // zone EXISTS (see zoneFilter), so the markedPendingTime date filter is skipped.
     let dateFilter = '';
-    if (zone) {
+    if (zone || zoneAny) {
       // no markedPendingTime constraint — handled in zoneFilter
     } else if (startDate || endDate) {
       if (startDate) {
@@ -133,27 +136,48 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Zone filter: PO has a Delhivery intercityDelivery in the requested zone, within the window.
-    // Mirrors the zone-pivot definition (deliveryPartnerId='DELHIVERY', zone from deliveryCostReportJSON).
+    // Zone filter: PO has a Delhivery intercityDelivery matching the requested
+    // zone (or any zone, for the zone-table seller/grand totals), within the
+    // window. Mirrors the zone-pivot definition (deliveryPartnerId='DELHIVERY',
+    // zone + delivery status from deliveryCostReportJSON / icd.status).
     let zoneFilter = '';
-    if (zone) {
-      params.push(zone);
-      const zoneIdx = params.length;
-      let zoneDateClause = '';
+    if (zone || zoneAny) {
+      let zoneClause = ` AND icd."deliveryPartnerId" = 'DELHIVERY'`;
+      if (zone) {
+        params.push(zone);
+        zoneClause += ` AND icd."deliveryCostReportJSON" -> 0 ->> 'zone' = $${params.length}`;
+      } else {
+        zoneClause += ` AND icd."deliveryCostReportJSON" -> 0 ->> 'zone' IS NOT NULL`;
+      }
+      // Optional delivery-status column from the zone pivot (icd.status).
+      if (zoneStatus) {
+        if (zoneStatus === '(unknown)') {
+          zoneClause += ` AND icd."status" IS NULL`;
+        } else {
+          params.push(zoneStatus);
+          zoneClause += ` AND icd."status" = $${params.length}`;
+        }
+      }
       if (startDate) {
         params.push(startDate);
-        zoneDateClause += ` AND icd."created_at"::date >= $${params.length}`;
+        zoneClause += ` AND icd."created_at"::date >= $${params.length}`;
       }
       if (endDate) {
         params.push(endDate);
-        zoneDateClause += ` AND icd."created_at"::date <= $${params.length}`;
+        zoneClause += ` AND icd."created_at"::date <= $${params.length}`;
       }
       zoneFilter = ` AND EXISTS (
         SELECT 1 FROM "deliveries"."intercityDelivery" icd
-        WHERE icd."purchaseOrderId" = po."id"
-          AND icd."deliveryPartnerId" = 'DELHIVERY'
-          AND icd."deliveryCostReportJSON" -> 0 ->> 'zone' = $${zoneIdx}${zoneDateClause}
+        WHERE icd."purchaseOrderId" = po."id"${zoneClause}
       )`;
+    }
+
+    // Exact seller businessName — zone-table rows are keyed by the full
+    // businessName, not the brand prefix the `brand` param matches.
+    let sellerNameFilter = '';
+    if (sellerName) {
+      params.push(sellerName);
+      sellerNameFilter = ` AND s."businessName" = $${params.length}`;
     }
 
     let deliveryFilter = '';
@@ -309,6 +333,7 @@ export async function GET(req: NextRequest) {
         ${monthFilter}
         ${weekFilter}
         ${zoneFilter}
+        ${sellerNameFilter}
         ${deliveryFilter}
         ${brandFilter}
         ${brandLabelFilter}

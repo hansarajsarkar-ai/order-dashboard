@@ -115,7 +115,7 @@ interface LogsResp {
 
 // ───────────────────────── filters bar ─────────────────────────
 
-type Tab = 'dashboard' | 'analytics' | 'daily' | 'logs' | 'table' | 'orders';
+type Tab = 'dashboard' | 'analytics' | 'daily' | 'logs' | 'table' | 'orders' | 'orders-daily';
 
 // Per-day types used by the Daily Trend tab.
 export interface DailyDetailedRow {
@@ -278,6 +278,18 @@ function presetRange(p: DatePreset): { startDate: string; endDate: string } {
   }
   const start = new Date(today.getTime() - p.days * 86400000);
   return { startDate: start.toISOString().slice(0, 10), endDate };
+}
+
+// Inclusive list of 'YYYY-MM-DD' days between start and end (capped for sanity).
+function daysInRange(start: string, end: string, max = 92): string[] {
+  const out: string[] = [];
+  const s = new Date(`${start}T00:00:00`);
+  const e = new Date(`${end}T00:00:00`);
+  if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return out;
+  for (const d = new Date(s); d <= e && out.length < max; d.setDate(d.getDate() + 1)) {
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+  }
+  return out;
 }
 
 // ───────────────────────── insights generators ─────────────────────────
@@ -515,11 +527,13 @@ export default function CallingTeamDashboard() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [filters, setFilters] = useState<Filters>(defaultFilters);
 
-  // Agent Wise Order defaults the global date range to today when opened; the
-  // top date presets (Today/7d/30d/…) still re-scope it from there.
+  // Order tabs default the global date range when opened (the top date presets
+  // still re-scope it afterwards): Agent Wise Order → today, Daily Orders → 30d.
   useEffect(() => {
     if (tab === 'orders') {
       setFilters((prev) => ({ ...prev, ...presetRange({ label: 'Today', days: 0 }) }));
+    } else if (tab === 'orders-daily') {
+      setFilters((prev) => ({ ...prev, ...presetRange({ label: '30d', days: 29 }) }));
     }
   }, [tab]);
 
@@ -801,6 +815,12 @@ export default function CallingTeamDashboard() {
             >
               🧾 Agent Wise Order
             </button>
+            <button
+              onClick={() => setTab('orders-daily')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${tab === 'orders-daily' ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-lg' : 'text-purple-200 hover:bg-white/5'}`}
+            >
+              📆 Daily Orders
+            </button>
           </div>
           <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
             {DATE_PRESETS.map((p) => {
@@ -847,9 +867,9 @@ export default function CallingTeamDashboard() {
           </div>
         )}
 
-        {/* Global filter row — applies across all tabs except Agent Wise Order,
-            which is self-scoped (outbound · Warm/Cold campaigns) and ignores them. */}
-        {tab !== 'orders' && (
+        {/* Global filter row — applies across all tabs except the order tabs,
+            which are self-scoped (outbound · Warm/Cold campaigns) and ignore them. */}
+        {tab !== 'orders' && tab !== 'orders-daily' && (
         <div className="relative z-20 mb-5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
           <div className="flex items-center gap-2 flex-wrap mb-3">
             <div className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold">Global Filters</div>
@@ -957,6 +977,10 @@ export default function CallingTeamDashboard() {
 
         {tab === 'orders' && (
           <AgentOrdersTab filters={filters} />
+        )}
+
+        {tab === 'orders-daily' && (
+          <AgentOrdersDailyTab filters={filters} />
         )}
       </div>
 
@@ -1351,6 +1375,148 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
                 <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.connectedGte15)}</td>
                 <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.connectedLt15)}</td>
                 <td className="py-2 px-2 text-right tabular-nums">{t.totalTalkHours.toFixed(2)}</td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Tab: Daily Orders (agent × day matrix) ─────────────────────────
+
+function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
+  const [query, setQuery] = useState('');
+  const [cells, setCells] = useState<{ agentName: string; day: string; orderCount: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const qs = useMemo(
+    () => buildQs({ ...defaultFilters(), startDate: filters.startDate, endDate: filters.endDate }),
+    [filters.startDate, filters.endDate],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/calling-team/agent-orders-daily?${qs}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setCells(d.cells || []); })
+      .catch(() => { if (!cancelled) setCells([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [qs]);
+
+  const days = useMemo(() => daysInRange(filters.startDate, filters.endDate), [filters.startDate, filters.endDate]);
+  const dayLabel = (d: string) => { const [, m, day] = d.split('-'); return `${+day}/${+m}`; };
+
+  // Pivot: agent -> day -> count, plus per-agent and per-day totals.
+  const { agents, dayTotals, grandTotal } = useMemo(() => {
+    const byAgent = new Map<string, { total: number; days: Record<string, number> }>();
+    const dayTotals: Record<string, number> = {};
+    let grandTotal = 0;
+    for (const c of cells) {
+      if (!byAgent.has(c.agentName)) byAgent.set(c.agentName, { total: 0, days: {} });
+      const a = byAgent.get(c.agentName)!;
+      a.days[c.day] = (a.days[c.day] || 0) + c.orderCount;
+      a.total += c.orderCount;
+      dayTotals[c.day] = (dayTotals[c.day] || 0) + c.orderCount;
+      grandTotal += c.orderCount;
+    }
+    const agents = [...byAgent.entries()]
+      .map(([agentName, v]) => ({ agentName, ...v }))
+      .sort((x, y) => y.total - x.total);
+    return { agents, byAgent, dayTotals, grandTotal };
+  }, [cells]);
+
+  const rows = agents.filter((a) => a.agentName.toLowerCase().includes(query.trim().toLowerCase()));
+
+  const exportCsv = () => {
+    const header = ['Agent', ...days.map(dayLabel), 'Total'];
+    const lines = rows.map((a) => [
+      `"${a.agentName.replace(/"/g, '""')}"`,
+      ...days.map((d) => a.days[d] || 0),
+      a.total,
+    ].join(','));
+    const totalLine = ['Total', ...days.map((d) => dayTotals[d] || 0), grandTotal].join(',');
+    const csv = [header.join(','), ...lines, totalLine].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'calling-team-daily-orders.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-purple-100">Daily Orders — Agent × Day</h2>
+          <p className="text-purple-300/70 text-xs mt-0.5">
+            Order count per agent per day · outbound · Warm/Cold campaigns · {filters.startDate} → {filters.endDate}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search agent…"
+            className="px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 text-purple-100 placeholder:text-purple-300/40 focus:outline-none focus:border-purple-400/40"
+          />
+          <button
+            onClick={exportCsv}
+            disabled={!rows.length}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border border-fuchsia-400/30 text-fuchsia-200 disabled:opacity-40"
+          >
+            ⬇ Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="text-xs border-separate border-spacing-0">
+          <thead className="text-purple-300/70 uppercase tracking-wider text-[10px]">
+            <tr>
+              <th className="text-left py-2 pr-3 sticky left-0 bg-[#1a0f2e] z-10 border-b border-white/10">Agent</th>
+              {days.map((d) => (
+                <th key={d} className="text-right py-2 px-2 border-b border-white/10 whitespace-nowrap">{dayLabel(d)}</th>
+              ))}
+              <th className="text-right py-2 pl-3 pr-1 border-b border-white/10 text-fuchsia-200">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((a) => (
+              <tr key={a.agentName} className="hover:bg-white/5">
+                <td className="py-2 pr-3 text-purple-100 font-medium sticky left-0 bg-[#1a0f2e] z-10 border-b border-white/5 whitespace-nowrap">{a.agentName}</td>
+                {days.map((d) => {
+                  const v = a.days[d] || 0;
+                  return (
+                    <td key={d} className={`py-2 px-2 text-right tabular-nums border-b border-white/5 ${v ? 'text-purple-100' : 'text-purple-300/25'}`}>
+                      {v || '·'}
+                    </td>
+                  );
+                })}
+                <td className="py-2 pl-3 pr-1 text-right tabular-nums font-semibold text-fuchsia-200 border-b border-white/5">{fmtInt(a.total)}</td>
+              </tr>
+            ))}
+            {!loading && !rows.length && (
+              <tr>
+                <td colSpan={days.length + 2} className="py-8 text-center text-purple-300/50">
+                  {cells.length ? 'No agents match your search.' : 'No order data for this range.'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+          {rows.length > 0 && (
+            <tfoot className="bg-fuchsia-500/10 text-purple-100 font-semibold">
+              <tr>
+                <td className="py-2 pr-3 sticky left-0 bg-[#241338] z-10 border-t-2 border-fuchsia-400/30">Total</td>
+                {days.map((d) => (
+                  <td key={d} className="py-2 px-2 text-right tabular-nums border-t-2 border-fuchsia-400/30">{dayTotals[d] || 0}</td>
+                ))}
+                <td className="py-2 pl-3 pr-1 text-right tabular-nums text-fuchsia-200 border-t-2 border-fuchsia-400/30">{fmtInt(grandTotal)}</td>
               </tr>
             </tfoot>
           )}

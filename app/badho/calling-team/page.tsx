@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -119,6 +119,304 @@ interface DrillOrderRow {
   callDurationSec: number | null;
   callRecordingUrl: string | null;
   callTs: string | null;
+}
+
+// ───────────────────── shared drill-down modal ─────────────────────
+// Rich order + call drill used by both the Daily-Orders (agent × day) and the
+// Agent-Wise-Order (agent over the whole range) tabs. Self-contained: owns its
+// in-modal search, CSV export, and Esc-to-close. Parents only supply the fetched
+// rows + loading/error + a title. Remount it (via `key`) to reset search.
+function OrdersCallDrillModal({
+  titleMain,
+  subtitlePrefix,
+  loading,
+  error,
+  rows,
+  csvFilename,
+  onClose,
+}: {
+  titleMain: ReactNode;
+  subtitlePrefix: string;
+  loading: boolean;
+  error: string | null;
+  rows: DrillOrderRow[] | null;
+  csvFilename: string;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+
+  // Esc closes the drill.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // Rows filtered by the in-modal search box.
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) =>
+      [r.poNumber, r.buyerBusinessName, r.buyerPhone, r.sellerBusinessName, r.sellerPhone, r.orderStatus, r.awbNumber, r.courierName]
+        .some((v) => v != null && String(v).toLowerCase().includes(q)));
+  }, [rows, search]);
+
+  const exportCsv = () => {
+    if (!filtered.length) return;
+    const headers = [
+      'Marked Pending', 'Pushed', 'PO Number', 'Call Duration (s)', 'Recording URL', 'Order Status',
+      'PO Amount', 'Coupon Amount', 'Applied Wallet Amount', 'Seller Discount', 'Payment Option Badho Discount',
+      'COD Amount', 'Delivery Status', 'Paid Amount', 'Payment Option', 'AWB Number', 'Courier Name',
+      'Payment Date', 'Payment Event', 'Buyer Business', 'Buyer Phone', 'Buyer Address', 'Seller Business',
+      'Seller Phone', 'Status Marked Time', 'Status Duration (s)', 'Refund Initiated', 'Refund Completed',
+      'Refund Amount', 'Reject Reason', 'Rejected By', 'Reason Added By Badho Team',
+    ];
+    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = filtered.map((r) => [
+      r.MarkedpendingTime ?? '', r.pushedStatus ?? '', r.poNumber, r.callDurationSec ?? '', r.callRecordingUrl ?? '',
+      r.orderStatus ?? '', r.poAmount ?? '', r.CoupanAmount ?? '', r.appliedWalletAmount ?? '', r.discountBySeller ?? '',
+      r.PaymentOptionDiscountByBadho ?? '', r.codAmountToBeCollected ?? '', r.deliveryStatus ?? '', r.paidAmount ?? '',
+      r.PaymentOption ?? '', r.awbNumber ?? '', r.courierName ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
+      r.buyerBusinessName ?? '', r.buyerPhone ?? '',
+      [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join(', '),
+      r.sellerBusinessName ?? '', r.sellerPhone ?? '', r.statusMarkedTime ?? '', r.statusDurationSec ?? '',
+      r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '', r.RefundAmount ?? '', r.rejectReason ?? '',
+      r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? '',
+    ].map(esc).join(','));
+    const csv = [headers.map(esc).join(','), ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = csvFilename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const dash = <span className="text-slate-400">—</span>;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-950/70 backdrop-blur-md"
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-white text-slate-900 border border-purple-400/50 rounded-2xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="relative px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-purple-50 via-white to-fuchsia-50/60">
+          <div>
+            <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900">
+              <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse" />
+              <span>{titleMain}</span>
+            </h3>
+            <p className="text-slate-500 text-xs mt-1">
+              {subtitlePrefix}
+              {' · '}
+              {loading
+                ? 'Loading…'
+                : rows
+                ? <span className="text-slate-900 font-semibold">{filtered.length} of {rows.length} orders</span>
+                : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative w-56 max-w-full">
+              <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search PO, buyer, seller…"
+                className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  aria-label="Clear search"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 inline-flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700 text-xs"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            <button
+              className="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 border border-purple-600 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!filtered.length}
+              onClick={exportCsv}
+            >
+              ↓ CSV
+            </button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 text-base font-semibold transition-all hover:rotate-90"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="relative flex-1 overflow-auto">
+          {loading ? (
+            <div className="px-6 py-12 text-center text-slate-500">Loading orders…</div>
+          ) : error ? (
+            <div className="px-6 py-12 text-center text-rose-600">{error}</div>
+          ) : !rows || rows.length === 0 ? (
+            <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
+          ) : filtered.length === 0 ? (
+            <div className="px-6 py-12 text-center text-slate-500">No matches for &ldquo;{search}&rdquo;</div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead className="shadow-[0_2px_0_rgba(168,85,247,0.4)]">
+                <tr className="border-b border-slate-200">
+                  {[
+                    ['Marked Pending', 'sticky top-0 left-0 z-30 bg-amber-50 text-amber-800 min-w-[150px]'],
+                    ['Pushed', ''],
+                    ['PO Number', ''],
+                    ['Call Duration', 'bg-purple-50 text-purple-700'],
+                    ['Recording', 'bg-purple-50 text-purple-700'],
+                    ['Order Status', ''],
+                    ['PO Amount', 'text-right'],
+                    ['Coupon Amount', 'text-right'],
+                    ['Applied Wallet Amount', 'text-right'],
+                    ['Seller Discount', 'text-right'],
+                    ['Payment Option Badho Discount', 'text-right'],
+                    ['COD Amount', 'text-right'],
+                    ['Delivery Status', ''],
+                    ['Paid Amount', 'text-right'],
+                    ['Payment Option', ''],
+                    ['AWB Number', ''],
+                    ['Courier Name', ''],
+                    ['Payment Date', ''],
+                    ['Payment Event', ''],
+                    ['Buyer Business', ''],
+                    ['Buyer Phone', ''],
+                    ['Buyer Address', ''],
+                    ['Seller Business', ''],
+                    ['Seller Phone', ''],
+                    ['Status Marked Time', 'bg-amber-50/60'],
+                    ['Status Duration', 'bg-amber-50/60'],
+                    ['Refund Initiated', ''],
+                    ['Refund Completed', ''],
+                    ['Refund Amount', 'text-right'],
+                    ['Reject Reason', 'text-rose-700 bg-rose-50'],
+                    ['Rejected By', 'text-rose-700 bg-rose-50'],
+                    ['Reason Added By Badho Team', 'text-rose-700 bg-rose-50'],
+                  ].map(([label, cls], i) => (
+                    <th
+                      key={i}
+                      className={`sticky top-0 z-20 px-2.5 py-2.5 text-[11px] font-bold whitespace-nowrap uppercase tracking-wider ${(cls as string).includes('bg-') ? '' : 'bg-slate-100'} ${(cls as string).includes('text-') ? '' : 'text-slate-700'} ${(cls as string).includes('text-right') ? 'text-right' : 'text-left'} ${cls}`}
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r, idx) => {
+                  const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                  return (
+                    <tr key={r.poNumber} className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}>
+                      <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[150px] px-2.5 py-2 whitespace-nowrap text-amber-800 font-medium`}>{r.MarkedpendingTime ? fmtDateTime(r.MarkedpendingTime) : dash}</td>
+                      <td className="px-2.5 py-2 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${r.pushedStatus === 'Pushed' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                          {r.pushedStatus || 'Not Pushed'}
+                        </span>
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-2">
+                          <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
+                          <a
+                            href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-all"
+                            title="Open in D2R Support Dashboard"
+                          >
+                            Details ↗
+                          </a>
+                          <a
+                            href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(r.poNumber)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-all"
+                            title="Search Freshdesk tickets"
+                          >
+                            Ticket ↗
+                          </a>
+                        </div>
+                        <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
+                          AWB: {awbLink(r.awbNumber)}
+                        </div>
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap bg-purple-50/40">
+                        <div className="font-semibold text-purple-800 tabular-nums">{r.callDurationSec != null ? fmtDuration(r.callDurationSec) : dash}</div>
+                        {r.callTs && <div className="text-[10px] text-slate-500 mt-0.5">{fmtDateTime(r.callTs)}</div>}
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap bg-purple-50/40">
+                        {r.callRecordingUrl ? (
+                          <a
+                            href={r.callRecordingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-fuchsia-50 hover:bg-fuchsia-100 text-fuchsia-700 text-[11px] font-bold border border-fuchsia-300 transition-all"
+                            title="Play call recording"
+                          >
+                            ▶ Play
+                          </a>
+                        ) : dash}
+                      </td>
+                      <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
+                      <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{fmtMoney(r.poAmount) ?? dash}</td>
+                      <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? fmtMoney(r.CoupanAmount) : dash}</td>
+                      <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? fmtMoney(r.appliedWalletAmount) : dash}</td>
+                      <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? fmtMoney(r.discountBySeller) : dash}</td>
+                      <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? fmtMoney(r.PaymentOptionDiscountByBadho) : dash}</td>
+                      <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? fmtMoney(r.codAmountToBeCollected) : dash}</td>
+                      <td className="px-2.5 py-2 whitespace-nowrap">{r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : dash}</td>
+                      <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? fmtMoney(r.paidAmount) : dash}</td>
+                      <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || dash}</td>
+                      <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">{awbLink(r.awbNumber)}</td>
+                      <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || dash}</td>
+                      <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate ? fmtDateTime(r.paymentDate) : dash}</td>
+                      <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || dash}</td>
+                      <td className="px-2.5 py-2 font-medium text-slate-800">{r.buyerBusinessName || dash}</td>
+                      <td className="px-2.5 py-2 tabular-nums whitespace-nowrap text-slate-700">{r.buyerPhone || dash}</td>
+                      <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md">
+                        {(() => {
+                          const addr = [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join(', ');
+                          return addr ? <div className="whitespace-normal break-words">{addr}</div> : dash;
+                        })()}
+                      </td>
+                      <td className="px-2.5 py-2 font-medium text-slate-800">{r.sellerBusinessName || dash}</td>
+                      <td className="px-2.5 py-2 tabular-nums whitespace-nowrap text-slate-700">{r.sellerPhone || dash}</td>
+                      <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? fmtDateTime(r.statusMarkedTime) : dash}</td>
+                      <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium">{r.statusDurationSec != null ? fmtDuration(r.statusDurationSec) : dash}</td>
+                      <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? fmtDateTime(r.RefundIntiatedTime) : dash}</td>
+                      <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime ? fmtDateTime(r.RefundCompletedTime) : dash}</td>
+                      <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.RefundAmount != null ? fmtMoney(r.RefundAmount) : dash}</td>
+                      <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason ? <div className="whitespace-normal break-words">{r.rejectReason}</div> : dash}</td>
+                      <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || dash}</td>
+                      <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam ? <div className="whitespace-normal break-words">{r.reasonAddedByBadhoTeam}</div> : dash}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ───────────────────────── types ─────────────────────────
@@ -1203,6 +1501,13 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
   const [agents, setAgents] = useState<AgentOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Drill-down: clicking an order number opens that agent's attributed orders
+  // (over the whole selected range) with the attributing call's details.
+  const [drill, setDrill] = useState<{ agentName: string } | null>(null);
+  const [drillRows, setDrillRows] = useState<DrillOrderRow[] | null>(null);
+  const [drillLoading, setDrillLoading] = useState(false);
+  const [drillError, setDrillError] = useState<string | null>(null);
+
   // Driven by the global date-range picker; campaign/direction/status are fixed
   // server-side (outbound · Warm/Cold) so the rest of the global filter bar is
   // intentionally ignored here.
@@ -1221,6 +1526,29 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [qs]);
+
+  useEffect(() => {
+    if (!drill) return;
+    let cancelled = false;
+    setDrillLoading(true);
+    setDrillError(null);
+    setDrillRows(null);
+    const p = new URLSearchParams({
+      agentName: drill.agentName,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+    });
+    fetch(`/api/calling-team/agent-orders-drill?${p}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        if (d.error) { setDrillError(d.error); setDrillRows([]); }
+        else setDrillRows(d.data || []);
+      })
+      .catch((e) => { if (!cancelled) { setDrillError(String(e)); setDrillRows([]); } })
+      .finally(() => { if (!cancelled) setDrillLoading(false); });
+    return () => { cancelled = true; };
+  }, [drill, filters.startDate, filters.endDate]);
 
   const COLS: [keyof AgentOrderRow, string][] = [
     ['totalCalls', 'Total Calls Initiated'],
@@ -1297,6 +1625,7 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
   };
 
   return (
+    <>
     <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div>
@@ -1350,8 +1679,30 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
                   </span>
                 </td>
                 <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.connectedUniqueBuyer)}</td>
-                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">{fmtInt(a.orderPlacedBuyer)}</td>
-                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.orderCount)}</td>
+                <td className="py-2 px-2 text-right text-purple-100 tabular-nums">
+                  {a.orderPlacedBuyer > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setDrill({ agentName: a.agentName })}
+                      title={`View ${a.orderPlacedBuyer} buyer${a.orderPlacedBuyer > 1 ? 's' : ''} who ordered · call + order details`}
+                      className="tabular-nums text-fuchsia-300 underline decoration-dotted decoration-fuchsia-400/40 underline-offset-2 hover:text-fuchsia-200 hover:decoration-fuchsia-300 cursor-pointer"
+                    >
+                      {fmtInt(a.orderPlacedBuyer)}
+                    </button>
+                  ) : fmtInt(a.orderPlacedBuyer)}
+                </td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">
+                  {a.orderCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setDrill({ agentName: a.agentName })}
+                      title={`View ${a.orderCount} order${a.orderCount > 1 ? 's' : ''} · call + order details`}
+                      className="tabular-nums text-fuchsia-300 underline decoration-dotted decoration-fuchsia-400/40 underline-offset-2 hover:text-fuchsia-200 hover:decoration-fuchsia-300 cursor-pointer"
+                    >
+                      {fmtInt(a.orderCount)}
+                    </button>
+                  ) : fmtInt(a.orderCount)}
+                </td>
                 <td className="py-2 px-2 text-right tabular-nums">
                   <span className={a.orderConvRate >= 0.1 ? 'text-emerald-300' : a.orderConvRate >= 0.05 ? 'text-amber-300' : 'text-rose-300'}>
                     {fmtPct(a.orderConvRate, 1)}
@@ -1394,6 +1745,19 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
         </table>
       </div>
     </div>
+
+    {drill && (
+      <OrdersCallDrillModal
+        titleMain={`${drill.agentName} · ${fmtDay(filters.startDate)} – ${fmtDay(filters.endDate)}`}
+        subtitlePrefix="Orders attributed to this agent (last-touch) over the selected range · call details + order details"
+        loading={drillLoading}
+        error={drillError}
+        rows={drillRows}
+        csvFilename={`agent-orders-${drill.agentName.replace(/\s+/g, '-')}-${filters.startDate}_${filters.endDate}.csv`}
+        onClose={() => setDrill(null)}
+      />
+    )}
+    </>
   );
 }
 
@@ -1409,7 +1773,6 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
   const [drillRows, setDrillRows] = useState<DrillOrderRow[] | null>(null);
   const [drillLoading, setDrillLoading] = useState(false);
   const [drillError, setDrillError] = useState<string | null>(null);
-  const [drillSearch, setDrillSearch] = useState('');
 
   useEffect(() => {
     if (!drill) return;
@@ -1417,7 +1780,6 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
     setDrillLoading(true);
     setDrillError(null);
     setDrillRows(null);
-    setDrillSearch('');
     const p = new URLSearchParams({
       agentName: drill.agentName,
       day: drill.day,
@@ -1434,14 +1796,6 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
       .catch((e) => { if (!cancelled) { setDrillError(String(e)); setDrillRows([]); } })
       .finally(() => { if (!cancelled) setDrillLoading(false); });
     return () => { cancelled = true; };
-  }, [drill]);
-
-  // Esc closes the drill.
-  useEffect(() => {
-    if (!drill) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrill(null); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
   }, [drill]);
 
   const qs = useMemo(
@@ -1543,50 +1897,6 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
     link.click();
     URL.revokeObjectURL(url);
   };
-
-  // Drill rows filtered by the in-modal search box.
-  const filteredDrillRows = useMemo(() => {
-    if (!drillRows) return [];
-    const q = drillSearch.trim().toLowerCase();
-    if (!q) return drillRows;
-    return drillRows.filter((r) =>
-      [r.poNumber, r.buyerBusinessName, r.buyerPhone, r.sellerBusinessName, r.sellerPhone, r.orderStatus, r.awbNumber, r.courierName]
-        .some((v) => v != null && String(v).toLowerCase().includes(q)));
-  }, [drillRows, drillSearch]);
-
-  const exportDrillCsv = () => {
-    if (!drill || !filteredDrillRows.length) return;
-    const headers = [
-      'Marked Pending', 'Pushed', 'PO Number', 'Call Duration (s)', 'Recording URL', 'Order Status',
-      'PO Amount', 'Coupon Amount', 'Applied Wallet Amount', 'Seller Discount', 'Payment Option Badho Discount',
-      'COD Amount', 'Delivery Status', 'Paid Amount', 'Payment Option', 'AWB Number', 'Courier Name',
-      'Payment Date', 'Payment Event', 'Buyer Business', 'Buyer Phone', 'Buyer Address', 'Seller Business',
-      'Seller Phone', 'Status Marked Time', 'Status Duration (s)', 'Refund Initiated', 'Refund Completed',
-      'Refund Amount', 'Reject Reason', 'Rejected By', 'Reason Added By Badho Team',
-    ];
-    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = filteredDrillRows.map((r) => [
-      r.MarkedpendingTime ?? '', r.pushedStatus ?? '', r.poNumber, r.callDurationSec ?? '', r.callRecordingUrl ?? '',
-      r.orderStatus ?? '', r.poAmount ?? '', r.CoupanAmount ?? '', r.appliedWalletAmount ?? '', r.discountBySeller ?? '',
-      r.PaymentOptionDiscountByBadho ?? '', r.codAmountToBeCollected ?? '', r.deliveryStatus ?? '', r.paidAmount ?? '',
-      r.PaymentOption ?? '', r.awbNumber ?? '', r.courierName ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
-      r.buyerBusinessName ?? '', r.buyerPhone ?? '',
-      [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join(', '),
-      r.sellerBusinessName ?? '', r.sellerPhone ?? '', r.statusMarkedTime ?? '', r.statusDurationSec ?? '',
-      r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '', r.RefundAmount ?? '', r.rejectReason ?? '',
-      r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? '',
-    ].map(esc).join(','));
-    const csv = [headers.map(esc).join(','), ...lines].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `daily-orders-${drill.agentName.replace(/\s+/g, '-')}-${drill.day}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const dash = <span className="text-slate-400">—</span>;
 
   return (
     <>
@@ -1717,225 +2027,15 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
     </div>
 
     {drill && (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-950/70 backdrop-blur-md"
-        onClick={() => setDrill(null)}
-      >
-        <div
-          className="relative bg-white text-slate-900 border border-purple-400/50 rounded-2xl w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="relative px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-purple-50 via-white to-fuchsia-50/60">
-            <div>
-              <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900">
-                <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)] animate-pulse" />
-                <span>{drill.agentName} · {fmtDay(drill.day)}</span>
-              </h3>
-              <p className="text-slate-500 text-xs mt-1">
-                Orders attributed to this agent on this day (last-touch) · call details + order details
-                {' · '}
-                {drillLoading
-                  ? 'Loading…'
-                  : drillRows
-                  ? <span className="text-slate-900 font-semibold">{filteredDrillRows.length} of {drillRows.length} orders</span>
-                  : ''}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative w-56 max-w-full">
-                <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="m20 20-3.5-3.5" />
-                </svg>
-                <input
-                  type="text"
-                  value={drillSearch}
-                  onChange={(e) => setDrillSearch(e.target.value)}
-                  placeholder="Search PO, buyer, seller…"
-                  className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
-                />
-                {drillSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setDrillSearch('')}
-                    aria-label="Clear search"
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 inline-flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700 text-xs"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-              <button
-                className="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 border border-purple-600 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                disabled={!filteredDrillRows.length}
-                onClick={exportDrillCsv}
-              >
-                ↓ CSV
-              </button>
-              <button
-                onClick={() => setDrill(null)}
-                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 text-base font-semibold transition-all hover:rotate-90"
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          {/* Body */}
-          <div className="relative flex-1 overflow-auto">
-            {drillLoading ? (
-              <div className="px-6 py-12 text-center text-slate-500">Loading orders…</div>
-            ) : drillError ? (
-              <div className="px-6 py-12 text-center text-rose-600">{drillError}</div>
-            ) : !drillRows || drillRows.length === 0 ? (
-              <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
-            ) : filteredDrillRows.length === 0 ? (
-              <div className="px-6 py-12 text-center text-slate-500">No matches for &ldquo;{drillSearch}&rdquo;</div>
-            ) : (
-              <table className="w-full text-xs">
-                <thead className="shadow-[0_2px_0_rgba(168,85,247,0.4)]">
-                  <tr className="border-b border-slate-200">
-                    {[
-                      ['Marked Pending', 'sticky top-0 left-0 z-30 bg-amber-50 text-amber-800 min-w-[150px]'],
-                      ['Pushed', ''],
-                      ['PO Number', ''],
-                      ['Call Duration', 'bg-purple-50 text-purple-700'],
-                      ['Recording', 'bg-purple-50 text-purple-700'],
-                      ['Order Status', ''],
-                      ['PO Amount', 'text-right'],
-                      ['Coupon Amount', 'text-right'],
-                      ['Applied Wallet Amount', 'text-right'],
-                      ['Seller Discount', 'text-right'],
-                      ['Payment Option Badho Discount', 'text-right'],
-                      ['COD Amount', 'text-right'],
-                      ['Delivery Status', ''],
-                      ['Paid Amount', 'text-right'],
-                      ['Payment Option', ''],
-                      ['AWB Number', ''],
-                      ['Courier Name', ''],
-                      ['Payment Date', ''],
-                      ['Payment Event', ''],
-                      ['Buyer Business', ''],
-                      ['Buyer Phone', ''],
-                      ['Buyer Address', ''],
-                      ['Seller Business', ''],
-                      ['Seller Phone', ''],
-                      ['Status Marked Time', 'bg-amber-50/60'],
-                      ['Status Duration', 'bg-amber-50/60'],
-                      ['Refund Initiated', ''],
-                      ['Refund Completed', ''],
-                      ['Refund Amount', 'text-right'],
-                      ['Reject Reason', 'text-rose-700 bg-rose-50'],
-                      ['Rejected By', 'text-rose-700 bg-rose-50'],
-                      ['Reason Added By Badho Team', 'text-rose-700 bg-rose-50'],
-                    ].map(([label, cls], i) => (
-                      <th
-                        key={i}
-                        className={`sticky top-0 z-20 px-2.5 py-2.5 text-[11px] font-bold whitespace-nowrap uppercase tracking-wider ${(cls as string).includes('bg-') ? '' : 'bg-slate-100'} ${(cls as string).includes('text-') ? '' : 'text-slate-700'} ${(cls as string).includes('text-right') ? 'text-right' : 'text-left'} ${cls}`}
-                      >
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDrillRows.map((r, idx) => {
-                    const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
-                    return (
-                      <tr key={r.poNumber} className={`group border-b border-slate-100 align-top transition-colors ${rowBg} hover:bg-purple-50`}>
-                        <td className={`sticky left-0 z-10 ${rowBg} group-hover:bg-purple-50 min-w-[150px] px-2.5 py-2 whitespace-nowrap text-amber-800 font-medium`}>{r.MarkedpendingTime ? fmtDateTime(r.MarkedpendingTime) : dash}</td>
-                        <td className="px-2.5 py-2 whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${r.pushedStatus === 'Pushed' ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-rose-100 text-rose-700 border border-rose-300'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${r.pushedStatus === 'Pushed' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                            {r.pushedStatus || 'Not Pushed'}
-                          </span>
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap">
-                          <div className="inline-flex items-center gap-2">
-                            <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
-                            <a
-                              href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-all"
-                              title="Open in D2R Support Dashboard"
-                            >
-                              Details ↗
-                            </a>
-                            <a
-                              href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(r.poNumber)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-all"
-                              title="Search Freshdesk tickets"
-                            >
-                              Ticket ↗
-                            </a>
-                          </div>
-                          <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
-                            AWB: {awbLink(r.awbNumber)}
-                          </div>
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap bg-purple-50/40">
-                          <div className="font-semibold text-purple-800 tabular-nums">{r.callDurationSec != null ? fmtDuration(r.callDurationSec) : dash}</div>
-                          {r.callTs && <div className="text-[10px] text-slate-500 mt-0.5">{fmtDateTime(r.callTs)}</div>}
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap bg-purple-50/40">
-                          {r.callRecordingUrl ? (
-                            <a
-                              href={r.callRecordingUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-fuchsia-50 hover:bg-fuchsia-100 text-fuchsia-700 text-[11px] font-bold border border-fuchsia-300 transition-all"
-                              title="Play call recording"
-                            >
-                              ▶ Play
-                            </a>
-                          ) : dash}
-                        </td>
-                        <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
-                        <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{fmtMoney(r.poAmount) ?? dash}</td>
-                        <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? fmtMoney(r.CoupanAmount) : dash}</td>
-                        <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? fmtMoney(r.appliedWalletAmount) : dash}</td>
-                        <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? fmtMoney(r.discountBySeller) : dash}</td>
-                        <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? fmtMoney(r.PaymentOptionDiscountByBadho) : dash}</td>
-                        <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? fmtMoney(r.codAmountToBeCollected) : dash}</td>
-                        <td className="px-2.5 py-2 whitespace-nowrap">{r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : dash}</td>
-                        <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.paidAmount != null ? fmtMoney(r.paidAmount) : dash}</td>
-                        <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || dash}</td>
-                        <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">{awbLink(r.awbNumber)}</td>
-                        <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || dash}</td>
-                        <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate ? fmtDateTime(r.paymentDate) : dash}</td>
-                        <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || dash}</td>
-                        <td className="px-2.5 py-2 font-medium text-slate-800">{r.buyerBusinessName || dash}</td>
-                        <td className="px-2.5 py-2 tabular-nums whitespace-nowrap text-slate-700">{r.buyerPhone || dash}</td>
-                        <td className="px-2.5 py-2 text-slate-600 text-xs max-w-md">
-                          {(() => {
-                            const addr = [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join(', ');
-                            return addr ? <div className="whitespace-normal break-words">{addr}</div> : dash;
-                          })()}
-                        </td>
-                        <td className="px-2.5 py-2 font-medium text-slate-800">{r.sellerBusinessName || dash}</td>
-                        <td className="px-2.5 py-2 tabular-nums whitespace-nowrap text-slate-700">{r.sellerPhone || dash}</td>
-                        <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap bg-amber-50/40">{r.statusMarkedTime ? fmtDateTime(r.statusMarkedTime) : dash}</td>
-                        <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap bg-amber-50/40 font-medium">{r.statusDurationSec != null ? fmtDuration(r.statusDurationSec) : dash}</td>
-                        <td className="px-2.5 py-2 text-orange-700 whitespace-nowrap">{r.RefundIntiatedTime ? fmtDateTime(r.RefundIntiatedTime) : dash}</td>
-                        <td className="px-2.5 py-2 text-emerald-700 whitespace-nowrap">{r.RefundCompletedTime ? fmtDateTime(r.RefundCompletedTime) : dash}</td>
-                        <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{r.RefundAmount != null ? fmtMoney(r.RefundAmount) : dash}</td>
-                        <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.rejectReason || ''}>{r.rejectReason ? <div className="whitespace-normal break-words">{r.rejectReason}</div> : dash}</td>
-                        <td className="px-2.5 py-2 text-rose-700 whitespace-nowrap bg-rose-50/40">{r.rejectedBy || dash}</td>
-                        <td className="px-2.5 py-2 text-rose-700 text-xs max-w-[260px] bg-rose-50/40" title={r.reasonAddedByBadhoTeam || ''}>{r.reasonAddedByBadhoTeam ? <div className="whitespace-normal break-words">{r.reasonAddedByBadhoTeam}</div> : dash}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      </div>
+      <OrdersCallDrillModal
+        titleMain={`${drill.agentName} · ${fmtDay(drill.day)}`}
+        subtitlePrefix="Orders attributed to this agent on this day (last-touch) · call details + order details"
+        loading={drillLoading}
+        error={drillError}
+        rows={drillRows}
+        csvFilename={`daily-orders-${drill.agentName.replace(/\s+/g, '-')}-${drill.day}.csv`}
+        onClose={() => setDrill(null)}
+      />
     )}
     </>
   );

@@ -1410,6 +1410,32 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
   const days = useMemo(() => daysInRange(filters.startDate, filters.endDate), [filters.startDate, filters.endDate]);
   const dayLabel = (d: string) => { const [, m, day] = d.split('-'); return `${+day}/${+m}`; };
 
+  // Rich per-day metadata for the header (weekday, month, weekend flag).
+  const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dayMeta = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    const wd = new Date(y, m - 1, d).getDay();
+    return { dayNum: d, monthLabel: MONTHS[m - 1], weekday: WEEKDAYS[wd], isWeekend: wd === 0 || wd === 6 };
+  };
+
+  // Month-group spans for the top header row, and indices where a new month starts.
+  const monthGroups = useMemo(() => {
+    const groups: { label: string; count: number }[] = [];
+    for (const d of days) {
+      const label = MONTHS[+d.slice(5, 7) - 1];
+      const last = groups[groups.length - 1];
+      if (last && last.label === label) last.count++;
+      else groups.push({ label, count: 1 });
+    }
+    return groups;
+  }, [days]);
+  const newMonthIdx = useMemo(() => {
+    const set = new Set<number>();
+    days.forEach((d, i) => { if (i > 0 && d.slice(5, 7) !== days[i - 1].slice(5, 7)) set.add(i); });
+    return set;
+  }, [days]);
+
   // Pivot: agent -> day -> count, plus per-agent and per-day totals.
   const { agents, dayTotals, grandTotal } = useMemo(() => {
     const byAgent = new Map<string, { total: number; days: Record<string, number> }>();
@@ -1430,6 +1456,22 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
   }, [cells]);
 
   const rows = agents.filter((a) => a.agentName.toLowerCase().includes(query.trim().toLowerCase()));
+
+  // Heatmap scales: brightest cell = the single busiest agent-day in the window.
+  const maxCell = useMemo(() => cells.reduce((mx, c) => Math.max(mx, c.orderCount), 0), [cells]);
+  const maxDayTotal = useMemo(() => Object.values(dayTotals).reduce((mx, v) => Math.max(mx, v), 0), [dayTotals]);
+  const maxAgentTotal = agents.length ? agents[0].total : 0;
+
+  // Per-cell heat style — fuchsia fill scaled to value, with the global peak ringed.
+  const heat = (v: number, isWeekend: boolean) => {
+    if (!v) return { bg: isWeekend ? 'rgba(255,255,255,0.02)' : 'transparent', cls: 'text-purple-300/20', peak: false };
+    const t = maxCell ? v / maxCell : 0;
+    return {
+      bg: `rgba(232,121,249,${(0.05 + t * 0.5).toFixed(3)})`,
+      cls: t > 0.66 ? 'text-white font-bold' : t > 0.33 ? 'text-purple-50 font-semibold' : 'text-purple-200',
+      peak: v === maxCell && maxCell > 0,
+    };
+  };
 
   const exportCsv = () => {
     const header = ['Agent', ...days.map(dayLabel), 'Total'];
@@ -1479,26 +1521,62 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
         <table className="text-xs border-separate border-spacing-0">
           <thead className="text-purple-300/70 uppercase tracking-wider text-[10px]">
             <tr>
-              <th className="text-left py-2 pr-3 sticky left-0 bg-[#1a0f2e] z-10 border-b border-white/10">Agent</th>
-              {days.map((d) => (
-                <th key={d} className="text-right py-2 px-2 border-b border-white/10 whitespace-nowrap">{dayLabel(d)}</th>
+              <th className="sticky left-0 bg-[#1a0f2e] z-10" />
+              {monthGroups.map((g, i) => (
+                <th
+                  key={`${g.label}-${i}`}
+                  colSpan={g.count}
+                  className={`text-left py-1 px-2 text-fuchsia-300/60 font-semibold ${i > 0 ? 'border-l border-l-white/10' : ''}`}
+                >
+                  {g.label}
+                </th>
               ))}
+              <th />
+            </tr>
+            <tr>
+              <th className="text-left py-2 pr-3 sticky left-0 bg-[#1a0f2e] z-10 border-b border-white/10">Agent</th>
+              {days.map((d, i) => {
+                const m = dayMeta(d);
+                return (
+                  <th
+                    key={d}
+                    className={`py-2 px-2 border-b border-white/10 whitespace-nowrap ${newMonthIdx.has(i) ? 'border-l border-l-white/10' : ''} ${m.isWeekend ? 'bg-white/[0.02]' : ''}`}
+                  >
+                    <div className="flex flex-col items-end gap-0.5 leading-none">
+                      <span className={`text-[9px] font-normal ${m.isWeekend ? 'text-fuchsia-300/45' : 'text-purple-300/40'}`}>{m.weekday}</span>
+                      <span className="text-[12px] font-bold text-purple-100 tabular-nums normal-case tracking-normal">{m.dayNum}</span>
+                    </div>
+                  </th>
+                );
+              })}
               <th className="text-right py-2 pl-3 pr-1 border-b border-white/10 text-fuchsia-200">Total</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((a) => (
-              <tr key={a.agentName} className="hover:bg-white/5">
-                <td className="py-2 pr-3 text-purple-100 font-medium sticky left-0 bg-[#1a0f2e] z-10 border-b border-white/5 whitespace-nowrap">{a.agentName}</td>
-                {days.map((d) => {
+              <tr key={a.agentName} className="group hover:bg-white/[0.03]">
+                <td className="py-1.5 pr-3 text-purple-100 font-medium sticky left-0 bg-[#1a0f2e] z-10 border-b border-white/5 whitespace-nowrap group-hover:text-white">{a.agentName}</td>
+                {days.map((d, i) => {
                   const v = a.days[d] || 0;
+                  const m = dayMeta(d);
+                  const h = heat(v, m.isWeekend);
                   return (
-                    <td key={d} className={`py-2 px-2 text-right tabular-nums border-b border-white/5 ${v ? 'text-purple-100' : 'text-purple-300/25'}`}>
+                    <td
+                      key={d}
+                      style={{ backgroundColor: h.bg }}
+                      className={`py-1.5 px-2 text-right tabular-nums border-b border-white/5 ${h.cls} ${newMonthIdx.has(i) ? 'border-l border-l-white/10' : ''} ${h.peak ? 'ring-1 ring-inset ring-fuchsia-300/70' : ''}`}
+                    >
                       {v || '·'}
                     </td>
                   );
                 })}
-                <td className="py-2 pl-3 pr-1 text-right tabular-nums font-semibold text-fuchsia-200 border-b border-white/5">{fmtInt(a.total)}</td>
+                <td className="relative py-1.5 pl-3 pr-2 text-right border-b border-white/5">
+                  <span className="relative z-10 tabular-nums font-bold text-fuchsia-100">{fmtInt(a.total)}</span>
+                  <div
+                    className="absolute left-1 bottom-1 h-[3px] rounded-full bg-gradient-to-r from-fuchsia-500/40 to-fuchsia-300/80"
+                    style={{ width: `calc(${maxAgentTotal ? Math.round((a.total / maxAgentTotal) * 100) : 0}% - 0.5rem)` }}
+                  />
+                </td>
               </tr>
             ))}
             {!loading && !rows.length && (
@@ -1513,10 +1591,19 @@ function AgentOrdersDailyTab({ filters }: { filters: Filters }) {
             <tfoot className="bg-fuchsia-500/10 text-purple-100 font-semibold">
               <tr>
                 <td className="py-2 pr-3 sticky left-0 bg-[#241338] z-10 border-t-2 border-fuchsia-400/30">Total</td>
-                {days.map((d) => (
-                  <td key={d} className="py-2 px-2 text-right tabular-nums border-t-2 border-fuchsia-400/30">{dayTotals[d] || 0}</td>
-                ))}
-                <td className="py-2 pl-3 pr-1 text-right tabular-nums text-fuchsia-200 border-t-2 border-fuchsia-400/30">{fmtInt(grandTotal)}</td>
+                {days.map((d, i) => {
+                  const v = dayTotals[d] || 0;
+                  const isPeak = v === maxDayTotal && maxDayTotal > 0;
+                  return (
+                    <td
+                      key={d}
+                      className={`py-2 px-2 text-right tabular-nums border-t-2 border-fuchsia-400/30 ${newMonthIdx.has(i) ? 'border-l border-l-white/10' : ''} ${isPeak ? 'text-fuchsia-200 font-extrabold' : v ? 'text-purple-100' : 'text-purple-300/25'}`}
+                    >
+                      {v || '·'}
+                    </td>
+                  );
+                })}
+                <td className="py-2 pl-3 pr-1 text-right tabular-nums text-fuchsia-200 font-extrabold border-t-2 border-fuchsia-400/30">{fmtInt(grandTotal)}</td>
               </tr>
             </tfoot>
           )}

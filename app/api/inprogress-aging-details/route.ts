@@ -65,6 +65,26 @@ const BUCKET_FILTERS: Record<string, string> = {
   'all':      `"bucket" <> '<1 day'`,
 };
 
+// Elapsed seconds between two timestamptz expressions with Sundays excluded,
+// measured on the IST (Asia/Kolkata) calendar. `startTs`/`endTs` are raw SQL.
+const sundayExclSec = (startTs: string, endTs: string) => `
+  GREATEST(
+    EXTRACT(EPOCH FROM (((${endTs}) AT TIME ZONE 'Asia/Kolkata') - ((${startTs}) AT TIME ZONE 'Asia/Kolkata')))
+    - COALESCE((
+        SELECT SUM(EXTRACT(EPOCH FROM (
+          LEAST((${endTs}) AT TIME ZONE 'Asia/Kolkata', d + INTERVAL '1 day')
+          - GREATEST((${startTs}) AT TIME ZONE 'Asia/Kolkata', d)
+        )))
+        FROM generate_series(
+          (((${startTs}) AT TIME ZONE 'Asia/Kolkata')::date),
+          (((${endTs}) AT TIME ZONE 'Asia/Kolkata')::date),
+          INTERVAL '1 day'
+        ) AS d
+        WHERE EXTRACT(DOW FROM d) = 0
+      ), 0),
+    0
+  )::float`;
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const sellerBusinessName = searchParams.get('sellerBusinessName');
@@ -93,14 +113,14 @@ export async function GET(req: NextRequest) {
           -- Order ageing since placed, INCLUDING Sundays (raw elapsed seconds).
           EXTRACT(EPOCH FROM (NOW() - po."markedPendingTime"))::float AS "orderAgeingSec",
           po."markedDispatchedTime" AS "markedDispatchedTime",
-          -- Brand SLA span: PENDING -> INPROGRESS (raw elapsed seconds).
+          -- Brand SLA span: PENDING -> INPROGRESS, Sundays excluded (IST).
           -- Still ongoing (measured to NOW) if the order has not reached INPROGRESS.
-          EXTRACT(EPOCH FROM (COALESCE(po."markedInProgressTime", NOW()) - po."markedPendingTime"))::float AS "brandSpanSec",
+          ${sundayExclSec('po."markedPendingTime"', 'COALESCE(po."markedInProgressTime", NOW())')} AS "brandSpanSec",
           (po."markedInProgressTime" IS NULL) AS "brandSpanOngoing",
-          -- Pickup SLA span: INPROGRESS -> DISPATCHED (raw elapsed seconds).
+          -- Pickup SLA span: INPROGRESS -> DISPATCHED, Sundays excluded (IST).
           -- NULL until the order reaches INPROGRESS; ongoing (to NOW) until DISPATCHED.
           CASE WHEN po."markedInProgressTime" IS NULL THEN NULL
-               ELSE EXTRACT(EPOCH FROM (COALESCE(po."markedDispatchedTime", NOW()) - po."markedInProgressTime"))::float
+               ELSE ${sundayExclSec('po."markedInProgressTime"', 'COALESCE(po."markedDispatchedTime", NOW())')}
           END AS "pickupSpanSec",
           (po."markedInProgressTime" IS NOT NULL AND po."markedDispatchedTime" IS NULL) AS "pickupSpanOngoing",
           pop."created_at"          AS "paymentDate",

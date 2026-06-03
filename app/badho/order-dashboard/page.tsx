@@ -10774,9 +10774,9 @@ export default function OrderStatusDashboard() {
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Seller Address</th>
                           <SortTh k="statusMarkedTime" label={statusMarkedHeaderFor(alertModalData)} cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
-                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Order Age<div className="text-[8px] font-normal normal-case text-indigo-500/80">placed &rarr; now</div></th>
-                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Brand SLA<div className="text-[8px] font-normal normal-case text-indigo-500/80">PENDING &rarr; INPROGRESS</div></th>
-                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Pickup SLA<div className="text-[8px] font-normal normal-case text-indigo-500/80">INPROGRESS &rarr; DISPATCHED</div></th>
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Order Age<div className="text-[8px] font-normal normal-case text-indigo-500/80">placed &rarr; now · incl. Sun</div></th>
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Brand SLA<div className="text-[8px] font-normal normal-case text-indigo-500/80">PENDING &rarr; INPROGRESS · excl. Sun</div></th>
+                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Pickup SLA<div className="text-[8px] font-normal normal-case text-indigo-500/80">INPROGRESS &rarr; DISPATCHED · excl. Sun</div></th>
                           <SortTh k="refundInit" label="Refund Initiated" />
                           <SortTh k="refundDone" label="Refund Completed" />
                           <SortTh k="refundAmount" label="Refund Amount" />
@@ -10835,7 +10835,7 @@ export default function OrderStatusDashboard() {
                                 </div>
                                 <div
                                   className="mt-1.5 text-[10px] leading-tight"
-                                  title="Ageing — Order age: total time since the order was placed (PENDING), includes everything. Brand SLA: time the brand took from PENDING to INPROGRESS (accepting the order). Pickup SLA: time from INPROGRESS to DISPATCHED (handed to courier). 'ongoing' = the order is still in that phase, so the clock is still running."
+                                  title="Ageing — Order age: total time since the order was placed (PENDING), includes Sundays. Brand SLA: time the brand took from PENDING to INPROGRESS (accepting the order), Sundays excluded. Pickup SLA: time from INPROGRESS to DISPATCHED (handed to courier), Sundays excluded. 'ongoing' = the order is still in that phase, so the clock is still running."
                                 >
                                   <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">
                                     <span aria-hidden="true">⏱</span> Ageing
@@ -10844,14 +10844,14 @@ export default function OrderStatusDashboard() {
                                     <span className="text-slate-500">Order age</span>
                                     <span>
                                       <span className="font-semibold text-slate-700">{formatDuration(r.orderAgeingSec)}</span>
-                                      <span className="block text-slate-400">placed &rarr; now</span>
+                                      <span className="block text-slate-400">placed &rarr; now · incl. Sun</span>
                                     </span>
 
                                     <span className="text-slate-500">Brand SLA</span>
                                     <span>
                                       <span className="font-semibold text-indigo-700">{formatDuration(r.brandSpanSec)}</span>
                                       {r.brandSpanOngoing && <span className="ml-1 text-amber-600 font-medium">· ongoing</span>}
-                                      <span className="block text-slate-400">PENDING &rarr; {r.brandSpanOngoing ? 'now' : 'INPROGRESS'}</span>
+                                      <span className="block text-slate-400">PENDING &rarr; {r.brandSpanOngoing ? 'now' : 'INPROGRESS'} · excl. Sun</span>
                                     </span>
 
                                     <span className="text-slate-500">Pickup SLA</span>
@@ -10859,7 +10859,7 @@ export default function OrderStatusDashboard() {
                                       <span>
                                         <span className="font-semibold text-fuchsia-700">{formatDuration(r.pickupSpanSec)}</span>
                                         {r.pickupSpanOngoing && <span className="ml-1 text-amber-600 font-medium">· ongoing</span>}
-                                        <span className="block text-slate-400">INPROGRESS &rarr; {r.pickupSpanOngoing ? 'now' : 'DISPATCHED'}</span>
+                                        <span className="block text-slate-400">INPROGRESS &rarr; {r.pickupSpanOngoing ? 'now' : 'DISPATCHED'} · excl. Sun</span>
                                       </span>
                                     ) : (
                                       <span className="text-slate-400">not in progress yet</span>

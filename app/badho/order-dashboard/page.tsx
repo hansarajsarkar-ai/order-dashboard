@@ -298,6 +298,14 @@ const formatAmount = (n: number): string => {
   return `₹${n.toFixed(0)}`;
 };
 
+// Compact stat shown in the filtered-summary bars above order tables.
+const SummaryStat = ({ label, value }: { label: string; value: string }) => (
+  <div className="flex items-baseline gap-1.5">
+    <span className="text-[11px] uppercase tracking-wider text-purple-300/80">{label}</span>
+    <span className="font-bold text-white tabular-nums">{value}</span>
+  </div>
+);
+
 const formatDateShort = (iso: string | null): string => {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -912,6 +920,9 @@ export default function OrderStatusDashboard() {
       case 'slaBreach': return dt(r.slaBreachAt);
       case 'statusDuration': return r.statusDurationSec ?? null;
       case 'statusMarkedTime': return dt(r.statusMarkedTime);
+      case 'orderAge': return r.orderAgeingSec ?? null;
+      case 'brandSla': return r.brandSpanSec ?? null;
+      case 'pickupSla': return r.pickupSpanSec ?? null;
       default: return '';
     }
   };
@@ -6238,6 +6249,28 @@ export default function OrderStatusDashboard() {
                   className="w-full px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                 />
               </div>
+              {filteredRtoListRows && filteredRtoListRows.length > 0 && (() => {
+                const rows = filteredRtoListRows;
+                const sum = (f: (r: RtoOrderRow) => number | null | undefined) =>
+                  rows.reduce((s, r) => s + (Number(f(r)) || 0), 0);
+                const gmv = sum((r) => r.orderValue);
+                const paid = sum((r) => r.paidAmount);
+                const cod = sum((r) => r.codCollect);
+                const avg = rows.length ? gmv / rows.length : 0;
+                const isFiltered = !!rtoListData && rows.length !== rtoListData.length;
+                return (
+                  <div className="px-8 py-3 border-b border-white/10 bg-fuchsia-500/5 flex items-center gap-6 flex-wrap text-sm">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-fuchsia-300">
+                      {isFiltered ? 'Filtered summary' : 'Summary'}
+                    </span>
+                    <SummaryStat label="Orders" value={rows.length.toLocaleString('en-IN')} />
+                    <SummaryStat label="Order value" value={formatAmount(gmv)} />
+                    <SummaryStat label="Paid" value={formatAmount(paid)} />
+                    <SummaryStat label="COD" value={formatAmount(cod)} />
+                    <SummaryStat label="Avg value" value={formatAmount(avg)} />
+                  </div>
+                );
+              })()}
               <div className="overflow-auto max-h-[640px]">
                 {rtoListLoading ? (
                   <div className="px-8 py-12 text-center text-purple-300">Loading RTO orders…</div>
@@ -10774,9 +10807,9 @@ export default function OrderStatusDashboard() {
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Seller Address</th>
                           <SortTh k="statusMarkedTime" label={statusMarkedHeaderFor(alertModalData)} cls="text-slate-700 bg-amber-50/60" />
                           <SortTh k="statusDuration" label="Status Duration" cls="text-slate-700 bg-amber-50/60" />
-                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Order Age<div className="text-[8px] font-normal normal-case text-indigo-500/80">placed &rarr; now · incl. Sun</div></th>
-                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Brand SLA<div className="text-[8px] font-normal normal-case text-indigo-500/80">PENDING &rarr; INPROGRESS · excl. Sun</div></th>
-                          <th className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider">Pickup SLA<div className="text-[8px] font-normal normal-case text-indigo-500/80">INPROGRESS &rarr; DISPATCHED · excl. Sun</div></th>
+                          <th onClick={() => toggleAlertSort('orderAge')} className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider cursor-pointer select-none hover:bg-indigo-100"><span className="inline-flex items-center">Order Age{arrowFor('orderAge')}</span><div className="text-[8px] font-normal normal-case text-indigo-500/80">placed &rarr; now · incl. Sun</div></th>
+                          <th onClick={() => toggleAlertSort('brandSla')} className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider cursor-pointer select-none hover:bg-indigo-100"><span className="inline-flex items-center">Brand SLA{arrowFor('brandSla')}</span><div className="text-[8px] font-normal normal-case text-indigo-500/80">PENDING &rarr; INPROGRESS · excl. Sun</div></th>
+                          <th onClick={() => toggleAlertSort('pickupSla')} className="sticky top-0 z-20 bg-indigo-50 px-2.5 py-2.5 text-left text-[11px] font-bold text-indigo-700 whitespace-nowrap uppercase tracking-wider cursor-pointer select-none hover:bg-indigo-100"><span className="inline-flex items-center">Pickup SLA{arrowFor('pickupSla')}</span><div className="text-[8px] font-normal normal-case text-indigo-500/80">INPROGRESS &rarr; DISPATCHED · excl. Sun</div></th>
                           <SortTh k="refundInit" label="Refund Initiated" />
                           <SortTh k="refundDone" label="Refund Completed" />
                           <SortTh k="refundAmount" label="Refund Amount" />
@@ -12149,8 +12182,8 @@ export default function OrderStatusDashboard() {
                   rtoKpiModalReasonFilter.size > 0 ||
                   rtoKpiModalAttemptFilter.size > 0 ||
                   rtoKpiModalSearch.trim() !== '';
-                const filteredCount = (() => {
-                  if (!rtoKpiModalData) return 0;
+                const filteredRows: RtoOrderRow[] = (() => {
+                  if (!rtoKpiModalData) return [];
                   const q = rtoKpiModalSearch.trim().toLowerCase();
                   let f: RtoOrderRow[] = q
                     ? rtoKpiModalData.filter((r) =>
@@ -12183,9 +12216,17 @@ export default function OrderStatusDashboard() {
                       }
                       return false;
                     });
-                  return f.length;
+                  return f;
                 })();
+                const filteredCount = filteredRows.length;
+                const sumBy = (fn: (r: RtoOrderRow) => number | null | undefined) =>
+                  filteredRows.reduce((s, r) => s + (Number(fn(r)) || 0), 0);
+                const sumGmv = sumBy((r) => r.orderValue);
+                const sumPaid = sumBy((r) => r.paidAmount);
+                const sumCod = sumBy((r) => r.codCollect);
+                const avgGmv = filteredCount ? sumGmv / filteredCount : 0;
                 return (
+                  <>
                   <div className="px-6 py-2.5 border-b border-slate-200 bg-slate-50/80 flex items-center gap-2 flex-wrap">
                     <div className="relative w-64 max-w-full">
                       <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -12333,6 +12374,26 @@ export default function OrderStatusDashboard() {
                       Open full Details tab →
                     </button>
                   </div>
+                  {filteredCount > 0 && (
+                    <div className="px-6 py-2 border-b border-slate-200 bg-fuchsia-50/70 flex items-center gap-5 flex-wrap text-sm">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-fuchsia-600">
+                        {filtersActive ? 'Filtered summary' : 'Summary'}
+                      </span>
+                      {[
+                        { label: 'Orders', value: filteredCount.toLocaleString('en-IN') },
+                        { label: 'Order value', value: formatAmount(sumGmv) },
+                        { label: 'Paid', value: formatAmount(sumPaid) },
+                        { label: 'COD', value: formatAmount(sumCod) },
+                        { label: 'Avg value', value: formatAmount(avgGmv) },
+                      ].map((s) => (
+                        <div key={s.label} className="flex items-baseline gap-1.5">
+                          <span className="text-[11px] uppercase tracking-wider text-slate-500">{s.label}</span>
+                          <span className="font-bold text-slate-900 tabular-nums">{s.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  </>
                 );
               })()}
 

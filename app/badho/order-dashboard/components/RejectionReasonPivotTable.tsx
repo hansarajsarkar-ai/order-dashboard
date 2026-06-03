@@ -530,6 +530,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
     buyerDistrict: r.buyerDistrict,
     sellerBusinessName: r.sellerBusinessName,
     sellerPhone: r.sellerPhone,
+    MarkedpendingTime: r.MarkedpendingTime,
   }));
 
   return (

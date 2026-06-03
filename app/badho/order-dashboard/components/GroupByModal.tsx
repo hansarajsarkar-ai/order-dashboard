@@ -24,6 +24,8 @@ export interface GroupableOrderRow {
   sellerBusinessName?: string | null;
   sellerPhone?: string | null;
   deliveryStatus?: string | null;
+  MarkedpendingTime?: string | null;
+  markedPendingTime?: string | null;
 }
 
 interface GroupByModalProps {
@@ -77,6 +79,8 @@ const dimValue = (r: GroupableOrderRow, d: GroupDimension): string => {
       return r.orderStatus || r.status || '(unknown)';
     case 'deliveryStatus':
       return r.deliveryStatus || '(no delivery status)';
+    case 'markedPending':
+      return r.MarkedpendingTime || r.markedPendingTime ? 'Marked Pending' : 'Not Marked Pending';
     case 'buyer':
       return r.buyerBusinessName || r.buyerPhone || '(unknown)';
     case 'seller':

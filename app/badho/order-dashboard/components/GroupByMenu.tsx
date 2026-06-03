@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 export type GroupDimension =
   | 'orderStatus'
   | 'deliveryStatus'
+  | 'markedPending'
   | 'buyer'
   | 'seller'
   | 'buyerState'
@@ -14,6 +15,7 @@ export type GroupDimension =
 export const GROUP_OPTIONS: { dim: GroupDimension; label: string }[] = [
   { dim: 'orderStatus', label: 'Order Status Wise' },
   { dim: 'deliveryStatus', label: 'Delivery Status Wise' },
+  { dim: 'markedPending', label: 'Marked Pending Wise' },
   { dim: 'buyer', label: 'Buyer Wise' },
   { dim: 'seller', label: 'Seller Wise' },
   { dim: 'buyerState', label: 'Buyer State Wise' },
@@ -24,6 +26,7 @@ export const GROUP_OPTIONS: { dim: GroupDimension; label: string }[] = [
 export const DIM_ORDER: GroupDimension[] = [
   'orderStatus',
   'deliveryStatus',
+  'markedPending',
   'buyerState',
   'buyerDistrict',
   'buyer',
@@ -33,6 +36,7 @@ export const DIM_ORDER: GroupDimension[] = [
 export const DIM_LABEL: Record<GroupDimension, string> = {
   orderStatus: 'Order Status',
   deliveryStatus: 'Delivery Status',
+  markedPending: 'Marked Pending',
   buyer: 'Buyer',
   seller: 'Seller',
   buyerState: 'State',

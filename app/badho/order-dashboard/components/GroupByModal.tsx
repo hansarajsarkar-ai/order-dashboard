@@ -73,6 +73,30 @@ const SEP = '␟';
 const num = (x: number | null | undefined): number => Number(x) || 0;
 const money = (n: number): string => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
+const MONTH_NUM: Record<string, string> = {
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+  jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+};
+
+// Bucket a marked-pending timestamp into a "YYYY-MM" month label (chronologically sortable).
+// Handles ISO strings (2026-05-13T…), "DD Mon YYYY …" display strings, and a Date fallback.
+const monthBucket = (v: string | null | undefined): string => {
+  if (!v) return '(not marked pending)';
+  const s = String(v).trim();
+  const iso = /^(\d{4})-(\d{2})/.exec(s);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+  const dm = /\b(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})\b/.exec(s);
+  if (dm) {
+    const mm = MONTH_NUM[dm[2].slice(0, 3).toLowerCase()];
+    if (mm) return `${dm[3]}-${mm}`;
+  }
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  return s;
+};
+
 const dimValue = (r: GroupableOrderRow, d: GroupDimension): string => {
   switch (d) {
     case 'orderStatus':
@@ -80,7 +104,7 @@ const dimValue = (r: GroupableOrderRow, d: GroupDimension): string => {
     case 'deliveryStatus':
       return r.deliveryStatus || '(no delivery status)';
     case 'markedPending':
-      return r.MarkedpendingTime || r.markedPendingTime ? 'Marked Pending' : 'Not Marked Pending';
+      return monthBucket(r.MarkedpendingTime || r.markedPendingTime);
     case 'buyer':
       return r.buyerBusinessName || r.buyerPhone || '(unknown)';
     case 'seller':

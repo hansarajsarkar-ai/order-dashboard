@@ -1341,10 +1341,10 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
                     {fmtPct(a.orderConvRate, 1)}
                   </span>
                 </td>
-                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{a.avgHaltingMins.toFixed(2)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{a.avgHaltingMins.toFixed(2)} min</td>
                 <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{fmtInt(a.connectedGte15)}</td>
                 <td className="py-2 px-2 text-right text-rose-200/80 tabular-nums">{fmtInt(a.connectedLt15)}</td>
-                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{a.totalTalkHours.toFixed(2)}</td>
+                <td className="py-2 px-2 text-right text-purple-200 tabular-nums">{a.totalTalkHours.toFixed(2)} hr</td>
               </tr>
             ))}
             {!loading && !rows.length && (
@@ -1368,10 +1368,10 @@ function AgentOrdersTab({ filters }: { filters: Filters }) {
                 <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.orderPlacedBuyer)}</td>
                 <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.orderCount)}</td>
                 <td className="py-2 px-2 text-right tabular-nums">{fmtPct(totalOrderConvRate, 1)}</td>
-                <td className="py-2 px-2 text-right tabular-nums">{totalAvgHaltingMins.toFixed(2)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{totalAvgHaltingMins.toFixed(2)} min</td>
                 <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.connectedGte15)}</td>
                 <td className="py-2 px-2 text-right tabular-nums">{fmtInt(t.connectedLt15)}</td>
-                <td className="py-2 px-2 text-right tabular-nums">{t.totalTalkHours.toFixed(2)}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{t.totalTalkHours.toFixed(2)} hr</td>
               </tr>
             </tfoot>
           )}

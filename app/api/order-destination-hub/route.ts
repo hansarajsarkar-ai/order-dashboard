@@ -13,6 +13,8 @@ interface Row {
   itl_datetime: string | null;
   reached_at_destination_time: string | null;
   reached_at_destination_place: string | null;
+  picked_up_time: string | null;
+  pickup_to_hub_days: number | null;
   days_since_reached_at_destination: number | null;
   latest_scan_time: string | null;
   latest_scan_place: string | null;
@@ -52,6 +54,11 @@ export async function GET(_req: NextRequest) {
         TO_CHAR(di."created_at", 'DD Mon YYYY HH12:MI AM')        AS itl_datetime,
         rad.reached_at_destination_time                            AS reached_at_destination_time,
         rad.reached_at_destination_place                           AS reached_at_destination_place,
+        TO_CHAR(pu.picked_up_ts, 'DD Mon YYYY HH12:MI AM')         AS picked_up_time,
+        -- Transit days from pickup to reaching the destination hub.
+        CASE WHEN rad.reached_at_destination_ts IS NOT NULL AND pu.picked_up_ts IS NOT NULL
+             THEN ROUND(EXTRACT(EPOCH FROM (rad.reached_at_destination_ts - pu.picked_up_ts)) / 86400.0 ::numeric, 2)
+             ELSE NULL END                                         AS pickup_to_hub_days,
         CASE
           WHEN rad.reached_at_destination_place IS NULL
             OR latest_scan.latest_scan_place    IS NULL
@@ -189,6 +196,19 @@ export async function GET(_req: NextRequest) {
         ORDER BY ts ASC
         LIMIT 1
       ) rad ON TRUE
+      -- Pickup event: earliest "Shipment picked up" scan, falling back to the
+      -- first IN TRANSIT scan (the shipment starts moving once picked up).
+      LEFT JOIN LATERAL (
+        SELECT MIN((s->>'date')::timestamp) AS picked_up_ts
+        FROM jsonb_array_elements(
+          CASE WHEN jsonb_typeof(di."latestLogDetails"::jsonb -> 'scans') = 'array'
+               THEN di."latestLogDetails"::jsonb -> 'scans'
+               ELSE '[]'::jsonb END
+        ) AS s
+        WHERE (s->>'date') IS NOT NULL
+          AND (LOWER(s->>'activity') LIKE '%picked up%'
+               OR UPPER(TRIM(s->>'status')) = 'IN TRANSIT')
+      ) pu ON TRUE
       LEFT JOIN LATERAL (
         SELECT
           TO_CHAR((scan->>'date')::timestamp, 'DD Mon YYYY HH12:MI AM') AS latest_scan_time,
@@ -376,6 +396,8 @@ export async function GET(_req: NextRequest) {
       itlDateTime: r.itl_datetime,
       reachedAtDestinationTime: r.reached_at_destination_time,
       reachedAtDestinationPlace: r.reached_at_destination_place,
+      pickedUpTime: r.picked_up_time,
+      pickupToHubDays: r.pickup_to_hub_days != null ? Number(r.pickup_to_hub_days) : null,
       daysSinceReachedAtDestination: r.days_since_reached_at_destination != null ? Number(r.days_since_reached_at_destination) : null,
       latestScanTime: r.latest_scan_time,
       latestScanPlace: r.latest_scan_place,

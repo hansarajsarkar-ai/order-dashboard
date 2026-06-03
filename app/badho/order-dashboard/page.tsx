@@ -1398,6 +1398,8 @@ export default function OrderStatusDashboard() {
     itlDateTime: string | null;
     reachedAtDestinationTime: string | null;
     reachedAtDestinationPlace: string | null;
+    pickedUpTime: string | null;
+    pickupToHubDays: number | null;
     daysSinceReachedAtDestination: number | null;
     latestScanTime: string | null;
     latestScanPlace: string | null;
@@ -6492,6 +6494,7 @@ export default function OrderStatusDashboard() {
                           const headers = [
                             'Order Date & Time', 'ITL Date & Time',
                             'Reached At Destination Time', 'Reached At Destination Place',
+                            'Picked Up Time', 'Pickup To Hub Days',
                             'Days Since Reached At Destination',
                             'Latest Scan Time', 'Latest Scan Place', 'Still In Destination Hub',
                             'PO Number', 'PO Status', 'Order Value', 'Paid Amount', 'Applied Wallet Amount', 'Coupon Value', 'Payment Mode',
@@ -6509,6 +6512,7 @@ export default function OrderStatusDashboard() {
                           const rows: CsvCell[][] = filtered.map((r) => [
                             r.orderDateTime, r.itlDateTime,
                             r.reachedAtDestinationTime, r.reachedAtDestinationPlace,
+                            r.pickedUpTime, r.pickupToHubDays,
                             r.daysSinceReachedAtDestination,
                             r.latestScanTime, r.latestScanPlace, r.stillInDestinationHub,
                             r.poNumber, r.poStatus, r.orderValue, r.paidAmount, r.appliedWalletAmount, r.couponValue, r.paymentMode,
@@ -6787,6 +6791,11 @@ export default function OrderStatusDashboard() {
                                 <td className="px-3 py-1.5 border-b border-white/5">
                                   <div className="text-[11px] font-semibold text-white truncate max-w-[200px]" title={r.reachedAtDestinationPlace ?? ''}>{r.reachedAtDestinationPlace ?? '—'}</div>
                                   <div className="text-[10px] text-purple-300/70">{r.reachedAtDestinationTime ?? '—'}</div>
+                                  {r.pickupToHubDays != null && (
+                                    <div className="text-[10px] mt-0.5 text-cyan-300/90 tabular-nums" title={r.pickedUpTime ? `Picked up ${r.pickedUpTime} → reached hub (transit time)` : 'Pickup → reached destination hub (transit time)'}>
+                                      🚚 {r.pickupToHubDays.toFixed(2)}d <span className="text-purple-300/50">pickup→hub</span>
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="px-3 py-1.5 border-b border-white/5">
                                   <div className="text-[11px] font-semibold text-white truncate max-w-[200px]" title={r.latestScanPlace ?? ''}>{r.latestScanPlace ?? '—'}</div>

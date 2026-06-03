@@ -107,6 +107,14 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '🐄',
     status: 'live',
   },
+  {
+    slug: 'po-modified',
+    title: 'PO Modified',
+    description:
+      'Orders where a seller removed an item or decreased its quantity due to unavailability — before/after PO amount, value lost, and per-PO detail.',
+    icon: '📝',
+    status: 'live',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

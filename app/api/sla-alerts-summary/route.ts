@@ -18,7 +18,7 @@ export async function GET() {
           po."markedPendingTime" AS "MarkedpendingTime",
           pop."event"            AS "paymentEvent",
           s."businessName"       AS "sellerBusinessName",
-          po."amount"            AS "poAmount",
+          (po."amount" + COALESCE(po."platformMarginDiscount", 0))            AS "poAmount",
           po."paymentInfo"->>'option' AS "PaymentOption",
           dv."codAmountToBeCollected" AS "codAmountToBeCollected"
         FROM "purchaseOrder"."purchaseOrder" po

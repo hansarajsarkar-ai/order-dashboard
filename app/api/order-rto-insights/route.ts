@@ -88,10 +88,10 @@ export async function GET(req: NextRequest) {
   const bucketSql = `
     SELECT
       CASE
-        WHEN po."amount" < 1000 THEN '0-1000'
-        WHEN po."amount" < 2000 THEN '1000-2000'
-        WHEN po."amount" < 3000 THEN '2000-3000'
-        WHEN po."amount" < 5000 THEN '3000-5000'
+        WHEN (po."amount" + COALESCE(po."platformMarginDiscount", 0)) < 1000 THEN '0-1000'
+        WHEN (po."amount" + COALESCE(po."platformMarginDiscount", 0)) < 2000 THEN '1000-2000'
+        WHEN (po."amount" + COALESCE(po."platformMarginDiscount", 0)) < 3000 THEN '2000-3000'
+        WHEN (po."amount" + COALESCE(po."platformMarginDiscount", 0)) < 5000 THEN '3000-5000'
         ELSE '5000+'
       END AS "bucket",
       COUNT(DISTINCT po."poNumber") FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')) AS "deliveredCount",
@@ -99,20 +99,20 @@ export async function GET(req: NextRequest) {
       ROUND(100.0 * COUNT(DISTINCT po."poNumber") FILTER (WHERE po."deliveryStatus" = 'RTO')
         / NULLIF(COUNT(DISTINCT po."poNumber") FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))
           + COUNT(DISTINCT po."poNumber") FILTER (WHERE po."deliveryStatus" = 'RTO'), 0), 2) AS "rtoPct",
-      COALESCE(ROUND(SUM(po."amount") FILTER (WHERE po."deliveryStatus" = 'RTO'), 0), 0) AS "rtoAmount",
-      ROUND(100.0 * COALESCE(SUM(po."amount") FILTER (WHERE po."deliveryStatus" = 'RTO'), 0)
-        / NULLIF(COALESCE(SUM(po."amount") FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)
-          + COALESCE(SUM(po."amount") FILTER (WHERE po."deliveryStatus" = 'RTO'), 0), 0), 2) AS "rtoAmountPct"
+      COALESCE(ROUND(SUM((po."amount" + COALESCE(po."platformMarginDiscount", 0))) FILTER (WHERE po."deliveryStatus" = 'RTO'), 0), 0) AS "rtoAmount",
+      ROUND(100.0 * COALESCE(SUM((po."amount" + COALESCE(po."platformMarginDiscount", 0))) FILTER (WHERE po."deliveryStatus" = 'RTO'), 0)
+        / NULLIF(COALESCE(SUM((po."amount" + COALESCE(po."platformMarginDiscount", 0))) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)
+          + COALESCE(SUM((po."amount" + COALESCE(po."platformMarginDiscount", 0))) FILTER (WHERE po."deliveryStatus" = 'RTO'), 0), 0), 2) AS "rtoAmountPct"
     FROM "purchaseOrder"."purchaseOrder" po
     JOIN "users"."buyer" b ON b."id" = po."buyerId"
     JOIN "users"."seller" s ON s."id" = po."sellerId"
     WHERE ${baseWhere}
     GROUP BY 1
     ORDER BY CASE
-      WHEN MIN(po."amount") < 1000 THEN 1
-      WHEN MIN(po."amount") < 2000 THEN 2
-      WHEN MIN(po."amount") < 3000 THEN 3
-      WHEN MIN(po."amount") < 5000 THEN 4
+      WHEN MIN((po."amount" + COALESCE(po."platformMarginDiscount", 0))) < 1000 THEN 1
+      WHEN MIN((po."amount" + COALESCE(po."platformMarginDiscount", 0))) < 2000 THEN 2
+      WHEN MIN((po."amount" + COALESCE(po."platformMarginDiscount", 0))) < 3000 THEN 3
+      WHEN MIN((po."amount" + COALESCE(po."platformMarginDiscount", 0))) < 5000 THEN 4
       ELSE 5
     END;
   `;

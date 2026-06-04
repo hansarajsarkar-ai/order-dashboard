@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
         b."district"                                                                          AS "buyerDistrict",
         b."state"                                                                             AS "buyerState",
         pop."paidAmount"                                                                      AS "paidAmount",
-        po."amount"                                                                           AS "poAmount",
+        (po."amount" + COALESCE(po."platformMarginDiscount", 0))                                                                           AS "poAmount",
         po."appliedOfferDiscount"                                                             AS "CoupanAmount",
         po."status"                                                                           AS "orderStatus",
         COALESCE((pop."breakup" ->> 'discount_on_payment_preference_for_seller')::float, 0)   AS "discountBySeller",

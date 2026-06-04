@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
         po."poNumber"::text                                 AS po_number,
         po."markedPendingTime"                              AS marked_pending_time,
         po."status"                                         AS status,
-        po."amount"::text                                   AS amount,
+        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text                                   AS amount,
         po."appliedWalletAmount"::text                      AS applied_wallet_amount,
         bu."businessName"                                   AS buyer_business,
         bu."phone"                                          AS buyer_phone,
@@ -175,7 +175,7 @@ export async function GET(req: NextRequest) {
         ${brandFilter}
         ${monthFilter}
         ${drillFilter}
-      GROUP BY po."id", po."poNumber", po."markedPendingTime", po."status", po."amount", po."appliedWalletAmount",
+      GROUP BY po."id", po."poNumber", po."markedPendingTime", po."status", (po."amount" + COALESCE(po."platformMarginDiscount", 0)), po."appliedWalletAmount",
                bu."businessName", bu."phone", bu."state", bu."city", s."businessName", s."phone"
       ORDER BY po."markedPendingTime" DESC
       LIMIT ${limit};

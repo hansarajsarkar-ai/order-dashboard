@@ -79,8 +79,8 @@ export async function GET(req: NextRequest) {
       SELECT DISTINCT
         po."id" AS po_id,
         dv."created_at"::date AS order_date,
-        po."amount" AS po_amount,
-        po."amount" * (COALESCE((s."deliveryChargesJSON"->'badhoFees'->>'value')::numeric, 0) / 100.0) AS badho_margin_rs,
+        (po."amount" + COALESCE(po."platformMarginDiscount", 0)) AS po_amount,
+        (po."amount" + COALESCE(po."platformMarginDiscount", 0)) * (COALESCE((s."deliveryChargesJSON"->'badhoFees'->>'value')::numeric, 0) / 100.0) AS badho_margin_rs,
         CASE WHEN LOWER(s."deliveryChargesJSON"->>'forwardDeliveryCostToSeller') = 'false' THEN
           (COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) + COALESCE(po."appliedOfferDiscount", 0) + COALESCE(dv."deliveryCharge", 0) + COALESCE(wt."rewardAmount", 0))
         ELSE

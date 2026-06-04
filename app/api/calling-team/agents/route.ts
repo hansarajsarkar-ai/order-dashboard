@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
             po."id" AS order_id,
             (po."created_at" AT TIME ZONE 'Asia/Kolkata')::date AS order_date,
             EXTRACT(HOUR FROM (po."created_at" AT TIME ZONE 'Asia/Kolkata')) AS order_hour,
-            po."amount"::numeric AS amount
+            (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) AS amount
           FROM "purchaseOrder"."purchaseOrder" po
           JOIN "users"."seller" s ON s."id" = po."sellerId"
           JOIN "users"."buyer" b ON b."id" = po."buyerId"

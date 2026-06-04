@@ -48,10 +48,10 @@ export async function GET(req: NextRequest) {
         s."phone"                                            AS seller_phone,
         s."businessName"                                     AS seller_business_name,
         EXTRACT(MONTH FROM po."markedPendingTime")::int      AS month,
-        COUNT(*) FILTER (WHERE po."amount"::numeric < 500)                                                          AS slab_0_500,
-        COUNT(*) FILTER (WHERE po."amount"::numeric >= 500   AND po."amount"::numeric < 1000)                       AS slab_500_1000,
-        COUNT(*) FILTER (WHERE po."amount"::numeric >= 1000  AND po."amount"::numeric <= 2000)                      AS slab_1000_2000,
-        COUNT(*) FILTER (WHERE po."amount"::numeric > 2000)                                                         AS slab_2000_plus,
+        COUNT(*) FILTER (WHERE (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) < 500)                                                          AS slab_0_500,
+        COUNT(*) FILTER (WHERE (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) >= 500   AND (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) < 1000)                       AS slab_500_1000,
+        COUNT(*) FILTER (WHERE (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) >= 1000  AND (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) <= 2000)                      AS slab_1000_2000,
+        COUNT(*) FILTER (WHERE (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) > 2000)                                                         AS slab_2000_plus,
         COUNT(*)                                             AS total
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"

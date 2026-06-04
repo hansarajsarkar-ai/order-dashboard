@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
         END                                                        AS latest_attempt_time,
         po."poNumber"                                              AS po_number,
         po."status"                                                AS po_status,
-        po."amount"::text                                          AS order_value,
+        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text                                          AS order_value,
         COALESCE(po."appliedOfferDiscount", 0)::text               AS coupon_value,
         po."paymentInfo"->>'option'                                AS payment_mode,
         CASE

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
         EXTRACT(WEEK FROM po."markedPendingTime")::int               AS week,
         TO_CHAR(DATE_TRUNC('week', po."markedPendingTime"), 'DD Mon') AS week_start,
         COUNT(*)                                                     AS count,
-        COALESCE(SUM(po."amount"::numeric), 0)::text                 AS amount
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text                 AS amount
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"

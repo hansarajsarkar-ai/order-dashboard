@@ -95,12 +95,12 @@ export async function GET(req: NextRequest) {
 
     // Distinct order-level totals — these tie back to the Chart & Trend cards
     // ("Delivered Orders", "Delivered GMV") since they count each purchaseOrder
-    // once and sum po."amount" (the order-header total the buyer owes), instead
+    // once and sum (po."amount" + COALESCE(po."platformMarginDiscount", 0)) (the order-header total the buyer owes), instead
     // of summing per-SKU line items which double-count orders with multiple SKUs
     // and ignore order-level discounts.
     const distinctSql = `
       WITH qualifying_orders AS (
-        SELECT DISTINCT po."id", po."amount"::numeric AS amt, po."buyerId"
+        SELECT DISTINCT po."id", (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) AS amt, po."buyerId"
         FROM "purchaseOrder"."purchaseOrder" po
         JOIN "purchaseOrder"."purchaseOrderItem" poi ON poi."purchaseOrderId" = po."id"
         JOIN "brands"."brandSKU"                  bs  ON bs."id"  = poi."brandSKUId"

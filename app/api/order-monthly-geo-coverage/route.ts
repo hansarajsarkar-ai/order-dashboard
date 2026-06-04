@@ -27,19 +27,19 @@ type Cell = { covered: number; count: number; amount: number };
 const COVERED_SELECT = `
   COUNT(DISTINCT b."pincode") FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> '')::text AS pincode_covered,
   COUNT(*) FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> '')::text AS pincode_orders,
-  COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> ''), 0)::text AS pincode_amount,
+  COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE b."pincode" IS NOT NULL AND b."pincode" <> ''), 0)::text AS pincode_amount,
 
   COUNT(DISTINCT (b."state", b."city")) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> '')::text AS city_covered,
   COUNT(*) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> '')::text AS city_orders,
-  COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> ''), 0)::text AS city_amount,
+  COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE b."city" IS NOT NULL AND b."city" <> ''), 0)::text AS city_amount,
 
   COUNT(DISTINCT (b."state", b."district")) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> '')::text AS district_covered,
   COUNT(*) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> '')::text AS district_orders,
-  COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> ''), 0)::text AS district_amount,
+  COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE b."district" IS NOT NULL AND b."district" <> ''), 0)::text AS district_amount,
 
   COUNT(DISTINCT b."state") FILTER (WHERE b."state" IS NOT NULL AND b."state" <> '')::text AS state_covered,
   COUNT(*) FILTER (WHERE b."state" IS NOT NULL AND b."state" <> '')::text AS state_orders,
-  COALESCE(SUM(po."amount"::numeric) FILTER (WHERE b."state" IS NOT NULL AND b."state" <> ''), 0)::text AS state_amount
+  COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE b."state" IS NOT NULL AND b."state" <> ''), 0)::text AS state_amount
 `;
 
 export async function GET(req: NextRequest) {

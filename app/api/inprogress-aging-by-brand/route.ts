@@ -34,7 +34,7 @@ export async function GET() {
           s."city"                                      AS "sellerCity",
           s."district"                                  AS "sellerDistrict",
           s."state"                                     AS "sellerState",
-          po."amount"                                   AS "amount",
+          (po."amount" + COALESCE(po."platformMarginDiscount", 0))                                   AS "amount",
           GREATEST(
             EXTRACT(EPOCH FROM (NOW() - po."markedInProgressTime"))
             - COALESCE((

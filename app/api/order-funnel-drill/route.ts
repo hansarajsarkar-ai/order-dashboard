@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       SELECT
         po."poNumber"                       AS "poNumber",
         po."status"                         AS "status",
-        po."amount"::text                   AS "amount",
+        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text                   AS "amount",
         b."businessName"                    AS "buyerBusinessName",
         b."phone"                           AS "buyerPhone",
         s."businessName"                    AS "sellerBusinessName",

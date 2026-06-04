@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         b."city"                                            AS city,
         b."district"                                        AS district,
         COUNT(*)                                            AS count,
-        COALESCE(SUM(po."amount"::numeric), 0)::text        AS amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text        AS amount,
         COUNT(DISTINCT po."buyerId")                        AS buyers
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"

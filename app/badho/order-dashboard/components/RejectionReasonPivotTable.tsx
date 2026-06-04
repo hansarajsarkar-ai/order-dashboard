@@ -52,6 +52,9 @@ interface OrderDetail {
   buyerState: string | null;
   paidAmount: string | number | null;
   poAmount: string | number | null;
+  itemTotal?: number | null;
+  grossAmount?: number | null;
+  orderMarginDiscount?: number | null;
   CoupanAmount: string | number | null;
   orderStatus: string | null;
   discountBySeller: number | null;
@@ -293,7 +296,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
       case 'pushed': return r.pushedStatus ?? '';
       case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
       case 'status': return r.orderStatus ?? '';
-      case 'poAmount': return num(r.poAmount);
+      case 'itemTotal': return num(r.itemTotal);
+      case 'grossAmount': return num(r.grossAmount);
+      case 'orderMarginDiscount': return num(r.orderMarginDiscount);
       case 'paidAmount': return num(r.paidAmount);
       case 'coupon': return num(r.CoupanAmount);
       case 'sellerDiscount': return num(r.discountBySeller);
@@ -923,7 +928,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                     if (!filteredModalData) return;
                     const headers = [
                       'poNumber', 'MarkedpendingTime', 'orderStatus',
-                      'poAmount', 'paidAmount', 'CoupanAmount',
+                      'Item Total', 'Gross Amount', 'Order Margin Discount', 'paidAmount', 'CoupanAmount',
                       'discountBySeller', 'PaymentOptionDiscountByBadho',
                       'appliedWalletAmount', 'PaymentOption',
                       'awbNumber', 'courierName',
@@ -938,7 +943,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                     ];
                     const rows: CsvCell[][] = filteredModalData.map((r) => [
                       r.poNumber, r.MarkedpendingTime, r.orderStatus,
-                      r.poAmount, r.paidAmount, r.CoupanAmount,
+                      r.itemTotal, r.grossAmount, r.orderMarginDiscount, r.paidAmount, r.CoupanAmount,
                       r.discountBySeller, r.PaymentOptionDiscountByBadho,
                       r.appliedWalletAmount, r.PaymentOption,
                       r.awbNumber, r.courierName,
@@ -1111,7 +1116,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                             <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                             <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">View Ticket</th>
                             <SortTh k="status" label="Order Status" />
-                            <SortTh k="poAmount" label="PO Amount" />
+                            <SortTh k="itemTotal" label="Item Total" />
+                            <SortTh k="grossAmount" label="Gross Amount" />
+                            <SortTh k="orderMarginDiscount" label="Order Margin Discount" />
                             <SortTh k="coupon" label="Coupon Amount" />
                             <SortTh k="wallet" label="Applied Wallet Amount" />
                             <SortTh k="sellerDiscount" label="Seller Discount" />
@@ -1236,7 +1243,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                             </a>
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
-                          <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.itemTotal != null ? `₹${Number(r.itemTotal).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.grossAmount != null ? `₹${Number(r.grossAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums whitespace-nowrap">{r.orderMarginDiscount != null ? `₹${Number(r.orderMarginDiscount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount != null && Number(r.CoupanAmount) !== 0 ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount != null && Number(r.appliedWalletAmount) !== 0 ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller != null && Number(r.discountBySeller) !== 0 ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
@@ -1347,7 +1356,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                   <tfoot>
                     {(() => {
                       const t = filteredModalData.reduce((a, r) => {
-                        a.po     += Number(r.poAmount) || 0;
+                        a.itemTotal += Number(r.itemTotal) || 0;
+                        a.gross     += Number(r.grossAmount) || 0;
+                        a.margin    += Number(r.orderMarginDiscount) || 0;
                         a.coupon += Number(r.CoupanAmount) || 0;
                         a.wallet += Number(r.appliedWalletAmount) || 0;
                         a.seller += Number(r.discountBySeller) || 0;
@@ -1356,7 +1367,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                         a.paid   += Number(r.paidAmount) || 0;
                         a.refund += Number(r.RefundAmount) || 0;
                         return a;
-                      }, { po: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0 });
+                      }, { itemTotal: 0, gross: 0, margin: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0 });
                       const money = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
                       const cell = 'sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap';
                       const num = `${cell} text-right tabular-nums`;
@@ -1368,7 +1379,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           <td className={cell} />
                           <td className={cell} />
                           <td className={cell} />
-                          <td className={num}>{money(t.po)}</td>
+                          <td className={num}>{money(t.itemTotal)}</td>
+                          <td className={num}>{money(t.gross)}</td>
+                          <td className={num}>{money(t.margin)}</td>
                           <td className={num}>{money(t.coupon)}</td>
                           <td className={num}>{money(t.wallet)}</td>
                           <td className={num}>{money(t.seller)}</td>

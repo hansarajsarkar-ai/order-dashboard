@@ -15,7 +15,9 @@ export interface MbsOrderRow {
   orderStatus?: string;
   deliveryStatus?: string | null;
   amount: number;
-  poAmount?: number | null;
+  itemTotal?: number | null;
+  grossAmount?: number | null;
+  orderMarginDiscount?: number | null;
   paidAmount?: number | null;
   CoupanAmount?: number | null;
   discountBySeller?: number;
@@ -66,7 +68,9 @@ function mbsSortValue(r: MbsOrderRow, key: string): number | string | null {
     case 'pushed': return r.pushedStatus ?? '';
     case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
     case 'status': return r.orderStatus ?? r.status ?? '';
-    case 'poAmount': return num(r.poAmount);
+    case 'itemTotal': return num(r.itemTotal);
+    case 'grossAmount': return num(r.grossAmount);
+    case 'orderMarginDiscount': return num(r.orderMarginDiscount);
     case 'paidAmount': return num(r.paidAmount);
     case 'coupon': return num(r.CoupanAmount);
     case 'sellerDiscount': return num(r.discountBySeller);
@@ -323,7 +327,7 @@ export default function MbsRichDrillModal({
   const handleCsvExport = () => {
     if (!filteredRows) return;
     const headers = [
-      'Pushed', 'PO Number', 'Order Status', 'Buyer Address', 'PO Amount', 'Paid Amount', 'Coupon Amount',
+      'Pushed', 'PO Number', 'Order Status', 'Buyer Address', 'Item Total', 'Gross Amount', 'Order Margin Discount', 'Paid Amount', 'Coupon Amount',
       'Seller Discount', 'Applied Wallet Amount', 'Payment Option',
       'AWB Number', 'Courier Name', 'COD Amount', 'Buyer Phone',
       'Payment Option Badho Discount', 'Payment Date', 'Payment Event',
@@ -334,7 +338,7 @@ export default function MbsRichDrillModal({
     ];
     const csvRows: MbsCsvCell[][] = filteredRows.map((r) => [
       r.pushedStatus ?? 'Not Pushed', r.poNumber, r.orderStatus ?? r.status, r.buyerFullAddress ?? r.buyerAddress ?? '',
-      r.poAmount ?? '', r.paidAmount ?? '', r.CoupanAmount ?? '',
+      r.itemTotal ?? '', r.grossAmount ?? '', r.orderMarginDiscount ?? '', r.paidAmount ?? '', r.CoupanAmount ?? '',
       r.discountBySeller ?? '', r.appliedWalletAmount ?? '', r.PaymentOption ?? '',
       r.awbNumber ?? '', r.courierName ?? '', r.codAmountToBeCollected ?? '', r.buyerPhone ?? '',
       r.PaymentOptionDiscountByBadho ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
@@ -518,7 +522,9 @@ export default function MbsRichDrillModal({
                     <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
                   </th>
                   <SortTh k="status" label="Order Status" />
-                  <SortTh k="poAmount" label="PO Amount" align="right" />
+                  <SortTh k="itemTotal" label="Item Total" align="right" />
+                  <SortTh k="grossAmount" label="Gross Amount" align="right" />
+                  <SortTh k="orderMarginDiscount" label="Order Margin Discount" align="right" />
                   <SortTh k="coupon" label="Coupon Amount" align="right" />
                   <SortTh k="wallet" label="Applied Wallet Amount" align="right" />
                   <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
@@ -587,7 +593,9 @@ export default function MbsRichDrillModal({
                         </div>
                       </td>
                       <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
-                      <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{fmtAmt(r.poAmount)}</td>
+                      <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{fmtAmt(r.itemTotal)}</td>
+                      <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{fmtAmt(r.grossAmount)}</td>
+                      <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums whitespace-nowrap">{r.orderMarginDiscount ? `₹${Number(r.orderMarginDiscount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                       <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                       <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                       <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>

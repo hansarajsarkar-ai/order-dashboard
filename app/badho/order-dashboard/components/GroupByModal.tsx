@@ -10,6 +10,9 @@ export interface GroupableOrderRow {
   status?: string | null;
   orderStatus?: string | null;
   poAmount?: number | null;
+  itemTotal?: number | null;
+  grossAmount?: number | null;
+  orderMarginDiscount?: number | null;
   paidAmount?: number | null;
   CoupanAmount?: number | null;
   appliedWalletAmount?: number | null;
@@ -41,7 +44,9 @@ type MetricKey =
   | 'orders'
   | 'buyers'
   | 'sellers'
-  | 'poAmount'
+  | 'itemTotal'
+  | 'grossAmount'
+  | 'orderMarginDiscount'
   | 'paidAmount'
   | 'coupon'
   | 'wallet'
@@ -57,7 +62,9 @@ interface GroupAgg {
   orders: number;
   buyers: number;
   sellers: number;
-  poAmount: number;
+  itemTotal: number;
+  grossAmount: number;
+  orderMarginDiscount: number;
   paidAmount: number;
   coupon: number;
   wallet: number;
@@ -142,7 +149,9 @@ export default function GroupByModal({
     if (showBuyers) cols.push({ key: 'buyers', label: 'Buyers' });
     if (showSellers) cols.push({ key: 'sellers', label: 'Sellers' });
     cols.push(
-      { key: 'poAmount', label: 'PO Amount' },
+      { key: 'itemTotal', label: 'Item Total' },
+      { key: 'grossAmount', label: 'Gross Amount' },
+      { key: 'orderMarginDiscount', label: 'Order Margin Discount' },
       { key: 'paidAmount', label: 'Paid' },
       { key: 'coupon', label: 'Coupon' },
       { key: 'wallet', label: 'Wallet' },
@@ -173,7 +182,9 @@ export default function GroupByModal({
           orders: 0,
           buyers: 0,
           sellers: 0,
-          poAmount: 0,
+          itemTotal: 0,
+          grossAmount: 0,
+          orderMarginDiscount: 0,
           paidAmount: 0,
           coupon: 0,
           wallet: 0,
@@ -189,7 +200,9 @@ export default function GroupByModal({
       }
 
       g.orders += 1;
-      g.poAmount += num(r.poAmount);
+      g.itemTotal += num(r.itemTotal);
+      g.grossAmount += num(r.grossAmount);
+      g.orderMarginDiscount += num(r.orderMarginDiscount);
       g.paidAmount += num(r.paidAmount);
       g.coupon += num(r.CoupanAmount);
       g.wallet += num(r.appliedWalletAmount);
@@ -208,7 +221,7 @@ export default function GroupByModal({
     for (const g of map.values()) {
       g.buyers = buyerSets.get(g.key)?.size ?? 0;
       g.sellers = sellerSets.get(g.key)?.size ?? 0;
-      g.aov = g.orders > 0 ? g.poAmount / g.orders : 0;
+      g.aov = g.orders > 0 ? g.grossAmount / g.orders : 0;
       out.push(g);
     }
     return out;
@@ -237,14 +250,16 @@ export default function GroupByModal({
 
   const totals = useMemo(() => {
     const t: Record<MetricKey, number> = {
-      orders: 0, buyers: 0, sellers: 0, poAmount: 0, paidAmount: 0, coupon: 0,
+      orders: 0, buyers: 0, sellers: 0, itemTotal: 0, grossAmount: 0, orderMarginDiscount: 0, paidAmount: 0, coupon: 0,
       wallet: 0, sellerDiscount: 0, badhoDiscount: 0, cod: 0, refund: 0, aov: 0,
     };
     for (const g of view) {
       t.orders += g.orders;
       t.buyers += g.buyers;
       t.sellers += g.sellers;
-      t.poAmount += g.poAmount;
+      t.itemTotal += g.itemTotal;
+      t.grossAmount += g.grossAmount;
+      t.orderMarginDiscount += g.orderMarginDiscount;
       t.paidAmount += g.paidAmount;
       t.coupon += g.coupon;
       t.wallet += g.wallet;
@@ -253,7 +268,7 @@ export default function GroupByModal({
       t.cod += g.cod;
       t.refund += g.refund;
     }
-    t.aov = t.orders > 0 ? t.poAmount / t.orders : 0;
+    t.aov = t.orders > 0 ? t.grossAmount / t.orders : 0;
     return t;
   }, [view]);
 

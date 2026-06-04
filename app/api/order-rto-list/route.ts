@@ -12,6 +12,9 @@ interface Row {
   po_number: string;
   po_status: string;
   order_value: string;
+  item_total: string;
+  gross_amount: string;
+  order_margin_discount: string;
   coupon_value: string;
   payment_mode: string | null;
   brand_name: string | null;
@@ -99,6 +102,9 @@ export async function GET(req: NextRequest) {
         po."poNumber"                                              AS po_number,
         po."status"                                                AS po_status,
         (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text                                          AS order_value,
+        po."amount"::text                                          AS item_total,
+        (COALESCE(po."amount"::numeric, 0) + COALESCE(po."platformMarginDiscount"::numeric, 0))::text AS gross_amount,
+        COALESCE(po."platformMarginDiscount"::numeric, 0)::text    AS order_margin_discount,
         COALESCE(po."appliedOfferDiscount", 0)::text               AS coupon_value,
         po."paymentInfo"->>'option'                                AS payment_mode,
         CASE
@@ -307,6 +313,9 @@ export async function GET(req: NextRequest) {
       poNumber: r.po_number,
       poStatus: r.po_status,
       orderValue: parseFloat(r.order_value || '0'),
+      itemTotal: r.item_total != null ? parseFloat(r.item_total) : null,
+      grossAmount: r.gross_amount != null ? parseFloat(r.gross_amount) : null,
+      orderMarginDiscount: r.order_margin_discount != null ? parseFloat(r.order_margin_discount) : null,
       couponValue: parseFloat(r.coupon_value || '0'),
       paymentMode: r.payment_mode,
       brandName: r.brand_name,

@@ -17,6 +17,9 @@ export interface DrillOrderRow {
   buyerBusinessName: string | null;
   paidAmount: number | null;
   poAmount: number | null;
+  itemTotal?: number | null;
+  grossAmount?: number | null;
+  orderMarginDiscount?: number | null;
   CoupanAmount: number | null;
   orderStatus: string;
   status: string;
@@ -129,7 +132,9 @@ const sortValue = (r: DrillOrderRow, key: string): number | string | null => {
     case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
     case 'callDuration': return num(r.callDurationSec);
     case 'status': return r.orderStatus ?? r.status ?? '';
-    case 'poAmount': return num(r.poAmount);
+    case 'itemTotal': return num(r.itemTotal);
+    case 'grossAmount': return num(r.grossAmount);
+    case 'orderMarginDiscount': return num(r.orderMarginDiscount);
     case 'paidAmount': return num(r.paidAmount);
     case 'coupon': return num(r.CoupanAmount);
     case 'sellerDiscount': return num(r.discountBySeller);
@@ -375,7 +380,7 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
     if (!filtered?.length) return;
     const headers = [
       'Marked Pending', 'Pushed', 'PO Number', 'AWB', 'Call Duration (s)', 'Recording URL', 'Order Status',
-      'PO Amount', 'Coupon Amount', 'Applied Wallet Amount', 'Seller Discount', 'Payment Option Badho Discount',
+      'Item Total', 'Gross Amount', 'Order Margin Discount', 'Coupon Amount', 'Applied Wallet Amount', 'Seller Discount', 'Payment Option Badho Discount',
       'COD Amount', 'Delivery Status', 'Paid Amount', 'Payment Option', 'AWB Number', 'Courier Name',
       'Payment Date', 'Payment Event', 'Buyer Business', 'Buyer Phone', 'Buyer Address', 'Seller Business',
       'Seller Phone', 'Status Marked Time', 'Status Duration (s)', 'Refund Initiated', 'Refund Completed',
@@ -383,7 +388,7 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
     ];
     const data: CsvCell[][] = filtered.map((r) => [
       r.MarkedpendingTime, r.pushedStatus, r.poNumber, r.awbNumber, r.callDurationSec, r.callRecordingUrl,
-      r.orderStatus, r.poAmount, r.CoupanAmount, r.appliedWalletAmount, r.discountBySeller, r.PaymentOptionDiscountByBadho,
+      r.orderStatus, r.itemTotal, r.grossAmount, r.orderMarginDiscount, r.CoupanAmount, r.appliedWalletAmount, r.discountBySeller, r.PaymentOptionDiscountByBadho,
       r.codAmountToBeCollected, r.deliveryStatus, r.paidAmount, r.PaymentOption, r.awbNumber, r.courierName,
       r.paymentDate, r.paymentEvent, r.buyerBusinessName, r.buyerPhone,
       [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join(', '),
@@ -394,13 +399,14 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
   };
 
   const totals = useMemo(() => (filtered || []).reduce((a, r) => {
-    a.po += Number(r.poAmount) || 0; a.coupon += Number(r.CoupanAmount) || 0;
+    a.itemTotal += Number(r.itemTotal) || 0; a.gross += Number(r.grossAmount) || 0;
+    a.margin += Number(r.orderMarginDiscount) || 0; a.coupon += Number(r.CoupanAmount) || 0;
     a.wallet += Number(r.appliedWalletAmount) || 0; a.seller += Number(r.discountBySeller) || 0;
     a.badho += Number(r.PaymentOptionDiscountByBadho) || 0; a.cod += Number(r.codAmountToBeCollected) || 0;
     a.paid += Number(r.paidAmount) || 0; a.refund += Number(r.RefundAmount) || 0;
     a.callSec += Number(r.callDurationSec) || 0;
     return a;
-  }, { po: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0, callSec: 0 }), [filtered]);
+  }, { itemTotal: 0, gross: 0, margin: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0, callSec: 0 }), [filtered]);
 
   const chip = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] border border-slate-300 font-medium';
 
@@ -480,7 +486,9 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
                     <PlainTh label="Items" />
                     <PlainTh label="View Ticket" />
                     <SortTh k="status" label="Order Status" />
-                    <SortTh k="poAmount" label="PO Amount" align="right" />
+                    <SortTh k="itemTotal" label="Item Total" align="right" />
+                    <SortTh k="grossAmount" label="Gross Amount" align="right" />
+                    <SortTh k="orderMarginDiscount" label="Order Margin Discount" align="right" />
                     <SortTh k="coupon" label="Coupon Amount" align="right" />
                     <SortTh k="wallet" label="Applied Wallet Amount" align="right" />
                     <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
@@ -550,7 +558,9 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
                           </a>
                         </td>
                         <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
-                        <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{money(r.poAmount) ?? dash}</td>
+                        <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.itemTotal != null ? money(r.itemTotal) : dash}</td>
+                        <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.grossAmount != null ? money(r.grossAmount) : dash}</td>
+                        <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums whitespace-nowrap">{r.orderMarginDiscount != null ? money(r.orderMarginDiscount) : dash}</td>
                         <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? money(r.CoupanAmount) : dash}</td>
                         <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? money(r.appliedWalletAmount) : dash}</td>
                         <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? money(r.discountBySeller) : dash}</td>
@@ -594,7 +604,7 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
                       const cell = 'sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap';
                       const num = `${cell} text-right tabular-nums`;
                       const m = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-                      // One cell per thead column (37 total), so the money totals
+                      // One cell per thead column (39 total), so the money totals
                       // sit exactly under their columns.
                       return (
                         <>
@@ -606,20 +616,22 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
                           {/* 6 Items */}<td className={cell} />
                           {/* 7 View Ticket */}<td className={cell} />
                           {/* 8 Order Status */}<td className={cell} />
-                          {/* 9 PO Amount */}<td className={num}>{m(totals.po)}</td>
-                          {/* 10 Coupon */}<td className={num}>{m(totals.coupon)}</td>
-                          {/* 11 Wallet */}<td className={num}>{m(totals.wallet)}</td>
-                          {/* 12 Seller Discount */}<td className={num}>{m(totals.seller)}</td>
-                          {/* 13 Badho Discount */}<td className={num}>{m(totals.badho)}</td>
-                          {/* 14 COD */}<td className={num}>{m(totals.cod)}</td>
-                          {/* 15 Delivery Status */}<td className={cell} />
-                          {/* 16 Paid Amount */}<td className={num}>{m(totals.paid)}</td>
-                          {/* 17-30 Payment Option … Refund Completed (14) */}
+                          {/* 9 Item Total */}<td className={num}>{m(totals.itemTotal)}</td>
+                          {/* 10 Gross Amount */}<td className={num}>{m(totals.gross)}</td>
+                          {/* 11 Order Margin Discount */}<td className={num}>{m(totals.margin)}</td>
+                          {/* 12 Coupon */}<td className={num}>{m(totals.coupon)}</td>
+                          {/* 13 Wallet */}<td className={num}>{m(totals.wallet)}</td>
+                          {/* 14 Seller Discount */}<td className={num}>{m(totals.seller)}</td>
+                          {/* 15 Badho Discount */}<td className={num}>{m(totals.badho)}</td>
+                          {/* 16 COD */}<td className={num}>{m(totals.cod)}</td>
+                          {/* 17 Delivery Status */}<td className={cell} />
+                          {/* 18 Paid Amount */}<td className={num}>{m(totals.paid)}</td>
+                          {/* 19-32 Payment Option … Refund Completed (14) */}
                           <td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} />
                           <td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} />
                           <td className={cell} /><td className={cell} /><td className={cell} /><td className={cell} />
-                          {/* 31 Refund Amount */}<td className={num}>{m(totals.refund)}</td>
-                          {/* 32-37 Reject Reason … Latest Scan 3 (6) */}
+                          {/* 33 Refund Amount */}<td className={num}>{m(totals.refund)}</td>
+                          {/* 34-39 Reject Reason … Latest Scan 3 (6) */}
                           <td className={cell} /><td className={cell} /><td className={cell} />
                           <td className={cell} /><td className={cell} /><td className={cell} />
                         </>

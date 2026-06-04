@@ -14,6 +14,9 @@ interface Row {
   buyerBusinessName: string | null;
   paidAmount: number | null;
   poAmount: number | null;
+  ItemTotal: number | null;
+  GrossAmount: number | null;
+  OrderMarginDiscount: number | null;
   CoupanAmount: number | null;
   orderStatus: string;
   discountBySeller: number;
@@ -242,6 +245,9 @@ export async function GET(req: NextRequest) {
         b."businessName" AS "buyerBusinessName",
         pop."paidAmount" AS "paidAmount",
         (po."amount" + COALESCE(po."platformMarginDiscount", 0)) AS "poAmount",
+        po."amount" AS "ItemTotal",
+        (COALESCE(po."amount"::numeric, 0) + COALESCE(po."platformMarginDiscount"::numeric, 0)) AS "GrossAmount",
+        COALESCE(po."platformMarginDiscount"::numeric, 0) AS "OrderMarginDiscount",
         po."appliedOfferDiscount" AS "CoupanAmount",
         po."status" AS "orderStatus",
         COALESCE((pop."breakup"->>'discount_on_payment_preference_for_seller')::float, 0) AS "discountBySeller",
@@ -355,6 +361,9 @@ export async function GET(req: NextRequest) {
       buyerBusinessName: r.buyerBusinessName,
       paidAmount: r.paidAmount,
       poAmount: r.poAmount,
+      itemTotal: r.ItemTotal != null ? Number(r.ItemTotal) : null,
+      grossAmount: r.GrossAmount != null ? Number(r.GrossAmount) : null,
+      orderMarginDiscount: r.OrderMarginDiscount != null ? Number(r.OrderMarginDiscount) : null,
       CoupanAmount: r.CoupanAmount,
       orderStatus: r.orderStatus,
       status: r.orderStatus,
@@ -373,7 +382,7 @@ export async function GET(req: NextRequest) {
       rejectReason: r.rejectReason,
       rejectedBy: r.rejectedBy,
       reasonAddedByBadhoTeam: r.reasonAddedByBadhoTeam,
-      amount: r.poAmount != null ? Number(r.poAmount) : 0,
+      amount: r.GrossAmount != null ? Number(r.GrossAmount) : 0,
       buyerAddress: [r.buyer_address_line1, r.buyer_city, r.buyer_state].filter(Boolean).join(', '),
       buyerFullAddress: [
         r.buyer_address_line1,

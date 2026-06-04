@@ -20,6 +20,9 @@ interface OrderDetailRow {
   buyerState: string | null;
   paidAmount: string | null;
   poAmount: string | null;
+  ItemTotal: string | number | null;
+  GrossAmount: string | number | null;
+  OrderMarginDiscount: string | number | null;
   CoupanAmount: string | null;
   orderStatus: string | null;
   discountBySeller: string | null;
@@ -141,6 +144,9 @@ export async function GET(req: NextRequest) {
         b."state"                                                                             AS "buyerState",
         pop."paidAmount"                                                                      AS "paidAmount",
         (po."amount" + COALESCE(po."platformMarginDiscount", 0))                                                                           AS "poAmount",
+        po."amount" AS "ItemTotal",
+        (COALESCE(po."amount"::numeric, 0) + COALESCE(po."platformMarginDiscount"::numeric, 0)) AS "GrossAmount",
+        COALESCE(po."platformMarginDiscount"::numeric, 0) AS "OrderMarginDiscount",
         po."appliedOfferDiscount"                                                             AS "CoupanAmount",
         po."status"                                                                           AS "orderStatus",
         COALESCE((pop."breakup" ->> 'discount_on_payment_preference_for_seller')::float, 0)   AS "discountBySeller",
@@ -225,9 +231,16 @@ export async function GET(req: NextRequest) {
 
     const rows = await query<OrderDetailRow>(sql, params);
 
+    const data = rows.map((r) => ({
+      ...r,
+      itemTotal: r.ItemTotal != null ? Number(r.ItemTotal) : null,
+      grossAmount: r.GrossAmount != null ? Number(r.GrossAmount) : null,
+      orderMarginDiscount: r.OrderMarginDiscount != null ? Number(r.OrderMarginDiscount) : null,
+    }));
+
     return NextResponse.json({
-      data: rows,
-      count: rows.length,
+      data,
+      count: data.length,
       filters: { reason: reasonCategory, month, year, orderStatus, deliveryStatus: deliveryStatusParam },
       timestamp: new Date().toISOString(),
     });

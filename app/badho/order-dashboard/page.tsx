@@ -27,6 +27,9 @@ interface OrderListRow {
   deliveryStatus?: string | null;
   amount: number;
   poAmount?: number | null;
+  itemTotal?: number | null;
+  grossAmount?: number | null;
+  orderMarginDiscount?: number | null;
   paidAmount?: number | null;
   CoupanAmount?: number | null;
   discountBySeller?: number;
@@ -871,6 +874,9 @@ export default function OrderStatusDashboard() {
     buyerBusinessName: string | null;
     paidAmount: number | null;
     poAmount: number | null;
+    itemTotal?: number | null;
+    grossAmount?: number | null;
+    orderMarginDiscount?: number | null;
     CoupanAmount: number | null;
     orderStatus: string | null;
     discountBySeller: number;
@@ -940,7 +946,9 @@ export default function OrderStatusDashboard() {
       case 'pushed': return r.pushedStatus ?? '';
       case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
       case 'status': return r.orderStatus ?? '';
-      case 'poAmount': return num(r.poAmount);
+      case 'itemTotal': return num(r.itemTotal);
+      case 'grossAmount': return num(r.grossAmount);
+      case 'orderMarginDiscount': return num(r.orderMarginDiscount);
       case 'paidAmount': return num(r.paidAmount);
       case 'coupon': return num(r.CoupanAmount);
       case 'sellerDiscount': return num(r.discountBySeller);
@@ -1373,6 +1381,9 @@ export default function OrderStatusDashboard() {
     poNumber: string;
     poStatus: string;
     orderValue: number;
+    itemTotal?: number | null;
+    grossAmount?: number | null;
+    orderMarginDiscount?: number | null;
     couponValue: number;
     paymentMode: string | null;
     brandName: string | null;
@@ -1441,6 +1452,9 @@ export default function OrderStatusDashboard() {
     poNumber: string;
     poStatus: string;
     orderValue: number;
+    itemTotal?: number | null;
+    grossAmount?: number | null;
+    orderMarginDiscount?: number | null;
     couponValue: number;
     paymentMode: string | null;
     brandName: string | null;
@@ -3231,7 +3245,9 @@ export default function OrderStatusDashboard() {
       case 'pushed': return r.pushedStatus ?? '';
       case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
       case 'status': return r.orderStatus ?? r.status ?? '';
-      case 'poAmount': return num(r.poAmount);
+      case 'itemTotal': return num(r.itemTotal);
+      case 'grossAmount': return num(r.grossAmount);
+      case 'orderMarginDiscount': return num(r.orderMarginDiscount);
       case 'paidAmount': return num(r.paidAmount);
       case 'coupon': return num(r.CoupanAmount);
       case 'sellerDiscount': return num(r.discountBySeller);
@@ -11355,7 +11371,7 @@ export default function OrderStatusDashboard() {
                       if (!alertModalData) return;
                       const headers = [
                         'pushedStatus', 'poNumber', 'orderStatus',
-                        'poAmount', 'paidAmount', 'CoupanAmount',
+                        'itemTotal', 'grossAmount', 'orderMarginDiscount', 'paidAmount', 'CoupanAmount',
                         'discountBySeller', 'appliedWalletAmount',
                         'PaymentOption', 'awbNumber', 'courierName', 'codAmountToBeCollected',
                         'PaymentOptionDiscountByBadho', 'paymentDate', 'paymentEvent',
@@ -11366,7 +11382,7 @@ export default function OrderStatusDashboard() {
                       ];
                       const rows: CsvCell[][] = alertModalData.map((r) => [
                         r.pushedStatus, r.poNumber, r.orderStatus,
-                        r.poAmount, r.paidAmount, r.CoupanAmount,
+                        r.itemTotal ?? '', r.grossAmount ?? '', r.orderMarginDiscount ?? '', r.paidAmount, r.CoupanAmount,
                         r.discountBySeller, r.appliedWalletAmount,
                         r.PaymentOption, r.awbNumber, r.courierName, r.codAmountToBeCollected,
                         r.PaymentOptionDiscountByBadho, r.paymentDate, r.paymentEvent,
@@ -11587,7 +11603,9 @@ export default function OrderStatusDashboard() {
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">View Ticket</th>
                           <SortTh k="status" label="Order Status" />
-                          <SortTh k="poAmount" label="PO Amount" />
+                          <SortTh k="itemTotal" label="Item Total" />
+                          <SortTh k="grossAmount" label="Gross Amount" />
+                          <SortTh k="orderMarginDiscount" label="Order Margin Discount" />
                           <SortTh k="coupon" label="Coupon Amount" />
                           <SortTh k="wallet" label="Applied Wallet Amount" />
                           <SortTh k="sellerDiscount" label="Seller Discount" />
@@ -11739,7 +11757,9 @@ export default function OrderStatusDashboard() {
                                 </a>
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus || <span className="text-slate-400">—</span>}</td>
-                              <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.itemTotal != null ? `₹${Number(r.itemTotal).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.grossAmount != null ? `₹${Number(r.grossAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums whitespace-nowrap">{r.orderMarginDiscount != null ? `₹${Number(r.orderMarginDiscount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
@@ -11840,7 +11860,9 @@ export default function OrderStatusDashboard() {
                       <tfoot>
                         {(() => {
                           const t = filtered.reduce((a, r) => {
-                            a.po     += Number(r.poAmount) || 0;
+                            a.itemTotal += Number(r.itemTotal) || 0;
+                            a.gross  += Number(r.grossAmount) || 0;
+                            a.margin += Number(r.orderMarginDiscount) || 0;
                             a.coupon += Number(r.CoupanAmount) || 0;
                             a.wallet += Number(r.appliedWalletAmount) || 0;
                             a.seller += Number(r.discountBySeller) || 0;
@@ -11849,7 +11871,7 @@ export default function OrderStatusDashboard() {
                             a.paid   += Number(r.paidAmount) || 0;
                             a.refund += Number(r.RefundAmount) || 0;
                             return a;
-                          }, { po: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0 });
+                          }, { itemTotal: 0, gross: 0, margin: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0 });
                           const money = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
                           const cell = 'sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap';
                           const num = `${cell} text-right tabular-nums`;
@@ -11861,7 +11883,9 @@ export default function OrderStatusDashboard() {
                               <td className={cell} />
                               <td className={cell} />
                               <td className={cell} />
-                              <td className={num}>{money(t.po)}</td>
+                              <td className={num}>{money(t.itemTotal)}</td>
+                              <td className={num}>{money(t.gross)}</td>
+                              <td className={num}>{money(t.margin)}</td>
                               <td className={num}>{money(t.coupon)}</td>
                               <td className={num}>{money(t.wallet)}</td>
                               <td className={num}>{money(t.seller)}</td>
@@ -11975,7 +11999,7 @@ export default function OrderStatusDashboard() {
                       if (!filteredPivotDrillRows) return;
                       const isRejected = pivotDrillStatus === 'REJECTED';
                       const headers = [
-                        'Pushed', 'PO Number', 'Order Status', 'Buyer Address', 'PO Amount', 'Paid Amount', 'Coupon Amount',
+                        'Pushed', 'PO Number', 'Order Status', 'Buyer Address', 'Item Total', 'Gross Amount', 'Order Margin Discount', 'Paid Amount', 'Coupon Amount',
                         'Seller Discount', 'Applied Wallet Amount', 'Payment Option',
                         'AWB Number', 'Courier Name', 'COD Amount', 'Buyer Phone',
                         'Payment Option Badho Discount', 'Payment Date', 'Payment Event',
@@ -11985,7 +12009,7 @@ export default function OrderStatusDashboard() {
                       ];
                       const rows: CsvCell[][] = filteredPivotDrillRows.map((r) => [
                         r.pushedStatus ?? 'Not Pushed', r.poNumber, r.orderStatus ?? r.status, r.buyerFullAddress ?? '',
-                        r.poAmount ?? '', r.paidAmount ?? '', r.CoupanAmount ?? '',
+                        r.itemTotal ?? '', r.grossAmount ?? '', r.orderMarginDiscount ?? '', r.paidAmount ?? '', r.CoupanAmount ?? '',
                         r.discountBySeller ?? '', r.appliedWalletAmount ?? '', r.PaymentOption ?? '',
                         r.awbNumber ?? '', r.courierName ?? '', r.codAmountToBeCollected ?? '', r.buyerPhone ?? '',
                         r.PaymentOptionDiscountByBadho ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
@@ -12238,7 +12262,9 @@ export default function OrderStatusDashboard() {
                               <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
                               <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">View Ticket</th>
                               <SortTh k="status" label="Order Status" />
-                              <SortTh k="poAmount" label="PO Amount" align="right" />
+                              <SortTh k="itemTotal" label="Item Total" align="right" />
+                              <SortTh k="grossAmount" label="Gross Amount" align="right" />
+                              <SortTh k="orderMarginDiscount" label="Order Margin Discount" align="right" />
                               <SortTh k="coupon" label="Coupon Amount" align="right" />
                               <SortTh k="wallet" label="Applied Wallet Amount" align="right" />
                               <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
@@ -12355,7 +12381,9 @@ export default function OrderStatusDashboard() {
                             </a>
                           </td>
                           <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
-                          <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.poAmount != null ? `₹${Number(r.poAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.itemTotal != null ? `₹${Number(r.itemTotal).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{r.grossAmount != null ? `₹${Number(r.grossAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums whitespace-nowrap">{r.orderMarginDiscount != null ? `₹${Number(r.orderMarginDiscount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.CoupanAmount ? `₹${Number(r.CoupanAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? `₹${Number(r.appliedWalletAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
@@ -12456,7 +12484,9 @@ export default function OrderStatusDashboard() {
                     <tfoot>
                       {(() => {
                         const t = filteredPivotDrillRows.reduce((a, r) => {
-                          a.po     += Number(r.poAmount) || 0;
+                          a.itemTotal += Number(r.itemTotal) || 0;
+                          a.gross  += Number(r.grossAmount) || 0;
+                          a.margin += Number(r.orderMarginDiscount) || 0;
                           a.coupon += Number(r.CoupanAmount) || 0;
                           a.wallet += Number(r.appliedWalletAmount) || 0;
                           a.seller += Number(r.discountBySeller) || 0;
@@ -12465,7 +12495,7 @@ export default function OrderStatusDashboard() {
                           a.paid   += Number(r.paidAmount) || 0;
                           a.refund += Number(r.RefundAmount) || 0;
                           return a;
-                        }, { po: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0 });
+                        }, { itemTotal: 0, gross: 0, margin: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0 });
                         const money = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
                         const cell = 'sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap';
                         const num = `${cell} text-right tabular-nums`;
@@ -12477,7 +12507,9 @@ export default function OrderStatusDashboard() {
                             <td className={cell} />
                             <td className={cell} />
                             <td className={cell} />
-                            <td className={num}>{money(t.po)}</td>
+                            <td className={num}>{money(t.itemTotal)}</td>
+                            <td className={num}>{money(t.gross)}</td>
+                            <td className={num}>{money(t.margin)}</td>
                             <td className={num}>{money(t.coupon)}</td>
                             <td className={num}>{money(t.wallet)}</td>
                             <td className={num}>{money(t.seller)}</td>
@@ -13256,7 +13288,9 @@ export default function OrderStatusDashboard() {
                         case 'pushed': return r.pushedStatus ?? '';
                         case 'poNumber': { const n = Number(r.poNumber); return Number.isFinite(n) ? n : (r.poNumber ?? ''); }
                         case 'status': return r.poStatus ?? '';
-                        case 'poAmount': return num(r.orderValue);
+                        case 'itemTotal': return num(r.itemTotal);
+                        case 'grossAmount': return num(r.grossAmount ?? r.orderValue);
+                        case 'orderMarginDiscount': return num(r.orderMarginDiscount);
                         case 'coupon': return num(r.couponValue);
                         case 'wallet': return num(r.appliedWalletAmount);
                         case 'sellerDiscount': return num(r.discountBySeller);
@@ -13357,7 +13391,9 @@ export default function OrderStatusDashboard() {
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Items</th>
                           <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">View Ticket</th>
                           <SortTh k="status" label="Order Status" />
-                          <SortTh k="poAmount" label="PO Amount" align="right" />
+                          <SortTh k="itemTotal" label="Item Total" align="right" />
+                          <SortTh k="grossAmount" label="Gross Amount" align="right" />
+                          <SortTh k="orderMarginDiscount" label="Order Margin Discount" align="right" />
                           <SortTh k="coupon" label="Coupon Amount" align="right" />
                           <SortTh k="wallet" label="Applied Wallet Amount" align="right" />
                           <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
@@ -13456,7 +13492,9 @@ export default function OrderStatusDashboard() {
                                 </a>
                               </td>
                               <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.poStatus || dash}</td>
-                              <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{fmtAmt(r.orderValue)}</td>
+                              <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{r.itemTotal != null ? fmtAmt(r.itemTotal) : dash}</td>
+                              <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums font-semibold whitespace-nowrap">{fmtAmt(r.grossAmount ?? r.orderValue)}</td>
+                              <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums whitespace-nowrap">{r.orderMarginDiscount ? fmtAmt(r.orderMarginDiscount) : dash}</td>
                               <td className="px-2.5 py-2 text-right text-fuchsia-700 tabular-nums whitespace-nowrap">{r.couponValue ? fmtAmt(r.couponValue) : dash}</td>
                               <td className="px-2.5 py-2 text-right text-cyan-700 tabular-nums whitespace-nowrap">{r.appliedWalletAmount ? fmtAmt(r.appliedWalletAmount) : dash}</td>
                               <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? fmtAmt(r.discountBySeller) : dash}</td>
@@ -13538,6 +13576,9 @@ export default function OrderStatusDashboard() {
             status: r.poStatus,
             deliveryStatus: r.shipmentStatus,
             poAmount: r.orderValue,
+            itemTotal: r.itemTotal,
+            grossAmount: r.grossAmount ?? r.orderValue,
+            orderMarginDiscount: r.orderMarginDiscount,
             paidAmount: r.paidAmount,
             CoupanAmount: r.couponValue,
             appliedWalletAmount: r.appliedWalletAmount,

@@ -1628,7 +1628,7 @@ export default function OrderStatusDashboard() {
   const fetchMonthly = async () => {
     try {
       setMonthlyLoading(true);
-      const response = await fetch(`/api/order-monthly-status?year=${currentYear}`);
+      const response = await fetch(`/api/order-monthly-status?year=${currentYear}`, { cache: 'no-store' });
       if (!response.ok) throw new Error('Failed to fetch monthly data');
       const result: MonthlyStatusData = await response.json();
       setMonthlyData(result);

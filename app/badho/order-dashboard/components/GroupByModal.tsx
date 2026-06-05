@@ -151,7 +151,7 @@ export default function GroupByModal({
     cols.push(
       { key: 'itemTotal', label: 'Item Total' },
       { key: 'grossAmount', label: 'Gross Amount' },
-      { key: 'orderMarginDiscount', label: 'Order Margin Discount' },
+      { key: 'orderMarginDiscount', label: 'Item Discount' },
       { key: 'paidAmount', label: 'Paid' },
       { key: 'coupon', label: 'Coupon' },
       { key: 'wallet', label: 'Wallet' },

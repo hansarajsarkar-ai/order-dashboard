@@ -380,7 +380,7 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
     if (!filtered?.length) return;
     const headers = [
       'Marked Pending', 'Pushed', 'PO Number', 'AWB', 'Call Duration (s)', 'Recording URL', 'Order Status',
-      'Item Total', 'Gross Amount', 'Order Margin Discount', 'Coupon Amount', 'Applied Wallet Amount', 'Seller Discount', 'Payment Option Badho Discount',
+      'Item Total', 'Gross Amount', 'Item Discount', 'Coupon Amount', 'Applied Wallet Amount', 'Seller Discount', 'Payment Option Badho Discount',
       'COD Amount', 'Delivery Status', 'Paid Amount', 'Payment Option', 'AWB Number', 'Courier Name',
       'Payment Date', 'Payment Event', 'Buyer Business', 'Buyer Phone', 'Buyer Address', 'Seller Business',
       'Seller Phone', 'Status Marked Time', 'Status Duration (s)', 'Refund Initiated', 'Refund Completed',
@@ -488,7 +488,7 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
                     <SortTh k="status" label="Order Status" />
                     <SortTh k="itemTotal" label="Item Total" align="right" />
                     <SortTh k="grossAmount" label="Gross Amount" align="right" />
-                    <SortTh k="orderMarginDiscount" label="Order Margin Discount" align="right" />
+                    <SortTh k="orderMarginDiscount" label="Item Discount" align="right" />
                     <SortTh k="coupon" label="Coupon Amount" align="right" />
                     <SortTh k="wallet" label="Applied Wallet Amount" align="right" />
                     <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
@@ -618,7 +618,7 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
                           {/* 8 Order Status */}<td className={cell} />
                           {/* 9 Item Total */}<td className={num}>{m(totals.itemTotal)}</td>
                           {/* 10 Gross Amount */}<td className={num}>{m(totals.gross)}</td>
-                          {/* 11 Order Margin Discount */}<td className={num}>{m(totals.margin)}</td>
+                          {/* 11 Item Discount */}<td className={num}>{m(totals.margin)}</td>
                           {/* 12 Coupon */}<td className={num}>{m(totals.coupon)}</td>
                           {/* 13 Wallet */}<td className={num}>{m(totals.wallet)}</td>
                           {/* 14 Seller Discount */}<td className={num}>{m(totals.seller)}</td>

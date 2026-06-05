@@ -327,7 +327,7 @@ export default function MbsRichDrillModal({
   const handleCsvExport = () => {
     if (!filteredRows) return;
     const headers = [
-      'Pushed', 'PO Number', 'Order Status', 'Buyer Address', 'Item Total', 'Gross Amount', 'Order Margin Discount', 'Paid Amount', 'Coupon Amount',
+      'Pushed', 'PO Number', 'Order Status', 'Buyer Address', 'Item Total', 'Gross Amount', 'Item Discount', 'Paid Amount', 'Coupon Amount',
       'Seller Discount', 'Applied Wallet Amount', 'Payment Option',
       'AWB Number', 'Courier Name', 'COD Amount', 'Buyer Phone',
       'Payment Option Badho Discount', 'Payment Date', 'Payment Event',
@@ -524,7 +524,7 @@ export default function MbsRichDrillModal({
                   <SortTh k="status" label="Order Status" />
                   <SortTh k="itemTotal" label="Item Total" align="right" />
                   <SortTh k="grossAmount" label="Gross Amount" align="right" />
-                  <SortTh k="orderMarginDiscount" label="Order Margin Discount" align="right" />
+                  <SortTh k="orderMarginDiscount" label="Item Discount" align="right" />
                   <SortTh k="coupon" label="Coupon Amount" align="right" />
                   <SortTh k="wallet" label="Applied Wallet Amount" align="right" />
                   <SortTh k="sellerDiscount" label="Seller Discount" align="right" />

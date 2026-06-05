@@ -928,7 +928,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                     if (!filteredModalData) return;
                     const headers = [
                       'poNumber', 'MarkedpendingTime', 'orderStatus',
-                      'Item Total', 'Gross Amount', 'Order Margin Discount', 'paidAmount', 'CoupanAmount',
+                      'Item Total', 'Gross Amount', 'Item Discount', 'paidAmount', 'CoupanAmount',
                       'discountBySeller', 'PaymentOptionDiscountByBadho',
                       'appliedWalletAmount', 'PaymentOption',
                       'awbNumber', 'courierName',
@@ -1118,7 +1118,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                             <SortTh k="status" label="Order Status" />
                             <SortTh k="itemTotal" label="Item Total" />
                             <SortTh k="grossAmount" label="Gross Amount" />
-                            <SortTh k="orderMarginDiscount" label="Order Margin Discount" />
+                            <SortTh k="orderMarginDiscount" label="Item Discount" />
                             <SortTh k="coupon" label="Coupon Amount" />
                             <SortTh k="wallet" label="Applied Wallet Amount" />
                             <SortTh k="sellerDiscount" label="Seller Discount" />

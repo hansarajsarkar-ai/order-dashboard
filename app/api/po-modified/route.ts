@@ -85,6 +85,9 @@ export async function GET(req: NextRequest) {
         AND s."businessName" NOT ILIKE '%test%'
         AND poi."status" <> 'DRAFT'
         AND poi."modifiedByRole" ILIKE 'seller'
+        -- Once a "buyer informed" remark is filled the PO is considered actioned
+        -- and drops off this dashboard. NULLIF treats an empty string as unset.
+        AND NULLIF(TRIM(po."poModifiedBuyerInformed"), '') IS NULL
         AND (
              (poi."isArchived" = TRUE  AND poi."originalSnapshot" IS NULL)
           OR (poi."isArchived" = FALSE AND poi."originalSnapshot" IS NOT NULL)

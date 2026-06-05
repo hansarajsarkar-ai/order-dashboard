@@ -140,7 +140,32 @@ export default function PoModifiedDashboard() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-      setResp((prev) => prev ? { ...prev, data: prev.data.map((d) => d.poNumber === poNumber ? { ...d, buyerInformed: json.value } : d) } : prev);
+      // A filled remark actions the PO — it drops off this dashboard. Remove the
+      // row and decrement the matching KPI counters so the strip stays in sync
+      // without a refetch. (An empty save clears the remark; keep the row then.)
+      setResp((prev) => {
+        if (!prev) return prev;
+        if (!json.value) {
+          return { ...prev, data: prev.data.map((d) => d.poNumber === poNumber ? { ...d, buyerInformed: null } : d) };
+        }
+        const gone = prev.data.find((d) => d.poNumber === poNumber);
+        if (!gone) return prev;
+        const k = { ...prev.kpis };
+        k.modifiedPos = Math.max(0, k.modifiedPos - 1);
+        if (gone.remarks?.includes('Item Removed')) k.itemRemovedPos = Math.max(0, k.itemRemovedPos - 1);
+        if (gone.remarks?.includes('Quantity Decreased')) k.qtyDecreasedPos = Math.max(0, k.qtyDecreasedPos - 1);
+        k.prevAmountSum = Math.max(0, k.prevAmountSum - gone.prevAmount);
+        k.newAmountSum = Math.max(0, k.newAmountSum - gone.newAmount);
+        k.valueLost = Math.max(0, k.valueLost - gone.valueLost);
+        k.refundableTotal = Math.max(0, k.refundableTotal - gone.refundableAmount);
+        if (gone.refundStatus === 'COMPLETED') {
+          k.refundCompletedPos = Math.max(0, k.refundCompletedPos - 1);
+          k.refundCompletedAmount = Math.max(0, k.refundCompletedAmount - (gone.refundAmount ?? 0));
+        } else if (gone.refundableAmount > 0) {
+          k.refundPendingPos = Math.max(0, k.refundPendingPos - 1);
+        }
+        return { ...prev, data: prev.data.filter((d) => d.poNumber !== poNumber), kpis: k };
+      });
       setEditPo(null);
       setDraft('');
     } catch (err) {

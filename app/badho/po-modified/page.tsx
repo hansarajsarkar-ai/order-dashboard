@@ -69,6 +69,17 @@ function fmtCount(n: number): string {
   return n.toLocaleString('en-IN');
 }
 
+// Stored "buyer informed" values are stamped server-side as
+// `<remark> — <Name> (<timestamp>)`. Split them back out so the table can
+// show the remark prominently with the author + time on a separate line.
+// Greedy first group ensures we split on the LAST " — " in case the remark
+// text itself contains an em-dash.
+function parseInformed(raw: string): { text: string; by: string | null; at: string | null } {
+  const m = raw.match(/^(.*) — (.+?) \(([^)]+)\)$/);
+  if (m) return { text: m[1].trim(), by: m[2].trim(), at: m[3].trim() };
+  return { text: raw, by: null, at: null };
+}
+
 export default function PoModifiedDashboard() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
@@ -409,11 +420,25 @@ export default function PoModifiedDashboard() {
                           <button onClick={() => { setEditPo(null); setInformError(null); }} className="px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 text-purple-200 text-[11px]">✕</button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-start gap-1.5">
                           {r.buyerInformed ? (
-                            <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-400/30 max-w-[280px] truncate" title={r.buyerInformed}>{r.buyerInformed}</span>
+                            (() => {
+                              const info = parseInformed(r.buyerInformed);
+                              return (
+                                <div className="min-w-0 max-w-[280px]" title={r.buyerInformed}>
+                                  <span className="inline-block px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-400/30 max-w-full truncate align-bottom">{info.text}</span>
+                                  {(info.by || info.at) && (
+                                    <div className="mt-0.5 text-[11px] text-purple-300/70 truncate">
+                                      {info.by && <span className="text-purple-200/90">{info.by}</span>}
+                                      {info.by && info.at && <span className="text-purple-300/40"> · </span>}
+                                      {info.at && <span className="tabular-nums">{info.at}</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()
                           ) : <span className="text-purple-300/40">—</span>}
-                          <button onClick={() => { setEditPo(r.poNumber); setDraft(''); setInformError(null); }} title="Add / edit remark" className="px-1.5 py-0.5 rounded text-[11px] text-fuchsia-300 hover:text-white hover:bg-fuchsia-500/20 border border-transparent hover:border-fuchsia-400/30">✎</button>
+                          <button onClick={() => { setEditPo(r.poNumber); setDraft(''); setInformError(null); }} title="Add / edit remark" className="px-1.5 py-0.5 rounded text-[11px] text-fuchsia-300 hover:text-white hover:bg-fuchsia-500/20 border border-transparent hover:border-fuchsia-400/30 shrink-0">✎</button>
                         </div>
                       )}
                       {editPo === r.poNumber && informError && <div className="text-[10px] text-rose-300 mt-1 max-w-[260px]">{informError}</div>}

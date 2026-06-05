@@ -69,6 +69,27 @@ function fmtCount(n: number): string {
   return n.toLocaleString('en-IN');
 }
 
+const PAGE_SIZE_OPTIONS = [25, 50, 75, 100] as const;
+
+// Prev/Next/First/Last pager button styling, dimmed when disabled.
+function pagerBtn(disabled: boolean): string {
+  return `px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${disabled ? 'bg-white/[0.03] text-purple-300/30 border-white/5 cursor-not-allowed' : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10 hover:text-white'}`;
+}
+
+// Build the compact page-number list with ellipses: always show first, last,
+// and a small window around the current page. Returns numbers and '…' markers.
+function pageList(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const out: (number | '…')[] = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  if (start > 2) out.push('…');
+  for (let p = start; p <= end; p++) out.push(p);
+  if (end < total - 1) out.push('…');
+  out.push(total);
+  return out;
+}
+
 // Stored "buyer informed" values are stamped server-side as
 // `<remark> — <Name> (<timestamp>)`. Split them back out so the table can
 // show the remark prominently with the author + time on a separate line.
@@ -98,6 +119,9 @@ export default function PoModifiedDashboard() {
   const [draft, setDraft] = useState('');
   const [savingInform, setSavingInform] = useState(false);
   const [informError, setInformError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [jumpTo, setJumpTo] = useState('');
 
   const saveInform = async (poNumber: string) => {
     setSavingInform(true);
@@ -194,6 +218,18 @@ export default function PoModifiedDashboard() {
         .some((v) => (v ?? '').toString().toLowerCase().includes(q))
     );
   }, [resp, search]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pageRows = useMemo(
+    () => rows.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [rows, safePage, pageSize]
+  );
+
+  // Snap back to page 1 whenever the filtered set or page size changes.
+  useEffect(() => { setPage(1); }, [search, range, customFrom, customTo, pageSize]);
+
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
 
   const openDrill = async (po: PoRow) => {
     if (!po.poNumber) return;
@@ -324,6 +360,20 @@ export default function PoModifiedDashboard() {
           >
             ↓ CSV
           </button>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs font-semibold tracking-wide text-purple-300/70 uppercase">Rows per page</span>
+            <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setPageSize(n)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${pageSize === n ? 'bg-fuchsia-500/30 text-white border border-fuchsia-400/50' : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* KPI strip */}
@@ -339,12 +389,13 @@ export default function PoModifiedDashboard() {
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
           <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
             <h3 className="text-base font-bold text-white">Modified Purchase Orders</h3>
-            <span className="text-xs text-purple-300/70">{loading ? 'Loading…' : `${rows.length.toLocaleString('en-IN')} POs`}</span>
+            <span className="text-xs text-purple-300/70">{loading ? 'Loading…' : `${rows.length.toLocaleString('en-IN')} rows · page ${safePage}/${totalPages}`}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[15px]">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-gradient-to-r from-fuchsia-600/30 via-purple-600/30 to-indigo-600/30 border-b-2 border-fuchsia-400/40 backdrop-blur-xl shadow-lg shadow-purple-900/20">
+                  <th className="px-4 py-3.5 text-right text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">#</th>
                   <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">PO Number</th>
                   <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Order Date &amp; Time</th>
                   <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Remarks</th>
@@ -364,13 +415,14 @@ export default function PoModifiedDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {pageRows.map((r, i) => (
                   <tr
                     key={r.poNumber}
                     onClick={() => openDrill(r)}
                     className="border-b border-white/5 hover:bg-fuchsia-500/10 transition-colors cursor-pointer"
                     title="View item-level detail"
                   >
+                    <td className="px-4 py-3 text-right tabular-nums text-purple-300/60 whitespace-nowrap">{(safePage - 1) * pageSize + i + 1}</td>
                     <td className="px-4 py-3 tabular-nums font-semibold text-fuchsia-200 whitespace-nowrap">{r.poNumber ?? '—'} <span className="text-purple-300/40">↗</span></td>
                     <td className="px-4 py-3 text-purple-100 whitespace-nowrap text-sm">{r.orderDateTime ?? '—'}</td>
                     <td className="px-4 py-3">
@@ -446,11 +498,49 @@ export default function PoModifiedDashboard() {
                   </tr>
                 ))}
                 {!loading && rows.length === 0 && (
-                  <tr><td colSpan={16} className="px-4 py-10 text-center text-purple-300/60">No modified POs in this range.</td></tr>
+                  <tr><td colSpan={17} className="px-4 py-10 text-center text-purple-300/60">No modified POs in this range.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination footer */}
+          {rows.length > 0 && (
+            <div className="flex items-center justify-center gap-2 flex-wrap px-6 py-4 border-t border-white/10 bg-white/[0.02]">
+              <button onClick={() => goToPage(1)} disabled={safePage <= 1} className={pagerBtn(safePage <= 1)} aria-label="First page">«</button>
+              <button onClick={() => goToPage(safePage - 1)} disabled={safePage <= 1} className={pagerBtn(safePage <= 1)}>‹ Prev</button>
+              {pageList(safePage, totalPages).map((p, idx) =>
+                p === '…' ? (
+                  <span key={`e${idx}`} className="px-2 text-purple-300/50 select-none">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => goToPage(p)}
+                    className={`min-w-[40px] px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors border ${p === safePage ? 'bg-fuchsia-500/40 text-white border-fuchsia-400/60 shadow-lg shadow-fuchsia-900/30' : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10 hover:text-white'}`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+              <button onClick={() => goToPage(safePage + 1)} disabled={safePage >= totalPages} className={pagerBtn(safePage >= totalPages)}>Next ›</button>
+              <button onClick={() => goToPage(totalPages)} disabled={safePage >= totalPages} className={pagerBtn(safePage >= totalPages)} aria-label="Last page">»</button>
+              <form
+                onSubmit={(e) => { e.preventDefault(); const p = Number(jumpTo); if (Number.isFinite(p) && p > 0) { goToPage(p); setJumpTo(''); } }}
+                className="flex items-center gap-2 ml-2"
+              >
+                <input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={jumpTo}
+                  onChange={(e) => setJumpTo(e.target.value)}
+                  placeholder={`1–${totalPages}`}
+                  className="w-24 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm text-center placeholder-purple-300/40 focus:outline-none focus:border-fuchsia-400/50 tabular-nums"
+                />
+                <button type="submit" className="px-4 py-1.5 rounded-lg bg-fuchsia-500/30 hover:bg-fuchsia-500/50 border border-fuchsia-400/50 text-white text-sm font-bold transition-colors">Go</button>
+              </form>
+            </div>
+          )}
         </div>
 
         {resp && (

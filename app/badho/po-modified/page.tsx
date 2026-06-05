@@ -331,25 +331,25 @@ export default function PoModifiedDashboard() {
             <span className="text-xs text-purple-300/70">{loading ? 'Loading…' : `${rows.length.toLocaleString('en-IN')} POs`}</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-white/5 border-b border-white/10">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">PO Number</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Order Date &amp; Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Remarks</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Previous PO Amount</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">New PO Amount</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Value Lost</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Payment Type</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Buyer Paid</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Refundable</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-purple-200">Refund Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Refund Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Refund Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">PO Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Brand</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-purple-200">Buyer Informed</th>
+            <table className="w-full text-[15px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-gradient-to-r from-fuchsia-600/30 via-purple-600/30 to-indigo-600/30 border-b-2 border-fuchsia-400/40 backdrop-blur-xl shadow-lg shadow-purple-900/20">
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">PO Number</th>
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Order Date &amp; Time</th>
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Remarks</th>
+                  <th className="px-4 py-3.5 text-right text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Previous PO Amount</th>
+                  <th className="px-4 py-3.5 text-right text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">New PO Amount</th>
+                  <th className="px-4 py-3.5 text-right text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Value Lost</th>
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Payment Type</th>
+                  <th className="px-4 py-3.5 text-right text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Buyer Paid</th>
+                  <th className="px-4 py-3.5 text-right text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Refundable</th>
+                  <th className="px-4 py-3.5 text-right text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Refund Amount</th>
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Refund Status</th>
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Refund Time</th>
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">PO Status</th>
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Brand</th>
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Buyer</th>
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Buyer Informed</th>
                 </tr>
               </thead>
               <tbody>
@@ -361,7 +361,7 @@ export default function PoModifiedDashboard() {
                     title="View item-level detail"
                   >
                     <td className="px-4 py-3 tabular-nums font-semibold text-fuchsia-200 whitespace-nowrap">{r.poNumber ?? '—'} <span className="text-purple-300/40">↗</span></td>
-                    <td className="px-4 py-3 text-purple-100 whitespace-nowrap text-xs">{r.orderDateTime ?? '—'}</td>
+                    <td className="px-4 py-3 text-purple-100 whitespace-nowrap text-sm">{r.orderDateTime ?? '—'}</td>
                     <td className="px-4 py-3">
                       {(r.remarks ?? '').split(', ').filter(Boolean).map((rm) => (
                         <span key={rm} className={`inline-block mr-1 px-2 py-0.5 rounded-md text-xs font-semibold ${rm === 'Item Removed' ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30' : 'bg-amber-500/15 text-amber-200 border border-amber-400/30'}`}>{rm}</span>
@@ -387,12 +387,12 @@ export default function PoModifiedDashboard() {
                         <span className="text-purple-300/40">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-purple-100 text-xs whitespace-nowrap">{r.refundTime ?? '—'}</td>
-                    <td className="px-4 py-3 text-purple-100 text-xs whitespace-nowrap">{r.poStatus ?? '—'}</td>
-                    <td className="px-4 py-3 text-purple-100 text-xs max-w-[160px] truncate" title={r.brandName ?? ''}>{r.brandName ?? '—'}</td>
-                    <td className="px-4 py-3 text-purple-100 text-xs max-w-[200px] truncate" title={`${r.buyerBusiness ?? ''} ${r.buyerPhone ?? ''}`}>
+                    <td className="px-4 py-3 text-purple-100 text-sm whitespace-nowrap">{r.refundTime ?? '—'}</td>
+                    <td className="px-4 py-3 text-purple-100 text-sm whitespace-nowrap">{r.poStatus ?? '—'}</td>
+                    <td className="px-4 py-3 text-purple-100 text-sm max-w-[160px] truncate" title={r.brandName ?? ''}>{r.brandName ?? '—'}</td>
+                    <td className="px-4 py-3 text-purple-100 text-sm max-w-[200px] truncate" title={`${r.buyerBusiness ?? ''} ${r.buyerPhone ?? ''}`}>
                       <div className="truncate">{r.buyerBusiness ?? '—'}</div>
-                      <div className="text-[11px] text-sky-300/80 tabular-nums">{r.buyerPhone ?? ''}</div>
+                      <div className="text-xs text-sky-300/80 tabular-nums">{r.buyerPhone ?? ''}</div>
                     </td>
                     <td className="px-4 py-3 text-xs" onClick={(e) => e.stopPropagation()}>
                       {editPo === r.poNumber ? (

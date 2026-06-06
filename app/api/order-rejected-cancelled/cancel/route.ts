@@ -126,6 +126,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // For cancel: the operator's free-text remark is the cancelReason (falls
+    // back to the picked reason if no remark was entered); the picked reason is
+    // preserved in reasonAddedByBadhoTeam.
     const upd = await client.query<{ poNumber: string; status: string; markedCancelledTime: string }>(
       `UPDATE "purchaseOrder"."purchaseOrder"
           SET "status"              = 'CANCELLED',
@@ -133,11 +136,11 @@ export async function POST(req: NextRequest) {
               "markedCancelledTime" = NOW(),
               "modifiedById"        = $3,
               "modifiedByRole"      = $4,
-              "reasonAddedByBadhoTeam" = COALESCE($5, "reasonAddedByBadhoTeam"),
+              "reasonAddedByBadhoTeam" = $5,
               "updated_at"          = NOW()
         WHERE "id" = $1
         RETURNING "poNumber"::text AS "poNumber", "status", "markedCancelledTime"`,
-      [id, reason, modifiedById, modifiedByRole, remark],
+      [id, remark ?? reason, modifiedById, modifiedByRole, reason],
     );
 
     if (upd.rowCount === 0) {

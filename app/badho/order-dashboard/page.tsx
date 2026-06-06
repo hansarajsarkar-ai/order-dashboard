@@ -806,6 +806,7 @@ export default function OrderStatusDashboard() {
   // Price Breakup panel — opens alongside the PO Items modal when "View Items" is clicked
   interface PriceBreakup {
     orderAmount: number | null;
+    itemTotalAmount?: number | null;
     itemDiscount?: number | null;
     couponAmount: number | null;
     badhoDiscount: number | null;
@@ -11151,154 +11152,63 @@ export default function OrderStatusDashboard() {
 
             {/* Price Breakup — sleek companion panel on the right */}
             {priceBreakup && (() => {
-              const order = priceBreakup.orderAmount ?? 0;
-              const itemDisc = priceBreakup.itemDiscount ?? 0;
+              const gross = priceBreakup.orderAmount ?? 0;            // GrossAmount = amount + platformMarginDiscount
+              const itemTotal = priceBreakup.itemTotalAmount ?? 0;    // Item Total Amount = po.amount
+              const itemDisc = priceBreakup.itemDiscount ?? 0;        // platformMarginDiscount
               const coupon = priceBreakup.couponAmount ?? 0;
-              const badho = priceBreakup.badhoDiscount ?? 0;
-              const wallet = priceBreakup.appliedWalletAmount ?? 0;
               const sellerDisc = priceBreakup.sellerDiscount ?? 0;
+              const badho = priceBreakup.badhoDiscount ?? 0;
               const upiDisc = priceBreakup.upiDiscountBySeller ?? 0;
               const volumeDisc = priceBreakup.volumeDiscount ?? 0;
-              const anotherDisc = priceBreakup.totalDiscount ?? 0;
+              const wallet = priceBreakup.appliedWalletAmount ?? 0;
+              const anotherDisc = priceBreakup.totalDiscount ?? 0;    // AnotherDiscount = po.totalDiscount
               const paid = priceBreakup.paidAmount ?? 0;
-              // Payable deductions only. itemDiscount is already baked into the gross
-              // Order Amount, and totalDiscount ("Another Discount") is a summary of
-              // the others — both are shown as informational rows so they don't
-              // double-count against Net Payable.
-              const totalDeductions = coupon + badho + wallet + sellerDisc + upiDisc + volumeDisc;
-              const net = order - totalDeductions;
+              // Spec: Total Discount = every discount component (incl. item discount).
+              const totalDiscount = itemDisc + coupon + sellerDisc + badho + upiDisc + volumeDisc + wallet + anotherDisc;
+              // Amount to be paid = Item Total Amount − Total Discount.
+              const amountToBePaid = itemTotal - totalDiscount;
+              // Net Payable = Amount to be paid − Paid Amount.
+              const netPayable = amountToBePaid - paid;
               const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: n % 1 === 0 ? 0 : 2 })}`;
-              type Line = { key: string; label: string; sub?: string; value: number; sign: 'plus' | 'minus' | 'total' | 'info'; iconBg: string; iconRing: string; icon: React.ReactNode };
-              // Every column from the breakup query is rendered, always — unused ones
-              // show ₹0 rather than being hidden.
-              const lines: Line[] = [
+
+              type DLine = { key: string; label: string; value: number; iconBg: string; icon: React.ReactNode };
+              // The eight discount components that sum to Total Discount — every one
+              // is shown, ₹0 included, in the same order as the source breakup.
+              const discountLines: DLine[] = [
                 {
-                  key: 'order',
-                  label: 'Order Amount',
-                  sub: 'Gross — sum of items',
-                  value: order,
-                  sign: 'plus',
-                  iconBg: 'from-indigo-500 to-violet-600',
-                  iconRing: 'shadow-[0_0_20px_-2px_rgba(99,102,241,0.55)]',
-                  icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M3 7h18l-2 12H5L3 7Z" /><path d="M16 11a4 4 0 0 1-8 0" /><path d="M8 7V5a4 4 0 0 1 8 0v2" />
-                    </svg>
-                  ),
+                  key: 'itemDisc', label: 'Item Discount', value: itemDisc, iconBg: 'from-slate-400 to-slate-500',
+                  icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>),
                 },
                 {
-                  key: 'itemDisc',
-                  label: 'Item Discount',
-                  sub: 'Platform margin — incl. in order amount',
-                  value: itemDisc,
-                  sign: 'info',
-                  iconBg: 'from-slate-400 to-slate-500',
-                  iconRing: 'shadow-[0_0_20px_-2px_rgba(100,116,139,0.45)]',
-                  icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z" /><line x1="7" y1="7" x2="7.01" y2="7" />
-                    </svg>
-                  ),
+                  key: 'coupon', label: 'Coupon Applied', value: coupon, iconBg: 'from-fuchsia-500 to-pink-600',
+                  icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 12V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v5a2 2 0 0 1 0 4v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2 2 0 0 1 0-4Z" /><line x1="15" y1="9" x2="9" y2="15" /></svg>),
                 },
                 {
-                  key: 'coupon',
-                  label: 'Coupon Applied',
-                  sub: 'Offer discount',
-                  value: coupon,
-                  sign: 'minus',
-                  iconBg: 'from-fuchsia-500 to-pink-600',
-                  iconRing: 'shadow-[0_0_20px_-2px_rgba(217,70,239,0.55)]',
-                  icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M20 12V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v5a2 2 0 0 1 0 4v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2 2 0 0 1 0-4Z" /><line x1="9" y1="9" x2="9" y2="9.01" /><line x1="15" y1="15" x2="15" y2="15.01" /><line x1="15" y1="9" x2="9" y2="15" />
-                    </svg>
-                  ),
+                  key: 'sellerDisc', label: 'Discount by Seller', value: sellerDisc, iconBg: 'from-rose-500 to-red-600',
+                  icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="19" y1="5" x2="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /></svg>),
                 },
                 {
-                  key: 'sellerDisc',
-                  label: 'Seller Discount',
-                  sub: 'Payment-preference — by seller',
-                  value: sellerDisc,
-                  sign: 'minus',
-                  iconBg: 'from-rose-500 to-red-600',
-                  iconRing: 'shadow-[0_0_20px_-2px_rgba(244,63,94,0.55)]',
-                  icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <line x1="19" y1="5" x2="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" />
-                    </svg>
-                  ),
+                  key: 'badho', label: 'Discount by Badho', value: badho, iconBg: 'from-amber-500 to-orange-600',
+                  icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="12 2 15 8.5 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 8.5 12 2" /></svg>),
                 },
                 {
-                  key: 'badho',
-                  label: 'Badho Discount',
-                  sub: 'Payment-preference — by Badho',
-                  value: badho,
-                  sign: 'minus',
-                  iconBg: 'from-amber-500 to-orange-600',
-                  iconRing: 'shadow-[0_0_20px_-2px_rgba(245,158,11,0.55)]',
-                  icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <polygon points="12 2 15 8.5 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 8.5 12 2" />
-                    </svg>
-                  ),
+                  key: 'upiDisc', label: 'UPI Discount by Seller', value: upiDisc, iconBg: 'from-violet-500 to-purple-600',
+                  icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>),
                 },
                 {
-                  key: 'upiDisc',
-                  label: 'UPI Discount',
-                  sub: 'Payment-method adjustment',
-                  value: upiDisc,
-                  sign: 'minus',
-                  iconBg: 'from-violet-500 to-purple-600',
-                  iconRing: 'shadow-[0_0_20px_-2px_rgba(139,92,246,0.55)]',
-                  icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
-                    </svg>
-                  ),
+                  key: 'volumeDisc', label: 'Applied Volume Discount', value: volumeDisc, iconBg: 'from-sky-500 to-blue-600',
+                  icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" /><rect x="12" y="8" width="3" height="10" /><rect x="17" y="4" width="3" height="14" /></svg>),
                 },
                 {
-                  key: 'volumeDisc',
-                  label: 'Volume Discount',
-                  sub: 'Bulk-quantity discount',
-                  value: volumeDisc,
-                  sign: 'minus',
-                  iconBg: 'from-sky-500 to-blue-600',
-                  iconRing: 'shadow-[0_0_20px_-2px_rgba(14,165,233,0.55)]',
-                  icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" /><rect x="12" y="8" width="3" height="10" /><rect x="17" y="4" width="3" height="14" />
-                    </svg>
-                  ),
+                  key: 'wallet', label: 'Applied Wallet Amount', value: wallet, iconBg: 'from-cyan-500 to-teal-600',
+                  icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 12V8H6a2 2 0 0 1 0-4h12v4" /><path d="M4 6v12a2 2 0 0 0 2 2h14v-4" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></svg>),
                 },
                 {
-                  key: 'wallet',
-                  label: 'Wallet Applied',
-                  sub: 'Buyer wallet credit',
-                  value: wallet,
-                  sign: 'minus',
-                  iconBg: 'from-cyan-500 to-teal-600',
-                  iconRing: 'shadow-[0_0_20px_-2px_rgba(6,182,212,0.55)]',
-                  icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M20 12V8H6a2 2 0 0 1 0-4h12v4" /><path d="M4 6v12a2 2 0 0 0 2 2h14v-4" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
-                    </svg>
-                  ),
-                },
-                {
-                  key: 'anotherDisc',
-                  label: 'Another Discount',
-                  sub: 'Total discount on order (summary)',
-                  value: anotherDisc,
-                  sign: 'info',
-                  iconBg: 'from-slate-400 to-slate-500',
-                  iconRing: 'shadow-[0_0_20px_-2px_rgba(100,116,139,0.45)]',
-                  icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M4 2h16v20l-3-2-2 2-3-2-3 2-2-2-3 2V2Z" /><line x1="8" y1="8" x2="16" y2="8" /><line x1="8" y1="12" x2="16" y2="12" />
-                    </svg>
-                  ),
+                  key: 'anotherDisc', label: 'Another Discount', value: anotherDisc, iconBg: 'from-slate-400 to-slate-500',
+                  icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 2h16v20l-3-2-2 2-3-2-3 2-2-2-3 2V2Z" /><line x1="8" y1="8" x2="16" y2="8" /><line x1="8" y1="12" x2="16" y2="12" /></svg>),
                 },
               ];
+              const fullyCovered = netPayable <= 0.005;
               return (
                 <div
                   className="relative w-[34vw] max-w-md max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-white text-slate-900 border border-slate-200 shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45),0_0_60px_-10px_rgba(168,85,247,0.3)] animate-modal-scale"
@@ -11340,47 +11250,66 @@ export default function OrderStatusDashboard() {
                     </div>
                   </header>
 
-                  <div className="relative flex-1 overflow-y-auto px-5 py-4 space-y-2">
-                    {lines.map((ln) => (
-                      <div
-                        key={ln.key}
-                        className="group relative flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 transition-all"
-                      >
-                        <div className={`shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br ${ln.iconBg} flex items-center justify-center ${ln.iconRing}`}>
-                          {ln.icon}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold text-slate-800 truncate">{ln.label}</div>
-                          {ln.sub && <div className="text-[10px] text-slate-500 truncate">{ln.sub}</div>}
-                        </div>
-                        <div className={`tabular-nums font-extrabold text-base ${ln.sign === 'minus' ? 'text-rose-600' : ln.sign === 'info' ? 'text-slate-400' : 'text-slate-900'}`}>
-                          {ln.sign === 'minus' && ln.value > 0 ? '− ' : ''}{fmt(ln.value)}
-                        </div>
+                  <div className="relative flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                    {/* Order value — Gross & Item Total side by side */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2.5">
+                        <div className="text-[10px] uppercase tracking-wider text-indigo-500 font-bold">Gross Amount</div>
+                        <div className="tabular-nums font-extrabold text-lg text-slate-900 leading-tight">{fmt(gross)}</div>
+                        <div className="text-[10px] text-slate-400">items + item discount</div>
                       </div>
-                    ))}
+                      <div className="rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-2.5">
+                        <div className="text-[10px] uppercase tracking-wider text-violet-500 font-bold">Item Total Amount</div>
+                        <div className="tabular-nums font-extrabold text-lg text-slate-900 leading-tight">{fmt(itemTotal)}</div>
+                        <div className="text-[10px] text-slate-400">base for payable</div>
+                      </div>
+                    </div>
+
+                    {/* Discount components */}
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-2 px-1">Discounts</div>
+                      <div className="space-y-1.5">
+                        {discountLines.map((ln) => (
+                          <div
+                            key={ln.key}
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200"
+                          >
+                            <div className={`shrink-0 w-7 h-7 rounded-md bg-gradient-to-br ${ln.iconBg} flex items-center justify-center`}>
+                              {ln.icon}
+                            </div>
+                            <div className="min-w-0 flex-1 text-xs font-semibold text-slate-700 truncate">{ln.label}</div>
+                            <div className={`tabular-nums font-bold text-sm ${ln.value > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                              {ln.value > 0 ? '− ' : ''}{fmt(ln.value)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Total Discount subtotal */}
+                      <div className="flex items-center justify-between gap-3 mt-2 px-3 py-2.5 rounded-lg bg-rose-50 border border-rose-200">
+                        <span className="text-xs font-extrabold uppercase tracking-wide text-rose-700">Total Discount</span>
+                        <span className="tabular-nums font-extrabold text-base text-rose-700">− {fmt(totalDiscount)}</span>
+                      </div>
+                    </div>
                   </div>
 
                   <footer className="relative px-5 py-4 border-t border-slate-200 bg-gradient-to-r from-emerald-50 via-emerald-100/60 to-emerald-50">
-                    <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-slate-700 font-semibold">Amount to be paid</span>
+                      <span className="tabular-nums font-extrabold text-slate-900">{fmt(amountToBePaid)}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 -mt-0.5">Item Total − Total Discount</div>
+                    <div className="flex items-center justify-between gap-3 mt-2 text-xs">
+                      <span className="text-slate-600">{priceBreakup.paymentOption === 'PARTIALLY_PAID' ? 'Partial paid' : 'Paid amount'}</span>
+                      <span className="tabular-nums font-bold text-emerald-700">{paid > 0 ? '− ' : ''}{fmt(paid)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 mt-2 pt-3 border-t border-emerald-200">
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.7)] animate-pulse" />
-                        <span className="text-[10px] uppercase tracking-[0.25em] text-emerald-700 font-bold">Net Payable</span>
+                        <div className={`w-2 h-2 rounded-full ${fullyCovered ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.7)]' : 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.7)]'} animate-pulse`} />
+                        <span className={`text-[10px] uppercase tracking-[0.25em] font-bold ${fullyCovered ? 'text-emerald-700' : 'text-amber-700'}`}>Net Payable</span>
                       </div>
-                      <span className="tabular-nums text-2xl font-extrabold bg-gradient-to-r from-emerald-700 via-emerald-600 to-emerald-700 bg-clip-text text-transparent">
-                        {fmt(net)}
+                      <span className={`tabular-nums text-2xl font-extrabold bg-clip-text text-transparent ${fullyCovered ? 'bg-gradient-to-r from-emerald-700 via-emerald-600 to-emerald-700' : 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700'}`}>
+                        {netPayable < 0 ? `− ${fmt(Math.abs(netPayable))}` : fmt(netPayable)}
                       </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 mt-1 text-xs">
-                      <span className="text-slate-600">{priceBreakup.paymentOption === 'PARTIALLY_PAID' ? 'Partial paid' : 'Already paid'}</span>
-                      <span className="tabular-nums font-bold text-emerald-700">{paid > 0 ? '−' : ''}{fmt(paid)}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-emerald-200 text-sm">
-                      <span className="text-slate-700 font-semibold">To be paid</span>
-                      <span className="tabular-nums font-extrabold text-amber-700">{fmt(Math.max(0, net - paid))}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 mt-1 text-[10px] text-slate-500">
-                      <span>Total deductions</span>
-                      <span className="tabular-nums">{fmt(totalDeductions)}</span>
                     </div>
                   </footer>
                 </div>

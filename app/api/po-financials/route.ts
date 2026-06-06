@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 
 interface Row {
   orderAmount: string | null;
+  itemTotalAmount: string | null;
   itemDiscount: string | null;
   couponAmount: string | null;
   paymentOption: string | null;
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest) {
     const sql = `
       SELECT
         (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text          AS "orderAmount",
+        COALESCE(po."amount", 0)::numeric::text                                                    AS "itemTotalAmount",
         COALESCE(po."platformMarginDiscount", 0)::numeric::text                                    AS "itemDiscount",
         po."appliedOfferDiscount"::text                                                            AS "couponAmount",
         po."paymentInfo"->>'option'                                                                AS "paymentOption",
@@ -72,6 +74,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       data: {
         orderAmount: num(r.orderAmount),
+        itemTotalAmount: num(r.itemTotalAmount),
         itemDiscount: num(r.itemDiscount),
         couponAmount: num(r.couponAmount),
         badhoDiscount: num(r.badhoDiscount),

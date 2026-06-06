@@ -105,31 +105,63 @@ const fmtDateTime = (s: string | null) => {
   }
 };
 
-const STATUS_BADGE: Record<string, string> = {
-  COMPLETED: 'bg-cyan-500/20 text-cyan-200 border-cyan-400/30',
-  DELIVERED: 'bg-blue-500/20 text-blue-200 border-blue-400/30',
-  PENDING: 'bg-amber-500/20 text-amber-200 border-amber-400/30',
-  REJECTED: 'bg-red-500/20 text-red-200 border-red-400/30',
-  CANCELLED: 'bg-gray-500/20 text-gray-200 border-gray-400/30',
+const STATUS_BADGE: Record<string, { cls: string; dot: string }> = {
+  COMPLETED: { cls: 'bg-cyan-500/15 text-cyan-200 border-cyan-400/30', dot: 'bg-cyan-400' },
+  DELIVERED: { cls: 'bg-blue-500/15 text-blue-200 border-blue-400/30', dot: 'bg-blue-400' },
+  PENDING: { cls: 'bg-amber-500/15 text-amber-200 border-amber-400/30', dot: 'bg-amber-400' },
+  REJECTED: { cls: 'bg-rose-500/15 text-rose-200 border-rose-400/30', dot: 'bg-rose-400' },
+  CANCELLED: { cls: 'bg-slate-500/15 text-slate-200 border-slate-400/30', dot: 'bg-slate-400' },
 };
 
-function Card({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+const DELIVERY_BADGE: Record<string, string> = {
+  DELIVERED: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30',
+  RTO: 'bg-rose-500/15 text-rose-200 border-rose-400/30',
+  RETURNED: 'bg-rose-500/15 text-rose-200 border-rose-400/30',
+  IN_TRANSIT: 'bg-sky-500/15 text-sky-200 border-sky-400/30',
+  DISPATCHED: 'bg-sky-500/15 text-sky-200 border-sky-400/30',
+};
+
+interface Accent {
+  chip: string; // gradient for the icon chip
+  glow: string; // shadow tint
+  bar: string;  // top accent bar gradient
+  label: string; // section label text color
+}
+
+const ACCENTS: Record<string, Accent> = {
+  fuchsia: { chip: 'from-fuchsia-500 to-purple-600', glow: 'shadow-fuchsia-500/40', bar: 'from-fuchsia-400/70 via-purple-400/40 to-transparent', label: 'text-fuchsia-300/90' },
+  cyan: { chip: 'from-sky-500 to-cyan-600', glow: 'shadow-cyan-500/40', bar: 'from-sky-400/70 via-cyan-400/40 to-transparent', label: 'text-sky-300/90' },
+  emerald: { chip: 'from-emerald-500 to-teal-600', glow: 'shadow-emerald-500/40', bar: 'from-emerald-400/70 via-teal-400/40 to-transparent', label: 'text-emerald-300/90' },
+  amber: { chip: 'from-amber-500 to-orange-600', glow: 'shadow-amber-500/40', bar: 'from-amber-400/70 via-orange-400/40 to-transparent', label: 'text-amber-300/90' },
+  indigo: { chip: 'from-indigo-500 to-violet-600', glow: 'shadow-indigo-500/40', bar: 'from-indigo-400/70 via-violet-400/40 to-transparent', label: 'text-indigo-300/90' },
+};
+
+const initials = (name: string | null) =>
+  (name || '?').split(/\s+/).map((w) => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase();
+
+function Card({ accent, title, icon, action, children }: { accent: Accent; title: string; icon: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:border-fuchsia-400/40">
-      <div className="px-5 py-3 border-b border-white/10 flex items-center gap-2">
-        <span className="text-lg">{icon}</span>
-        <h3 className="text-sm font-bold text-white uppercase tracking-wide">{title}</h3>
+    <div className="group relative rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-white/20 hover:shadow-[0_16px_50px_-20px_rgba(0,0,0,0.7)] hover:-translate-y-0.5">
+      <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${accent.bar}`} />
+      <div className="px-5 pt-5 pb-3 flex items-center gap-3">
+        <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${accent.chip} flex items-center justify-center text-base shadow-lg ${accent.glow}`}>
+          {icon}
+        </div>
+        <h3 className="text-[12px] font-bold text-white/90 uppercase tracking-[0.12em] flex-1">{title}</h3>
+        {action}
       </div>
-      <div className="p-5">{children}</div>
+      <div className="px-5 pb-5">{children}</div>
     </div>
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
+function Row({ label, value, mono, strong, valueClass }: { label: string; value: React.ReactNode; mono?: boolean; strong?: boolean; valueClass?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5 border-b border-white/5 last:border-0">
-      <span className="text-xs text-white/50 whitespace-nowrap">{label}</span>
-      <span className={`text-sm text-white/90 text-right ${mono ? 'tabular-nums' : ''}`}>{value ?? '—'}</span>
+    <div className="flex items-center justify-between gap-4 py-2 border-b border-white/[0.06] last:border-0">
+      <span className="text-[12px] text-white/45 whitespace-nowrap">{label}</span>
+      <span className={`text-right ${strong ? 'text-[15px] font-bold text-white' : 'text-[13px] text-white/85'} ${mono ? 'tabular-nums' : ''} ${valueClass || ''}`}>
+        {value ?? '—'}
+      </span>
     </div>
   );
 }
@@ -367,61 +399,77 @@ export default function OrderRejectedCancelledDashboard() {
           </div>
         )}
 
-        {data && (
+        {data && (() => {
+          const badge = STATUS_BADGE[data.status] || { cls: 'bg-white/5 text-white/70 border-white/10', dot: 'bg-white/50' };
+          const itemTotals = (items || []).reduce(
+            (acc, it) => ({ qty: acc.qty + (it.quantity || 0), discount: acc.discount + (it.discount || 0), total: acc.total + (it.total || 0) }),
+            { qty: 0, discount: 0, total: 0 },
+          );
+          const discountRow = (label: string, v: number | null | undefined) => (
+            <Row label={label} value={rupee(v)} mono valueClass={v && v > 0 ? 'text-emerald-300' : 'text-white/85'} />
+          );
+          return (
           <>
-            {/* Summary strip */}
-            <div className="mb-5 flex items-center justify-between flex-wrap gap-3 bg-white/5 border border-white/10 rounded-2xl px-5 py-4">
-              <div className="flex items-center gap-4 flex-wrap">
-                <div>
-                  <div className="text-xs text-white/50">PO Number</div>
-                  <div className="text-xl font-bold text-white">{data.poNumber}</div>
+            {/* Hero header */}
+            <div className="mb-6 relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-fuchsia-600/15 via-purple-600/10 to-indigo-600/15 px-6 py-5">
+              <div className="absolute -top-12 -right-10 w-48 h-48 bg-fuchsia-500/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="relative flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-5 flex-wrap">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.15em] text-white/50">Purchase Order</div>
+                    <div className="text-3xl font-extrabold text-white tabular-nums leading-tight">{data.poNumber}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${badge.cls}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
+                      {data.status}
+                    </span>
+                    <span className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border ${data.pushedStatus === 'Pushed' ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30' : 'bg-white/5 text-white/60 border-white/10'}`}>
+                      {data.pushedStatus}
+                    </span>
+                  </div>
+                  <div className="pl-1">
+                    <div className="text-[11px] uppercase tracking-[0.12em] text-white/40">Marked Pending</div>
+                    <div className="text-sm text-white/90 font-medium">{fmtDateTime(data.markedPendingTime)}</div>
+                  </div>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${STATUS_BADGE[data.status] || 'bg-white/5 text-white/70 border-white/10'}`}>
-                  {data.status}
-                </span>
-                <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${data.pushedStatus === 'Pushed' ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30' : 'bg-white/5 text-white/60 border-white/10'}`}>
-                  {data.pushedStatus}
-                </span>
-                <div>
-                  <div className="text-xs text-white/50">Marked Pending</div>
-                  <div className="text-sm text-white/90">{fmtDateTime(data.markedPendingTime)}</div>
-                </div>
+                {isTerminal ? (
+                  <span className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-white/60">
+                    Order already {data.status.toLowerCase()}
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => openModal('reject')}
+                      className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-br from-rose-500 to-red-600 shadow-[0_8px_24px_-8px_rgba(244,63,94,0.7)] hover:shadow-[0_10px_30px_-6px_rgba(244,63,94,0.85)] hover:-translate-y-0.5 transition-all"
+                    >
+                      <span className="text-base leading-none">⊘</span> Reject
+                    </button>
+                    <button
+                      onClick={() => openModal('cancel')}
+                      className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-br from-amber-500 to-orange-600 shadow-[0_8px_24px_-8px_rgba(245,158,11,0.7)] hover:shadow-[0_10px_30px_-6px_rgba(245,158,11,0.85)] hover:-translate-y-0.5 transition-all"
+                    >
+                      <span className="text-base leading-none">✕</span> Cancel
+                    </button>
+                  </div>
+                )}
               </div>
-              {/* Reject / Cancel actions */}
-              {isTerminal ? (
-                <span className="text-xs text-white/50 italic">Order already {data.status.toLowerCase()}</span>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => openModal('reject')}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-500/20 hover:bg-red-500/30 border border-red-400/40 text-red-100 transition-colors"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    onClick={() => openModal('cancel')}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-100 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Existing reason / audit, when terminal */}
             {isTerminal && (
-              <div className="mb-5 px-5 py-4 rounded-2xl bg-white/[0.03] border border-white/10 text-sm text-white/80 space-y-1">
+              <div className={`mb-6 px-5 py-4 rounded-2xl border text-sm space-y-1.5 ${data.status === 'REJECTED' ? 'bg-rose-500/[0.07] border-rose-400/20' : 'bg-slate-500/[0.07] border-slate-400/20'}`}>
                 {data.status === 'REJECTED' && (
                   <>
-                    <div><span className="text-white/50">Reject reason:</span> {data.rejectReason || '—'}</div>
-                    <div><span className="text-white/50">Rejected by:</span> {data.rejectedBy || '—'}</div>
-                    <div><span className="text-white/50">Marked rejected:</span> {fmtDateTime(data.markedRejectedTime)}</div>
+                    <div><span className="text-white/45">Reject reason:</span> <span className="text-white/90 font-medium">{data.rejectReason || '—'}</span></div>
+                    <div><span className="text-white/45">Rejected by:</span> <span className="text-white/90">{data.rejectedBy || '—'}</span></div>
+                    <div><span className="text-white/45">Marked rejected:</span> <span className="text-white/90">{fmtDateTime(data.markedRejectedTime)}</span></div>
                   </>
                 )}
                 {data.status === 'CANCELLED' && (
                   <>
-                    <div><span className="text-white/50">Cancel reason:</span> {data.cancelReason || '—'}</div>
-                    <div><span className="text-white/50">Marked cancelled:</span> {fmtDateTime(data.markedCancelledTime)}</div>
+                    <div><span className="text-white/45">Cancel reason:</span> <span className="text-white/90 font-medium">{data.cancelReason || '—'}</span></div>
+                    <div><span className="text-white/45">Marked cancelled:</span> <span className="text-white/90">{fmtDateTime(data.markedCancelledTime)}</span></div>
                   </>
                 )}
               </div>
@@ -430,72 +478,129 @@ export default function OrderRejectedCancelledDashboard() {
             {/* Five cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* 1. Parties */}
-              <Card title="Seller & Buyer" icon="🧑‍🤝‍🧑">
-                <div className="space-y-4">
-                  <div>
-                    <div className="text-[11px] uppercase tracking-wide text-fuchsia-300/80 mb-1">Seller</div>
-                    <div className="text-sm font-semibold text-white">{data.seller.businessName || '—'}</div>
-                    <div className="text-xs text-white/60 mt-0.5">📞 {data.seller.phone || '—'}</div>
-                    {data.seller.location && <div className="text-xs text-white/50 mt-0.5">📍 {data.seller.location}</div>}
+              <Card accent={ACCENTS.fuchsia} title="Seller & Buyer" icon="🤝">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500/40 to-purple-600/40 border border-fuchsia-400/30 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                      {initials(data.seller.businessName)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider text-fuchsia-300/80">Seller</div>
+                      <div className="text-sm font-semibold text-white truncate">{data.seller.businessName || '—'}</div>
+                      <div className="text-xs text-white/55 mt-0.5 flex items-center gap-1.5">
+                        <span>📞 {data.seller.phone || '—'}</span>
+                      </div>
+                      {data.seller.location && <div className="text-xs text-white/45 mt-0.5">📍 {data.seller.location}</div>}
+                    </div>
                   </div>
-                  <div className="border-t border-white/10 pt-3">
-                    <div className="text-[11px] uppercase tracking-wide text-fuchsia-300/80 mb-1">Buyer</div>
-                    <div className="text-sm font-semibold text-white">{data.buyer.businessName || '—'}</div>
-                    <div className="text-xs text-white/60 mt-0.5">📞 {data.buyer.phone || '—'}</div>
-                    <div className="text-xs text-white/50 mt-1 leading-relaxed">📍 {data.buyer.address || '—'}</div>
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/40 to-blue-600/40 border border-indigo-400/30 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                      {initials(data.buyer.businessName)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider text-indigo-300/80">Buyer</div>
+                      <div className="text-sm font-semibold text-white truncate">{data.buyer.businessName || '—'}</div>
+                      <div className="text-xs text-white/55 mt-0.5">📞 {data.buyer.phone || '—'}</div>
+                      <div className="text-xs text-white/45 mt-1 leading-relaxed">📍 {data.buyer.address || '—'}</div>
+                    </div>
                   </div>
                 </div>
               </Card>
 
               {/* 2. Delivery & Ticket */}
-              <Card title="Delivery & Ticket" icon="🚚">
-                <Field label="AWB Number" value={data.delivery.awbNumber} mono />
-                <Field label="Delivery Number" value={data.delivery.deliveryId} mono />
-                <Field label="Courier" value={[data.delivery.courierName, data.delivery.partner].filter(Boolean).join(' · ') || '—'} />
-                <Field label="Delivery Status" value={data.delivery.status} />
-                <Field
-                  label="Tracking"
-                  value={data.delivery.trackingUrl ? (
-                    <a href={data.delivery.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-fuchsia-300 hover:underline">Track ↗</a>
-                  ) : '—'}
-                />
-                <div className="mt-2 pt-2 border-t border-white/10">
+              <Card
+                accent={ACCENTS.cyan}
+                title="Delivery & Ticket"
+                icon="🚚"
+                action={data.delivery.status ? (
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${DELIVERY_BADGE[data.delivery.status] || 'bg-white/5 text-white/60 border-white/10'}`}>
+                    {data.delivery.status}
+                  </span>
+                ) : null}
+              >
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-sky-500/10 to-transparent border border-sky-400/15 mb-2">
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-wider text-sky-300/70">AWB Number</div>
+                    <div className="text-base font-bold text-white tabular-nums truncate">{data.delivery.awbNumber || '—'}</div>
+                  </div>
+                  {data.delivery.trackingUrl && (
+                    <a
+                      href={data.delivery.trackingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/30 text-sky-100 transition-colors"
+                    >
+                      Track ↗
+                    </a>
+                  )}
+                </div>
+                <Row label="Delivery Number" value={data.delivery.deliveryId} mono />
+                <Row label="Courier" value={[data.delivery.courierName, data.delivery.partner].filter(Boolean).join(' · ') || '—'} />
+                <div className="mt-2 pt-2 border-t border-white/[0.08]">
                   {data.ticket ? (
                     <>
-                      <Field label="Ticket Ref" value={data.ticket.reference} mono />
-                      <Field label="Ticket Status" value={data.ticket.status} />
-                      <Field label="Ticket Type" value={[data.ticket.type, data.ticket.category, data.ticket.subcategory].filter(Boolean).join(' · ') || '—'} />
-                      <Field label="Raised" value={fmtDateTime(data.ticket.createdAt)} />
+                      <Row label="Ticket Ref" value={data.ticket.reference} mono />
+                      <Row label="Ticket Status" value={data.ticket.status} />
+                      <Row label="Ticket Type" value={[data.ticket.type, data.ticket.category, data.ticket.subcategory].filter(Boolean).join(' · ') || '—'} />
+                      <Row label="Raised" value={fmtDateTime(data.ticket.createdAt)} />
                     </>
                   ) : (
-                    <div className="text-xs text-white/40 italic py-1">No support ticket on this delivery</div>
+                    <div className="flex items-center gap-2 text-xs text-white/40 italic py-1.5">
+                      <span>🎫</span> No support ticket on this delivery
+                    </div>
                   )}
                 </div>
               </Card>
 
               {/* 3. Amount breakup */}
-              <Card title="Amount Breakup" icon="🧾">
-                <Field label="Item Total" value={rupee(a?.itemTotal)} mono />
-                <Field label="Gross Amount" value={rupee(a?.grossAmount)} mono />
-                <Field label="Item Discount" value={rupee(a?.itemDiscount)} mono />
-                <Field label="Coupon Applied" value={rupee(a?.couponAmount)} mono />
-                <Field label="Applied Wallet Amount" value={rupee(a?.appliedWalletAmount)} mono />
-                <Field label="Seller Discount" value={rupee(a?.sellerDiscount)} mono />
-                <Field label="Payment-Option Badho Discount" value={rupee(a?.paymentOptionBadhoDiscount)} mono />
-                <Field label="Order Margin Discount" value={rupee(a?.orderMarginDiscount)} mono />
+              <Card accent={ACCENTS.emerald} title="Amount Breakup" icon="🧾">
+                <div className="flex items-end justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-500/10 to-transparent border border-emerald-400/15 mb-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-emerald-300/70">Gross Amount</div>
+                    <div className="text-2xl font-extrabold text-white tabular-nums">{rupee(a?.grossAmount)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase tracking-wider text-white/40">Item Total</div>
+                    <div className="text-sm font-semibold text-white/85 tabular-nums">{rupee(a?.itemTotal)}</div>
+                  </div>
+                </div>
+                {discountRow('Item Discount', a?.itemDiscount)}
+                {discountRow('Coupon Applied', a?.couponAmount)}
+                {discountRow('Applied Wallet Amount', a?.appliedWalletAmount)}
+                {discountRow('Seller Discount', a?.sellerDiscount)}
+                {discountRow('Payment-Option Badho Discount', a?.paymentOptionBadhoDiscount)}
+                {discountRow('Order Margin Discount', a?.orderMarginDiscount)}
               </Card>
 
               {/* 5. Payment option */}
-              <Card title="Payment" icon="💳">
-                <Field label="Payment Option" value={data.payment.option} />
-                <Field label="Payment Event" value={data.payment.event} />
-                <Field label="Paid Amount" value={rupee(data.payment.paidAmount)} mono />
-                <Field label="Payment Date" value={fmtDateTime(data.payment.paymentDate)} />
+              <Card accent={ACCENTS.amber} title="Payment" icon="💳">
+                <div className="flex items-end justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-transparent border border-amber-400/15 mb-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-amber-300/70">Paid Amount</div>
+                    <div className="text-2xl font-extrabold text-white tabular-nums">{rupee(data.payment.paidAmount)}</div>
+                  </div>
+                  {data.payment.option && (
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-100 border border-amber-400/25">
+                      {data.payment.option}
+                    </span>
+                  )}
+                </div>
+                <Row label="Payment Event" value={data.payment.event} />
+                <Row label="Payment Date" value={fmtDateTime(data.payment.paymentDate)} />
               </Card>
 
               {/* 4. Item breakup — full width */}
               <div className="md:col-span-2">
-                <Card title="Item Breakup" icon="📦">
+                <Card
+                  accent={ACCENTS.indigo}
+                  title="Item Breakup"
+                  icon="📦"
+                  action={items && items.length > 0 ? (
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/15 text-indigo-200 border border-indigo-400/25">
+                      {items.length} item{items.length > 1 ? 's' : ''}
+                    </span>
+                  ) : null}
+                >
                   {items === null ? (
                     <div className="text-sm text-white/50 py-2">Loading items…</div>
                   ) : items.length === 0 ? (
@@ -504,34 +609,43 @@ export default function OrderRejectedCancelledDashboard() {
                     <div className="overflow-x-auto -mx-1">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-white/10 text-left">
-                            <th className="px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-purple-200">Product</th>
-                            <th className="px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-purple-200">Status</th>
-                            <th className="px-2 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-purple-200">Qty</th>
-                            <th className="px-2 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-purple-200">Unit Price</th>
-                            <th className="px-2 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-purple-200">Discount</th>
-                            <th className="px-2 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-purple-200">Total</th>
+                          <tr className="text-left bg-white/[0.04]">
+                            <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-200/90 rounded-l-lg">Product</th>
+                            <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-200/90">Status</th>
+                            <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-indigo-200/90">Qty</th>
+                            <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-indigo-200/90">Unit Price</th>
+                            <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-indigo-200/90">Discount</th>
+                            <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-indigo-200/90 rounded-r-lg">Total</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {items.map((it) => (
-                            <tr key={it.id} className="border-b border-white/5">
-                              <td className="px-2 py-2.5 text-white/90">
+                          {items.map((it, i) => (
+                            <tr key={it.id} className={`border-b border-white/[0.05] hover:bg-white/[0.04] transition-colors ${i % 2 ? 'bg-white/[0.015]' : ''}`}>
+                              <td className="px-3 py-3 text-white/90">
                                 <div className="font-medium">{it.skuLabel || it.brandSKUId || '—'}</div>
                                 {it.brandLabel && <div className="text-[11px] text-white/45">{it.brandLabel}</div>}
                               </td>
-                              <td className="px-2 py-2.5">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${it.status === 'REJECTED' ? 'bg-red-500/20 text-red-200 border-red-400/30' : 'bg-white/5 text-white/60 border-white/10'}`}>
+                              <td className="px-3 py-3">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${it.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-200 border-rose-400/30' : 'bg-emerald-500/15 text-emerald-200 border-emerald-400/25'}`}>
                                   {it.status || '—'}
                                 </span>
                               </td>
-                              <td className="px-2 py-2.5 text-right tabular-nums text-white/90">{it.quantity ?? '—'}{it.quantityUnit ? ` ${it.quantityUnit}` : ''}</td>
-                              <td className="px-2 py-2.5 text-right tabular-nums text-white/90">{rupee(it.unitPrice)}</td>
-                              <td className="px-2 py-2.5 text-right tabular-nums text-white/90">{rupee(it.discount)}</td>
-                              <td className="px-2 py-2.5 text-right tabular-nums text-white/90">{rupee(it.total)}</td>
+                              <td className="px-3 py-3 text-right tabular-nums text-white/90">{it.quantity ?? '—'}{it.quantityUnit ? ` ${it.quantityUnit}` : ''}</td>
+                              <td className="px-3 py-3 text-right tabular-nums text-white/90">{rupee(it.unitPrice)}</td>
+                              <td className={`px-3 py-3 text-right tabular-nums ${it.discount && it.discount > 0 ? 'text-emerald-300' : 'text-white/90'}`}>{rupee(it.discount)}</td>
+                              <td className="px-3 py-3 text-right tabular-nums font-semibold text-white">{rupee(it.total)}</td>
                             </tr>
                           ))}
                         </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-indigo-400/20 bg-indigo-500/[0.08]">
+                            <td className="px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-indigo-100" colSpan={2}>Total</td>
+                            <td className="px-3 py-3 text-right tabular-nums font-bold text-white">{itemTotals.qty}</td>
+                            <td className="px-3 py-3"></td>
+                            <td className="px-3 py-3 text-right tabular-nums font-bold text-emerald-300">{rupee(itemTotals.discount)}</td>
+                            <td className="px-3 py-3 text-right tabular-nums font-bold text-white">{rupee(itemTotals.total)}</td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   )}
@@ -539,7 +653,8 @@ export default function OrderRejectedCancelledDashboard() {
               </div>
             </div>
           </>
-        )}
+          );
+        })()}
       </div>
 
       {/* Reason modal */}

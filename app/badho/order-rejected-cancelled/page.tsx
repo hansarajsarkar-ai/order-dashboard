@@ -112,6 +112,20 @@ const fmtDateTime = (s: string | null) => {
   }
 };
 
+// Compact gap between two timestamps (for the timeline connectors): days when
+// ≥1 day, else hours, else minutes. null when either side is missing/invalid.
+const fmtGap = (from: string | null, to: string | null): string | null => {
+  if (!from || !to) return null;
+  const ms = new Date(to).getTime() - new Date(from).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const days = ms / 86_400_000;
+  if (days >= 1) return `${days < 10 ? days.toFixed(1) : Math.round(days)}d`;
+  const hrs = ms / 3_600_000;
+  if (hrs >= 1) return `${Math.round(hrs)}h`;
+  const mins = Math.round(ms / 60_000);
+  return `${mins}m`;
+};
+
 const STATUS_BADGE: Record<string, { cls: string; dot: string }> = {
   COMPLETED: { cls: 'bg-cyan-500/15 text-cyan-200 border-cyan-400/30', dot: 'bg-cyan-400' },
   DELIVERED: { cls: 'bg-blue-500/15 text-blue-200 border-blue-400/30', dot: 'bg-blue-400' },
@@ -650,10 +664,25 @@ export default function OrderRejectedCancelledDashboard() {
                       <div className="flex flex-col sm:flex-row sm:items-start gap-5 sm:gap-0 pt-1">
                         {steps.map((s, i) => {
                           const reached = !!s.t;
+                          // Gap shown on the connector leaving this step: from the
+                          // last reached step at-or-before i to the next reached
+                          // step (bridges skipped milestones like Dispatched).
+                          let gap: string | null = null;
+                          if (i < steps.length - 1 && s.t) {
+                            const next = steps.slice(i + 1).find((n) => n.t);
+                            if (next) gap = fmtGap(s.t, next.t);
+                          }
                           return (
                             <div key={s.key} className="relative flex sm:flex-col sm:items-center sm:text-center flex-1 items-center gap-3 sm:gap-0">
                               {i < steps.length - 1 && (
-                                <span className={`hidden sm:block absolute top-[11px] left-1/2 w-full h-[2px] ${i < lastReached ? 'bg-gradient-to-r from-cyan-400/70 to-cyan-400/30' : 'bg-white/10'}`} />
+                                <span className="hidden sm:block absolute top-[11px] left-1/2 w-full h-[2px]">
+                                  <span className={`block w-full h-full ${i < lastReached ? 'bg-gradient-to-r from-cyan-400/70 to-cyan-400/30' : 'bg-white/10'}`} />
+                                  {gap && (
+                                    <span className="absolute left-1/2 -translate-x-1/2 -top-[9px] px-1.5 py-[1px] rounded-full bg-slate-900 border border-cyan-400/25 text-[9px] font-medium text-cyan-200/80 whitespace-nowrap leading-none">
+                                      {gap}
+                                    </span>
+                                  )}
+                                </span>
                               )}
                               <span className={`relative z-10 flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${reached ? 'bg-cyan-500/30 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.5)]' : 'bg-white/[0.04] border-white/15'}`}>
                                 <span className={`w-2 h-2 rounded-full ${reached ? 'bg-cyan-300' : 'bg-white/25'}`} />

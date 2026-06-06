@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,7 @@ interface BrandRow {
 
 const CATEGORIES = ['Fully_Paid', 'Partially_Paid', 'COD'] as const;
 
-export async function GET() {
+async function _GET() {
   try {
     // SLA breach = more than 2 elapsed days since markedPendingTime, with Sunday
     // time excluded, measured on the IST (Asia/Kolkata) calendar. Brands collapse
@@ -180,3 +180,5 @@ export async function GET() {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);

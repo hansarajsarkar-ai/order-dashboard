@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +11,7 @@ interface Row {
 
 type DataRecord = Record<string, string | number>;
 
-export async function GET() {
+async function _GET() {
   try {
     const sql = `
       SELECT
@@ -89,3 +89,5 @@ export async function GET() {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);

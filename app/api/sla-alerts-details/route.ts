@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +78,7 @@ const sundayExclSec = (startTs: string, endTs: string) => `
     0
   )::float`;
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get('category'); // 'Fully_Paid' | 'Partially_Paid' | 'COD' | 'Other' | 'all'
   const sellerBusinessName = searchParams.get('sellerBusinessName'); // optional exact seller filter
@@ -377,3 +377,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);

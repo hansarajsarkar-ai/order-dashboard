@@ -300,6 +300,60 @@ const DOWNLOAD_BTN_CLASS =
 const DOWNLOAD_BTN_LIGHT_CLASS =
   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-fuchsia-100 border border-slate-200 hover:border-fuchsia-300 text-slate-700 hover:text-fuchsia-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 
+// One SQL statement (with its bind params) captured by the backend and surfaced
+// through the per-section "View Query" buttons.
+type SqlQuery = { sql: string; params?: unknown[] };
+
+const QUERY_BTN_CLASS =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-fuchsia-500/30 border border-white/10 hover:border-fuchsia-400/50 text-purple-200 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+
+// Shared modal that renders the SQL behind a section. Driven by a single piece of
+// page state so every section reuses one overlay instead of inlining its own panel.
+function QueryModal({ title, queries, onClose }: { title: string; queries: SqlQuery[]; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-4xl max-h-[85vh] overflow-y-auto bg-slate-950 border border-white/15 rounded-2xl shadow-[0_0_60px_rgba(168,85,247,0.3)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-slate-950 z-10">
+          <div>
+            <p className="text-purple-300 text-[11px] uppercase tracking-wider font-semibold">SQL Query</p>
+            <h3 className="text-white font-bold text-lg">{title}</h3>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2">×</button>
+        </div>
+        <div className="p-6 space-y-5">
+          {queries.length === 0 ? (
+            <p className="text-purple-300 text-sm">Query unavailable — load this section first, then reopen.</p>
+          ) : queries.map((q, i) => (
+            <div key={i}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-purple-300 text-xs uppercase tracking-wider font-semibold">
+                  {queries.length > 1 ? `Query #${i + 1}` : 'Query'}
+                </p>
+                <button
+                  onClick={() => navigator.clipboard?.writeText(q.sql)}
+                  className="px-3 py-1 rounded-lg text-[11px] font-semibold text-purple-200 border border-white/10 bg-white/5 hover:bg-white/10 transition-all"
+                >Copy</button>
+              </div>
+              <pre className="text-[11px] leading-relaxed text-emerald-200/90 font-mono whitespace-pre-wrap overflow-x-auto bg-black/40 rounded-xl p-4 border border-white/10">{q.sql}</pre>
+              {q.params && q.params.length > 0 && (
+                <p className="text-purple-300/70 text-[11px] mt-2 font-mono break-all">params: [{q.params.map((p) => JSON.stringify(p)).join(', ')}]</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const formatAmount = (n: number): string => {
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
   if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
@@ -493,6 +547,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to load geo breakdown');
       const json = await res.json();
       setGeoPinRows(json.data);
+      captureQuery('geoPin', json);
       setGeoPinGrand(json.grand);
     } catch (e) {
       setGeoPinError(e instanceof Error ? e.message : 'Unknown error');
@@ -634,6 +689,31 @@ export default function OrderStatusDashboard() {
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'geography' | 'zone' | 'margin' | 'alert'>('dashboard');
 
+  // "View Query" infrastructure — every section's fetch records the SQL the backend
+  // ran (response.__queries) keyed by a section id; a single shared modal renders it.
+  const [sectionQueries, setSectionQueries] = useState<Record<string, SqlQuery[]>>({});
+  const [queryModalState, setQueryModalState] = useState<{ title: string; queries: SqlQuery[] } | null>(null);
+  const captureQuery = (key: string, json: unknown) => {
+    const q = (json as { __queries?: SqlQuery[] } | null)?.__queries;
+    if (Array.isArray(q) && q.length > 0) setSectionQueries((prev) => ({ ...prev, [key]: q }));
+  };
+  // Renders a "View Query" button for a section; disabled until that section's data loads.
+  const queryBtn = (sectionKey: string, title: string) => {
+    const queries = sectionQueries[sectionKey];
+    const has = !!queries && queries.length > 0;
+    return (
+      <button
+        type="button"
+        disabled={!has}
+        title={has ? 'Show the SQL behind this section' : 'Load this section first'}
+        onClick={() => has && setQueryModalState({ title, queries })}
+        className={QUERY_BTN_CLASS}
+      >
+        View Query
+      </button>
+    );
+  };
+
   // Margin Overview tab — daily P&L for D2R brand sellers on third-party INTERCITY orders.
   interface MarginDayRow {
     date: string;
@@ -754,6 +834,7 @@ export default function OrderStatusDashboard() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
       setMarginDayData(json.data);
+      captureQuery('marginDay', json);
       setMarginDayTotals(json.totals);
     } catch (err) {
       setMarginDayError(err instanceof Error ? err.message : 'Failed to load');
@@ -781,6 +862,7 @@ export default function OrderStatusDashboard() {
         const json: MarginResp = await res.json();
         if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
         if (!cancelled) setMarginData(json);
+        if (!cancelled) captureQuery('margin', json);
       } catch (err) {
         if (!cancelled) {
           setMarginError(err instanceof Error ? err.message : 'Failed to load');
@@ -811,6 +893,7 @@ export default function OrderStatusDashboard() {
         const json: ActiveAgentResp = await res.json();
         if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
         if (!cancelled) setActiveAgentData(json);
+        if (!cancelled) captureQuery('activeAgents', json);
       } catch {
         if (!cancelled) setActiveAgentData(null);
       }
@@ -1692,6 +1775,7 @@ export default function OrderStatusDashboard() {
       if (!response.ok) throw new Error('Failed to fetch monthly data');
       const result: MonthlyStatusData = await response.json();
       setMonthlyData(result);
+      captureQuery('monthly', result);
     } catch (err) {
       console.error('Monthly fetch error:', err);
     } finally {
@@ -1710,6 +1794,7 @@ export default function OrderStatusDashboard() {
       if (!response.ok) throw new Error('Failed to fetch daily data');
       const result: DailyStatusData = await response.json();
       setDailyData(result);
+      captureQuery('daily', result);
     } catch (err) {
       console.error('Daily fetch error:', err);
     } finally {
@@ -1731,6 +1816,7 @@ export default function OrderStatusDashboard() {
       if (!response.ok) throw new Error('Failed to fetch weekly data');
       const result: WeeklyStatusData = await response.json();
       setWeeklyData(result);
+      captureQuery('weekly', result);
     } catch (err) {
       console.error('Weekly fetch error:', err);
     } finally {
@@ -1779,6 +1865,7 @@ export default function OrderStatusDashboard() {
       if (!response.ok) throw new Error('Failed to fetch geo coverage');
       const result: GeoCoverageData = await response.json();
       setGeoCoverageData(result);
+      captureQuery('geoCoverage', result);
     } catch (err) {
       console.error('Geo coverage fetch error:', err);
     } finally {
@@ -1857,6 +1944,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch trend');
       const json = await res.json();
       setTrendData(json.data);
+      captureQuery('trend', json);
     } catch (err) {
       console.error('Trend fetch error:', err);
       setTrendData([]);
@@ -1875,6 +1963,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch zone pivot');
       const json = await res.json();
       setZonePivot(json);
+      captureQuery('zone', json);
     } catch (err) {
       console.error('Zone pivot fetch error:', err);
       setZonePivot(null);
@@ -1901,6 +1990,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch payment-trend');
       const json = await res.json();
       setPaymentTrend(json);
+      captureQuery('paymentTrend', json);
     } catch (err) {
       console.error('Payment-trend fetch error:', err);
       setPaymentTrend(null);
@@ -1920,6 +2010,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch rto-insights');
       const json = await res.json();
       setRtoInsights(json);
+      captureQuery('rtoInsights', json);
     } catch (err) {
       console.error('RTO-insights fetch error:', err);
       setRtoInsights(null);
@@ -1943,6 +2034,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch anomalies');
       const json = await res.json();
       setAnomaliesData(json.data);
+      captureQuery('anomalies', json);
       setAnomaliesStatuses(json.statuses);
     } catch (err) {
       console.error('Anomalies fetch error:', err);
@@ -1960,6 +2052,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch RTO');
       const json = await res.json();
       setRtoData(json);
+      captureQuery('rto', json);
       setRtoSellerPage(1);
       setRtoStatePage(1);
     } catch (err) {
@@ -1992,6 +2085,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch RTO trend');
       const json = await res.json();
       setRtoTrendData(json.data);
+      captureQuery('rtoTrend', json);
     } catch (err) {
       console.error('RTO trend fetch error:', err);
       setRtoTrendData([]);
@@ -2013,6 +2107,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch monthly RTO rate');
       const json = await res.json();
       setRtoRateData(json.data);
+      captureQuery('rtoRate', json);
     } catch (err) {
       console.error('RTO rate fetch error:', err);
       setRtoRateData([]);
@@ -2087,6 +2182,7 @@ export default function OrderStatusDashboard() {
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setAlertBrandData(json);
+      captureQuery('slaAlerts', json);
     } catch (err) {
       setAlertBrandError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -2184,6 +2280,7 @@ export default function OrderStatusDashboard() {
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setAgingData(json);
+      captureQuery('aging', json);
     } catch (err) {
       setAgingError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -2258,6 +2355,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch RTO list');
       const json = await res.json();
       setRtoListData(json.data);
+      captureQuery('rtoList', json);
     } catch (err) {
       console.error('RTO list fetch error:', err);
       setRtoListData([]);
@@ -2282,6 +2380,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('Failed to fetch hub data');
       const json: HubData = await res.json();
       setHubData(json);
+      captureQuery('hub', json);
     } catch (err) {
       console.error('Hub fetch error:', err);
       setHubData({ data: [], count: 0, facets: { shipmentStatus: [], brand: [], paymentMode: [], logistic: [] }, timestamp: new Date().toISOString() });
@@ -2745,6 +2844,7 @@ export default function OrderStatusDashboard() {
       if (!response.ok) throw new Error('Failed to fetch goal data');
       const result: RevenueGoal = await response.json();
       setGoalData(result);
+      captureQuery('goal', result);
     } catch (err) {
       console.error('Goal fetch error:', err);
     } finally {
@@ -2838,6 +2938,7 @@ export default function OrderStatusDashboard() {
       if (!response.ok) throw new Error('Failed to fetch seller data');
       const result: SellerWiseData = await response.json();
       setSellerData(result);
+      captureQuery('seller', result);
     } catch (err) {
       console.error('Seller fetch error:', err);
     } finally {
@@ -2862,6 +2963,7 @@ export default function OrderStatusDashboard() {
       if (!response.ok) throw new Error('Failed to fetch slab data');
       const result: SellerSlabData = await response.json();
       setSlabData(result);
+      captureQuery('slab', result);
     } catch (err) {
       console.error('Slab fetch error:', err);
     } finally {
@@ -2904,6 +3006,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
       setStateData(json.data);
+      captureQuery('geoState', json);
     } catch (err) {
       console.error('State fetch error:', err);
       setStateData([]);
@@ -2933,6 +3036,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
       setDistrictData(json.data);
+      captureQuery('geoDistrict', json);
     } catch (err) {
       console.error('District fetch error:', err);
       setDistrictData([]);
@@ -2990,6 +3094,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
       setBrandStateData(json.data);
+      captureQuery('brandState', json);
     } catch (err) {
       console.error('Brand-state fetch error:', err);
       setBrandStateData([]);
@@ -3019,6 +3124,7 @@ export default function OrderStatusDashboard() {
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
       setStateMonthData(json.data);
+      captureQuery('stateMonth', json);
       setStateMonthMonths(json.months || []);
     } catch (err) {
       console.error('State-month fetch error:', err);
@@ -3579,9 +3685,12 @@ export default function OrderStatusDashboard() {
         <>
         {/* Revenue Goal — radial gauge */}
         <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10">
-            <h2 className="text-2xl font-bold text-white">GMV Goal — {currentMonthYear}</h2>
-            <p className="text-white/60 text-sm mt-1">Sum of order amount where status is DELIVERED or COMPLETED, against the monthly goal</p>
+          <div className="px-8 py-6 border-b border-white/10 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white">GMV Goal — {currentMonthYear}</h2>
+              <p className="text-white/60 text-sm mt-1">Sum of order amount where status is DELIVERED or COMPLETED, against the monthly goal</p>
+            </div>
+            {queryBtn('goal', 'GMV Goal')}
           </div>
           <div className="p-8">
             {goalLoading ? (
@@ -4270,6 +4379,7 @@ export default function OrderStatusDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
+              {queryBtn('geoCoverage', 'Geo Coverage')}
               {/* Granularity toggle */}
               <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
                 {(['month', 'week', 'day'] as const).map((g) => {
@@ -5207,9 +5317,12 @@ export default function OrderStatusDashboard() {
           <div className={`mb-8 space-y-6 ${rtoInsightsLoading ? 'opacity-60 transition-opacity' : ''}`}>
             {/* COD vs. Coupon Applied vs. RTO */}
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
-              <div className="px-6 py-5 border-b border-white/10 bg-white/5">
-                <h3 className="text-lg font-bold text-white">COD vs. Coupon Applied vs. RTO</h3>
-                <p className="text-purple-300 text-xs mt-0.5">RTO rate by coupon status × payment mode · % of (RTO + Delivered) · D2R third-party INTERCITY</p>
+              <div className="px-6 py-5 border-b border-white/10 bg-white/5 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-white">COD vs. Coupon Applied vs. RTO</h3>
+                  <p className="text-purple-300 text-xs mt-0.5">RTO rate by coupon status × payment mode · % of (RTO + Delivered) · D2R third-party INTERCITY</p>
+                </div>
+                {queryBtn('rtoInsights', 'RTO Insights — COD vs Coupon vs RTO')}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -5343,6 +5456,7 @@ export default function OrderStatusDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
+              {queryBtn('trend', 'Daily Order Trend')}
               {/* metric toggle */}
               <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
                 {(['count', 'amount'] as const).map((m) => {
@@ -5586,6 +5700,7 @@ export default function OrderStatusDashboard() {
               <p className="text-white/60 text-sm mt-1">Daily distinct purchase orders bucketed by payment option · 3PL × INTERCITY only</p>
             </div>
             <div className="flex items-center gap-3">
+              {queryBtn('paymentTrend', 'Payment Option Wise Order')}
               <div className="inline-flex rounded-lg border border-white/15 bg-white/5 p-0.5">
                 <button
                   type="button"
@@ -5720,6 +5835,8 @@ export default function OrderStatusDashboard() {
               <h2 className="text-2xl font-bold text-white">Monthly Trend & Growth</h2>
               <p className="text-white/60 text-sm mt-1">Share of monthly orders & revenue per status, with month-over-month change in percentage points — {currentYear}</p>
             </div>
+            <div className="flex items-center gap-3 flex-wrap">
+            {queryBtn('monthly', 'Monthly Trend & Growth')}
             {monthlyData && (
               <button
                 className={DOWNLOAD_BTN_CLASS}
@@ -5762,6 +5879,7 @@ export default function OrderStatusDashboard() {
                 ↓ CSV
               </button>
             )}
+            </div>
           </div>
           <div className="overflow-x-auto">
             {monthlyLoading ? (
@@ -5933,11 +6051,14 @@ export default function OrderStatusDashboard() {
             <>
             {/* Header + KPI tiles */}
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-              <div className="px-8 py-6 border-b border-white/10 bg-white/5">
-                <h2 className="text-2xl font-bold text-white">RTO — Return To Origin</h2>
-                <p className="text-purple-300 text-sm mt-1">
-                  Orders marked REJECTED with delivery status containing &ldquo;RTO&rdquo; — bucketed by <span className="font-mono text-fuchsia-300">markedRejectedTime</span>, year {currentYear}
-                </p>
+              <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">RTO — Return To Origin</h2>
+                  <p className="text-purple-300 text-sm mt-1">
+                    Orders marked REJECTED with delivery status containing &ldquo;RTO&rdquo; — bucketed by <span className="font-mono text-fuchsia-300">markedRejectedTime</span>, year {currentYear}
+                  </p>
+                </div>
+                {queryBtn('rto', 'RTO — Return To Origin')}
               </div>
               <div className="p-6">
                 {rtoLoading || !rtoData ? (
@@ -5998,6 +6119,8 @@ export default function OrderStatusDashboard() {
                     {rtoTrendGranularity === 'custom' && `RTO orders by day — ${rtoTrendCustomFrom || '…'} to ${rtoTrendCustomTo || '…'}`}
                   </p>
                 </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                {queryBtn('rtoTrend', 'RTO trend')}
                 {/* Granularity toggle */}
                 <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
                   {(['month', 'week', 'day', 'custom'] as const).map((g) => {
@@ -6020,6 +6143,7 @@ export default function OrderStatusDashboard() {
                 {rtoTrendGranularity !== 'custom' && (
                   <MonthMultiSelect selected={rtoTrendMonths} onChange={setRtoTrendMonths} year={currentYear} />
                 )}
+                </div>
               </div>
               {/* Custom date pickers row */}
               {rtoTrendGranularity === 'custom' && (
@@ -6203,6 +6327,7 @@ export default function OrderStatusDashboard() {
                     RTO ÷ (RTO + Delivered + Completed) — bucketed by <span className="font-mono text-fuchsia-300">markedPendingTime</span> month (cohort view)
                   </p>
                 </div>
+                {queryBtn('rtoRate', 'Monthly RTO rate')}
                 {rtoRateData && rtoRateData.length > 0 && (
                   <div className="flex items-center gap-6 text-sm">
                     <div className="text-right">
@@ -6562,6 +6687,7 @@ export default function OrderStatusDashboard() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
+                  {queryBtn('rtoList', 'RTO Order Details')}
                   {rtoListData && rtoListData.length > 0 && (
                     <button
                       className={DOWNLOAD_BTN_CLASS}
@@ -6909,6 +7035,7 @@ export default function OrderStatusDashboard() {
                     <h2 className="text-2xl font-bold text-white">Destination Hub Order Tracking</h2>
                     <p className="text-purple-300 text-sm mt-1">Delhivery RTO / OFD / Reached-At-Destination shipments — spot orders stuck at the destination hub.</p>
                   </div>
+                  {queryBtn('hub', 'Destination Hub Order Tracking')}
                   {hubData && (
                     <div className="flex items-center gap-6 text-sm flex-wrap">
                       <div className="text-right">
@@ -7334,6 +7461,7 @@ export default function OrderStatusDashboard() {
                 <h2 className="text-2xl font-bold text-white">Seller wise</h2>
                 <p className="text-purple-300 text-sm mt-1">Order count & revenue by status per seller — {currentYear}</p>
               </div>
+              {queryBtn('seller', 'Seller wise')}
               {sellerData && (
                 <div className="flex items-center gap-6 text-sm">
                   <div className="text-right">
@@ -7599,6 +7727,7 @@ export default function OrderStatusDashboard() {
                   Only <span className="font-mono text-fuchsia-300">DELIVERED + COMPLETED</span> orders, bucketed by order value per month — {currentYear}
                 </p>
               </div>
+              {queryBtn('slab', 'Seller × Month × Amount Slab')}
               {slabData && (
                 <div className="flex items-center gap-6 text-sm">
                   <div className="text-right">
@@ -7817,6 +7946,8 @@ export default function OrderStatusDashboard() {
                 </div>
               )}
               <div className="flex items-center gap-3 flex-wrap">
+                {geographySubTab === 'geography' &&
+                  (geoMode === 'state' ? queryBtn('geoState', 'Geography — by State') : queryBtn('geoDistrict', 'Geography — by District'))}
                 {geographySubTab === 'geography' && (
                 <>
                 {/* State / District sub-tabs */}
@@ -8191,6 +8322,7 @@ export default function OrderStatusDashboard() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
+                  {queryBtn('brandState', 'Brand × State breakdown')}
                   <input
                     type="text"
                     value={brandStateSearch}
@@ -8452,6 +8584,7 @@ export default function OrderStatusDashboard() {
                       </p>
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
+                      {queryBtn('stateMonth', 'State × month × order-status')}
                       <input
                         type="text"
                         value={stateMonthSearch}
@@ -8630,6 +8763,7 @@ export default function OrderStatusDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
+              {zoneSubTab === 'trend' && queryBtn('zone', 'Zone Wise · Delhivery')}
               <div className="inline-flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
                 {([
                   { k: 'today', l: 'Today' },
@@ -8845,6 +8979,7 @@ export default function OrderStatusDashboard() {
                 <h2 className="text-2xl font-bold text-white">Zone Wise · Delhivery</h2>
                 <p className="text-purple-300 text-sm mt-1">Seller × zone × delivery status · count and modal charged weight (kg)</p>
               </div>
+              {queryBtn('zone', 'Zone Wise · Delhivery')}
               {zonePivot && (
                 <div className="px-3 py-2 rounded-xl bg-slate-900/70 border border-white/10">
                   <div className="text-purple-300/70 uppercase tracking-wide text-[10px]">Grand total</div>
@@ -9189,6 +9324,8 @@ export default function OrderStatusDashboard() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
+                  {queryBtn('margin', 'P&L Overview')}
+                  {queryBtn('activeAgents', 'P&L — Active Agents')}
                   <div className="inline-flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl">
                     {([
                       { key: 'last7', label: 'Last 7 days' },
@@ -9821,6 +9958,7 @@ export default function OrderStatusDashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                {queryBtn('slaAlerts', 'Brand-wise SLA Breach')}
                 <input
                   type="text"
                   value={alertBrandSearch}
@@ -10028,6 +10166,7 @@ export default function OrderStatusDashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                {queryBtn('aging', 'InProgress Aging — Delhivery SLA Breach')}
                 {/* Geographic Group By (seller address) — nests the breach rows by State/District/City/Pincode */}
                 <div className="relative">
                   <button
@@ -10330,6 +10469,7 @@ export default function OrderStatusDashboard() {
               <p className="text-purple-300 text-sm mt-1">
                 Share of order statuses per day (100% stacked) — last 30 days
               </p>
+              <div className="mt-3">{queryBtn('anomalies', 'Order Anomalies')}</div>
             </div>
             {/* Legend = status multiselect. Click a chip to toggle that status in the chart.
                 Listed top→bottom (COMPLETED-first) — the reverse of the stack order. */}
@@ -10555,6 +10695,15 @@ export default function OrderStatusDashboard() {
               )}
             </div>
           </div>
+        )}
+
+        {/* Shared "View Query" modal — shows the SQL behind any section */}
+        {queryModalState && (
+          <QueryModal
+            title={queryModalState.title}
+            queries={queryModalState.queries}
+            onClose={() => setQueryModalState(null)}
+          />
         )}
 
         {/* Buyer Details Modal — opens when clicking a Buyer Business cell in any drill modal */}

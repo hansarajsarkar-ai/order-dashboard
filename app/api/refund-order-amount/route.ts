@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,7 +103,7 @@ const PFC_AGG_JOIN = `
   ) AS pfc_agg ON pfc_agg."purchaseOrderId" = a."id"
 `;
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const today = new Date();
   const yyyymmdd = (d: Date) => d.toISOString().slice(0, 10);
@@ -367,3 +367,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);

@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,7 @@ interface ScanRow {
   activity: string | null;
 }
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const poNumber = searchParams.get('poNumber');
   if (!poNumber) {
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 // Batch variant: POST { poNumbers: string[] } -> { data: { [poNumber]: ScanRow[] } }
 // Returns up to 3 most-recent scans per PO, so the drill table can render them
 // inline as columns without firing one request per row.
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const poNumbers: string[] = Array.isArray(body?.poNumbers)
@@ -108,3 +108,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);
+export const POST = withQueryCapture(_POST);

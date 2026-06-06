@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +62,7 @@ interface Row {
   status_duration_sec: number | null;
 }
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   // Filter by rejection date. Defaults to the current year.
   // Accepts ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD for a custom window.
@@ -375,3 +375,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);

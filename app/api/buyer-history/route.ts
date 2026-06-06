@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +55,7 @@ interface BrandRow { brand: string; order_count: string; qty: string; amount: st
 interface MonthRow { ym: string; orders: string; gmv: string; }
 interface DraftRow { draft_count: string; last_draft: string | null; days_since_last_draft: number | null; }
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   let buyerId = searchParams.get('buyerId');
   const phone = searchParams.get('phone');
@@ -243,3 +243,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);

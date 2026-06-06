@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 import { appendMonthsFilter } from '@/lib/monthsFilter';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +15,7 @@ interface Row {
 // Brand × State breakdown — one row per (brand prefix, buyer state).
 // Brand prefix = TRIM(SPLIT_PART(businessName, '-', 1)) — merges ChukDe-GT + ChukDe-NonGT into ChukDe.
 // Uses the ACHIEVED base (status IN DELIVERED, COMPLETED) so totals reconcile with the GMV tile and the maps.
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const currentYear = new Date().getFullYear();
   const year = parseInt(searchParams.get('year') || String(currentYear));
@@ -120,3 +120,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);

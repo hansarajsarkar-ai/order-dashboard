@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +24,7 @@ const STAGE_FILTER: Record<string, string> = {
   fulfilled: `po."status" IN ('DELIVERED','COMPLETED')`,
 };
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
   const year = parseInt(searchParams.get('year') || '', 10);
@@ -94,3 +94,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);

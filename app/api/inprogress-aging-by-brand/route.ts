@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ interface Row {
   c3plus: string;
 }
 
-export async function GET() {
+async function _GET() {
   try {
     const sql = `
       WITH raw AS (
@@ -169,3 +169,5 @@ export async function GET() {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);

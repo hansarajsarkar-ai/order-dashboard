@@ -607,7 +607,6 @@ export default function OrderRejectedCancelledDashboard() {
                 {discountRow('Applied Wallet Amount', a?.appliedWalletAmount)}
                 {discountRow('Seller Discount', a?.sellerDiscount)}
                 {discountRow('Payment-Option Badho Discount', a?.paymentOptionBadhoDiscount)}
-                {discountRow('Order Margin Discount', a?.orderMarginDiscount)}
               </Card>
 
               {/* 5. Payment option */}

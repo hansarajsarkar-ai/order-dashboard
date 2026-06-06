@@ -603,7 +603,6 @@ export default function OrderRejectedCancelledDashboard() {
                     <div className="text-sm font-semibold text-white/85 tabular-nums">{rupee(a?.itemTotal)}</div>
                   </div>
                 </div>
-                {discountRow('Item Discount', a?.itemDiscount)}
                 {discountRow('Coupon Applied', a?.couponAmount)}
                 {discountRow('Applied Wallet Amount', a?.appliedWalletAmount)}
                 {discountRow('Seller Discount', a?.sellerDiscount)}

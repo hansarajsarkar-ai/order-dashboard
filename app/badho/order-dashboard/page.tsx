@@ -806,11 +806,15 @@ export default function OrderStatusDashboard() {
   // Price Breakup panel — opens alongside the PO Items modal when "View Items" is clicked
   interface PriceBreakup {
     orderAmount: number | null;
+    itemDiscount?: number | null;
     couponAmount: number | null;
     badhoDiscount: number | null;
     appliedWalletAmount: number | null;
     paidAmount?: number | null;
     sellerDiscount?: number | null;
+    upiDiscountBySeller?: number | null;
+    volumeDiscount?: number | null;
+    totalDiscount?: number | null;
     paymentOption?: string | null;
   }
   const [priceBreakup, setPriceBreakup] = useState<PriceBreakup | null>(null);
@@ -822,15 +826,15 @@ export default function OrderStatusDashboard() {
     setPoItemsError(null);
     setPriceBreakup(breakup ?? null);
     setPoItemsLoading(true);
-    // Auto-fetch the breakup when caller didn't pass one (e.g. RTO / Goal modals).
-    if (!breakup) {
-      fetch(`/api/po-financials?poNumber=${encodeURIComponent(poNumber)}`)
-        .then((r) => r.json())
-        .then((json) => {
-          if (json?.data) setPriceBreakup(json.data as PriceBreakup);
-        })
-        .catch(() => { /* keep priceBreakup null; modal still usable */ });
-    }
+    // Always fetch the full breakup from the route — inline callers only supply a
+    // partial set (no UPI / volume discount), so we use theirs optimistically and
+    // overwrite with the complete, aggregated figures once they arrive.
+    fetch(`/api/po-financials?poNumber=${encodeURIComponent(poNumber)}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json?.data) setPriceBreakup(json.data as PriceBreakup);
+      })
+      .catch(() => { /* keep optimistic / null breakup; modal still usable */ });
     try {
       const res = await fetch(`/api/po-items?poNumber=${encodeURIComponent(poNumber)}`);
       if (!res.ok) throw new Error('Failed to fetch items');
@@ -11152,8 +11156,10 @@ export default function OrderStatusDashboard() {
               const badho = priceBreakup.badhoDiscount ?? 0;
               const wallet = priceBreakup.appliedWalletAmount ?? 0;
               const sellerDisc = priceBreakup.sellerDiscount ?? 0;
+              const upiDisc = priceBreakup.upiDiscountBySeller ?? 0;
+              const volumeDisc = priceBreakup.volumeDiscount ?? 0;
               const paid = priceBreakup.paidAmount ?? 0;
-              const totalDeductions = coupon + badho + wallet + sellerDisc;
+              const totalDeductions = coupon + badho + wallet + sellerDisc + upiDisc + volumeDisc;
               const net = order - totalDeductions;
               const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: n % 1 === 0 ? 0 : 2 })}`;
               type Line = { key: string; label: string; sub?: string; value: number; sign: 'plus' | 'minus' | 'total'; iconBg: string; iconRing: string; icon: React.ReactNode };
@@ -11226,6 +11232,34 @@ export default function OrderStatusDashboard() {
                 icon: (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <line x1="19" y1="5" x2="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" />
+                  </svg>
+                ),
+              });
+              if (upiDisc > 0) lines.push({
+                key: 'upiDisc',
+                label: 'UPI Discount',
+                sub: 'Payment-method adjustment',
+                value: upiDisc,
+                sign: 'minus',
+                iconBg: 'from-violet-500 to-purple-600',
+                iconRing: 'shadow-[0_0_20px_-2px_rgba(139,92,246,0.55)]',
+                icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
+                  </svg>
+                ),
+              });
+              if (volumeDisc > 0) lines.push({
+                key: 'volumeDisc',
+                label: 'Volume Discount',
+                sub: 'Bulk-quantity discount',
+                value: volumeDisc,
+                sign: 'minus',
+                iconBg: 'from-sky-500 to-blue-600',
+                iconRing: 'shadow-[0_0_20px_-2px_rgba(14,165,233,0.55)]',
+                icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" /><rect x="12" y="8" width="3" height="10" /><rect x="17" y="4" width="3" height="14" />
                   </svg>
                 ),
               });

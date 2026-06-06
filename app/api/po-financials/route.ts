@@ -5,10 +5,14 @@ export const dynamic = 'force-dynamic';
 
 interface Row {
   orderAmount: string | null;
+  itemDiscount: string | null;
   couponAmount: string | null;
   paymentOption: string | null;
   badhoDiscount: string | null;
   sellerDiscount: string | null;
+  upiDiscountBySeller: string | null;
+  volumeDiscount: string | null;
+  totalDiscount: string | null;
   appliedWalletAmount: string | null;
   paidAmount: string | null;
   codAmountToBeCollected: string | null;
@@ -16,31 +20,38 @@ interface Row {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const poNumber = searchParams.get('poNumber');
-  if (!poNumber) {
-    return NextResponse.json({ error: 'poNumber required' }, { status: 400 });
+  const poNumber = (searchParams.get('poNumber') || '').trim();
+  if (!/^\d+$/.test(poNumber)) {
+    return NextResponse.json({ error: 'A numeric poNumber is required' }, { status: 400 });
   }
 
   try {
     const sql = `
       SELECT
-        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text                                                                          AS "orderAmount",
+        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text          AS "orderAmount",
+        COALESCE(po."platformMarginDiscount", 0)::numeric::text                                    AS "itemDiscount",
         po."appliedOfferDiscount"::text                                                            AS "couponAmount",
         po."paymentInfo"->>'option'                                                                AS "paymentOption",
-        COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0)::text    AS "badhoDiscount",
-        COALESCE((pop."breakup"->>'discount_on_payment_preference_for_seller')::float, 0)::text    AS "sellerDiscount",
-        pop."appliedWalletAmount"::text                                                            AS "appliedWalletAmount",
-        pop."paidAmount"::text                                                                     AS "paidAmount",
+        COALESCE(pop."discountByBadho", 0)::text                                                   AS "badhoDiscount",
+        COALESCE(pop."discountBySeller", 0)::text                                                  AS "sellerDiscount",
+        (-COALESCE(pop."UpiDiscountBySeller", 0))::text                                            AS "upiDiscountBySeller",
+        COALESCE(po."appliedVolumeDiscountAmount", 0)::numeric::text                               AS "volumeDiscount",
+        COALESCE(po."totalDiscount", 0)::numeric::text                                             AS "totalDiscount",
+        COALESCE(pop."appliedWalletAmount", 0)::text                                               AS "appliedWalletAmount",
+        COALESCE(pop."paidAmount", 0)::text                                                        AS "paidAmount",
         dv."codAmountToBeCollected"::text                                                          AS "codAmountToBeCollected"
       FROM "purchaseOrder"."purchaseOrder" po
       LEFT JOIN LATERAL (
-        SELECT "breakup", "appliedWalletAmount", "paidAmount"
+        SELECT
+          SUM("paidAmount")                                                                  AS "paidAmount",
+          SUM(COALESCE(("breakup"->>'discount_on_payment_preference_for_seller')::float, 0)) AS "discountBySeller",
+          SUM(COALESCE(("breakup"->>'discount_on_payment_preference_from_badho')::float, 0)) AS "discountByBadho",
+          SUM(COALESCE(("breakup"->>'payment_method_adjustment')::float, 0))                 AS "UpiDiscountBySeller",
+          SUM(COALESCE("appliedWalletAmount"::numeric, 0))                                   AS "appliedWalletAmount"
         FROM "purchaseOrder"."purchaseOrderPayment"
         WHERE "purchaseOrderId" = po."id"
           AND "status" = 'COMPLETED'
-          AND "event" IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
-        ORDER BY "created_at" DESC
-        LIMIT 1
+          AND "event" NOT IN ('DAAS', 'DAAS_FIRST_MILE', 'DAAS_LAST_MILE', 'DAAS_REDELIVERY_PAYMENT')
       ) pop ON TRUE
       LEFT JOIN LATERAL (
         SELECT "codAmountToBeCollected"
@@ -49,7 +60,7 @@ export async function GET(req: NextRequest) {
         ORDER BY "created_at" DESC
         LIMIT 1
       ) dv ON TRUE
-      WHERE po."poNumber" = $1
+      WHERE po."poNumber" = $1::int
       LIMIT 1
     `;
     const rows = await query<Row>(sql, [poNumber]);
@@ -61,9 +72,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       data: {
         orderAmount: num(r.orderAmount),
+        itemDiscount: num(r.itemDiscount),
         couponAmount: num(r.couponAmount),
         badhoDiscount: num(r.badhoDiscount),
         sellerDiscount: num(r.sellerDiscount),
+        upiDiscountBySeller: num(r.upiDiscountBySeller),
+        volumeDiscount: num(r.volumeDiscount),
+        totalDiscount: num(r.totalDiscount),
         appliedWalletAmount: num(r.appliedWalletAmount),
         paidAmount: num(r.paidAmount),
         codAmountToBeCollected: num(r.codAmountToBeCollected),

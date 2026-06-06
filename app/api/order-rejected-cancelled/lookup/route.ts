@@ -21,6 +21,10 @@ export const dynamic = 'force-dynamic';
 interface Row {
   poNumber: string;
   markedPendingTime: string | null;
+  markedInProgressTime: string | null;
+  markedDispatchedTime: string | null;
+  markedDeliveredTime: string | null;
+  markedCompletedTime: string | null;
   status: string;
   pushedStatus: string;
 
@@ -87,6 +91,10 @@ export async function GET(req: NextRequest) {
       SELECT
         po."poNumber"::text                        AS "poNumber",
         po."markedPendingTime"                     AS "markedPendingTime",
+        po."markedInProgressTime"                  AS "markedInProgressTime",
+        po."markedDispatchedTime"                  AS "markedDispatchedTime",
+        po."markedDeliveredTime"                   AS "markedDeliveredTime",
+        po."markedCompletedTime"                   AS "markedCompletedTime",
         po."status"                                AS "status",
         CASE WHEN dv."deliveryId" IS NOT NULL THEN 'Pushed' ELSE 'Not Pushed' END AS "pushedStatus",
 
@@ -184,6 +192,14 @@ export async function GET(req: NextRequest) {
         markedPendingTime: r.markedPendingTime,
         status: r.status,
         pushedStatus: r.pushedStatus,
+
+        timeline: {
+          pending: r.markedPendingTime,
+          inProgress: r.markedInProgressTime,
+          dispatched: r.markedDispatchedTime,
+          delivered: r.markedDeliveredTime,
+          completed: r.markedCompletedTime,
+        },
 
         seller: {
           businessName: r.sellerBusinessName,

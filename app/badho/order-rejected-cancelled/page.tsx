@@ -26,6 +26,13 @@ interface OrderData {
   markedPendingTime: string | null;
   status: string;
   pushedStatus: string;
+  timeline?: {
+    pending: string | null;
+    inProgress: string | null;
+    dispatched: string | null;
+    delivered: string | null;
+    completed: string | null;
+  };
   seller: { businessName: string | null; phone: string | null; location: string | null };
   buyer: { businessName: string | null; phone: string | null; address: string | null };
   delivery: {
@@ -626,6 +633,43 @@ export default function OrderRejectedCancelledDashboard() {
                 <Row label="Payment Event" value={data.payment.event} />
                 <Row label="Payment Date" value={fmtDateTime(data.payment.paymentDate)} />
               </Card>
+
+              {/* Order timeline — full width chronological stepper */}
+              <div className="md:col-span-2 xl:col-span-4">
+                <Card accent={ACCENTS.cyan} title="Order Timeline" icon="🕒" delay={270}>
+                  {(() => {
+                    const steps = [
+                      { key: 'pending', label: 'Pending', t: data.timeline?.pending ?? data.markedPendingTime },
+                      { key: 'inProgress', label: 'In Progress', t: data.timeline?.inProgress ?? null },
+                      { key: 'dispatched', label: 'Dispatched', t: data.timeline?.dispatched ?? null },
+                      { key: 'delivered', label: 'Delivered', t: data.timeline?.delivered ?? null },
+                      { key: 'completed', label: 'Completed', t: data.timeline?.completed ?? null },
+                    ];
+                    const lastReached = steps.reduce((acc, s, i) => (s.t ? i : acc), -1);
+                    return (
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-5 sm:gap-0 pt-1">
+                        {steps.map((s, i) => {
+                          const reached = !!s.t;
+                          return (
+                            <div key={s.key} className="relative flex sm:flex-col sm:items-center sm:text-center flex-1 items-center gap-3 sm:gap-0">
+                              {i < steps.length - 1 && (
+                                <span className={`hidden sm:block absolute top-[11px] left-1/2 w-full h-[2px] ${i < lastReached ? 'bg-gradient-to-r from-cyan-400/70 to-cyan-400/30' : 'bg-white/10'}`} />
+                              )}
+                              <span className={`relative z-10 flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${reached ? 'bg-cyan-500/30 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.5)]' : 'bg-white/[0.04] border-white/15'}`}>
+                                <span className={`w-2 h-2 rounded-full ${reached ? 'bg-cyan-300' : 'bg-white/25'}`} />
+                              </span>
+                              <div className="sm:mt-2.5 min-w-0">
+                                <div className={`text-[12px] font-semibold ${reached ? 'text-white' : 'text-white/40'}`}>{s.label}</div>
+                                <div className={`text-[11px] mt-0.5 tabular-nums ${reached ? 'text-cyan-200/80' : 'text-white/30'}`}>{fmtDateTime(s.t)}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </Card>
+              </div>
 
               {/* 4. Item breakup — full width */}
               <div className="md:col-span-2 xl:col-span-4">

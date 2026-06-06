@@ -145,6 +145,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'cancel was silently rejected by a DB trigger' }, { status: 422 });
     }
 
+    // Propagate to the order's line items — cancelling a PO should cancel all of
+    // its (non-archived) items. A status-only change doesn't fire the amount
+    // trigger (no recompute/refund) and the item status-change trigger is a
+    // no-op for CANCELLED. (purchaseOrderItem has no markedCancelledTime column.)
+    const itemUpd = await client.query(
+      `UPDATE "purchaseOrder"."purchaseOrderItem"
+          SET "status"         = 'CANCELLED',
+              "modifiedById"   = $2,
+              "modifiedByRole" = $3
+        WHERE "purchaseOrderId" = $1
+          AND COALESCE("isArchived", FALSE) = FALSE
+          AND "status" <> 'CANCELLED'`,
+      [id, modifiedById, modifiedByRole],
+    );
+
     await client.query('COMMIT');
 
     return NextResponse.json({
@@ -154,6 +169,7 @@ export async function POST(req: NextRequest) {
       cancelReason: reason,
       markedCancelledTime: upd.rows[0].markedCancelledTime,
       by: employeeName,
+      itemsCancelled: itemUpd.rowCount ?? 0,
     });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch {}

@@ -116,6 +116,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'reject was silently rejected by a DB trigger' }, { status: 422 });
     }
 
+    // Propagate to the order's line items — rejecting a PO should reject all of
+    // its (non-archived) items. The item status-change trigger only stamps
+    // markedRejectedTime and the amount trigger doesn't fire on a status-only
+    // change, so this has no amount/refund side effects.
+    const itemUpd = await client.query(
+      `UPDATE "purchaseOrder"."purchaseOrderItem"
+          SET "status"             = 'REJECTED',
+              "markedRejectedTime" = COALESCE("markedRejectedTime", NOW()),
+              "modifiedById"       = $2,
+              "modifiedByRole"     = $3
+        WHERE "purchaseOrderId" = $1
+          AND COALESCE("isArchived", FALSE) = FALSE
+          AND "status" <> 'REJECTED'`,
+      [id, modifiedById, modifiedByRole],
+    );
+
     await client.query('COMMIT');
 
     return NextResponse.json({
@@ -125,6 +141,7 @@ export async function POST(req: NextRequest) {
       rejectReason: reason,
       rejectedBy,
       markedRejectedTime: upd.rows[0].markedRejectedTime,
+      itemsRejected: itemUpd.rowCount ?? 0,
     });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch {}

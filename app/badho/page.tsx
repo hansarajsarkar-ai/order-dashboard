@@ -115,6 +115,14 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '📝',
     status: 'live',
   },
+  {
+    slug: 'order-rejected-cancelled',
+    title: 'Order Rejected/Cancelled',
+    description:
+      'Rejected and cancelled orders — counts, amounts, reason breakdown, and per-order detail across sellers and time.',
+    icon: '🚫',
+    status: 'live',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

@@ -11188,7 +11188,7 @@ export default function OrderStatusDashboard() {
                   icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="19" y1="5" x2="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /></svg>),
                 },
                 {
-                  key: 'badho', label: 'Discount by Badho', value: badho, iconBg: 'from-amber-500 to-orange-600',
+                  key: 'badho', label: 'Payment Discount by Badho', value: badho, iconBg: 'from-amber-500 to-orange-600',
                   icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="12 2 15 8.5 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 8.5 12 2" /></svg>),
                 },
                 {

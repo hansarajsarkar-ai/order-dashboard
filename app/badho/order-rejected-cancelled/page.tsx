@@ -190,7 +190,9 @@ export default function OrderRejectedCancelledDashboard() {
   const [searchedPo, setSearchedPo] = useState<string | null>(null);
 
   const [modalAction, setModalAction] = useState<'reject' | 'cancel' | null>(null);
+  const [modalStep, setModalStep] = useState<'reason' | 'remark'>('reason');
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [remark, setRemark] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -257,15 +259,26 @@ export default function OrderRejectedCancelledDashboard() {
 
   const openModal = (action: 'reject' | 'cancel') => {
     setModalAction(action);
+    setModalStep('reason');
     setSelectedReason(null);
+    setRemark('');
     setActionError(null);
   };
 
   const closeModal = () => {
     if (submitting) return;
     setModalAction(null);
+    setModalStep('reason');
     setSelectedReason(null);
+    setRemark('');
     setActionError(null);
+  };
+
+  // Picking a reason advances to the remark step (second popup).
+  const pickReason = (title: string) => {
+    setSelectedReason(title);
+    setActionError(null);
+    setModalStep('remark');
   };
 
   const confirmAction = async () => {
@@ -279,6 +292,7 @@ export default function OrderRejectedCancelledDashboard() {
         body: JSON.stringify({
           poNumber: data.poNumber,
           reason: selectedReason,
+          remark: remark.trim() || null,
           employeeId,
           employeeEmail,
           employeeName,
@@ -288,7 +302,9 @@ export default function OrderRejectedCancelledDashboard() {
       if (!res.ok) throw new Error(json.error || `${modalAction} failed`);
       setToast(`PO ${data.poNumber} ${modalAction === 'reject' ? 'rejected' : 'cancelled'} successfully`);
       setModalAction(null);
+      setModalStep('reason');
       setSelectedReason(null);
+      setRemark('');
       await runSearch();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : `${modalAction} failed`);
@@ -692,37 +708,75 @@ export default function OrderRejectedCancelledDashboard() {
             <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-white">
-                  {modalAction === 'reject' ? 'Reject' : 'Cancel'} order {data.poNumber}
+                  {modalStep === 'remark'
+                    ? 'Add a remark'
+                    : `${modalAction === 'reject' ? 'Reject' : 'Cancel'} order ${data.poNumber}`}
                 </h2>
-                <p className="text-xs text-white/50 mt-0.5">Select a reason to continue</p>
+                <p className="text-xs text-white/50 mt-0.5">
+                  {modalStep === 'remark' ? 'Optional note for this order — then confirm' : 'Select a reason to continue'}
+                </p>
               </div>
               <button onClick={closeModal} className="text-white/60 hover:text-white text-xl leading-none px-2" aria-label="Close">×</button>
             </div>
 
-            <div className="overflow-y-auto px-3 py-3 space-y-1.5">
-              {REASONS.map((r) => {
-                const active = selectedReason === r.title;
-                return (
-                  <button
-                    key={r.title}
-                    onClick={() => setSelectedReason(r.title)}
-                    className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
-                      active
-                        ? 'bg-fuchsia-500/20 border-fuchsia-400/50 shadow-[0_0_18px_rgba(217,70,239,0.25)]'
-                        : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className={`mt-0.5 w-4 h-4 rounded-full border flex-shrink-0 ${active ? 'border-fuchsia-400 bg-fuchsia-400' : 'border-white/30'}`} />
-                      <div>
-                        <div className="text-sm font-semibold text-white">{r.title}</div>
-                        <div className="text-xs text-white/60 mt-0.5">{r.blurb}</div>
+            {modalStep === 'reason' ? (
+              <div key="reason" className="orc-fade-up overflow-y-auto px-3 py-3 space-y-1.5">
+                {REASONS.map((r) => {
+                  const active = selectedReason === r.title;
+                  return (
+                    <button
+                      key={r.title}
+                      onClick={() => pickReason(r.title)}
+                      className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                        active
+                          ? 'bg-fuchsia-500/20 border-fuchsia-400/50 shadow-[0_0_18px_rgba(217,70,239,0.25)]'
+                          : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className={`mt-0.5 w-4 h-4 rounded-full border flex-shrink-0 ${active ? 'border-fuchsia-400 bg-fuchsia-400' : 'border-white/30'}`} />
+                        <div>
+                          <div className="text-sm font-semibold text-white">{r.title}</div>
+                          <div className="text-xs text-white/60 mt-0.5">{r.blurb}</div>
+                        </div>
                       </div>
-                    </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div key="remark" className="orc-fade-up overflow-y-auto px-6 py-5 space-y-4">
+                <div className="flex items-center gap-2 flex-wrap text-sm">
+                  <span className="text-white/45">Reason:</span>
+                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-fuchsia-500/15 border border-fuchsia-400/30 text-fuchsia-100 font-medium">
+                    {selectedReason}
+                  </span>
+                  <button
+                    onClick={() => setModalStep('reason')}
+                    disabled={submitting}
+                    className="text-xs text-white/50 hover:text-white underline underline-offset-2 disabled:opacity-50"
+                  >
+                    change
                   </button>
-                );
-              })}
-            </div>
+                </div>
+                <div>
+                  <label htmlFor="po-remark" className="block text-xs font-medium text-white/55 mb-1.5">
+                    Remark <span className="text-white/35">(optional)</span>
+                  </label>
+                  <textarea
+                    id="po-remark"
+                    value={remark}
+                    onChange={(e) => setRemark(e.target.value)}
+                    rows={4}
+                    autoFocus
+                    maxLength={1000}
+                    placeholder="Add any extra context for this order…"
+                    className="w-full resize-none rounded-xl bg-white/[0.04] border border-white/10 px-4 py-3 text-sm text-white placeholder-white/30 focus:bg-white/[0.07] focus:border-fuchsia-400/50 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/25 transition-all"
+                  />
+                  <div className="mt-1 text-right text-[11px] text-white/30 tabular-nums">{remark.length}/1000</div>
+                </div>
+              </div>
+            )}
 
             {actionError && (
               <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-red-500/15 border border-red-400/30 text-red-200 text-xs">
@@ -732,23 +786,25 @@ export default function OrderRejectedCancelledDashboard() {
 
             <div className="px-6 py-4 border-t border-white/10 flex items-center justify-end gap-3">
               <button
-                onClick={closeModal}
+                onClick={modalStep === 'remark' ? () => setModalStep('reason') : closeModal}
                 disabled={submitting}
                 className="px-4 py-2 rounded-xl text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-50 transition-colors"
               >
-                Close
+                {modalStep === 'remark' ? 'Back' : 'Close'}
               </button>
-              <button
-                onClick={confirmAction}
-                disabled={!selectedReason || submitting}
-                className={`orc-shine px-5 py-2 rounded-xl text-sm font-semibold text-white ring-1 ring-white/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5 active:translate-y-0 ${
-                  modalAction === 'reject'
-                    ? 'bg-gradient-to-br from-rose-500 to-red-600 shadow-[0_8px_24px_-8px_rgba(244,63,94,0.7)]'
-                    : 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-[0_8px_24px_-8px_rgba(245,158,11,0.7)]'
-                }`}
-              >
-                {submitting ? 'Saving…' : modalAction === 'reject' ? 'Confirm Reject' : 'Confirm Cancel'}
-              </button>
+              {modalStep === 'remark' && (
+                <button
+                  onClick={confirmAction}
+                  disabled={!selectedReason || submitting}
+                  className={`orc-shine px-5 py-2 rounded-xl text-sm font-semibold text-white ring-1 ring-white/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5 active:translate-y-0 ${
+                    modalAction === 'reject'
+                      ? 'bg-gradient-to-br from-rose-500 to-red-600 shadow-[0_8px_24px_-8px_rgba(244,63,94,0.7)]'
+                      : 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-[0_8px_24px_-8px_rgba(245,158,11,0.7)]'
+                  }`}
+                >
+                  {submitting ? 'Saving…' : modalAction === 'reject' ? 'Confirm Reject' : 'Confirm Cancel'}
+                </button>
+              )}
             </div>
           </div>
         </div>

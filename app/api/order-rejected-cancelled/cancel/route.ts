@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic';
  * side effects of a cancellation.
  */
 export async function POST(req: NextRequest) {
-  let body: { poNumber?: unknown; reason?: unknown; employeeId?: unknown; employeeEmail?: unknown; employeeName?: unknown };
+  let body: { poNumber?: unknown; reason?: unknown; remark?: unknown; employeeId?: unknown; employeeEmail?: unknown; employeeName?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
   if (!reason) {
     return NextResponse.json({ error: 'A cancellation reason is required' }, { status: 400 });
   }
+  // Optional free-text remark from the operator → stored on the PO.
+  const remark = typeof body.remark === 'string' && body.remark.trim() ? body.remark.trim() : null;
   const employeeId = typeof body.employeeId === 'string' ? body.employeeId : null;
   const employeeEmail = typeof body.employeeEmail === 'string' ? body.employeeEmail : null;
   const fallbackName = typeof body.employeeName === 'string' ? body.employeeName : null;
@@ -131,10 +133,11 @@ export async function POST(req: NextRequest) {
               "markedCancelledTime" = NOW(),
               "modifiedById"        = $3,
               "modifiedByRole"      = $4,
+              "reasonAddedByBadhoTeam" = COALESCE($5, "reasonAddedByBadhoTeam"),
               "updated_at"          = NOW()
         WHERE "id" = $1
         RETURNING "poNumber"::text AS "poNumber", "status", "markedCancelledTime"`,
-      [id, reason, modifiedById, modifiedByRole],
+      [id, reason, modifiedById, modifiedByRole, remark],
     );
 
     if (upd.rowCount === 0) {

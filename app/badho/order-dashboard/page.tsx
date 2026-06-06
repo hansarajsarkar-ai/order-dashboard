@@ -11217,11 +11217,11 @@ export default function OrderStatusDashboard() {
                   <div className="absolute -top-24 -right-24 w-64 h-64 bg-fuchsia-200/40 rounded-full blur-3xl pointer-events-none" />
                   <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-200/40 rounded-full blur-3xl pointer-events-none" />
 
-                  <header className="relative px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-fuchsia-50 via-white to-indigo-50">
+                  <header className="relative px-4 py-2.5 border-b border-slate-200 bg-gradient-to-r from-fuchsia-50 via-white to-indigo-50">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(217,70,239,0.55)]">
-                          <span className="text-white font-extrabold text-base leading-none">₹</span>
+                        <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(217,70,239,0.55)]">
+                          <span className="text-white font-extrabold text-sm leading-none">₹</span>
                         </div>
                         <div className="min-w-0">
                           <div className="text-[10px] uppercase tracking-[0.25em] text-purple-600 font-bold">Price Breakup</div>
@@ -11250,64 +11250,63 @@ export default function OrderStatusDashboard() {
                     </div>
                   </header>
 
-                  <div className="relative flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                  <div className="relative flex-1 overflow-y-auto px-4 py-2.5 space-y-2">
                     {/* Order value — Gross & Item Total side by side */}
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2.5">
-                        <div className="text-[10px] uppercase tracking-wider text-indigo-500 font-bold">Gross Amount</div>
-                        <div className="tabular-nums font-extrabold text-lg text-slate-900 leading-tight">{fmt(gross)}</div>
-                        <div className="text-[10px] text-slate-400">items + item discount</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 px-2.5 py-1.5">
+                        <div className="text-[9px] uppercase tracking-wider text-indigo-500 font-bold leading-tight">Gross Amount</div>
+                        <div className="tabular-nums font-extrabold text-[15px] text-slate-900 leading-tight">{fmt(gross)}</div>
+                        <div className="text-[9px] text-slate-400 leading-tight">items + item discount</div>
                       </div>
-                      <div className="rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-2.5">
-                        <div className="text-[10px] uppercase tracking-wider text-violet-500 font-bold">Item Total Amount</div>
-                        <div className="tabular-nums font-extrabold text-lg text-slate-900 leading-tight">{fmt(itemTotal)}</div>
-                        <div className="text-[10px] text-slate-400">base for payable</div>
+                      <div className="rounded-lg border border-violet-200 bg-violet-50/70 px-2.5 py-1.5">
+                        <div className="text-[9px] uppercase tracking-wider text-violet-500 font-bold leading-tight">Item Total Amount</div>
+                        <div className="tabular-nums font-extrabold text-[15px] text-slate-900 leading-tight">{fmt(itemTotal)}</div>
+                        <div className="text-[9px] text-slate-400 leading-tight">base for payable</div>
                       </div>
                     </div>
 
                     {/* Discount components */}
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-2 px-1">Discounts</div>
-                      <div className="space-y-1.5">
+                      <div className="text-[9px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1 px-1">Discounts</div>
+                      <div className="space-y-1">
                         {discountLines.map((ln) => (
                           <div
                             key={ln.key}
-                            className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200"
+                            className="flex items-center gap-2.5 px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200"
                           >
-                            <div className={`shrink-0 w-7 h-7 rounded-md bg-gradient-to-br ${ln.iconBg} flex items-center justify-center`}>
+                            <div className={`shrink-0 w-6 h-6 rounded-md bg-gradient-to-br ${ln.iconBg} flex items-center justify-center`}>
                               {ln.icon}
                             </div>
-                            <div className="min-w-0 flex-1 text-xs font-semibold text-slate-700 truncate">{ln.label}</div>
-                            <div className={`tabular-nums font-bold text-sm ${ln.value > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                            <div className="min-w-0 flex-1 text-[11px] font-semibold text-slate-700 truncate">{ln.label}</div>
+                            <div className={`tabular-nums font-bold text-[12px] ${ln.value > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                               {ln.value > 0 ? '− ' : ''}{fmt(ln.value)}
                             </div>
                           </div>
                         ))}
                       </div>
                       {/* Total Discount subtotal */}
-                      <div className="flex items-center justify-between gap-3 mt-2 px-3 py-2.5 rounded-lg bg-rose-50 border border-rose-200">
-                        <span className="text-xs font-extrabold uppercase tracking-wide text-rose-700">Total Discount</span>
-                        <span className="tabular-nums font-extrabold text-base text-rose-700">− {fmt(totalDiscount)}</span>
+                      <div className="flex items-center justify-between gap-3 mt-1.5 px-2.5 py-1.5 rounded-md bg-rose-50 border border-rose-200">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wide text-rose-700">Total Discount</span>
+                        <span className="tabular-nums font-extrabold text-sm text-rose-700">− {fmt(totalDiscount)}</span>
                       </div>
                     </div>
                   </div>
 
-                  <footer className="relative px-5 py-4 border-t border-slate-200 bg-gradient-to-r from-emerald-50 via-emerald-100/60 to-emerald-50">
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="text-slate-700 font-semibold">Amount to be paid</span>
+                  <footer className="relative px-4 py-2.5 border-t border-slate-200 bg-gradient-to-r from-emerald-50 via-emerald-100/60 to-emerald-50">
+                    <div className="flex items-center justify-between gap-3 text-[13px]">
+                      <span className="text-slate-700 font-semibold leading-tight">Amount to be paid<span className="block text-[9px] text-slate-400 font-normal">Item Total − Total Discount</span></span>
                       <span className="tabular-nums font-extrabold text-slate-900">{fmt(amountToBePaid)}</span>
                     </div>
-                    <div className="text-[10px] text-slate-400 -mt-0.5">Item Total − Total Discount</div>
-                    <div className="flex items-center justify-between gap-3 mt-2 text-xs">
+                    <div className="flex items-center justify-between gap-3 mt-1 text-[11px]">
                       <span className="text-slate-600">{priceBreakup.paymentOption === 'PARTIALLY_PAID' ? 'Partial paid' : 'Paid amount'}</span>
                       <span className="tabular-nums font-bold text-emerald-700">{paid > 0 ? '− ' : ''}{fmt(paid)}</span>
                     </div>
-                    <div className="flex items-center justify-between gap-3 mt-2 pt-3 border-t border-emerald-200">
+                    <div className="flex items-center justify-between gap-3 mt-1.5 pt-2 border-t border-emerald-200">
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${fullyCovered ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.7)]' : 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.7)]'} animate-pulse`} />
                         <span className={`text-[10px] uppercase tracking-[0.25em] font-bold ${fullyCovered ? 'text-emerald-700' : 'text-amber-700'}`}>Net Payable</span>
                       </div>
-                      <span className={`tabular-nums text-2xl font-extrabold bg-clip-text text-transparent ${fullyCovered ? 'bg-gradient-to-r from-emerald-700 via-emerald-600 to-emerald-700' : 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700'}`}>
+                      <span className={`tabular-nums text-xl font-extrabold bg-clip-text text-transparent ${fullyCovered ? 'bg-gradient-to-r from-emerald-700 via-emerald-600 to-emerald-700' : 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700'}`}>
                         {netPayable < 0 ? `− ${fmt(Math.abs(netPayable))}` : fmt(netPayable)}
                       </span>
                     </div>

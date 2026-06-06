@@ -49,14 +49,26 @@ export async function POST(req: NextRequest) {
   try {
     await client.query('BEGIN');
 
-    // Resolve the operator's canonical name (audit only).
+    // Resolve the operator from employeeBase, matching on their logged-in
+    // email first (the id in localStorage is an auth user id, not the employee
+    // record's employeeId). We stamp this employeeId + role onto the PO as the
+    // modifier; the name is kept for the audit response.
     let employeeName = fallbackName;
+    let modifiedById: string | null = employeeId;
+    let modifiedByRole = 'dashboard';
     if (employeeId || employeeEmail) {
-      const emp = await client.query<{ name: string | null }>(
-        `SELECT "name" FROM "employeeBase"."employee" WHERE "employeeId" = $1 OR "email" = $2 LIMIT 1`,
+      const emp = await client.query<{ employeeId: string | null; name: string | null; role: string | null }>(
+        `SELECT "employeeId", "name", "role"
+           FROM "employeeBase"."employee"
+          WHERE "email" = $2 OR "employeeId" = $1
+          ORDER BY CASE WHEN "email" = $2 THEN 0 ELSE 1 END
+          LIMIT 1`,
         [employeeId, employeeEmail],
       );
-      if (emp.rows[0]?.name) employeeName = emp.rows[0].name;
+      const e = emp.rows[0];
+      if (e?.name) employeeName = e.name;
+      if (e?.employeeId) modifiedById = e.employeeId;
+      if (e?.role) modifiedByRole = e.role;
     }
 
     // Lock the PO row first. (FOR UPDATE can't be combined with GROUP BY, so
@@ -117,11 +129,12 @@ export async function POST(req: NextRequest) {
           SET "status"              = 'CANCELLED',
               "cancelReason"        = $2,
               "markedCancelledTime" = NOW(),
-              "modifiedByRole"      = 'dashboard',
+              "modifiedById"        = $3,
+              "modifiedByRole"      = $4,
               "updated_at"          = NOW()
         WHERE "id" = $1
         RETURNING "poNumber"::text AS "poNumber", "status", "markedCancelledTime"`,
-      [id, reason],
+      [id, reason, modifiedById, modifiedByRole],
     );
 
     if (upd.rowCount === 0) {

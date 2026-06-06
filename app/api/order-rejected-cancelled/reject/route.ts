@@ -45,14 +45,26 @@ export async function POST(req: NextRequest) {
   try {
     await client.query('BEGIN');
 
-    // Resolve the operator's canonical name so rejectedBy is auditable.
+    // Resolve the operator from employeeBase, matching on their logged-in
+    // email first (the id in localStorage is an auth user id, not the employee
+    // record's employeeId). We stamp this employeeId + role onto the PO as the
+    // modifier, and use the name for the auditable rejectedBy string.
     let employeeName = fallbackName;
+    let modifiedById: string | null = employeeId;
+    let modifiedByRole = 'dashboard';
     if (employeeId || employeeEmail) {
-      const emp = await client.query<{ name: string | null }>(
-        `SELECT "name" FROM "employeeBase"."employee" WHERE "employeeId" = $1 OR "email" = $2 LIMIT 1`,
+      const emp = await client.query<{ employeeId: string | null; name: string | null; role: string | null }>(
+        `SELECT "employeeId", "name", "role"
+           FROM "employeeBase"."employee"
+          WHERE "email" = $2 OR "employeeId" = $1
+          ORDER BY CASE WHEN "email" = $2 THEN 0 ELSE 1 END
+          LIMIT 1`,
         [employeeId, employeeEmail],
       );
-      if (emp.rows[0]?.name) employeeName = emp.rows[0].name;
+      const e = emp.rows[0];
+      if (e?.name) employeeName = e.name;
+      if (e?.employeeId) modifiedById = e.employeeId;
+      if (e?.role) modifiedByRole = e.role;
     }
 
     const chk = await client.query<{ id: string; status: string }>(
@@ -88,11 +100,12 @@ export async function POST(req: NextRequest) {
               "rejectReason"       = $2,
               "rejectedBy"         = $3,
               "markedRejectedTime" = NOW(),
-              "modifiedByRole"     = 'dashboard',
+              "modifiedById"       = $4,
+              "modifiedByRole"     = $5,
               "updated_at"         = NOW()
         WHERE "id" = $1
         RETURNING "poNumber"::text AS "poNumber", "status", "markedRejectedTime"`,
-      [id, reason, rejectedBy],
+      [id, reason, rejectedBy, modifiedById, modifiedByRole],
     );
 
     if (upd.rowCount === 0) {

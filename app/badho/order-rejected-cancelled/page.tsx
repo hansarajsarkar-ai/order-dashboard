@@ -342,7 +342,7 @@ export default function OrderRejectedCancelledDashboard() {
       {/* Vignette for depth */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_40%,transparent,rgba(0,0,0,0.6))]" />
 
-      <div className="max-w-6xl mx-auto relative z-10">
+      <div className="max-w-[1700px] mx-auto relative z-10">
         {/* Top bar */}
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <Link
@@ -513,8 +513,8 @@ export default function OrderRejectedCancelledDashboard() {
               </div>
             )}
 
-            {/* Five cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Five cards — four info cards in one row on wide screens, items full-width below */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">
               {/* 1. Parties */}
               <Card accent={ACCENTS.fuchsia} title="Seller & Buyer" icon="🤝" delay={60}>
                 <div className="space-y-3">
@@ -628,7 +628,7 @@ export default function OrderRejectedCancelledDashboard() {
               </Card>
 
               {/* 4. Item breakup — full width */}
-              <div className="md:col-span-2">
+              <div className="md:col-span-2 xl:col-span-4">
                 <Card
                   accent={ACCENTS.indigo}
                   title="Item Breakup"

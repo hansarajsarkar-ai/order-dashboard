@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     const chk = await client.query<{ id: string; status: string }>(
       `SELECT po."id" AS id, po."status" AS status
          FROM "purchaseOrder"."purchaseOrder" po
-        WHERE po."poNumber"::text = $1
+        WHERE po."poNumber" = $1::int
           AND po."status" <> 'DRAFT'
         FOR UPDATE OF po`,
       [String(poNumber)],

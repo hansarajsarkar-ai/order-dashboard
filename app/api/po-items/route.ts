@@ -22,9 +22,9 @@ interface Row {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const poNumber = searchParams.get('poNumber');
-  if (!poNumber) {
-    return NextResponse.json({ error: 'poNumber required' }, { status: 400 });
+  const poNumber = (searchParams.get('poNumber') || '').trim();
+  if (!/^\d+$/.test(poNumber)) {
+    return NextResponse.json({ error: 'A numeric poNumber is required' }, { status: 400 });
   }
 
   try {
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
              ON poi."purchaseOrderId" = po."id"
       LEFT JOIN "brands"."brandSKU" bsku
              ON bsku."id" = poi."brandSKUId"
-      WHERE po."poNumber"::text = $1
+      WHERE po."poNumber" = $1::int
         AND COALESCE(poi."isArchived", FALSE) = FALSE
       ORDER BY poi."created_at" ASC;
     `;

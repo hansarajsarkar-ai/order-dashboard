@@ -158,7 +158,7 @@ export async function GET(req: NextRequest) {
              ON pop."purchaseOrderId" = po."id"
             AND pop."status" = 'COMPLETED'
             AND pop."event"  IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
-      WHERE po."poNumber"::text = $1
+      WHERE po."poNumber" = $1::int
         AND po."status" <> 'DRAFT'
       ORDER BY pop."created_at" DESC NULLS LAST
       LIMIT 1;

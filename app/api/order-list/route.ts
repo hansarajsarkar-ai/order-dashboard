@@ -6,22 +6,16 @@ export const dynamic = 'force-dynamic';
 interface Row {
   poNumber: string;
   MarkedpendingTime: string | null;
-  paymentDate: string | null;
-  paymentEvent: string | null;
   sellerPhone: string | null;
   sellerBusinessName: string | null;
   buyerPhone: string | null;
   buyerBusinessName: string | null;
-  paidAmount: number | null;
   poAmount: number | null;
   ItemTotal: number | null;
   GrossAmount: number | null;
   OrderMarginDiscount: number | null;
   CoupanAmount: number | null;
   orderStatus: string;
-  discountBySeller: number;
-  PaymentOptionDiscountByBadho: number;
-  appliedWalletAmount: number | null;
   PaymentOption: string | null;
   awbNumber: string | null;
   courierName: string | null;
@@ -237,22 +231,16 @@ export async function GET(req: NextRequest) {
       SELECT DISTINCT
         po."poNumber"::text AS "poNumber",
         po."markedPendingTime" AS "MarkedpendingTime",
-        pop."created_at" AS "paymentDate",
-        pop."event" AS "paymentEvent",
         s."phone" AS "sellerPhone",
         s."businessName" AS "sellerBusinessName",
         b."phone" AS "buyerPhone",
         b."businessName" AS "buyerBusinessName",
-        pop."paidAmount" AS "paidAmount",
         (po."amount" + COALESCE(po."platformMarginDiscount", 0)) AS "poAmount",
         po."amount" AS "ItemTotal",
         (COALESCE(po."amount"::numeric, 0) + COALESCE(po."platformMarginDiscount"::numeric, 0)) AS "GrossAmount",
         COALESCE(po."platformMarginDiscount"::numeric, 0) AS "OrderMarginDiscount",
         po."appliedOfferDiscount" AS "CoupanAmount",
         po."status" AS "orderStatus",
-        COALESCE((pop."breakup"->>'discount_on_payment_preference_for_seller')::float, 0) AS "discountBySeller",
-        COALESCE((pop."breakup"->>'discount_on_payment_preference_from_badho')::float, 0) AS "PaymentOptionDiscountByBadho",
-        pop."appliedWalletAmount",
         po."paymentInfo"->>'option' AS "PaymentOption",
         dv."trackingInfo"->>'awbNumber' AS "awbNumber",
         dv."trackingInfo"->>'courierName' AS "courierName",
@@ -319,10 +307,6 @@ export async function GET(req: NextRequest) {
       LEFT JOIN "payments"."paymentRefundRecord" pf
              ON pf."purchaseOrderId" = po."id"
             AND pf."status" = 'COMPLETED'
-      LEFT JOIN "purchaseOrder"."purchaseOrderPayment" pop
-             ON pop."purchaseOrderId" = po."id"
-            AND pop."status" = 'COMPLETED'
-            AND pop."event"  IN ('FULL_ADVANCE', 'PARTIAL_ADVANCE')
       WHERE s."isD2RBrandSeller" = TRUE
         AND s."isTest"           = FALSE
         AND s."businessName" NOT ILIKE '%test%'
@@ -353,13 +337,10 @@ export async function GET(req: NextRequest) {
     const data = rows.map((r) => ({
       poNumber: r.poNumber,
       MarkedpendingTime: r.MarkedpendingTime,
-      paymentDate: r.paymentDate,
-      paymentEvent: r.paymentEvent,
       sellerPhone: r.sellerPhone,
       sellerBusinessName: r.sellerBusinessName,
       buyerPhone: r.buyerPhone,
       buyerBusinessName: r.buyerBusinessName,
-      paidAmount: r.paidAmount,
       poAmount: r.poAmount,
       itemTotal: r.ItemTotal != null ? Number(r.ItemTotal) : null,
       grossAmount: r.GrossAmount != null ? Number(r.GrossAmount) : null,
@@ -367,9 +348,6 @@ export async function GET(req: NextRequest) {
       CoupanAmount: r.CoupanAmount,
       orderStatus: r.orderStatus,
       status: r.orderStatus,
-      discountBySeller: r.discountBySeller,
-      PaymentOptionDiscountByBadho: r.PaymentOptionDiscountByBadho,
-      appliedWalletAmount: r.appliedWalletAmount,
       PaymentOption: r.PaymentOption,
       awbNumber: r.awbNumber,
       courierName: r.courierName,

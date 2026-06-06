@@ -307,6 +307,40 @@ const formatAmount = (n: number): string => {
   return `₹${n.toFixed(0)}`;
 };
 
+// Counts a number up from 0 to `target` with an easeOutCubic curve whenever the
+// target changes (e.g. on first load or when a reload refetches goal data).
+// Returns the in-flight value each animation frame so callers can format/render it.
+function useCountUp(target: number, duration = 1200, active = true): number {
+  const [value, setValue] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    // Snap straight to the target when motion can't/shouldn't run — a hidden tab
+    // pauses requestAnimationFrame (numbers would freeze at 0), and reduced-motion
+    // users opt out of the count-up. Either way the final value must still show.
+    const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (document.hidden || prefersReduced) { setValue(target); return; }
+    let startTs: number | null = null;
+    const step = (ts: number) => {
+      if (startTs === null) startTs = ts;
+      const t = Math.min((ts - startTs) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(target * eased);
+      if (t < 1) rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+    // If the tab gets hidden mid-animation, jump to the final value so it never
+    // stalls partway; on becoming visible again we just keep the final value.
+    const onHide = () => { if (document.hidden) { if (rafRef.current) cancelAnimationFrame(rafRef.current); setValue(target); } };
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, [target, duration, active]);
+  return value;
+}
+
 // Buckets the "days stuck at destination hub" value (daysSinceReachedAtDestination)
 // for the Hub Tracking "Stuck time" filter. Returns null when unknown.
 const hubStuckBucketOf = (d: number | null | undefined): string | null => {
@@ -497,6 +531,13 @@ export default function OrderStatusDashboard() {
   const [groupByDims, setGroupByDims] = useState<GroupDimension[]>([]);
   const [goalData, setGoalData] = useState<RevenueGoal | null>(null);
   const [goalLoading, setGoalLoading] = useState(true);
+  // Count-up animations for the GMV Goal tiles + progress bar — re-run on each reload/refetch.
+  const goalAnimActive = !goalLoading && !!goalData;
+  const animAchievePct = useCountUp(goalData?.achievePct ?? 0, 1200, goalAnimActive);
+  const animAchieved = useCountUp(goalData?.achieved ?? 0, 1200, goalAnimActive);
+  const animGoal = useCountUp(goalData?.goal ?? 0, 1200, goalAnimActive);
+  const animRemaining = useCountUp(goalData?.remaining ?? 0, 1200, goalAnimActive);
+  const animAbove = useCountUp(goalData ? Math.max(goalData.achieved - goalData.goal, 0) : 0, 1200, goalAnimActive);
   const [sellerData, setSellerData] = useState<SellerWiseData | null>(null);
   const [sellerLoading, setSellerLoading] = useState(true);
   const [sellerSearch, setSellerSearch] = useState('');
@@ -3548,12 +3589,11 @@ export default function OrderStatusDashboard() {
             ) : !goalData ? (
               <div className="py-12 text-center text-white/60">No data</div>
             ) : (() => {
-              const pct = Math.min(goalData.achievePct, 100);
               const overshoot = goalData.achievePct > 100;
-              const chartData = [{ name: 'Achieved', value: pct, fill: overshoot ? '#10b981' : '#a855f7' }];
+              const chartData = [{ name: 'Achieved', value: Math.min(animAchievePct, 100), fill: overshoot ? '#10b981' : '#a855f7' }];
               const remainingLabel = overshoot
-                ? `Exceeded by ${formatAmount(goalData.achieved - goalData.goal)}`
-                : `${formatAmount(goalData.remaining)} to go`;
+                ? `Exceeded by ${formatAmount(animAbove)}`
+                : `${formatAmount(animRemaining)} to go`;
               return (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
                   <div className="lg:col-span-1 relative">
@@ -3566,12 +3606,12 @@ export default function OrderStatusDashboard() {
                         endAngle={-270}
                       >
                         <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                        <RadialBar background={{ fill: 'rgba(255,255,255,0.08)' }} dataKey="value" cornerRadius={12} />
+                        <RadialBar background={{ fill: 'rgba(255,255,255,0.08)' }} dataKey="value" cornerRadius={12} isAnimationActive={false} />
                       </RadialBarChart>
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                       <p className="text-white/60 text-xs uppercase tracking-wider">{currentMonth} Achieved</p>
-                      <p className="text-5xl font-bold text-white tabular-nums">{goalData.achievePct.toFixed(2)}%</p>
+                      <p className="text-5xl font-bold text-white tabular-nums">{animAchievePct.toFixed(2)}%</p>
                       <p className="text-white/60 text-xs mt-1">{remainingLabel}</p>
                     </div>
                   </div>
@@ -3582,31 +3622,31 @@ export default function OrderStatusDashboard() {
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{currentMonth} Achieved</p>
-                      <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(goalData.achieved)}</p>
+                      <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(animAchieved)}</p>
                       <p className="text-white/50 text-xs mt-1">{goalData.orders.toLocaleString()} orders</p>
                       <p className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</p>
                     </button>
                     <div className="bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02]">
                       <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{currentMonth} Goal</p>
-                      <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(goalData.goal)}</p>
+                      <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(animGoal)}</p>
                       <p className="text-white/50 text-xs mt-1">DELIVERED + COMPLETED</p>
                     </div>
                     <div className="bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02]">
                       <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{overshoot ? 'Above Goal' : 'Remaining'}</p>
                       <p className={`text-3xl font-bold tabular-nums ${overshoot ? 'text-emerald-400' : 'text-white'}`}>
-                        {formatAmount(overshoot ? goalData.achieved - goalData.goal : goalData.remaining)}
+                        {formatAmount(overshoot ? animAbove : animRemaining)}
                       </p>
                       <p className="text-white/50 text-xs mt-1">{overshoot ? `beyond ${formatAmount(goalData.goal)}` : `to hit ${formatAmount(goalData.goal)}`}</p>
                     </div>
                     <div className="sm:col-span-2 bg-white/5 border border-white/10 rounded-xl p-4 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_40px_rgba(217,70,239,0.3)]">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-white/70 text-sm font-semibold">Progress to {formatAmount(goalData.goal)}</p>
-                        <p className="text-white/70 text-sm tabular-nums">{goalData.achievePct.toFixed(2)}%</p>
+                        <p className="text-white/70 text-sm font-semibold">Progress to {formatAmount(animGoal)}</p>
+                        <p className="text-white/70 text-sm tabular-nums">{animAchievePct.toFixed(2)}%</p>
                       </div>
                       <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-700 ${overshoot ? 'bg-emerald-500' : 'bg-purple-500'}`}
-                          style={{ width: `${Math.min(goalData.achievePct, 100)}%` }}
+                          className={`h-full rounded-full ${overshoot ? 'bg-emerald-500' : 'bg-purple-500'}`}
+                          style={{ width: `${Math.min(animAchievePct, 100)}%` }}
                         />
                       </div>
                     </div>

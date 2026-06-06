@@ -139,18 +139,26 @@ const ACCENTS: Record<string, Accent> = {
 const initials = (name: string | null) =>
   (name || '?').split(/\s+/).map((w) => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase();
 
-function Card({ accent, title, icon, action, children }: { accent: Accent; title: string; icon: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Card({ accent, title, icon, action, children, delay = 0 }: { accent: Accent; title: string; icon: string; action?: React.ReactNode; children: React.ReactNode; delay?: number }) {
   return (
-    <div className="group relative rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-white/20 hover:shadow-[0_16px_50px_-20px_rgba(0,0,0,0.7)] hover:-translate-y-0.5">
+    <div
+      style={{ animationDelay: `${delay}ms` }}
+      className="orc-fade-up group relative rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.09] to-white/[0.02] backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-white/20 hover:shadow-[0_24px_70px_-28px_rgba(0,0,0,0.85)] hover:-translate-y-1"
+    >
+      {/* top accent bar */}
       <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${accent.bar}`} />
-      <div className="px-5 pt-5 pb-3 flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${accent.chip} flex items-center justify-center text-base shadow-lg ${accent.glow}`}>
+      {/* inner top highlight */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      {/* hover sheen */}
+      <div className="pointer-events-none absolute -inset-px opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(420px_circle_at_var(--mx,50%)_0,rgba(255,255,255,0.06),transparent_60%)]" />
+      <div className="relative px-5 pt-5 pb-3 flex items-center gap-3">
+        <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${accent.chip} flex items-center justify-center text-base shadow-lg ${accent.glow} ring-1 ring-white/15`}>
           {icon}
         </div>
-        <h3 className="text-[12px] font-bold text-white/90 uppercase tracking-[0.12em] flex-1">{title}</h3>
+        <h3 className="text-[12px] font-bold text-white/90 uppercase tracking-[0.14em] flex-1">{title}</h3>
         {action}
       </div>
-      <div className="px-5 pb-5">{children}</div>
+      <div className="relative px-5 pb-5">{children}</div>
     </div>
   );
 }
@@ -307,9 +315,16 @@ export default function OrderRejectedCancelledDashboard() {
   const a = data?.amount;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8 relative overflow-hidden">
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
+    <div className="min-h-screen bg-[#080510] p-4 sm:p-8 relative overflow-hidden">
+      {/* Ambient mesh background */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-950 via-[#160a29] to-slate-950" />
+      <div className="pointer-events-none absolute -top-40 left-[15%] w-[36rem] h-[36rem] bg-fuchsia-600/25 rounded-full blur-[130px] orc-float" />
+      <div className="pointer-events-none absolute top-1/4 -right-32 w-[32rem] h-[32rem] bg-indigo-600/25 rounded-full blur-[130px] orc-float-slow" />
+      <div className="pointer-events-none absolute -bottom-48 left-1/3 w-[34rem] h-[34rem] bg-cyan-500/[0.14] rounded-full blur-[140px] orc-float" />
+      {/* Masked fine grid */}
+      <div className="pointer-events-none absolute inset-0 orc-grid opacity-[0.05]" />
+      {/* Vignette for depth */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_40%,transparent,rgba(0,0,0,0.6))]" />
 
       <div className="max-w-6xl mx-auto relative z-10">
         {/* Top bar */}
@@ -340,32 +355,37 @@ export default function OrderRejectedCancelledDashboard() {
         </div>
 
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
+        <div className="mb-6 orc-fade-up">
+          <div className="inline-flex items-center gap-2 mb-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] font-medium text-fuchsia-200/80 tracking-wide">
+            <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-400 shadow-[0_0_8px_rgba(217,70,239,0.9)]" />
+            Order Operations
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight orc-text-shimmer bg-[linear-gradient(110deg,#f0abfc,45%,#c084fc,55%,#818cf8,75%,#f0abfc)] bg-clip-text text-transparent">
             Order Rejected / Cancelled
           </h1>
-          <p className="text-purple-200/80 text-sm mt-1">
+          <p className="text-purple-200/70 text-sm mt-1.5">
             Search a PO number to load its details, then reject or cancel it with a reason.
           </p>
         </div>
 
         {/* Search */}
-        <form onSubmit={runSearch} className="mb-6 flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[260px] max-w-[420px]">
+        <form onSubmit={runSearch} className="mb-6 flex items-center gap-3 flex-wrap orc-fade-up">
+          <div className="relative flex-1 min-w-[260px] max-w-[440px] group">
+            <div className="pointer-events-none absolute -inset-px rounded-xl bg-gradient-to-r from-fuchsia-500/0 via-fuchsia-500/0 to-indigo-500/0 group-focus-within:from-fuchsia-500/30 group-focus-within:to-indigo-500/30 blur-sm transition-all duration-300" />
             <input
               type="text"
               inputMode="numeric"
               value={poInput}
               onChange={(e) => setPoInput(e.target.value)}
               placeholder="Search by PO number…"
-              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 text-white placeholder-purple-300/50 focus:bg-white/10 focus:border-fuchsia-400/50 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/30 transition-all"
+              className="relative w-full pl-10 pr-3 py-2.5 text-sm rounded-xl bg-white/[0.06] backdrop-blur-xl border border-white/10 text-white placeholder-purple-300/40 focus:bg-white/10 focus:border-fuchsia-400/50 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/30 transition-all"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-300/60 text-sm">⌕</span>
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-purple-300/60 text-base z-10">⌕</span>
           </div>
           <button
             type="submit"
             disabled={searching}
-            className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.4)] hover:shadow-[0_0_32px_rgba(217,70,239,0.6)] disabled:opacity-50 transition-all"
+            className="orc-shine px-6 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.4)] hover:shadow-[0_0_36px_rgba(217,70,239,0.65)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 transition-all"
           >
             {searching ? 'Searching…' : 'Search'}
           </button>
@@ -411,13 +431,15 @@ export default function OrderRejectedCancelledDashboard() {
           return (
           <>
             {/* Hero header */}
-            <div className="mb-6 relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-fuchsia-600/15 via-purple-600/10 to-indigo-600/15 px-6 py-5">
-              <div className="absolute -top-12 -right-10 w-48 h-48 bg-fuchsia-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="mb-6 orc-fade-up relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-fuchsia-600/15 via-purple-600/10 to-indigo-600/15 px-6 py-5 shadow-[0_24px_70px_-32px_rgba(217,70,239,0.5)]">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+              <div className="absolute -top-12 -right-10 w-48 h-48 bg-fuchsia-500/20 rounded-full blur-3xl pointer-events-none orc-float" />
+              <div className="absolute -bottom-16 left-1/4 w-56 h-56 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none orc-float-slow" />
               <div className="relative flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-5 flex-wrap">
                   <div>
                     <div className="text-[11px] uppercase tracking-[0.15em] text-white/50">Purchase Order</div>
-                    <div className="text-3xl font-extrabold text-white tabular-nums leading-tight">{data.poNumber}</div>
+                    <div className="text-3xl sm:text-4xl font-extrabold tabular-nums leading-tight bg-gradient-to-br from-white to-purple-200/80 bg-clip-text text-transparent">{data.poNumber}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${badge.cls}`}>
@@ -441,13 +463,13 @@ export default function OrderRejectedCancelledDashboard() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => openModal('reject')}
-                      className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-br from-rose-500 to-red-600 shadow-[0_8px_24px_-8px_rgba(244,63,94,0.7)] hover:shadow-[0_10px_30px_-6px_rgba(244,63,94,0.85)] hover:-translate-y-0.5 transition-all"
+                      className="orc-shine inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-br from-rose-500 to-red-600 ring-1 ring-white/15 shadow-[0_8px_24px_-8px_rgba(244,63,94,0.7)] hover:shadow-[0_12px_34px_-6px_rgba(244,63,94,0.9)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
                     >
                       <span className="text-base leading-none">⊘</span> Reject
                     </button>
                     <button
                       onClick={() => openModal('cancel')}
-                      className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-br from-amber-500 to-orange-600 shadow-[0_8px_24px_-8px_rgba(245,158,11,0.7)] hover:shadow-[0_10px_30px_-6px_rgba(245,158,11,0.85)] hover:-translate-y-0.5 transition-all"
+                      className="orc-shine inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-br from-amber-500 to-orange-600 ring-1 ring-white/15 shadow-[0_8px_24px_-8px_rgba(245,158,11,0.7)] hover:shadow-[0_12px_34px_-6px_rgba(245,158,11,0.9)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
                     >
                       <span className="text-base leading-none">✕</span> Cancel
                     </button>
@@ -478,7 +500,7 @@ export default function OrderRejectedCancelledDashboard() {
             {/* Five cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* 1. Parties */}
-              <Card accent={ACCENTS.fuchsia} title="Seller & Buyer" icon="🤝">
+              <Card accent={ACCENTS.fuchsia} title="Seller & Buyer" icon="🤝" delay={60}>
                 <div className="space-y-3">
                   <div className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500/40 to-purple-600/40 border border-fuchsia-400/30 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
@@ -512,6 +534,7 @@ export default function OrderRejectedCancelledDashboard() {
                 accent={ACCENTS.cyan}
                 title="Delivery & Ticket"
                 icon="🚚"
+                delay={120}
                 action={data.delivery.status ? (
                   <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${DELIVERY_BADGE[data.delivery.status] || 'bg-white/5 text-white/60 border-white/10'}`}>
                     {data.delivery.status}
@@ -553,7 +576,7 @@ export default function OrderRejectedCancelledDashboard() {
               </Card>
 
               {/* 3. Amount breakup */}
-              <Card accent={ACCENTS.emerald} title="Amount Breakup" icon="🧾">
+              <Card accent={ACCENTS.emerald} title="Amount Breakup" icon="🧾" delay={180}>
                 <div className="flex items-end justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-500/10 to-transparent border border-emerald-400/15 mb-3">
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-emerald-300/70">Gross Amount</div>
@@ -573,7 +596,7 @@ export default function OrderRejectedCancelledDashboard() {
               </Card>
 
               {/* 5. Payment option */}
-              <Card accent={ACCENTS.amber} title="Payment" icon="💳">
+              <Card accent={ACCENTS.amber} title="Payment" icon="💳" delay={240}>
                 <div className="flex items-end justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-transparent border border-amber-400/15 mb-3">
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-amber-300/70">Paid Amount</div>
@@ -595,6 +618,7 @@ export default function OrderRejectedCancelledDashboard() {
                   accent={ACCENTS.indigo}
                   title="Item Breakup"
                   icon="📦"
+                  delay={300}
                   action={items && items.length > 0 ? (
                     <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/15 text-indigo-200 border border-indigo-400/25">
                       {items.length} item{items.length > 1 ? 's' : ''}
@@ -659,11 +683,12 @@ export default function OrderRejectedCancelledDashboard() {
 
       {/* Reason modal */}
       {modalAction && data && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={closeModal}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md orc-fade-up" onClick={closeModal}>
           <div
-            className="w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl bg-slate-900 border border-white/15 shadow-2xl flex flex-col"
+            className="relative w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-white/15 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.95)] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${modalAction === 'reject' ? 'from-rose-400/80 via-red-400/40 to-transparent' : 'from-amber-400/80 via-orange-400/40 to-transparent'}`} />
             <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-white">
@@ -716,8 +741,10 @@ export default function OrderRejectedCancelledDashboard() {
               <button
                 onClick={confirmAction}
                 disabled={!selectedReason || submitting}
-                className={`px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-all ${
-                  modalAction === 'reject' ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'
+                className={`orc-shine px-5 py-2 rounded-xl text-sm font-semibold text-white ring-1 ring-white/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5 active:translate-y-0 ${
+                  modalAction === 'reject'
+                    ? 'bg-gradient-to-br from-rose-500 to-red-600 shadow-[0_8px_24px_-8px_rgba(244,63,94,0.7)]'
+                    : 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-[0_8px_24px_-8px_rgba(245,158,11,0.7)]'
                 }`}
               >
                 {submitting ? 'Saving…' : modalAction === 'reject' ? 'Confirm Reject' : 'Confirm Cancel'}
@@ -727,8 +754,51 @@ export default function OrderRejectedCancelledDashboard() {
         </div>
       )}
 
-      <style jsx>{`
-        .animation-delay-2000 { animation-delay: 2s; }
+      <style jsx global>{`
+        @keyframes orcFloat {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(24px, -32px) scale(1.08); }
+        }
+        .orc-float { animation: orcFloat 16s ease-in-out infinite; }
+        .orc-float-slow { animation: orcFloat 24s ease-in-out infinite reverse; }
+
+        .orc-grid {
+          background-image:
+            linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px);
+          background-size: 46px 46px;
+          -webkit-mask-image: radial-gradient(ellipse 75% 60% at 50% 35%, black, transparent 78%);
+          mask-image: radial-gradient(ellipse 75% 60% at 50% 35%, black, transparent 78%);
+        }
+
+        @keyframes orcFadeUp {
+          from { opacity: 0; transform: translateY(18px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .orc-fade-up { animation: orcFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+        @keyframes orcShimmer { to { background-position: 200% center; } }
+        .orc-text-shimmer {
+          background-size: 200% auto;
+          animation: orcShimmer 5s linear infinite;
+        }
+
+        .orc-shine { position: relative; overflow: hidden; isolation: isolate; }
+        .orc-shine::after {
+          content: '';
+          position: absolute;
+          top: 0; left: -120%;
+          width: 60%; height: 100%;
+          background: linear-gradient(120deg, transparent, rgba(255,255,255,0.45), transparent);
+          transform: skewX(-20deg);
+          transition: left 0.7s ease;
+        }
+        .orc-shine:hover::after { left: 140%; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .orc-float, .orc-float-slow, .orc-text-shimmer, .orc-fade-up { animation: none !important; }
+          .orc-shine::after { display: none; }
+        }
       `}</style>
     </div>
   );

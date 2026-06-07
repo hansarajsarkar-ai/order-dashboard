@@ -17,7 +17,9 @@ async function _GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') || String(currentYear));
 
   try {
-    const params: (string | number)[] = [year];
+    // Sargable date range (lets Postgres use purchaseOrder_markedPendingTime_index
+    // instead of computing EXTRACT(YEAR ...) on every row -> full scan).
+    const params: (string | number)[] = [`${year}-01-01`, `${year + 1}-01-01`];
     const monthsFilter = appendMonthsFilter(searchParams.get('months'), 'po."markedPendingTime"', params);
     const sql = `
       SELECT
@@ -38,8 +40,8 @@ async function _GET(req: NextRequest) {
         AND po."deliveryNetwork" = 'THIRD_PARTY'
         AND po."deliveryType"    = 'INTERCITY'
         AND po."status" != 'DRAFT'
-        AND po."markedPendingTime" IS NOT NULL
-        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
+        AND po."markedPendingTime" >= $1::timestamptz
+        AND po."markedPendingTime" <  $2::timestamptz
         ${monthsFilter}
       GROUP BY po."status", EXTRACT(MONTH FROM po."markedPendingTime")
       ORDER BY status, month;

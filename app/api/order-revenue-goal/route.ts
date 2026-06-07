@@ -44,12 +44,16 @@ async function _GET(req: NextRequest) {
         AND po."deliveryNetwork" = 'THIRD_PARTY'
         AND po."deliveryType"    = 'INTERCITY'
         AND po."status" IN ('DELIVERED', 'COMPLETED')
-        AND po."markedPendingTime" IS NOT NULL
-        AND EXTRACT(YEAR FROM po."markedPendingTime") = $1
-        AND EXTRACT(MONTH FROM po."markedPendingTime") = $2;
+        AND po."markedPendingTime" >= $1::timestamptz
+        AND po."markedPendingTime" <  $2::timestamptz;
     `;
 
-    const rows = await query<Row>(sql, [year, month]);
+    // Sargable [monthStart, nextMonthStart) range -> uses the markedPendingTime index.
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const nextMonthStart = month === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const rows = await query<Row>(sql, [monthStart, nextMonthStart]);
     const achieved = parseFloat(rows[0]?.achieved || '0');
     const orders = parseInt(rows[0]?.orders || '0');
     const goal = goalFor(year, month);

@@ -51,12 +51,16 @@ async function _GET(req: NextRequest) {
   const statusesParam = (searchParams.get('statuses') || '').trim();
 
   try {
-    const params: (string | number)[] = [year];
-    let periodFilter = `AND EXTRACT(YEAR FROM po."markedPendingTime") = $1`;
-    if (granularity === 'day') {
-      params.push(dayMonth);
-      periodFilter += ` AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
-    }
+    // Sargable date range (uses purchaseOrder_markedPendingTime_index instead of
+    // a full-table EXTRACT scan). Day mode narrows to the selected month.
+    const rangeStart = granularity === 'day'
+      ? `${year}-${String(dayMonth).padStart(2, '0')}-01`
+      : `${year}-01-01`;
+    const rangeEnd = granularity === 'day'
+      ? (dayMonth === 12 ? `${year + 1}-01-01` : `${year}-${String(dayMonth + 1).padStart(2, '0')}-01`)
+      : `${year + 1}-01-01`;
+    const params: (string | number)[] = [rangeStart, rangeEnd];
+    let periodFilter = `AND po."markedPendingTime" >= $1::timestamptz AND po."markedPendingTime" < $2::timestamptz`;
     // "Filter to selected months" — applies in month/week modes.
     periodFilter += appendMonthsFilter(searchParams.get('months'), 'po."markedPendingTime"', params);
 
@@ -108,15 +112,17 @@ async function _GET(req: NextRequest) {
       GROUP BY ${bucketExpr}
       ORDER BY bucket;
     `;
-    const bucketRows = await query<BucketRow>(bucketSql, params);
-
     // Period totals (the "Total" column) — COUNT(DISTINCT) is not summable across buckets.
     const totalsSql = `
       SELECT 0 AS bucket, NULL AS week_start, ${COVERED_SELECT}
       ${fromJoin}
       ${baseWhere};
     `;
-    const totalsRows = await query<BucketRow>(totalsSql, params);
+    // Independent queries — run concurrently to halve wall-clock latency.
+    const [bucketRows, totalsRows] = await Promise.all([
+      query<BucketRow>(bucketSql, params),
+      query<BucketRow>(totalsSql, params),
+    ]);
     const t = totalsRows[0];
 
     const geos: GeoKey[] = ['pincode', 'city', 'district', 'state'];

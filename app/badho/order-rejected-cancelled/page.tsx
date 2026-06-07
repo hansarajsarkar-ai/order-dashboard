@@ -69,6 +69,24 @@ interface OrderData {
   markedRejectedTime: string | null;
 }
 
+// Full price-breakup ledger (matches the order-dashboard "Price Breakup" panel).
+// Sourced from /api/po-financials, which returns every discount component.
+interface Financials {
+  orderAmount: number | null;        // gross = amount + platformMarginDiscount
+  itemTotalAmount: number | null;    // base for payable
+  itemDiscount: number | null;
+  couponAmount: number | null;
+  badhoDiscount: number | null;
+  sellerDiscount: number | null;
+  upiDiscountBySeller: number | null;
+  volumeDiscount: number | null;
+  totalDiscount: number | null;      // "Another Discount" (po.totalDiscount)
+  appliedWalletAmount: number | null;
+  paidAmount: number | null;
+  codAmountToBeCollected: number | null;
+  paymentOption: string | null;
+}
+
 interface ItemRow {
   id: string;
   brandSKUId: string | null;
@@ -208,6 +226,7 @@ export default function OrderRejectedCancelledDashboard() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [data, setData] = useState<OrderData | null>(null);
   const [items, setItems] = useState<ItemRow[] | null>(null);
+  const [financials, setFinancials] = useState<Financials | null>(null);
   const [searchedPo, setSearchedPo] = useState<string | null>(null);
 
   const [modalAction, setModalAction] = useState<'reject' | 'cancel' | null>(null);
@@ -254,11 +273,13 @@ export default function OrderRejectedCancelledDashboard() {
     setSearchError(null);
     setData(null);
     setItems(null);
+    setFinancials(null);
     setActionError(null);
     try {
-      const [lookupRes, itemsRes] = await Promise.all([
+      const [lookupRes, itemsRes, finRes] = await Promise.all([
         fetch(`/api/order-rejected-cancelled/lookup?poNumber=${encodeURIComponent(po)}`),
         fetch(`/api/po-items?poNumber=${encodeURIComponent(po)}`),
+        fetch(`/api/po-financials?poNumber=${encodeURIComponent(po)}`),
       ]);
       const lookupJson = await lookupRes.json();
       if (!lookupRes.ok) throw new Error(lookupJson.error || 'Lookup failed');
@@ -269,6 +290,12 @@ export default function OrderRejectedCancelledDashboard() {
         setItems(Array.isArray(itemsJson.data) ? itemsJson.data : []);
       } else {
         setItems([]);
+      }
+      if (finRes.ok) {
+        const finJson = await finRes.json();
+        setFinancials(finJson.data ?? null);
+      } else {
+        setFinancials(null);
       }
     } catch (err) {
       setSearchError(err instanceof Error ? err.message : 'Lookup failed');
@@ -349,7 +376,6 @@ export default function OrderRejectedCancelledDashboard() {
   }
 
   const isTerminal = data ? TERMINAL.has(data.status) : false;
-  const a = data?.amount;
 
   return (
     <div className="min-h-screen bg-[#080510] p-4 sm:p-8 relative overflow-hidden">
@@ -461,9 +487,6 @@ export default function OrderRejectedCancelledDashboard() {
           const itemTotals = (items || []).reduce(
             (acc, it) => ({ qty: acc.qty + (it.quantity || 0), discount: acc.discount + (it.discount || 0), total: acc.total + (it.total || 0) }),
             { qty: 0, discount: 0, total: 0 },
-          );
-          const discountRow = (label: string, v: number | null | undefined) => (
-            <Row label={label} value={rupee(v)} mono valueClass={v && v > 0 ? 'text-emerald-300' : 'text-white/85'} />
           );
           return (
           <>
@@ -612,24 +635,169 @@ export default function OrderRejectedCancelledDashboard() {
                 </div>
               </Card>
 
-              {/* 3. Amount breakup */}
-              <Card accent={ACCENTS.emerald} title="Amount Breakup" icon="🧾" delay={180}>
-                <div className="flex items-end justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-500/10 to-transparent border border-emerald-400/15 mb-3">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wider text-emerald-300/70">Gross Amount</div>
-                    <div className="text-2xl font-extrabold text-white tabular-nums">{rupee(a?.grossAmount)}</div>
+              {/* 3. Price Breakup — full ledger (same design as the order-dashboard panel) */}
+              {(() => {
+                const f = financials;
+                if (!f) {
+                  return (
+                    <div
+                      style={{ animationDelay: '180ms' }}
+                      className="orc-fade-up rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.09] to-white/[0.02] backdrop-blur-xl min-h-[260px] flex items-center justify-center text-sm text-white/40"
+                    >
+                      {searching ? 'Loading price breakup…' : 'Price breakup unavailable'}
+                    </div>
+                  );
+                }
+                const gross = f.orderAmount ?? 0;
+                const itemTotal = f.itemTotalAmount ?? 0;
+                const itemDisc = f.itemDiscount ?? 0;
+                const coupon = f.couponAmount ?? 0;
+                const sellerDisc = f.sellerDiscount ?? 0;
+                const badho = f.badhoDiscount ?? 0;
+                const upiDisc = f.upiDiscountBySeller ?? 0;
+                const volumeDisc = f.volumeDiscount ?? 0;
+                const wallet = f.appliedWalletAmount ?? 0;
+                const anotherDisc = f.totalDiscount ?? 0;
+                const paid = f.paidAmount ?? 0;
+                // Total Discount = every discount component (incl. item discount).
+                const totalDiscount = itemDisc + coupon + sellerDisc + badho + upiDisc + volumeDisc + wallet + anotherDisc;
+                const amountToBePaid = itemTotal - totalDiscount;     // Item Total − Total Discount
+                const netPayable = amountToBePaid - paid;             // − Paid Amount
+                const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: n % 1 === 0 ? 0 : 2 })}`;
+
+                type DLine = { key: string; label: string; value: number; iconBg: string; icon: React.ReactNode };
+                const discountLines: DLine[] = [
+                  {
+                    key: 'itemDisc', label: 'Item Discount', value: itemDisc, iconBg: 'from-slate-400 to-slate-500',
+                    icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>),
+                  },
+                  {
+                    key: 'coupon', label: 'Coupon Applied', value: coupon, iconBg: 'from-fuchsia-500 to-pink-600',
+                    icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 12V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v5a2 2 0 0 1 0 4v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2 2 0 0 1 0-4Z" /><line x1="15" y1="9" x2="9" y2="15" /></svg>),
+                  },
+                  {
+                    key: 'sellerDisc', label: 'Discount by Seller', value: sellerDisc, iconBg: 'from-rose-500 to-red-600',
+                    icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="19" y1="5" x2="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /></svg>),
+                  },
+                  {
+                    key: 'badho', label: 'Payment Discount by Badho', value: badho, iconBg: 'from-amber-500 to-orange-600',
+                    icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="12 2 15 8.5 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 8.5 12 2" /></svg>),
+                  },
+                  {
+                    key: 'upiDisc', label: 'UPI Discount by Seller', value: upiDisc, iconBg: 'from-violet-500 to-purple-600',
+                    icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>),
+                  },
+                  {
+                    key: 'volumeDisc', label: 'Applied Volume Discount', value: volumeDisc, iconBg: 'from-sky-500 to-blue-600',
+                    icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" /><rect x="12" y="8" width="3" height="10" /><rect x="17" y="4" width="3" height="14" /></svg>),
+                  },
+                  {
+                    key: 'wallet', label: 'Applied Wallet Amount', value: wallet, iconBg: 'from-cyan-500 to-teal-600',
+                    icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 12V8H6a2 2 0 0 1 0-4h12v4" /><path d="M4 6v12a2 2 0 0 0 2 2h14v-4" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></svg>),
+                  },
+                  {
+                    key: 'anotherDisc', label: 'Another Discount', value: anotherDisc, iconBg: 'from-slate-400 to-slate-500',
+                    icon: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 2h16v20l-3-2-2 2-3-2-3 2-2-2-3 2V2Z" /><line x1="8" y1="8" x2="16" y2="8" /><line x1="8" y1="12" x2="16" y2="12" /></svg>),
+                  },
+                ];
+                const fullyCovered = netPayable <= 0.005;
+                const opt = f.paymentOption ? String(f.paymentOption) : 'PENDING';
+                const optStyles: Record<string, string> = {
+                  FULLY_PAID:     'bg-emerald-100 text-emerald-700 border-emerald-300',
+                  PARTIALLY_PAID: 'bg-amber-100 text-amber-700 border-amber-300',
+                  COD:            'bg-cyan-100 text-cyan-700 border-cyan-300',
+                  PENDING:        'bg-rose-100 text-rose-700 border-rose-300',
+                };
+                const optCls = optStyles[opt] || 'bg-slate-100 text-slate-700 border-slate-300';
+                return (
+                  <div
+                    style={{ animationDelay: '180ms' }}
+                    className="orc-fade-up relative flex flex-col overflow-hidden rounded-2xl bg-white text-slate-900 border border-slate-200 shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45),0_0_60px_-10px_rgba(168,85,247,0.3)]"
+                  >
+                    <div className="absolute -top-24 -right-24 w-64 h-64 bg-fuchsia-200/40 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-200/40 rounded-full blur-3xl pointer-events-none" />
+
+                    <header className="relative px-4 py-2.5 border-b border-slate-200 bg-gradient-to-r from-fuchsia-50 via-white to-indigo-50">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(217,70,239,0.55)]">
+                            <span className="text-white font-extrabold text-sm leading-none">₹</span>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[10px] uppercase tracking-[0.25em] text-purple-600 font-bold">Price Breakup</div>
+                            <div className="text-slate-900 font-bold text-sm leading-tight truncate">PO {data.poNumber}</div>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="text-[9px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-0.5">Payment</div>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${optCls}`}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+                            {opt}
+                          </span>
+                        </div>
+                      </div>
+                    </header>
+
+                    <div className="relative flex-1 px-4 py-2.5 space-y-2">
+                      {/* Gross & Item Total side by side */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 px-2.5 py-1.5">
+                          <div className="text-[9px] uppercase tracking-wider text-indigo-500 font-bold leading-tight">Gross Amount</div>
+                          <div className="tabular-nums font-extrabold text-[15px] text-slate-900 leading-tight">{fmt(gross)}</div>
+                          <div className="text-[9px] text-slate-400 leading-tight">items + item discount</div>
+                        </div>
+                        <div className="rounded-lg border border-violet-200 bg-violet-50/70 px-2.5 py-1.5">
+                          <div className="text-[9px] uppercase tracking-wider text-violet-500 font-bold leading-tight">Item Total Amount</div>
+                          <div className="tabular-nums font-extrabold text-[15px] text-slate-900 leading-tight">{fmt(itemTotal)}</div>
+                          <div className="text-[9px] text-slate-400 leading-tight">base for payable</div>
+                        </div>
+                      </div>
+
+                      {/* Discount components */}
+                      <div>
+                        <div className="text-[9px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1 px-1">Discounts</div>
+                        <div className="space-y-1">
+                          {discountLines.map((ln) => (
+                            <div key={ln.key} className="flex items-center gap-2.5 px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200">
+                              <div className={`shrink-0 w-6 h-6 rounded-md bg-gradient-to-br ${ln.iconBg} flex items-center justify-center`}>
+                                {ln.icon}
+                              </div>
+                              <div className="min-w-0 flex-1 text-[11px] font-semibold text-slate-700 truncate">{ln.label}</div>
+                              <div className={`tabular-nums font-bold text-[12px] ${ln.value > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                                {ln.value > 0 ? '− ' : ''}{fmt(ln.value)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between gap-3 mt-1.5 px-2.5 py-1.5 rounded-md bg-rose-50 border border-rose-200">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wide text-rose-700">Total Discount</span>
+                          <span className="tabular-nums font-extrabold text-sm text-rose-700">− {fmt(totalDiscount)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <footer className="relative px-4 py-2.5 border-t border-slate-200 bg-gradient-to-r from-emerald-50 via-emerald-100/60 to-emerald-50">
+                      <div className="flex items-center justify-between gap-3 text-[13px]">
+                        <span className="text-slate-700 font-semibold leading-tight">Amount to be paid<span className="block text-[9px] text-slate-400 font-normal">Item Total − Total Discount</span></span>
+                        <span className="tabular-nums font-extrabold text-slate-900">{fmt(amountToBePaid)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 mt-1 text-[11px]">
+                        <span className="text-slate-600">{opt === 'PARTIALLY_PAID' ? 'Partial paid' : 'Paid amount'}</span>
+                        <span className="tabular-nums font-bold text-emerald-700">{paid > 0 ? '− ' : ''}{fmt(paid)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 mt-1.5 pt-2 border-t border-emerald-200">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${fullyCovered ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.7)]' : 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.7)]'} animate-pulse`} />
+                          <span className={`text-[10px] uppercase tracking-[0.25em] font-bold ${fullyCovered ? 'text-emerald-700' : 'text-amber-700'}`}>Net Payable</span>
+                        </div>
+                        <span className={`tabular-nums text-xl font-extrabold bg-clip-text text-transparent ${fullyCovered ? 'bg-gradient-to-r from-emerald-700 via-emerald-600 to-emerald-700' : 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700'}`}>
+                          {netPayable < 0 ? `− ${fmt(Math.abs(netPayable))}` : fmt(netPayable)}
+                        </span>
+                      </div>
+                    </footer>
                   </div>
-                  <div className="text-right">
-                    <div className="text-[10px] uppercase tracking-wider text-white/40">Item Total</div>
-                    <div className="text-sm font-semibold text-white/85 tabular-nums">{rupee(a?.itemTotal)}</div>
-                  </div>
-                </div>
-                {discountRow('Item Discount', a?.orderMarginDiscount)}
-                {discountRow('Coupon Applied', a?.couponAmount)}
-                {discountRow('Applied Wallet Amount', a?.appliedWalletAmount)}
-                {discountRow('Seller Discount', a?.sellerDiscount)}
-                {discountRow('Payment-Option Badho Discount', a?.paymentOptionBadhoDiscount)}
-              </Card>
+                );
+              })()}
 
               {/* 5. Payment option */}
               <Card accent={ACCENTS.amber} title="Payment" icon="💳" delay={240}>

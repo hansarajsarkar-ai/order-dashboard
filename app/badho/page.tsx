@@ -40,6 +40,8 @@ interface DashboardEntry {
   description: string;
   icon: string;
   status: 'live' | 'coming-soon';
+  // When set, the card links to this external URL instead of /badho/<slug>.
+  href?: string;
 }
 
 const DASHBOARDS: DashboardEntry[] = [
@@ -122,6 +124,15 @@ const DASHBOARDS: DashboardEntry[] = [
       'Rejected and cancelled orders — counts, amounts, reason breakdown, and per-order detail across sellers and time.',
     icon: '🚫',
     status: 'live',
+  },
+  {
+    slug: 'badho-daas-dashboard',
+    title: 'Badho Daas Dashboard',
+    description:
+      'Delivery-as-a-Service operations — opens the standalone Badho Daas dashboard in a new tab.',
+    icon: '🚚',
+    status: 'live',
+    href: 'https://badho-daas-dashboard.vercel.app/',
   },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
@@ -279,7 +290,11 @@ export default function BadhoIndex() {
                 )}
               </>
             );
-            return isLive ? (
+            return isLive && d.href ? (
+              <a key={d.slug} href={d.href} target="_blank" rel="noopener noreferrer" className={cardClass}>
+                {inner}
+              </a>
+            ) : isLive ? (
               <Link key={d.slug} href={`/badho/${d.slug}`} className={cardClass}>
                 {inner}
               </Link>

@@ -12,6 +12,7 @@ interface PoRow {
   newAmount: number;
   valueLost: number;
   poStatus: string | null;
+  shipmentStatus: string | null;
   brandName: string | null;
   buyerBusiness: string | null;
   buyerPhone: string | null;
@@ -67,6 +68,28 @@ function fmtFull(n: number): string {
 }
 function fmtCount(n: number): string {
   return n.toLocaleString('en-IN');
+}
+
+// Colour the shipment-status badge. Check failures/returns FIRST so values like
+// "UNDELIVERED" and "RTO DELIVERED" (which contain "DELIVERED") read as rose,
+// not green. Then delivered = green, anything in-motion = sky, rest neutral.
+function shipmentBadge(status: string): string {
+  const s = status.toUpperCase();
+  if (s.includes('RTO') || s.includes('RETURN') || s.includes('FAIL') || s.includes('CANCEL') || s.includes('LOST') || s.includes('UNDELIV')) return 'bg-rose-500/15 text-rose-200 border-rose-400/30';
+  if (s.includes('DELIVERED')) return 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30';
+  if (s.includes('TRANSIT') || s.includes('DISPATCH') || s.includes('SHIP') || s.includes('PICK') || s.includes('OUT FOR') || s.includes('DELIVERY')) return 'bg-sky-500/15 text-sky-200 border-sky-400/30';
+  return 'bg-white/5 text-purple-200/70 border-white/15';
+}
+
+// Colour the PO-status badge: completed/delivered = green, in-progress = sky,
+// pending = amber, rejected/cancelled = rose, everything else neutral.
+function poStatusBadge(status: string): string {
+  const s = status.toUpperCase();
+  if (s === 'COMPLETED' || s === 'DELIVERED') return 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30';
+  if (s === 'INPROGRESS' || s === 'DISPATCHED' || s === 'IN_PROGRESS') return 'bg-sky-500/15 text-sky-200 border-sky-400/30';
+  if (s === 'PENDING') return 'bg-amber-500/15 text-amber-200 border-amber-400/30';
+  if (s === 'REJECTED' || s === 'CANCELLED') return 'bg-rose-500/15 text-rose-200 border-rose-400/30';
+  return 'bg-white/5 text-purple-200/70 border-white/15';
 }
 
 const PAGE_SIZE_OPTIONS = [25, 50, 75, 100] as const;
@@ -239,7 +262,7 @@ export default function PoModifiedDashboard() {
     const q = search.trim().toLowerCase();
     if (!q) return resp.data;
     return resp.data.filter((r) =>
-      [r.poNumber, r.brandName, r.buyerBusiness, r.buyerPhone, r.poStatus, r.remarks]
+      [r.poNumber, r.brandName, r.buyerBusiness, r.buyerPhone, r.poStatus, r.shipmentStatus, r.remarks]
         .some((v) => (v ?? '').toString().toLowerCase().includes(q))
     );
   }, [resp, search]);
@@ -273,14 +296,14 @@ export default function PoModifiedDashboard() {
 
   const exportCsv = () => {
     if (!resp) return;
-    const headers = ['PO Number', 'Order Date & Time', 'Remarks', 'Previous PO Amount', 'New PO Amount', 'Value Lost', 'Payment Type', 'Buyer Paid', 'Refundable Amount', 'Refund Amount', 'Refund Status', 'Refund Time', 'Refund Id', 'PO Status', 'Brand', 'Buyer Business', 'Buyer Phone', 'Buyer Informed'];
+    const headers = ['PO Number', 'Order Date & Time', 'Remarks', 'Previous PO Amount', 'New PO Amount', 'Value Lost', 'Payment Type', 'Buyer Paid', 'Refundable Amount', 'Refund Amount', 'Refund Status', 'Refund Time', 'Refund Id', 'Shipment Status', 'PO Status', 'Brand', 'Buyer Business', 'Buyer Phone', 'Buyer Informed'];
     const esc = (v: string | number | null) => {
       const s = String(v ?? '');
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers.map(esc).join(',')];
     for (const r of rows) {
-      lines.push([r.poNumber, r.orderDateTime, r.remarks, r.prevAmount, r.newAmount, r.valueLost, r.paymentMode, r.paidAmount ?? '', r.refundableAmount, r.refundAmount ?? '', r.refundStatus ?? (r.refundableAmount > 0 ? 'PENDING' : ''), r.refundTime ?? '', r.refundId ?? '', r.poStatus, r.brandName, r.buyerBusiness, r.buyerPhone, r.buyerInformed ?? ''].map(esc).join(','));
+      lines.push([r.poNumber, r.orderDateTime, r.remarks, r.prevAmount, r.newAmount, r.valueLost, r.paymentMode, r.paidAmount ?? '', r.refundableAmount, r.refundAmount ?? '', r.refundStatus ?? (r.refundableAmount > 0 ? 'PENDING' : ''), r.refundTime ?? '', r.refundId ?? '', r.shipmentStatus ?? '', r.poStatus, r.brandName, r.buyerBusiness, r.buyerPhone, r.buyerInformed ?? ''].map(esc).join(','));
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -433,6 +456,7 @@ export default function PoModifiedDashboard() {
                   <th className="px-4 py-3.5 text-right text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Refund Amount</th>
                   <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Refund Status</th>
                   <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Refund Time</th>
+                  <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Shipment Status</th>
                   <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">PO Status</th>
                   <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Brand</th>
                   <th className="px-4 py-3.5 text-left text-sm font-bold text-purple-100 uppercase tracking-wide whitespace-nowrap">Buyer</th>
@@ -476,7 +500,16 @@ export default function PoModifiedDashboard() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-purple-100 text-sm whitespace-nowrap">{r.refundTime ?? '—'}</td>
-                    <td className="px-4 py-3 text-purple-100 text-sm whitespace-nowrap">{r.poStatus ?? '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {r.shipmentStatus ? (
+                        <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border ${shipmentBadge(r.shipmentStatus)}`}>{r.shipmentStatus}</span>
+                      ) : <span className="text-purple-300/40">—</span>}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {r.poStatus ? (
+                        <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border ${poStatusBadge(r.poStatus)}`}>{r.poStatus}</span>
+                      ) : <span className="text-purple-300/40">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-purple-100 text-sm max-w-[160px] truncate" title={r.brandName ?? ''}>{r.brandName ?? '—'}</td>
                     <td className="px-4 py-3 text-purple-100 text-sm max-w-[200px] truncate" title={`${r.buyerBusiness ?? ''} ${r.buyerPhone ?? ''}`}>
                       <div className="truncate">{r.buyerBusiness ?? '—'}</div>

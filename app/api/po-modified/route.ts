@@ -17,6 +17,7 @@ interface Row {
   prevAmount: string | null;
   newAmount: string | null;
   poStatus: string | null;
+  shipmentStatus: string | null;
   brandName: string | null;
   buyerBusiness: string | null;
   buyerPhone: string | null;
@@ -85,9 +86,6 @@ async function _GET(req: NextRequest) {
         AND s."businessName" NOT ILIKE '%test%'
         AND poi."status" <> 'DRAFT'
         AND poi."modifiedByRole" ILIKE 'seller'
-        -- Once a "buyer informed" remark is filled the PO is considered actioned
-        -- and drops off this dashboard. NULLIF treats an empty string as unset.
-        AND NULLIF(TRIM(po."poModifiedBuyerInformed"), '') IS NULL
         AND (
              (poi."isArchived" = TRUE  AND poi."originalSnapshot" IS NULL)
           OR (poi."isArchived" = FALSE AND poi."originalSnapshot" IS NOT NULL)
@@ -119,6 +117,7 @@ async function _GET(req: NextRequest) {
       p.prev_amount                                         AS "prevAmount",
       p.new_amount                                          AS "newAmount",
       p.po_status                                           AS "poStatus",
+      dv."shipmentStatus"                                   AS "shipmentStatus",
       p.brand_name                                          AS "brandName",
       p.buyer_business                                      AS "buyerBusiness",
       p.buyer_phone                                         AS "buyerPhone",
@@ -133,6 +132,14 @@ async function _GET(req: NextRequest) {
       rf."id"                                               AS "refundId",
       rf."refundType"                                       AS "refundType"
     FROM per_po p
+    LEFT JOIN LATERAL (
+      -- Latest shipment/delivery record for this PO (third-party intercity leg).
+      SELECT di."status" AS "shipmentStatus"
+      FROM "deliveries"."intercityDelivery" di
+      WHERE di."purchaseOrderId" = p.po_id
+      ORDER BY di."created_at" DESC
+      LIMIT 1
+    ) dv ON TRUE
     LEFT JOIN LATERAL (
       -- The refund record for this PO: prefer a COMPLETED refund, else the latest attempt.
       SELECT pop."id", pop."refundStatus", pop."refundAmount", pop."refundInitiationTime", pop."refundType"
@@ -169,6 +176,7 @@ async function _GET(req: NextRequest) {
         newAmount: next,
         valueLost: Math.max(prev - next, 0),
         poStatus: r.poStatus,
+        shipmentStatus: r.shipmentStatus,
         brandName: r.brandName,
         buyerBusiness: r.buyerBusiness,
         buyerPhone: r.buyerPhone,

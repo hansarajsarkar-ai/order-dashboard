@@ -615,14 +615,17 @@ export default function PoModifiedDashboard() {
                     <tr><td colSpan={5} className="px-4 py-10 text-center text-purple-300/60">Loading items…</td></tr>
                   )}
                   {!drillLoading && drill.items?.map((it, i) => {
+                    const unchanged = it.itemChangeType === 'UNCHANGED';
                     const badge = it.itemChangeType === 'ITEM REMOVED'
                       ? 'bg-rose-500/15 text-rose-200 border-rose-400/30'
                       : it.itemChangeType === 'QUANTITY DECREASED'
                         ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'
-                        : 'bg-white/5 text-purple-200/70 border-white/15';
+                        : unchanged
+                          ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30'
+                          : 'bg-white/5 text-purple-200/70 border-white/15';
                     const removed = it.itemChangeType === 'ITEM REMOVED';
                     return (
-                      <tr key={`${it.productName}-${i}`} className={`border-b border-white/5 ${removed ? 'bg-rose-500/[0.04]' : ''}`}>
+                      <tr key={`${it.productName}-${i}`} className={`border-b border-white/5 ${removed ? 'bg-rose-500/[0.04]' : unchanged ? 'bg-emerald-500/[0.06]' : ''}`}>
                         <td className={`px-4 py-2.5 ${removed ? 'text-purple-200/70 line-through' : 'text-white'}`}>{it.productName ?? '—'}</td>
                         <td className="px-4 py-2.5"><span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border ${badge}`}>{it.itemChangeType}</span></td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{it.prevQty ?? '—'}</td>

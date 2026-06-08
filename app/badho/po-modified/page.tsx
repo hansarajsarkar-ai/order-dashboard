@@ -54,7 +54,7 @@ interface ItemRow {
   modifiedByRole: string | null;
 }
 
-type RangeKey = '7d' | '30d' | '90d' | 'ytd' | 'custom';
+type RangeKey = 'all' | '7d' | '30d' | '90d' | 'ytd' | 'custom';
 
 function fmtAmount(n: number): string {
   if (!n) return '₹0';
@@ -132,7 +132,7 @@ export default function PoModifiedDashboard() {
 
   const [resp, setResp] = useState<ApiResp | null>(null);
   const [loading, setLoading] = useState(false);
-  const [range, setRange] = useState<RangeKey>('30d');
+  const [range, setRange] = useState<RangeKey>('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [search, setSearch] = useState('');
@@ -143,7 +143,7 @@ export default function PoModifiedDashboard() {
   const [savingInform, setSavingInform] = useState(false);
   const [informError, setInformError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(100);
   const [jumpTo, setJumpTo] = useState('');
 
   const saveInform = async (poNumber: string) => {
@@ -224,6 +224,7 @@ export default function PoModifiedDashboard() {
   const resolveRange = useCallback((): { startDate: string | null; endDate: string | null } => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    if (range === 'all') return { startDate: null, endDate: null };
     if (range === 'custom') return { startDate: customFrom || null, endDate: customTo || null };
     if (range === 'ytd') return { startDate: `${today.getFullYear()}-01-01`, endDate: fmt(today) };
     const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
@@ -326,6 +327,7 @@ export default function PoModifiedDashboard() {
 
   const k = resp?.kpis;
   const RANGES: { key: RangeKey; label: string }[] = [
+    { key: 'all', label: 'All' },
     { key: '7d', label: 'Last 7 days' },
     { key: '30d', label: 'Last 30 days' },
     { key: '90d', label: 'Last 90 days' },

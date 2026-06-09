@@ -5855,8 +5855,18 @@ export default function OrderStatusDashboard() {
                     radius={[4, 4, 0, 0]}
                     maxBarSize={26}
                     cursor="pointer"
+                    isAnimationActive={false}
                     onClick={(d: any) => d?.day && openCompletedDrill(d.day)}
-                  />
+                  >
+                    <LabelList
+                      dataKey="ordersAmount"
+                      position="insideTop"
+                      offset={6}
+                      angle={-90}
+                      formatter={(v: unknown) => formatAmount(Number(v))}
+                      style={{ fill: '#fdf4ff', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#1e1b4b', strokeWidth: 3, strokeLinejoin: 'round' }}
+                    />
+                  </Bar>
                   {/* Avg Order Value — amber line */}
                   <Line
                     yAxisId="aov"
@@ -5866,8 +5876,31 @@ export default function OrderStatusDashboard() {
                     stroke="#f59e0b"
                     strokeWidth={2}
                     strokeDasharray="5 4"
-                    dot={{ r: 2, fill: '#f59e0b', stroke: '#1e1b4b', strokeWidth: 1 }}
+                    isAnimationActive={false}
                     activeDot={{ r: 5 }}
+                    dot={(p: any) => {
+                      const { cx, cy, payload, index } = p;
+                      if (cx == null || cy == null) return <g key={index} />;
+                      return (
+                        <g key={index}>
+                          <circle cx={cx} cy={cy} r={2.5} fill="#f59e0b" stroke="#1e1b4b" strokeWidth={1} />
+                          <text
+                            x={cx}
+                            y={cy + 15}
+                            textAnchor="middle"
+                            fill="#fcd34d"
+                            fontSize={9}
+                            fontWeight={700}
+                            paintOrder="stroke"
+                            stroke="#000"
+                            strokeWidth={2.5}
+                            strokeLinejoin="round"
+                          >
+                            {formatAmount(payload.avgOrderAmount)}
+                          </text>
+                        </g>
+                      );
+                    }}
                   />
                   {/* Completed orders — emerald line, clickable count labels open the drill modal */}
                   <Line
@@ -5877,6 +5910,7 @@ export default function OrderStatusDashboard() {
                     name="Completed orders"
                     stroke="#10b981"
                     strokeWidth={2.5}
+                    isAnimationActive={false}
                     activeDot={{ r: 6 }}
                     dot={(p: any) => {
                       const { cx, cy, payload, index } = p;

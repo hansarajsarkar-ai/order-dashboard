@@ -5861,10 +5861,10 @@ export default function OrderStatusDashboard() {
                     <LabelList
                       dataKey="ordersAmount"
                       position="insideTop"
-                      offset={6}
+                      offset={8}
                       angle={-90}
                       formatter={(v: unknown) => formatAmount(Number(v))}
-                      style={{ fill: '#fdf4ff', fontSize: 9, fontWeight: 700, paintOrder: 'stroke', stroke: '#1e1b4b', strokeWidth: 3, strokeLinejoin: 'round' }}
+                      style={{ fill: '#ffffff', fontSize: 11, fontWeight: 800, paintOrder: 'stroke', stroke: '#1e1b4b', strokeWidth: 2.5, strokeLinejoin: 'round' }}
                     />
                   </Bar>
                   {/* Avg Order Value — amber line */}
@@ -5883,17 +5883,17 @@ export default function OrderStatusDashboard() {
                       if (cx == null || cy == null) return <g key={index} />;
                       return (
                         <g key={index}>
-                          <circle cx={cx} cy={cy} r={2.5} fill="#f59e0b" stroke="#1e1b4b" strokeWidth={1} />
+                          <circle cx={cx} cy={cy} r={3} fill="#f59e0b" stroke="#1e1b4b" strokeWidth={1} />
                           <text
                             x={cx}
-                            y={cy + 15}
+                            y={cy + 16}
                             textAnchor="middle"
-                            fill="#fcd34d"
-                            fontSize={9}
-                            fontWeight={700}
+                            fill="#fbbf24"
+                            fontSize={10}
+                            fontWeight={800}
                             paintOrder="stroke"
                             stroke="#000"
-                            strokeWidth={2.5}
+                            strokeWidth={3}
                             strokeLinejoin="round"
                           >
                             {formatAmount(payload.avgOrderAmount)}

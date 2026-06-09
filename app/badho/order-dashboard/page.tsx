@@ -4393,12 +4393,12 @@ export default function OrderStatusDashboard() {
 
         {/* Monthly Geo Coverage — rows = pincode/city/district/state, columns = months */}
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
-            <div className="shrink-0">
-              <h2 className="text-2xl font-bold text-white">
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-nowrap gap-3">
+            <div className="min-w-0 shrink">
+              <h2 className="text-2xl font-bold text-white truncate">
                 {geoCovGranularity === 'month' ? 'Monthly' : geoCovGranularity === 'week' ? 'Weekly' : 'Daily'} Geo Coverage
               </h2>
-              <p className="text-purple-300 text-sm mt-1">
+              <p className="text-purple-300 text-sm mt-1 truncate">
                 {geoCovGranularity === 'day'
                   ? `Unique pincodes / cities / districts / states reached per day — ${MONTH_NAMES[geoCovDayMonth - 1]} ${currentYear}`
                   : geoCovGranularity === 'week'
@@ -4407,7 +4407,7 @@ export default function OrderStatusDashboard() {
                 {geoCovStatuses.length > 0 && ` · ${geoCovStatuses.join(', ')}`}
               </p>
             </div>
-            <div className="flex items-center gap-3 flex-nowrap">
+            <div className="flex items-center gap-2 flex-nowrap shrink-0">
               {/* Granularity toggle */}
               <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
                 {(['month', 'week', 'day'] as const).map((g) => {
@@ -4486,14 +4486,14 @@ export default function OrderStatusDashboard() {
               {queryBtn('geoCoverage', 'Geo Coverage')}
             </div>
             {geoCoverageData && (
-              <div className="flex items-center gap-6 text-sm shrink-0">
+              <div className="flex items-center gap-3 text-xs shrink-0">
                 <div className="text-right whitespace-nowrap">
                   <div className="text-purple-300">Total Orders</div>
-                  <div className="text-white font-bold text-2xl">{geoCoverageData.totals.grand.count.toLocaleString()}</div>
+                  <div className="text-white font-bold text-lg">{geoCoverageData.totals.grand.count.toLocaleString()}</div>
                 </div>
                 <div className="text-right whitespace-nowrap">
                   <div className="text-purple-300">Total Order Value</div>
-                  <div className="text-white font-bold text-2xl">{formatAmount(geoCoverageData.totals.grand.amount)}</div>
+                  <div className="text-white font-bold text-lg">{formatAmount(geoCoverageData.totals.grand.amount)}</div>
                 </div>
                 <button
                   className={DOWNLOAD_BTN_CLASS}

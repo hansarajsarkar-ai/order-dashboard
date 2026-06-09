@@ -58,6 +58,12 @@ async function _GET(req: NextRequest) {
   const deliveryStatusParam = searchParams.get('deliveryStatus'); // value | "__NULL__" | null
   const startDate = searchParams.get('startDate');            // optional YYYY-MM-DD — when set, replaces year-based filter
   const endDate   = searchParams.get('endDate');              // optional YYYY-MM-DD
+  // Which PO timestamp the date window / year / month / week filters apply to.
+  // Default 'markedPendingTime' (order placed). 'completed' → markedCompletedTime,
+  // so drills from completed-by-completion-date charts match their source counts.
+  const dateCol = searchParams.get('dateField') === 'completed'
+    ? 'markedCompletedTime'
+    : 'markedPendingTime';
   const brand     = searchParams.get('brand');                // optional comma-separated seller businessName prefixes (matches brand-performance MBS pivot)
   const brandLabel = searchParams.get('brandLabel');          // optional comma-separated brand labels (matches brand-performance Brand × Product table, sourced from brands.brand.label)
   const sku       = searchParams.get('sku');                  // optional comma-separated brandSKUIds — return only POs that contain at least one matching item
@@ -104,15 +110,15 @@ async function _GET(req: NextRequest) {
     } else if (startDate || endDate) {
       if (startDate) {
         params.push(startDate);
-        dateFilter += ` AND po."markedPendingTime"::date >= $${params.length}`;
+        dateFilter += ` AND po."${dateCol}"::date >= $${params.length}`;
       }
       if (endDate) {
         params.push(endDate);
-        dateFilter += ` AND po."markedPendingTime"::date <= $${params.length}`;
+        dateFilter += ` AND po."${dateCol}"::date <= $${params.length}`;
       }
     } else {
       params.push(year);
-      dateFilter = ` AND EXTRACT(YEAR FROM po."markedPendingTime") = $${params.length}`;
+      dateFilter = ` AND EXTRACT(YEAR FROM po."${dateCol}") = $${params.length}`;
     }
 
     let monthFilter = '';
@@ -120,7 +126,7 @@ async function _GET(req: NextRequest) {
       const month = parseInt(monthParam);
       if (!Number.isNaN(month) && month >= 1 && month <= 12) {
         params.push(month);
-        monthFilter = ` AND EXTRACT(MONTH FROM po."markedPendingTime") = $${params.length}`;
+        monthFilter = ` AND EXTRACT(MONTH FROM po."${dateCol}") = $${params.length}`;
       }
     }
 
@@ -129,7 +135,7 @@ async function _GET(req: NextRequest) {
       const week = parseInt(weekParam);
       if (!Number.isNaN(week) && week >= 1 && week <= 53) {
         params.push(week);
-        weekFilter = ` AND EXTRACT(WEEK FROM po."markedPendingTime") = $${params.length}`;
+        weekFilter = ` AND EXTRACT(WEEK FROM po."${dateCol}") = $${params.length}`;
       }
     }
 

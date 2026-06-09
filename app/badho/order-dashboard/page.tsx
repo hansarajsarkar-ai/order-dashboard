@@ -1648,7 +1648,6 @@ export default function OrderStatusDashboard() {
   interface DailyCompletedPoint { day: string; ordersCount: number; ordersAmount: number; avgOrderAmount: number; }
   const [dailyCompleted, setDailyCompleted] = useState<DailyCompletedPoint[] | null>(null);
   const [dailyCompletedLoading, setDailyCompletedLoading] = useState(false);
-  const [dailyCompletedMetric, setDailyCompletedMetric] = useState<'count' | 'amount'>('count');
 
   // Trend tab — daily payment-option mix (distinct PO count per option per day)
   interface PaymentTrend {
@@ -2570,7 +2569,8 @@ export default function OrderStatusDashboard() {
     week: number | null = null,
     weekLabel: string | null = null,
     initialPayment: string[] = [],
-    zone: { zone: string; label: string; start: string; end: string; seller?: string; zoneStatus?: string; zoneAny?: boolean } | null = null
+    zone: { zone: string; label: string; start: string; end: string; seller?: string; zoneStatus?: string; zoneAny?: boolean } | null = null,
+    dateField: 'completed' | null = null
   ) => {
     setPivotDrillOpen(true);
     setPivotDrillStatus(status);
@@ -2614,6 +2614,7 @@ export default function OrderStatusDashboard() {
       if (deliveryStatus !== undefined) {
         params.append('deliveryStatus', deliveryStatus === null ? '__NULL__' : deliveryStatus);
       }
+      if (dateField) params.append('dateField', dateField);
       const res = await fetch(`/api/order-list?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to fetch');
@@ -2667,6 +2668,15 @@ export default function OrderStatusDashboard() {
     const [, mm, dd] = dateStr.split('-').map((n) => parseInt(n, 10));
     if (Number.isNaN(mm) || Number.isNaN(dd)) return;
     openPivotDrill(statusFilter, undefined, mm, dd);
+  };
+
+  // Daily wise completed Order → drill that day's COMPLETED orders, scoped on
+  // markedCompletedTime (dateField=completed) so the modal count matches the chart.
+  const openCompletedDrill = (day: string) => {
+    if (!day) return;
+    const [, mm, dd] = day.split('-').map((n) => parseInt(n, 10));
+    if (Number.isNaN(mm) || Number.isNaN(dd)) return;
+    openPivotDrill('COMPLETED', undefined, mm, dd, null, null, [], null, 'completed');
   };
 
   // Monthly charts (AOV, Cumulative Revenue, Monthly Revenue & Orders) → drill all orders that month.
@@ -5750,56 +5760,41 @@ export default function OrderStatusDashboard() {
             <div>
               <h2 className="text-2xl font-bold text-white">Daily wise completed Order</h2>
               <p className="text-purple-300 text-sm mt-1">
-                Per-day <span className="text-emerald-300">completed</span> {dailyCompletedMetric === 'count' ? 'order count' : 'order value'} · last 30 days · 3PL × INTERCITY · D2R
+                Per-day <span className="text-emerald-300">order count</span>, <span className="text-fuchsia-300">order value</span> &amp; <span className="text-amber-300">avg order value</span> · last 30 days · 3PL × INTERCITY · D2R
+                <span className="text-purple-400/70"> — click any count to drill the orders</span>
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               {queryBtn('dailyCompleted', 'Daily wise completed Order')}
-              <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
-                {(['count', 'amount'] as const).map((m) => {
-                  const active = dailyCompletedMetric === m;
-                  return (
-                    <button
-                      key={m}
-                      onClick={() => setDailyCompletedMetric(m)}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        active
-                          ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white shadow-[0_0_18px_rgba(16,185,129,0.5)]'
-                          : 'text-purple-200 hover:bg-white/10'
-                      }`}
-                    >
-                      {m === 'count' ? 'Orders' : 'Revenue'}
-                    </button>
-                  );
-                })}
-              </div>
-              {dailyCompleted && dailyCompleted.length > 0 && (
-                <span className="text-xs text-purple-300/80 tabular-nums">
-                  {dailyCompleted.length} days · {dailyCompletedMetric === 'count'
-                    ? `${dailyCompleted.reduce((s, d) => s + d.ordersCount, 0).toLocaleString('en-IN')} orders`
-                    : formatAmount(dailyCompleted.reduce((s, d) => s + d.ordersAmount, 0))}
-                </span>
-              )}
+              {dailyCompleted && dailyCompleted.length > 0 && (() => {
+                const oc = dailyCompleted.reduce((s, d) => s + d.ordersCount, 0);
+                const oa = dailyCompleted.reduce((s, d) => s + d.ordersAmount, 0);
+                return (
+                  <span className="text-xs text-purple-300/80 tabular-nums">
+                    {dailyCompleted.length} days · {oc.toLocaleString('en-IN')} orders · {formatAmount(oa)} · AOV {formatAmount(oc > 0 ? oa / oc : 0)}
+                  </span>
+                );
+              })()}
             </div>
           </div>
 
           <div className="p-6">
             {dailyCompletedLoading || !dailyCompleted ? (
-              <div className="h-[360px] flex items-center justify-center text-purple-300">
+              <div className="h-[380px] flex items-center justify-center text-purple-300">
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-8 h-8 rounded-full border-2 border-emerald-500/30 border-t-emerald-500 animate-spin" />
                   Loading completed orders…
                 </div>
               </div>
             ) : dailyCompleted.length === 0 ? (
-              <div className="h-[360px] flex items-center justify-center text-purple-300">No completed orders in the last 30 days</div>
+              <div className="h-[380px] flex items-center justify-center text-purple-300">No completed orders in the last 30 days</div>
             ) : (
-              <ResponsiveContainer width="100%" height={360}>
-                <AreaChart data={dailyCompleted} margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
+              <ResponsiveContainer width="100%" height={380}>
+                <ComposedChart data={dailyCompleted} margin={{ top: 28, right: 16, left: 8, bottom: 8 }} style={{ cursor: 'pointer' }} onClick={(s: any) => s?.activeLabel && openCompletedDrill(s.activeLabel)}>
                   <defs>
-                    <linearGradient id="gradDailyCompleted" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"  stopColor="#10b981" stopOpacity={0.55} />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                    <linearGradient id="gradCompletedValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"  stopColor="#d946ef" stopOpacity={0.85} />
+                      <stop offset="100%" stopColor="#a855f7" stopOpacity={0.35} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -5812,20 +5807,28 @@ export default function OrderStatusDashboard() {
                     }}
                     minTickGap={20}
                   />
+                  {/* Left ₹ axis — Order Value bars */}
                   <YAxis
-                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                    yAxisId="money"
+                    tick={{ fill: 'rgba(240,171,252,0.75)', fontSize: 11 }}
                     tickFormatter={(v: number) => {
-                      if (dailyCompletedMetric === 'amount') {
-                        if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
-                        if (v >= 100000)   return `₹${(v / 100000).toFixed(1)}L`;
-                        if (v >= 1000)     return `₹${(v / 1000).toFixed(0)}K`;
-                        return `₹${v}`;
-                      }
-                      if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
-                      return String(v);
+                      if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+                      if (v >= 100000)   return `₹${(v / 100000).toFixed(1)}L`;
+                      if (v >= 1000)     return `₹${(v / 1000).toFixed(0)}K`;
+                      return `₹${v}`;
                     }}
                     width={70}
                   />
+                  {/* Right axis — Order Count line */}
+                  <YAxis
+                    yAxisId="count"
+                    orientation="right"
+                    tick={{ fill: 'rgba(110,231,183,0.85)', fontSize: 11 }}
+                    tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v))}
+                    width={48}
+                  />
+                  {/* Hidden axis — AOV line (own scale so it isn't flattened by order value) */}
+                  <YAxis yAxisId="aov" orientation="right" hide />
                   <Tooltip
                     contentStyle={{
                       background: 'rgba(15,23,42,0.95)',
@@ -5835,53 +5838,73 @@ export default function OrderStatusDashboard() {
                       fontSize: 12,
                     }}
                     labelStyle={{ color: '#6ee7b7', fontWeight: 700 }}
-                    formatter={(value, name, item) => {
+                    formatter={(value, name) => {
                       const n = typeof value === 'number' ? value : Number(value ?? 0);
-                      const v = dailyCompletedMetric === 'amount' ? formatAmount(n) : n.toLocaleString();
-                      const aov = item?.payload?.avgOrderAmount;
-                      return [`${v}${aov != null ? `  ·  AOV ${formatAmount(aov)}` : ''}`, String(name)];
+                      const v = name === 'Completed orders' ? n.toLocaleString('en-IN') : formatAmount(n);
+                      return [v, String(name)];
                     }}
                     labelFormatter={(d) => `Date: ${d}`}
                   />
                   <Legend wrapperStyle={{ fontSize: 12, color: '#e9d5ff' }} />
-                  <Area
+                  {/* Order Value — bars */}
+                  <Bar
+                    yAxisId="money"
+                    dataKey="ordersAmount"
+                    name="Order Value"
+                    fill="url(#gradCompletedValue)"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={26}
+                    cursor="pointer"
+                    onClick={(d: any) => d?.day && openCompletedDrill(d.day)}
+                  />
+                  {/* Avg Order Value — amber line */}
+                  <Line
+                    yAxisId="aov"
                     type="monotone"
-                    dataKey={dailyCompletedMetric === 'count' ? 'ordersCount' : 'ordersAmount'}
+                    dataKey="avgOrderAmount"
+                    name="Avg Order Value"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    strokeDasharray="5 4"
+                    dot={{ r: 2, fill: '#f59e0b', stroke: '#1e1b4b', strokeWidth: 1 }}
+                    activeDot={{ r: 5 }}
+                  />
+                  {/* Completed orders — emerald line, clickable count labels open the drill modal */}
+                  <Line
+                    yAxisId="count"
+                    type="monotone"
+                    dataKey="ordersCount"
                     name="Completed orders"
                     stroke="#10b981"
-                    strokeWidth={2}
-                    fill="url(#gradDailyCompleted)"
-                    activeDot={{ r: 5 }}
-                    dot={{ r: 2.5, fill: '#10b981', stroke: '#1e1b4b', strokeWidth: 1 }}
-                  >
-                    <LabelList
-                      dataKey={dailyCompletedMetric === 'count' ? 'ordersCount' : 'ordersAmount'}
-                      position="top"
-                      offset={10}
-                      formatter={(v: unknown) => {
-                        const n = typeof v === 'number' ? v : Number(v ?? 0);
-                        if (dailyCompletedMetric === 'amount') {
-                          if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-                          if (n >= 100000)   return `₹${(n / 100000).toFixed(1)}L`;
-                          if (n >= 1000)     return `₹${(n / 1000).toFixed(0)}K`;
-                          return `₹${n}`;
-                        }
-                        if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-                        return String(n);
-                      }}
-                      style={{
-                        fill: '#d1fae5',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        paintOrder: 'stroke',
-                        stroke: '#000',
-                        strokeWidth: 2,
-                        strokeLinecap: 'round',
-                        strokeLinejoin: 'round',
-                      }}
-                    />
-                  </Area>
-                </AreaChart>
+                    strokeWidth={2.5}
+                    activeDot={{ r: 6 }}
+                    dot={(p: any) => {
+                      const { cx, cy, payload, index } = p;
+                      if (cx == null || cy == null) return <g key={index} />;
+                      return (
+                        <g key={index} style={{ cursor: 'pointer' }} onClick={() => openCompletedDrill(payload.day)}>
+                          {/* generous transparent hit area around the point + its number label */}
+                          <rect x={cx - 14} y={cy - 24} width={28} height={32} fill="transparent" />
+                          <circle cx={cx} cy={cy} r={3} fill="#10b981" stroke="#1e1b4b" strokeWidth={1} />
+                          <text
+                            x={cx}
+                            y={cy - 11}
+                            textAnchor="middle"
+                            fill="#d1fae5"
+                            fontSize={11}
+                            fontWeight={700}
+                            paintOrder="stroke"
+                            stroke="#000"
+                            strokeWidth={2.5}
+                            strokeLinejoin="round"
+                          >
+                            {payload.ordersCount}
+                          </text>
+                        </g>
+                      );
+                    }}
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             )}
           </div>

@@ -4489,11 +4489,11 @@ export default function OrderStatusDashboard() {
               <div className="flex items-center gap-6 text-sm shrink-0">
                 <div className="text-right whitespace-nowrap">
                   <div className="text-purple-300">Total Orders</div>
-                  <div className="text-white font-bold text-lg">{geoCoverageData.totals.grand.count.toLocaleString()}</div>
+                  <div className="text-white font-bold text-2xl">{geoCoverageData.totals.grand.count.toLocaleString()}</div>
                 </div>
                 <div className="text-right whitespace-nowrap">
                   <div className="text-purple-300">Total Order Value</div>
-                  <div className="text-white font-bold text-lg">{formatAmount(geoCoverageData.totals.grand.amount)}</div>
+                  <div className="text-white font-bold text-2xl">{formatAmount(geoCoverageData.totals.grand.amount)}</div>
                 </div>
                 <button
                   className={DOWNLOAD_BTN_CLASS}

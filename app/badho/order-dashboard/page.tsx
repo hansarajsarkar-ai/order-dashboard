@@ -4408,7 +4408,6 @@ export default function OrderStatusDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-3 flex-nowrap">
-              {queryBtn('geoCoverage', 'Geo Coverage')}
               {/* Granularity toggle */}
               <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
                 {(['month', 'week', 'day'] as const).map((g) => {
@@ -4484,6 +4483,7 @@ export default function OrderStatusDashboard() {
                   </div>
                 )}
               </div>
+              {queryBtn('geoCoverage', 'Geo Coverage')}
             </div>
             {geoCoverageData && (
               <div className="flex items-center gap-6 text-sm shrink-0">

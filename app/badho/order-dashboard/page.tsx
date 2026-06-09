@@ -4393,8 +4393,8 @@ export default function OrderStatusDashboard() {
 
         {/* Monthly Geo Coverage — rows = pincode/city/district/state, columns = months */}
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
-            <div>
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-nowrap gap-4">
+            <div className="shrink-0">
               <h2 className="text-2xl font-bold text-white">
                 {geoCovGranularity === 'month' ? 'Monthly' : geoCovGranularity === 'week' ? 'Weekly' : 'Daily'} Geo Coverage
               </h2>
@@ -4407,7 +4407,7 @@ export default function OrderStatusDashboard() {
                 {geoCovStatuses.length > 0 && ` · ${geoCovStatuses.join(', ')}`}
               </p>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-nowrap">
               {queryBtn('geoCoverage', 'Geo Coverage')}
               {/* Granularity toggle */}
               <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">

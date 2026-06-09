@@ -4407,7 +4407,6 @@ export default function OrderStatusDashboard() {
                 {geoCovStatuses.length > 0 && ` · ${geoCovStatuses.join(', ')}`}
               </p>
             </div>
-            <div className="flex items-center gap-4 flex-wrap justify-end ml-auto">
             <div className="flex items-center gap-3 flex-wrap">
               {queryBtn('geoCoverage', 'Geo Coverage')}
               {/* Granularity toggle */}
@@ -4519,7 +4518,6 @@ export default function OrderStatusDashboard() {
                 </button>
               </div>
             )}
-            </div>
           </div>
           <div className="overflow-x-auto">
             {geoCoverageLoading ? (

@@ -145,6 +145,17 @@ export default function PoModifiedDashboard() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const [jumpTo, setJumpTo] = useState('');
+  // Toggle filters: PO statuses currently selected (empty = show all), and the
+  // buyer-informed state ('all' | 'informed' = remark filled | 'blank' = no remark).
+  const [activeStatuses, setActiveStatuses] = useState<Set<string>>(new Set());
+  const [informedFilter, setInformedFilter] = useState<'all' | 'informed' | 'blank'>('all');
+
+  const toggleStatus = (s: string) =>
+    setActiveStatuses((prev) => {
+      const next = new Set(prev);
+      next.has(s) ? next.delete(s) : next.add(s);
+      return next;
+    });
 
   const saveInform = async (poNumber: string) => {
     setSavingInform(true);
@@ -261,12 +272,31 @@ export default function PoModifiedDashboard() {
   const rows = useMemo(() => {
     if (!resp) return [];
     const q = search.trim().toLowerCase();
-    if (!q) return resp.data;
-    return resp.data.filter((r) =>
-      [r.poNumber, r.brandName, r.buyerBusiness, r.buyerPhone, r.poStatus, r.shipmentStatus, r.remarks]
-        .some((v) => (v ?? '').toString().toLowerCase().includes(q))
-    );
-  }, [resp, search]);
+    return resp.data.filter((r) => {
+      if (activeStatuses.size > 0 && !(r.poStatus && activeStatuses.has(r.poStatus.toUpperCase()))) return false;
+      if (informedFilter === 'informed' && !r.buyerInformed) return false;
+      if (informedFilter === 'blank' && r.buyerInformed) return false;
+      if (q && ![r.poNumber, r.brandName, r.buyerBusiness, r.buyerPhone, r.poStatus, r.shipmentStatus, r.remarks]
+        .some((v) => (v ?? '').toString().toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [resp, search, activeStatuses, informedFilter]);
+
+  // Chip counts come from the full fetched set (current date range), so toggling
+  // one filter doesn't shift the other chips' numbers. Statuses sorted by volume.
+  const statusCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    if (resp) for (const r of resp.data) {
+      const s = (r.poStatus || 'UNKNOWN').toUpperCase();
+      m.set(s, (m.get(s) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [resp]);
+  const informedCounts = useMemo(() => {
+    let filled = 0, blank = 0;
+    if (resp) for (const r of resp.data) { if (r.buyerInformed) filled++; else blank++; }
+    return { filled, blank };
+  }, [resp]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -276,7 +306,7 @@ export default function PoModifiedDashboard() {
   );
 
   // Snap back to page 1 whenever the filtered set or page size changes.
-  useEffect(() => { setPage(1); }, [search, range, customFrom, customTo, pageSize]);
+  useEffect(() => { setPage(1); }, [search, range, customFrom, customTo, pageSize, activeStatuses, informedFilter]);
 
   const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
 
@@ -434,6 +464,46 @@ export default function PoModifiedDashboard() {
           <Kpi label="Value Lost" value={fmtAmount(k?.valueLost ?? 0)} sub={`of ${fmtAmount(k?.prevAmountSum ?? 0)} original`} tone="emerald" />
           <Kpi label="Refund Owed" value={fmtAmount(k?.refundableTotal ?? 0)} sub={`${fmtCount(k?.refundCompletedPos ?? 0)} done · ${fmtCount(k?.refundPendingPos ?? 0)} pending`} tone="sky" />
         </div>
+
+        {/* Toggle filters — PO status + buyer-informed state */}
+        {resp && (statusCounts.length > 0 || resp.data.length > 0) && (
+          <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-300/70 mr-1">PO Status</span>
+              {statusCounts.map(([s, n]) => {
+                const active = activeStatuses.has(s);
+                const dimmed = activeStatuses.size > 0 && !active;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => toggleStatus(s)}
+                    className={`px-2.5 py-0.5 rounded-md text-xs font-semibold border transition-all ${poStatusBadge(s)} ${active ? 'ring-2 ring-fuchsia-400/60' : ''} ${dimmed ? 'opacity-40 hover:opacity-75' : 'hover:opacity-90'}`}
+                  >
+                    {s} <span className="font-normal opacity-70">({n.toLocaleString('en-IN')})</span>
+                  </button>
+                );
+              })}
+              {activeStatuses.size > 0 && (
+                <button onClick={() => setActiveStatuses(new Set())} className="px-2 py-0.5 rounded-md text-[11px] text-purple-300 hover:text-white hover:bg-white/10 border border-white/10">clear</button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-300/70 mr-1">Buyer Informed</span>
+              <button
+                onClick={() => setInformedFilter((f) => (f === 'informed' ? 'all' : 'informed'))}
+                className={`px-2.5 py-0.5 rounded-md text-xs font-semibold border transition-all bg-emerald-500/15 text-emerald-200 border-emerald-400/30 ${informedFilter === 'informed' ? 'ring-2 ring-fuchsia-400/60' : informedFilter === 'blank' ? 'opacity-40 hover:opacity-75' : 'hover:opacity-90'}`}
+              >
+                Informed <span className="font-normal opacity-70">({informedCounts.filled.toLocaleString('en-IN')})</span>
+              </button>
+              <button
+                onClick={() => setInformedFilter((f) => (f === 'blank' ? 'all' : 'blank'))}
+                className={`px-2.5 py-0.5 rounded-md text-xs font-semibold border transition-all bg-amber-500/15 text-amber-200 border-amber-400/30 ${informedFilter === 'blank' ? 'ring-2 ring-fuchsia-400/60' : informedFilter === 'informed' ? 'opacity-40 hover:opacity-75' : 'hover:opacity-90'}`}
+              >
+                Not Informed <span className="font-normal opacity-70">({informedCounts.blank.toLocaleString('en-IN')})</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Table */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">

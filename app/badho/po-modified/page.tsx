@@ -69,6 +69,15 @@ function fmtFull(n: number): string {
 function fmtCount(n: number): string {
   return n.toLocaleString('en-IN');
 }
+// Format the API's ISO response timestamp as an IST "last updated" stamp,
+// e.g. "09 Jun, 03:45 PM".
+function fmtUpdated(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+}
 
 // Colour the shipment-status badge. Check failures/returns FIRST so values like
 // "UNDELIVERED" and "RTO DELIVERED" (which contain "DELIVERED") read as rose,
@@ -298,6 +307,32 @@ export default function PoModifiedDashboard() {
     return { filled, blank };
   }, [resp]);
 
+  // Is a client-side filter narrowing the fetched set? (Date range re-queries the
+  // server, so the big KPI cards already reflect it — these are the in-page filters.)
+  const isFiltered = activeStatuses.size > 0 || informedFilter !== 'all' || search.trim().length > 0;
+
+  // Summary KPIs recomputed over the filtered rows — mirrors the server's KPI
+  // reduce in /api/po-modified so the smaller "filtered" boxes match the big ones.
+  const filteredKpis = useMemo<Kpis>(() => rows.reduce(
+    (acc, d) => {
+      acc.modifiedPos += 1;
+      if (d.remarks?.includes('Item Removed')) acc.itemRemovedPos += 1;
+      if (d.remarks?.includes('Quantity Decreased')) acc.qtyDecreasedPos += 1;
+      acc.prevAmountSum += d.prevAmount;
+      acc.newAmountSum += d.newAmount;
+      acc.valueLost += d.valueLost;
+      acc.refundableTotal += d.refundableAmount;
+      if (d.refundStatus === 'COMPLETED') {
+        acc.refundCompletedPos += 1;
+        acc.refundCompletedAmount += d.refundAmount ?? 0;
+      } else if (d.refundableAmount > 0) {
+        acc.refundPendingPos += 1;
+      }
+      return acc;
+    },
+    { modifiedPos: 0, itemRemovedPos: 0, qtyDecreasedPos: 0, prevAmountSum: 0, newAmountSum: 0, valueLost: 0, refundableTotal: 0, refundCompletedPos: 0, refundCompletedAmount: 0, refundPendingPos: 0 }
+  ), [rows]);
+
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
   const pageRows = useMemo(
@@ -505,11 +540,42 @@ export default function PoModifiedDashboard() {
           </div>
         )}
 
+        {/* Filtered summary — smaller boxes, only while an in-page filter is active */}
+        {resp && isFiltered && (
+          <div className="mb-6 -mt-2">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-fuchsia-300/80">Filtered summary</span>
+              <span className="text-[11px] text-purple-300/60">{fmtCount(filteredKpis.modifiedPos)} of {fmtCount(k?.modifiedPos ?? 0)} POs match</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5">
+              <Kpi compact label="Modified POs" value={fmtCount(filteredKpis.modifiedPos)} sub="in current filter" tone="fuchsia" />
+              <Kpi compact label="Item Removed" value={fmtCount(filteredKpis.itemRemovedPos)} sub="POs with a removal" tone="rose" />
+              <Kpi compact label="Quantity Decreased" value={fmtCount(filteredKpis.qtyDecreasedPos)} sub="POs with a qty cut" tone="amber" />
+              <Kpi compact label="Value Lost" value={fmtAmount(filteredKpis.valueLost)} sub={`of ${fmtAmount(filteredKpis.prevAmountSum)} original`} tone="emerald" />
+              <Kpi compact label="Refund Owed" value={fmtAmount(filteredKpis.refundableTotal)} sub={`${fmtCount(filteredKpis.refundCompletedPos)} done · ${fmtCount(filteredKpis.refundPendingPos)} pending`} tone="sky" />
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between gap-3 flex-wrap">
             <h3 className="text-base font-bold text-white">Modified Purchase Orders</h3>
-            <span className="text-xs text-purple-300/70">{loading ? 'Loading…' : `${rows.length.toLocaleString('en-IN')} rows · page ${safePage}/${totalPages}`}</span>
+            <div className="flex items-center gap-3 flex-wrap">
+              {resp?.timestamp && (
+                <span className="text-[11px] text-purple-300/60">Last updated {fmtUpdated(resp.timestamp)}</span>
+              )}
+              <button
+                onClick={fetchData}
+                disabled={loading}
+                title="Reload the latest data"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 hover:text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+              >
+                <span className={loading ? 'inline-block animate-spin' : 'inline-block'}>↻</span>
+                {loading ? 'Refreshing…' : 'Refresh'}
+              </button>
+              <span className="text-xs text-purple-300/70">{loading ? 'Loading…' : `${rows.length.toLocaleString('en-IN')} rows · page ${safePage}/${totalPages}`}</span>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[15px]">
@@ -756,7 +822,7 @@ export default function PoModifiedDashboard() {
   );
 }
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone: 'fuchsia' | 'rose' | 'amber' | 'emerald' | 'sky' }) {
+function Kpi({ label, value, sub, tone, compact }: { label: string; value: string; sub?: string; tone: 'fuchsia' | 'rose' | 'amber' | 'emerald' | 'sky'; compact?: boolean }) {
   const tones: Record<string, { border: string; glow: string; value: string; label: string }> = {
     fuchsia: { border: 'border-fuchsia-400/30', glow: 'from-fuchsia-500/20 to-fuchsia-600/0', value: 'text-fuchsia-100', label: 'text-fuchsia-300' },
     rose: { border: 'border-rose-400/30', glow: 'from-rose-500/20 to-rose-600/0', value: 'text-rose-100', label: 'text-rose-300' },
@@ -765,13 +831,18 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
     sky: { border: 'border-sky-400/30', glow: 'from-sky-500/20 to-sky-600/0', value: 'text-sky-100', label: 'text-sky-300' },
   };
   const s = tones[tone];
+  // Full class strings per size (never interpolate Tailwind classes — they'd be purged).
+  const box = compact ? 'rounded-xl p-2.5' : 'rounded-2xl p-4';
+  const labelSz = compact ? 'text-[9px]' : 'text-[11px]';
+  const valueSz = compact ? 'mt-1 text-lg' : 'mt-1.5 text-2xl';
+  const subSz = compact ? 'mt-0.5 text-[9px]' : 'mt-1 text-[11px]';
   return (
-    <div className={`relative overflow-hidden bg-white/5 backdrop-blur-xl border ${s.border} rounded-2xl p-4`}>
+    <div className={`relative overflow-hidden bg-white/5 backdrop-blur-xl border ${s.border} ${box}`}>
       <div className={`absolute inset-0 bg-gradient-to-br ${s.glow} pointer-events-none`} />
       <div className="relative z-10">
-        <div className={`text-[11px] font-semibold uppercase tracking-wider ${s.label}`}>{label}</div>
-        <div className={`mt-1.5 text-2xl font-bold ${s.value}`}>{value}</div>
-        {sub && <div className="mt-1 text-[11px] text-purple-200/70">{sub}</div>}
+        <div className={`${labelSz} font-semibold uppercase tracking-wider ${s.label}`}>{label}</div>
+        <div className={`${valueSz} font-bold ${s.value}`}>{value}</div>
+        {sub && <div className={`${subSz} text-purple-200/70`}>{sub}</div>}
       </div>
     </div>
   );

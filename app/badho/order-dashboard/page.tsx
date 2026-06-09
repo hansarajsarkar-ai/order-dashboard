@@ -70,11 +70,23 @@ interface OrderListRow {
 
 interface RevenueGoal {
   year: number;
+  month: number;
   goal: number;
   achieved: number;
   orders: number;
   remaining: number;
   achievePct: number;
+  // Prior month over the same elapsed span (month-to-date vs month-to-date).
+  prior?: {
+    year: number;
+    month: number;
+    achieved: number;
+    orders: number;
+    asOfDay: number | null;
+    sameSpan: boolean;
+  };
+  deltaPct?: number | null;
+  ordersDeltaPct?: number | null;
 }
 
 interface MonthCell {
@@ -3735,6 +3747,21 @@ export default function OrderStatusDashboard() {
                       <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{currentMonth} Achieved</p>
                       <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(animAchieved)}</p>
                       <p className="text-white/50 text-xs mt-1">{goalData.orders.toLocaleString()} orders</p>
+                      {goalData.prior && (() => {
+                        const d = goalData.deltaPct;
+                        const hasDelta = d !== null && d !== undefined;
+                        const up = (d ?? 0) >= 0;
+                        const spanLabel = goalData.prior.sameSpan && goalData.prior.asOfDay
+                          ? `${MONTH_NAMES[goalData.prior.month - 1]} 1–${goalData.prior.asOfDay}`
+                          : MONTH_NAMES[goalData.prior.month - 1];
+                        return (
+                          <p className={`text-xs mt-1 tabular-nums ${!hasDelta ? 'text-white/50' : up ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {hasDelta && <span className="font-semibold">{up ? '▲' : '▼'} {Math.abs(d as number).toFixed(1)}% </span>}
+                            vs {formatAmount(goalData.prior.achieved)}
+                            <span className="text-white/40"> · {spanLabel}</span>
+                          </p>
+                        );
+                      })()}
                       <p className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</p>
                     </button>
                     <div className="bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02]">
@@ -4492,6 +4519,7 @@ export default function OrderStatusDashboard() {
                 </button>
               </div>
             )}
+            </div>
           </div>
           <div className="overflow-x-auto">
             {geoCoverageLoading ? (

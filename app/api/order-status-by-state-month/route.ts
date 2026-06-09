@@ -65,21 +65,21 @@ async function _GET(req: NextRequest) {
         b."state" AS state,
         to_char(po."markedPendingTime", 'YYYY-MM') AS ym,
         COUNT(*)                                                                                        AS punched_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text                                                    AS punched_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text                                                    AS punched_amount,
         COUNT(*) FILTER (WHERE po."status" IN ('DELIVERED', 'COMPLETED'))                               AS delivered_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS delivered_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS delivered_amount,
         COUNT(*) FILTER (WHERE po."status" = 'REJECTED')                                                AS rejected_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'REJECTED'), 0)::text            AS rejected_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'REJECTED'), 0)::text            AS rejected_amount,
         COUNT(*) FILTER (WHERE po."status" = 'CANCELLED')                                               AS cancelled_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'CANCELLED'), 0)::text           AS cancelled_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'CANCELLED'), 0)::text           AS cancelled_amount,
         COUNT(*) FILTER (WHERE po."status" = 'PENDING')                                                 AS pending_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'PENDING'), 0)::text             AS pending_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'PENDING'), 0)::text             AS pending_amount,
         COUNT(*) FILTER (WHERE po."status" = 'INPROGRESS')                                              AS inprogress_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'INPROGRESS'), 0)::text          AS inprogress_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'INPROGRESS'), 0)::text          AS inprogress_amount,
         COUNT(*) FILTER (WHERE po."status" = 'DISPATCHED')                                              AS dispatched_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'DISPATCHED'), 0)::text          AS dispatched_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'DISPATCHED'), 0)::text          AS dispatched_amount,
         COUNT(*) FILTER (WHERE po."status" NOT IN ('DELIVERED','COMPLETED','REJECTED','CANCELLED','PENDING','INPROGRESS','DISPATCHED'))     AS inflight_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" NOT IN ('DELIVERED','COMPLETED','REJECTED','CANCELLED','PENDING','INPROGRESS','DISPATCHED')), 0)::text AS inflight_amount
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" NOT IN ('DELIVERED','COMPLETED','REJECTED','CANCELLED','PENDING','INPROGRESS','DISPATCHED')), 0)::text AS inflight_amount
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"

@@ -97,13 +97,13 @@ async function _GET(req: NextRequest) {
         EXTRACT(DAY FROM NOW() - MAX(${ORDER_TS}))::int                         AS days_since_last,
         MAX(po."markedPendingTime")::text                                       AS last_marked_pending,
         EXTRACT(DAY FROM NOW() - MAX(po."markedPendingTime"))::int              AS days_since_last_marked_pending,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS completed_gmv,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'REJECTED'), 0)::text   AS rejected_gmv,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'CANCELLED'), 0)::text  AS cancelled_gmv,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'PENDING'), 0)::text    AS pending_gmv,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'INPROGRESS'), 0)::text AS inprogress_gmv,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'DISPATCHED'), 0)::text AS dispatched_gmv,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text                            AS total_gmv
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS completed_gmv,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'REJECTED'), 0)::text   AS rejected_gmv,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'CANCELLED'), 0)::text  AS cancelled_gmv,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'PENDING'), 0)::text    AS pending_gmv,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'INPROGRESS'), 0)::text AS inprogress_gmv,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'DISPATCHED'), 0)::text AS dispatched_gmv,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text                            AS total_gmv
       FROM "purchaseOrder"."purchaseOrder" po
       WHERE po."buyerId" = $1 AND ${BASE_WHERE};
     `;
@@ -151,7 +151,7 @@ async function _GET(req: NextRequest) {
       SELECT
         to_char(date_trunc('month', ${ORDER_TS}), 'YYYY-MM')                    AS ym,
         COUNT(*)                                                                AS orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS gmv
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS gmv
       FROM "purchaseOrder"."purchaseOrder" po
       WHERE po."buyerId" = $1 AND ${BASE_WHERE}
         AND ${ORDER_TS} >= (NOW() - INTERVAL '12 months')

@@ -58,7 +58,7 @@ const currentYear = () => new Date().getFullYear();
 async function getGmvGoal(year: number) {
   const sql = `
     SELECT
-      COALESCE(SUM(po."amount"::numeric), 0)::text AS achieved,
+      COALESCE(SUM(po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0)), 0)::text AS achieved,
       COUNT(*)::text AS orders
     FROM "purchaseOrder"."purchaseOrder" po
     JOIN "users"."buyer" b ON b."id" = po."buyerId"
@@ -88,7 +88,7 @@ async function getMonthlyStatusBreakdown(year: number) {
       po."status" AS status,
       EXTRACT(MONTH FROM po."markedPendingTime")::int AS month,
       COUNT(*) AS count,
-      COALESCE(SUM(po."amount"::numeric), 0)::text AS amount
+      COALESCE(SUM(po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0)), 0)::text AS amount
     FROM "purchaseOrder"."purchaseOrder" po
     JOIN "users"."buyer" b ON b."id" = po."buyerId"
     JOIN "users"."seller" s ON s."id" = po."sellerId"
@@ -143,7 +143,7 @@ async function getSellerWiseBreakdown(year: number) {
       s."businessName"      AS seller_business_name,
       po."status"           AS status,
       COUNT(*)              AS count,
-      COALESCE(SUM(po."amount"::numeric), 0)::text AS amount
+      COALESCE(SUM(po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0)), 0)::text AS amount
     FROM "purchaseOrder"."purchaseOrder" po
     JOIN "users"."buyer" b ON b."id" = po."buyerId"
     JOIN "users"."seller" s ON s."id" = po."sellerId"

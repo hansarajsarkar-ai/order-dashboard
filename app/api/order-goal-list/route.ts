@@ -35,7 +35,7 @@ async function _GET(req: NextRequest) {
         po."poNumber"::text                                          AS po_number,
         po."status"                                                  AS status,
         po."deliveryStatus"                                          AS delivery_status,
-        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text                                            AS amount,
+        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))::text                                            AS amount,
         TO_CHAR(po."markedPendingTime",   'DD Mon YYYY HH12:MI AM')  AS marked_pending_time,
         TO_CHAR(po."markedDeliveredTime", 'DD Mon YYYY HH12:MI AM')  AS marked_delivered_time,
         b."phone"                                                    AS buyer_phone,

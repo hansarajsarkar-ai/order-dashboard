@@ -29,7 +29,7 @@ async function _GET(req: NextRequest) {
   try {
     const sql = `
       SELECT
-        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text          AS "orderAmount",
+        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))::text          AS "orderAmount",
         COALESCE(po."amount", 0)::numeric::text                                                    AS "itemTotalAmount",
         COALESCE(po."platformMarginDiscount", 0)::numeric::text                                    AS "itemDiscount",
         po."appliedOfferDiscount"::text                                                            AS "couponAmount",

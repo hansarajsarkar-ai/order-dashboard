@@ -64,9 +64,9 @@ export async function GET(req: NextRequest) {
         COUNT(*) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))        AS delivered_orders,
         COUNT(*) FILTER (WHERE po."status" = 'REJECTED')                        AS rejected_orders,
         COUNT(*) FILTER (WHERE po."status" = 'CANCELLED')                       AS cancelled_orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric))
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0)))
           FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text     AS delivered_amount,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text                            AS total_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text                            AS total_amount,
         COUNT(DISTINCT po."buyerId")                                            AS buyer_count
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"

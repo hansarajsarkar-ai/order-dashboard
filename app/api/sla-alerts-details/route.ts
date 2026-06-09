@@ -152,7 +152,7 @@ async function _GET(req: NextRequest) {
           b."phone"              AS "buyerPhone",
           b."businessName"       AS "buyerBusinessName",
           pop."paidAmount"::text AS "paidAmount",
-          (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text      AS "poAmount",
+          (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))::text      AS "poAmount",
           po."appliedOfferDiscount"::text AS "CoupanAmount",
           po."status"            AS "orderStatus",
           COALESCE((pop."breakup"->>'discount_on_payment_preference_for_seller')::float, 0)::text AS "discountBySeller",

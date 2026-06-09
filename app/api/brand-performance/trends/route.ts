@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
         EXTRACT(MONTH FROM po."markedPendingTime")::int      AS month,
         TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) AS brand,
         COUNT(*)                                             AS orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text         AS amount
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text         AS amount
       ${fromJoin}
       ${commonWhere}
         AND po."status" IN ('DELIVERED', 'COMPLETED')
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
       SELECT
         EXTRACT(DOW FROM po."markedPendingTime")::int        AS dow,
         COUNT(*)                                             AS orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text         AS amount
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text         AS amount
       ${fromJoin}
       ${commonWhere}
         AND po."status" IN ('DELIVERED', 'COMPLETED')
@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
           WHERE date_trunc('month', po."markedPendingTime") > bfm.first_month
         ) AS returning_buyers,
         COUNT(*) AS orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text AS amount
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text AS amount
       ${fromJoin}
       JOIN buyer_first_month bfm ON bfm."buyerId" = po."buyerId"
       ${commonWhere}
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
       SELECT
         po."status"                                          AS status,
         COUNT(*)                                             AS orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text         AS amount
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text         AS amount
       ${fromJoin}
       ${commonWhere}
       GROUP BY po."status";
@@ -154,13 +154,13 @@ export async function GET(req: NextRequest) {
       SELECT
         b."state"                                            AS state,
         COUNT(*)                                             AS orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text         AS amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text         AS amount,
         COUNT(DISTINCT po."buyerId")                         AS buyers
       ${fromJoin}
       ${commonWhere}
         AND po."status" IN ('DELIVERED', 'COMPLETED')
       GROUP BY b."state"
-      ORDER BY SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) DESC NULLS LAST
+      ORDER BY SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) DESC NULLS LAST
       LIMIT 10;
     `;
 
@@ -170,14 +170,14 @@ export async function GET(req: NextRequest) {
       FROM (
         SELECT
           CASE
-            WHEN (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) <  500   THEN '1 · < ₹500'
-            WHEN (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) <  1000  THEN '2 · ₹500–1K'
-            WHEN (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) <  2500  THEN '3 · ₹1K–2.5K'
-            WHEN (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) <  5000  THEN '4 · ₹2.5K–5K'
-            WHEN (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric) <  10000 THEN '5 · ₹5K–10K'
+            WHEN (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0)) <  500   THEN '1 · < ₹500'
+            WHEN (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0)) <  1000  THEN '2 · ₹500–1K'
+            WHEN (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0)) <  2500  THEN '3 · ₹1K–2.5K'
+            WHEN (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0)) <  5000  THEN '4 · ₹2.5K–5K'
+            WHEN (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0)) <  10000 THEN '5 · ₹5K–10K'
             ELSE                                     '6 · > ₹10K'
           END AS bucket,
-          (po."amount" + COALESCE(po."platformMarginDiscount", 0)) AS amount
+          (po."amount" + COALESCE(po."platformMarginDiscount", 0) + COALESCE(po."totalDiscount", 0)) AS amount
         ${fromJoin}
         ${commonWhere}
           AND po."status" IN ('DELIVERED', 'COMPLETED')
@@ -191,9 +191,9 @@ export async function GET(req: NextRequest) {
       SELECT
         EXTRACT(MONTH FROM po."markedPendingTime")::int      AS month,
         COUNT(*)                                             AS orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text         AS amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text         AS amount,
         COUNT(*) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')) AS delivered_orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS delivered_amount
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS delivered_amount
       ${fromJoin}
       ${commonWhere}
       GROUP BY month
@@ -204,10 +204,10 @@ export async function GET(req: NextRequest) {
     const grandSqlFor = (where: string) => `
       SELECT
         COUNT(*)                                                                            AS orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text                                        AS amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text                                        AS amount,
         COUNT(DISTINCT po."buyerId")                                                        AS buyers,
         COUNT(*) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))                    AS delivered_orders,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS delivered_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS delivered_amount,
         COUNT(DISTINCT po."buyerId") FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')) AS delivered_buyers
       ${fromJoin}
       ${where};

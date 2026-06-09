@@ -40,9 +40,9 @@ async function _GET(req: NextRequest) {
       SELECT
         po."markedPendingTime"::date::text                                                           AS day,
         COUNT(*)                                                                                     AS orders_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text                                                 AS orders_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text                                                 AS orders_amount,
         COUNT(*)             FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))                 AS delivered_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text
                                                                                                      AS delivered_amount
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"

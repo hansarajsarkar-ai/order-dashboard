@@ -53,7 +53,7 @@ async function _GET(req: NextRequest) {
       SELECT
         po."poNumber"::text          AS po_number,
         po."status"                  AS status,
-        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)::text            AS amount,
+        (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))::text            AS amount,
         b."phone"                    AS buyer_phone,
         b."businessName"             AS buyer_business_name,
         b."addressLine1"             AS buyer_address_line1,

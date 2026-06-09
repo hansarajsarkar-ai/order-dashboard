@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
         po."deliveryStatus"                                      AS delivery_status,
         EXTRACT(MONTH FROM po."markedPendingTime")::int          AS month,
         COUNT(*)                                                 AS count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text             AS amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text             AS amount,
         COUNT(DISTINCT po."buyerId")                             AS buyer_count
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"

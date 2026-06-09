@@ -44,30 +44,30 @@ async function _GET(req: NextRequest) {
         EXTRACT(YEAR  FROM po."created_at")::int AS year,
         EXTRACT(MONTH FROM po."created_at")::int AS month,
         COUNT(*)                                     AS total_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)), 0)::text AS total_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))), 0)::text AS total_amount,
 
         COUNT(*) FILTER (WHERE po."status" = 'DRAFT')                                              AS draft_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'DRAFT'), 0)::text          AS draft_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'DRAFT'), 0)::text          AS draft_amount,
         COUNT(DISTINCT po."buyerId")  FILTER (WHERE po."status" = 'DRAFT')                          AS draft_buyers,
         COUNT(DISTINCT po."sellerId") FILTER (WHERE po."status" = 'DRAFT')                          AS draft_sellers,
 
         COUNT(*) FILTER (WHERE po."status" != 'DRAFT')                                             AS punched_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" != 'DRAFT'), 0)::text         AS punched_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" != 'DRAFT'), 0)::text         AS punched_amount,
         COUNT(DISTINCT po."buyerId")  FILTER (WHERE po."status" != 'DRAFT')                         AS punched_buyers,
         COUNT(DISTINCT po."sellerId") FILTER (WHERE po."status" != 'DRAFT')                         AS punched_sellers,
 
         COUNT(*) FILTER (WHERE po."status" = 'PENDING')                                            AS pending_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" = 'PENDING'), 0)::text        AS pending_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" = 'PENDING'), 0)::text        AS pending_amount,
         COUNT(DISTINCT po."buyerId")  FILTER (WHERE po."status" = 'PENDING')                        AS pending_buyers,
         COUNT(DISTINCT po."sellerId") FILTER (WHERE po."status" = 'PENDING')                        AS pending_sellers,
 
         COUNT(*) FILTER (WHERE po."status" NOT IN ('DRAFT','PENDING','DELIVERED','COMPLETED','REJECTED','CANCELLED')) AS inprogress_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" NOT IN ('DRAFT','PENDING','DELIVERED','COMPLETED','REJECTED','CANCELLED')), 0)::text AS inprogress_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" NOT IN ('DRAFT','PENDING','DELIVERED','COMPLETED','REJECTED','CANCELLED')), 0)::text AS inprogress_amount,
         COUNT(DISTINCT po."buyerId")  FILTER (WHERE po."status" NOT IN ('DRAFT','PENDING','DELIVERED','COMPLETED','REJECTED','CANCELLED')) AS inprogress_buyers,
         COUNT(DISTINCT po."sellerId") FILTER (WHERE po."status" NOT IN ('DRAFT','PENDING','DELIVERED','COMPLETED','REJECTED','CANCELLED')) AS inprogress_sellers,
 
         COUNT(*) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))                           AS fulfilled_count,
-        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS fulfilled_amount,
+        COALESCE(SUM((po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))) FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED')), 0)::text AS fulfilled_amount,
         COUNT(DISTINCT po."buyerId")  FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))      AS fulfilled_buyers,
         COUNT(DISTINCT po."sellerId") FILTER (WHERE po."status" IN ('DELIVERED','COMPLETED'))      AS fulfilled_sellers
       FROM "purchaseOrder"."purchaseOrder" po

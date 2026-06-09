@@ -98,7 +98,7 @@ async function _GET(req: NextRequest) {
       windowed AS (
         SELECT
           po."sellerId"::text    AS seller_id,
-          (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric)   AS amount,
+          (po."amount"::numeric + COALESCE(po."platformMarginDiscount", 0)::numeric + COALESCE(po."totalDiscount"::numeric, 0))   AS amount,
           po."status",
           b."state"              AS buyer_state,
           b."district"           AS buyer_district

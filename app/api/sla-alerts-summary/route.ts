@@ -18,7 +18,7 @@ async function _GET() {
           po."markedPendingTime" AS "MarkedpendingTime",
           pop."event"            AS "paymentEvent",
           s."businessName"       AS "sellerBusinessName",
-          (po."amount" + COALESCE(po."platformMarginDiscount", 0))            AS "poAmount",
+          (po."amount" + COALESCE(po."platformMarginDiscount", 0) + COALESCE(po."totalDiscount", 0))            AS "poAmount",
           po."paymentInfo"->>'option' AS "PaymentOption",
           dv."codAmountToBeCollected" AS "codAmountToBeCollected"
         FROM "purchaseOrder"."purchaseOrder" po

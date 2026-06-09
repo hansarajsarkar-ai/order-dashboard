@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
         tk."created_at"                            AS "ticketCreatedAt",
 
         po."amount"::text                          AS "itemTotal",
-        (COALESCE(po."amount"::numeric, 0) + COALESCE(po."platformMarginDiscount"::numeric, 0))::text AS "grossAmount",
+        (COALESCE(po."amount"::numeric, 0) + COALESCE(po."platformMarginDiscount"::numeric, 0) + COALESCE(po."totalDiscount"::numeric, 0))::text AS "grossAmount",
         po."totalDiscount"::text                   AS "itemDiscount",
         po."appliedOfferDiscount"::text            AS "couponAmount",
         pop."appliedWalletAmount"::text            AS "appliedWalletAmount",

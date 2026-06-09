@@ -5789,8 +5789,8 @@ export default function OrderStatusDashboard() {
             ) : dailyCompleted.length === 0 ? (
               <div className="h-[380px] flex items-center justify-center text-purple-300">No completed orders in the last 30 days</div>
             ) : (
-              <ResponsiveContainer width="100%" height={380}>
-                <ComposedChart data={dailyCompleted} margin={{ top: 28, right: 16, left: 8, bottom: 8 }} style={{ cursor: 'pointer' }} onClick={(s: any) => s?.activeLabel && openCompletedDrill(s.activeLabel)}>
+              <ResponsiveContainer width="100%" height={480}>
+                <ComposedChart data={dailyCompleted} margin={{ top: 44, right: 16, left: 8, bottom: 8 }} style={{ cursor: 'pointer' }} onClick={(s: any) => s?.activeLabel && openCompletedDrill(s.activeLabel)}>
                   <defs>
                     <linearGradient id="gradCompletedValue" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%"  stopColor="#d946ef" stopOpacity={0.85} />
@@ -5807,9 +5807,10 @@ export default function OrderStatusDashboard() {
                     }}
                     minTickGap={20}
                   />
-                  {/* Left ₹ axis — Order Value bars */}
+                  {/* Left ₹ axis — Order Value bars. Headroom so bar tops + labels clear the lines. */}
                   <YAxis
                     yAxisId="money"
+                    domain={[0, (m: number) => Math.ceil((m * 1.15) / 10000) * 10000]}
                     tick={{ fill: 'rgba(240,171,252,0.75)', fontSize: 11 }}
                     tickFormatter={(v: number) => {
                       if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
@@ -5819,16 +5820,23 @@ export default function OrderStatusDashboard() {
                     }}
                     width={70}
                   />
-                  {/* Right axis — Order Count line */}
+                  {/* Right axis — Order Count line. Headroom keeps the green line in the lower ~70%. */}
                   <YAxis
                     yAxisId="count"
                     orientation="right"
+                    domain={[0, (m: number) => Math.ceil((m * 1.4) / 10) * 10]}
                     tick={{ fill: 'rgba(110,231,183,0.85)', fontSize: 11 }}
                     tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v))}
                     width={48}
                   />
-                  {/* Hidden axis — AOV line (own scale so it isn't flattened by order value) */}
-                  <YAxis yAxisId="aov" orientation="right" hide />
+                  {/* Hidden axis — AOV line. Domain pins the orange line to the top band so its
+                      labels sit above the count line and don't collide. */}
+                  <YAxis
+                    yAxisId="aov"
+                    orientation="right"
+                    hide
+                    domain={[(min: number) => Math.floor(min - 2300), (max: number) => Math.ceil(max + 80)]}
+                  />
                   <Tooltip
                     contentStyle={{
                       background: 'rgba(15,23,42,0.95)',
@@ -5860,11 +5868,11 @@ export default function OrderStatusDashboard() {
                   >
                     <LabelList
                       dataKey="ordersAmount"
-                      position="insideTop"
-                      offset={8}
+                      position="insideBottom"
+                      offset={10}
                       angle={-90}
                       formatter={(v: unknown) => formatAmount(Number(v))}
-                      style={{ fill: '#ffffff', fontSize: 11, fontWeight: 800, paintOrder: 'stroke', stroke: '#1e1b4b', strokeWidth: 2.5, strokeLinejoin: 'round' }}
+                      style={{ fill: '#ffffff', fontSize: 10, fontWeight: 800, paintOrder: 'stroke', stroke: '#1e1b4b', strokeWidth: 3, strokeLinejoin: 'round' }}
                     />
                   </Bar>
                   {/* Avg Order Value — amber line */}
@@ -5886,7 +5894,7 @@ export default function OrderStatusDashboard() {
                           <circle cx={cx} cy={cy} r={3} fill="#f59e0b" stroke="#1e1b4b" strokeWidth={1} />
                           <text
                             x={cx}
-                            y={cy + 16}
+                            y={cy - 11}
                             textAnchor="middle"
                             fill="#fbbf24"
                             fontSize={10}

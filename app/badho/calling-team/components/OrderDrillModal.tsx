@@ -365,9 +365,11 @@ export default function OrderDrillModal({ title, subtitle, rows, loading, error,
               <div className="flex items-start gap-1.5">
                 <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${idx === 0 ? 'bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.7)]' : 'bg-slate-300'}`} />
                 <div className="min-w-0">
-                  <div className="font-semibold text-slate-800 text-[11px] leading-tight break-words">{s.location && s.location.trim() ? s.location : '—'}</div>
+                  {sub
+                    ? <div className="font-bold text-slate-900 text-[11px] leading-tight break-words">{sub}</div>
+                    : <div className="font-bold text-slate-400 text-[11px] leading-tight">—</div>}
+                  <div className="text-[10px] text-slate-600 break-words">{s.location && s.location.trim() ? s.location : '—'}</div>
                   <div className="text-[10px] text-slate-500">{s.date ? fmtDateTime(s.date) : '—'}</div>
-                  {sub && <div className="text-[10px] text-slate-600 break-words">{sub}</div>}
                 </div>
               </div>
             </div>

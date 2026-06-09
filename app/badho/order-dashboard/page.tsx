@@ -1644,6 +1644,12 @@ export default function OrderStatusDashboard() {
   const [trendData, setTrendData] = useState<DailyTrendPoint[] | null>(null);
   const [trendLoading, setTrendLoading] = useState(false);
 
+  // Trend tab — Daily wise completed Order (last 30 days, by markedCompletedTime · 3PL × INTERCITY · D2R)
+  interface DailyCompletedPoint { day: string; ordersCount: number; ordersAmount: number; avgOrderAmount: number; }
+  const [dailyCompleted, setDailyCompleted] = useState<DailyCompletedPoint[] | null>(null);
+  const [dailyCompletedLoading, setDailyCompletedLoading] = useState(false);
+  const [dailyCompletedMetric, setDailyCompletedMetric] = useState<'count' | 'amount'>('count');
+
   // Trend tab — daily payment-option mix (distinct PO count per option per day)
   interface PaymentTrend {
     data: Array<Record<string, number | string>>;
@@ -1965,6 +1971,22 @@ export default function OrderStatusDashboard() {
     }
   };
 
+  const fetchDailyCompleted = async () => {
+    try {
+      setDailyCompletedLoading(true);
+      const res = await fetch(`/api/order-daily-completed?days=30`);
+      if (!res.ok) throw new Error('Failed to fetch daily completed');
+      const json = await res.json();
+      setDailyCompleted(json.data);
+      captureQuery('dailyCompleted', json);
+    } catch (err) {
+      console.error('Daily completed fetch error:', err);
+      setDailyCompleted([]);
+    } finally {
+      setDailyCompletedLoading(false);
+    }
+  };
+
   const fetchZonePivot = async () => {
     try {
       setZonePivotLoading(true);
@@ -2034,6 +2056,7 @@ export default function OrderStatusDashboard() {
   useEffect(() => {
     if (activeTab !== 'trend') return;
     fetchTrend();
+    fetchDailyCompleted();
     fetchPaymentTrend();
     fetchRtoInsights();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5695,6 +5718,149 @@ export default function OrderStatusDashboard() {
                       formatter={(v: unknown) => {
                         const n = typeof v === 'number' ? v : Number(v ?? 0);
                         if (trendMetric === 'amount') {
+                          if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+                          if (n >= 100000)   return `₹${(n / 100000).toFixed(1)}L`;
+                          if (n >= 1000)     return `₹${(n / 1000).toFixed(0)}K`;
+                          return `₹${n}`;
+                        }
+                        if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+                        return String(n);
+                      }}
+                      style={{
+                        fill: '#d1fae5',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        paintOrder: 'stroke',
+                        stroke: '#000',
+                        strokeWidth: 2,
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'round',
+                      }}
+                    />
+                  </Area>
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Daily wise completed Order — last 30 days, by markedCompletedTime */}
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-emerald-400/50 hover:shadow-[0_0_50px_rgba(16,185,129,0.22),inset_0_0_30px_rgba(16,185,129,0.10)]">
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Daily wise completed Order</h2>
+              <p className="text-purple-300 text-sm mt-1">
+                Per-day <span className="text-emerald-300">completed</span> {dailyCompletedMetric === 'count' ? 'order count' : 'order value'} · last 30 days · 3PL × INTERCITY · D2R
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {queryBtn('dailyCompleted', 'Daily wise completed Order')}
+              <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                {(['count', 'amount'] as const).map((m) => {
+                  const active = dailyCompletedMetric === m;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setDailyCompletedMetric(m)}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        active
+                          ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white shadow-[0_0_18px_rgba(16,185,129,0.5)]'
+                          : 'text-purple-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {m === 'count' ? 'Orders' : 'Revenue'}
+                    </button>
+                  );
+                })}
+              </div>
+              {dailyCompleted && dailyCompleted.length > 0 && (
+                <span className="text-xs text-purple-300/80 tabular-nums">
+                  {dailyCompleted.length} days · {dailyCompletedMetric === 'count'
+                    ? `${dailyCompleted.reduce((s, d) => s + d.ordersCount, 0).toLocaleString('en-IN')} orders`
+                    : formatAmount(dailyCompleted.reduce((s, d) => s + d.ordersAmount, 0))}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="p-6">
+            {dailyCompletedLoading || !dailyCompleted ? (
+              <div className="h-[360px] flex items-center justify-center text-purple-300">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-emerald-500/30 border-t-emerald-500 animate-spin" />
+                  Loading completed orders…
+                </div>
+              </div>
+            ) : dailyCompleted.length === 0 ? (
+              <div className="h-[360px] flex items-center justify-center text-purple-300">No completed orders in the last 30 days</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={360}>
+                <AreaChart data={dailyCompleted} margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
+                  <defs>
+                    <linearGradient id="gradDailyCompleted" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"  stopColor="#10b981" stopOpacity={0.55} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                    tickFormatter={(d: string) => {
+                      const [, m, dd] = d.split('-');
+                      return `${dd}/${m}`;
+                    }}
+                    minTickGap={20}
+                  />
+                  <YAxis
+                    tick={{ fill: 'rgba(216,180,254,0.7)', fontSize: 11 }}
+                    tickFormatter={(v: number) => {
+                      if (dailyCompletedMetric === 'amount') {
+                        if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+                        if (v >= 100000)   return `₹${(v / 100000).toFixed(1)}L`;
+                        if (v >= 1000)     return `₹${(v / 1000).toFixed(0)}K`;
+                        return `₹${v}`;
+                      }
+                      if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+                      return String(v);
+                    }}
+                    width={70}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'rgba(15,23,42,0.95)',
+                      border: '1px solid rgba(16,185,129,0.4)',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 12,
+                    }}
+                    labelStyle={{ color: '#6ee7b7', fontWeight: 700 }}
+                    formatter={(value, name, item) => {
+                      const n = typeof value === 'number' ? value : Number(value ?? 0);
+                      const v = dailyCompletedMetric === 'amount' ? formatAmount(n) : n.toLocaleString();
+                      const aov = item?.payload?.avgOrderAmount;
+                      return [`${v}${aov != null ? `  ·  AOV ${formatAmount(aov)}` : ''}`, String(name)];
+                    }}
+                    labelFormatter={(d) => `Date: ${d}`}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12, color: '#e9d5ff' }} />
+                  <Area
+                    type="monotone"
+                    dataKey={dailyCompletedMetric === 'count' ? 'ordersCount' : 'ordersAmount'}
+                    name="Completed orders"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fill="url(#gradDailyCompleted)"
+                    activeDot={{ r: 5 }}
+                    dot={{ r: 2.5, fill: '#10b981', stroke: '#1e1b4b', strokeWidth: 1 }}
+                  >
+                    <LabelList
+                      dataKey={dailyCompletedMetric === 'count' ? 'ordersCount' : 'ordersAmount'}
+                      position="top"
+                      offset={10}
+                      formatter={(v: unknown) => {
+                        const n = typeof v === 'number' ? v : Number(v ?? 0);
+                        if (dailyCompletedMetric === 'amount') {
                           if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
                           if (n >= 100000)   return `₹${(n / 100000).toFixed(1)}L`;
                           if (n >= 1000)     return `₹${(n / 1000).toFixed(0)}K`;

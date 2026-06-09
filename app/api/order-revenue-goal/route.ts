@@ -53,12 +53,44 @@ async function _GET(req: NextRequest) {
     const nextMonthStart = month === 12
       ? `${year + 1}-01-01`
       : `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const rows = await query<Row>(sql, [monthStart, nextMonthStart]);
+
+    // ── Prior month, SAME elapsed time span ("till date") ───────────────
+    // For the live current month we cut both periods off at the same point:
+    // current = [month 1 .. now], prior = [prev month 1 .. same day-of-month/time].
+    // For a fully-elapsed historical month we compare the two whole months.
+    const isCurrentMonth = year === currentYear && month === currentMonth;
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+    const prevMonthStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+    let prevEnd: string;
+    let asOfDay: number | null = null;
+    if (isCurrentMonth) {
+      const daysInPrev = new Date(prevYear, prevMonth, 0).getDate(); // last day of prev month
+      asOfDay = now.getDate();
+      const day = Math.min(asOfDay, daysInPrev); // clamp (e.g. May 31 -> Apr 30)
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      prevEnd = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(day).padStart(2, '0')} ${hh}:${mm}:${ss}`;
+    } else {
+      prevEnd = monthStart; // whole previous month: [prevMonthStart, monthStart)
+    }
+
+    const [rows, prevRows] = await Promise.all([
+      query<Row>(sql, [monthStart, nextMonthStart]),
+      query<Row>(sql, [prevMonthStart, prevEnd]),
+    ]);
+
     const achieved = parseFloat(rows[0]?.achieved || '0');
     const orders = parseInt(rows[0]?.orders || '0');
     const goal = goalFor(year, month);
     const achievePct = goal > 0 ? (achieved / goal) * 100 : 0;
     const remaining = Math.max(goal - achieved, 0);
+
+    const prevAchieved = parseFloat(prevRows[0]?.achieved || '0');
+    const prevOrders = parseInt(prevRows[0]?.orders || '0');
+    const deltaPct = prevAchieved > 0 ? ((achieved - prevAchieved) / prevAchieved) * 100 : null;
+    const ordersDeltaPct = prevOrders > 0 ? ((orders - prevOrders) / prevOrders) * 100 : null;
 
     return NextResponse.json({
       year,
@@ -68,6 +100,17 @@ async function _GET(req: NextRequest) {
       orders,
       remaining,
       achievePct: parseFloat(achievePct.toFixed(2)),
+      // Prior month over the same elapsed span (month-to-date vs month-to-date).
+      prior: {
+        year: prevYear,
+        month: prevMonth,
+        achieved: prevAchieved,
+        orders: prevOrders,
+        asOfDay,                       // same day-of-month cutoff (null for full historical months)
+        sameSpan: isCurrentMonth,      // true = "till date" comparison, false = whole-month
+      },
+      deltaPct: deltaPct === null ? null : parseFloat(deltaPct.toFixed(1)),
+      ordersDeltaPct: ordersDeltaPct === null ? null : parseFloat(ordersDeltaPct.toFixed(1)),
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

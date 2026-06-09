@@ -307,7 +307,7 @@ function downloadCSV(filename: string, headers: string[], rows: CsvCell[][]) {
 }
 
 const DOWNLOAD_BTN_CLASS =
-  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-fuchsia-500/30 border border-white/10 hover:border-fuchsia-400/50 text-purple-200 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap bg-white/10 hover:bg-fuchsia-500/30 border border-white/10 hover:border-fuchsia-400/50 text-purple-200 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 
 const DOWNLOAD_BTN_LIGHT_CLASS =
   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-fuchsia-100 border border-slate-200 hover:border-fuchsia-300 text-slate-700 hover:text-fuchsia-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
@@ -317,7 +317,7 @@ const DOWNLOAD_BTN_LIGHT_CLASS =
 type SqlQuery = { sql: string; params?: unknown[] };
 
 const QUERY_BTN_CLASS =
-  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-fuchsia-500/30 border border-white/10 hover:border-fuchsia-400/50 text-purple-200 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap bg-white/10 hover:bg-fuchsia-500/30 border border-white/10 hover:border-fuchsia-400/50 text-purple-200 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 
 // Shared modal that renders the SQL behind a section. Driven by a single piece of
 // page state so every section reuses one overlay instead of inlining its own panel.
@@ -4393,7 +4393,7 @@ export default function OrderStatusDashboard() {
 
         {/* Monthly Geo Coverage — rows = pincode/city/district/state, columns = months */}
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-nowrap gap-4">
+          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-nowrap gap-4 overflow-x-auto">
             <div className="shrink-0">
               <h2 className="text-2xl font-bold text-white">
                 {geoCovGranularity === 'month' ? 'Monthly' : geoCovGranularity === 'week' ? 'Weekly' : 'Daily'} Geo Coverage
@@ -4446,7 +4446,7 @@ export default function OrderStatusDashboard() {
               <div className="relative">
                 <button
                   onClick={() => setGeoCovStatusOpen((o) => !o)}
-                  className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 transition-all flex items-center gap-2"
+                  className="px-4 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 transition-all flex items-center gap-2"
                 >
                   {geoCovStatuses.length === 0 ? 'All Statuses' : `${geoCovStatuses.length} Status${geoCovStatuses.length > 1 ? 'es' : ''}`}
                   <span className="text-[10px]">▼</span>

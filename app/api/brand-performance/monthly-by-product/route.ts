@@ -51,39 +51,59 @@ export async function GET(req: NextRequest) {
       brandFilter = ` AND TRIM(SPLIT_PART(COALESCE(s."businessName", ''), '-', 1)) = ANY(string_to_array($${params.length}, ','))`;
     }
 
+    // Product GMV is grossed up to match the po-level total used by the other
+    // tabs: each order's (platformMarginDiscount + totalDiscount) is allocated
+    // across its items in proportion to item amount. We do this per-item in an
+    // inner query (window SUM over the order's qualifying items = denominator),
+    // then aggregate by product/month outside.
     const sql = `
       SELECT
-        bra."label"                                              AS brand_name,
-        bs."id"::text                                            AS sku_id,
-        bs."label"                                               AS sku_label,
-        (bs."brandSKUDataJSON" ->> 'size')                       AS sku_size,
-        EXTRACT(MONTH FROM po."markedPendingTime")::int          AS month,
-        COUNT(DISTINCT po."id")                                  AS order_count,
-        COALESCE(SUM(poi."amount"::numeric), 0)::text            AS amount,
-        COUNT(DISTINCT po."buyerId")                             AS buyer_count,
-        COALESCE(SUM(poi."quantity"::numeric), 0)::text          AS quantity
-      FROM "purchaseOrder"."purchaseOrder" po
-      JOIN "purchaseOrder"."purchaseOrderItem" poi ON poi."purchaseOrderId" = po."id"
-      JOIN "brands"."brandSKU"                  bs  ON bs."id"  = poi."brandSKUId"
-      LEFT JOIN "brands"."brand"                bra ON bra."id" = bs."brandId"
-      JOIN "users"."buyer"                      b   ON b."id"   = po."buyerId"
-      JOIN "users"."seller"                     s   ON s."id"   = po."sellerId"
-      WHERE po."isTest"          = FALSE
-        AND po."isFalseOrder"    = FALSE
-        AND b."isTest"           = FALSE
-        AND b."businessName" NOT ILIKE '%test%'
-        AND s."isTest"           = FALSE
-        AND s."businessName" NOT ILIKE '%test%'
-        AND s."isD2RBrandSeller" = TRUE
-        AND po."deliveryNetwork" = 'THIRD_PARTY'
-        AND po."deliveryType"    = 'INTERCITY'
-        AND po."status"          IN ('DELIVERED', 'COMPLETED')
-        AND poi."status"         != 'DRAFT'
-        AND poi."comboBrandSKUPOItemId" IS NULL
-        AND po."markedPendingTime" IS NOT NULL
-        ${whereDate}
-        ${brandFilter}
-      GROUP BY bra."label", bs."id", bs."label", (bs."brandSKUDataJSON" ->> 'size'), EXTRACT(MONTH FROM po."markedPendingTime")
+        brand_name,
+        sku_id,
+        sku_label,
+        sku_size,
+        month,
+        COUNT(DISTINCT po_id)                                    AS order_count,
+        COALESCE(SUM(gross_amount), 0)::text                     AS amount,
+        COUNT(DISTINCT buyer_id)                                 AS buyer_count,
+        COALESCE(SUM(item_qty), 0)::text                         AS quantity
+      FROM (
+        SELECT
+          bra."label"                                              AS brand_name,
+          bs."id"::text                                            AS sku_id,
+          bs."label"                                               AS sku_label,
+          (bs."brandSKUDataJSON" ->> 'size')                       AS sku_size,
+          EXTRACT(MONTH FROM po."markedPendingTime")::int          AS month,
+          po."id"                                                  AS po_id,
+          po."buyerId"                                             AS buyer_id,
+          poi."quantity"::numeric                                  AS item_qty,
+          poi."amount"::numeric
+            + (COALESCE(po."platformMarginDiscount"::numeric, 0) + COALESCE(po."totalDiscount"::numeric, 0))
+              * poi."amount"::numeric
+              / NULLIF(SUM(poi."amount"::numeric) OVER (PARTITION BY po."id"), 0) AS gross_amount
+        FROM "purchaseOrder"."purchaseOrder" po
+        JOIN "purchaseOrder"."purchaseOrderItem" poi ON poi."purchaseOrderId" = po."id"
+        JOIN "brands"."brandSKU"                  bs  ON bs."id"  = poi."brandSKUId"
+        LEFT JOIN "brands"."brand"                bra ON bra."id" = bs."brandId"
+        JOIN "users"."buyer"                      b   ON b."id"   = po."buyerId"
+        JOIN "users"."seller"                     s   ON s."id"   = po."sellerId"
+        WHERE po."isTest"          = FALSE
+          AND po."isFalseOrder"    = FALSE
+          AND b."isTest"           = FALSE
+          AND b."businessName" NOT ILIKE '%test%'
+          AND s."isTest"           = FALSE
+          AND s."businessName" NOT ILIKE '%test%'
+          AND s."isD2RBrandSeller" = TRUE
+          AND po."deliveryNetwork" = 'THIRD_PARTY'
+          AND po."deliveryType"    = 'INTERCITY'
+          AND po."status"          IN ('DELIVERED', 'COMPLETED')
+          AND poi."status"         != 'DRAFT'
+          AND poi."comboBrandSKUPOItemId" IS NULL
+          AND po."markedPendingTime" IS NOT NULL
+          ${whereDate}
+          ${brandFilter}
+      ) items
+      GROUP BY brand_name, sku_id, sku_label, sku_size, month
       ORDER BY sku_label, month;
     `;
     const rows = await query<Row>(sql, params);

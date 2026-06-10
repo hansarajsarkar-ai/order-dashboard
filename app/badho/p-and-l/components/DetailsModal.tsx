@@ -1,37 +1,19 @@
 'use client';
 
 import { useEffect } from 'react';
+import { ColumnDef, formatValue, isNumericCol, cellToneClass, rowToneClass } from './columns';
 
 type Row = Record<string, unknown>;
 
 interface Props {
   title: string;
   subtitle?: string;
-  columns: string[];
+  columns: ColumnDef[];
   rows: Row[];
   onClose: () => void;
 }
 
-// Columns we right-align / treat as numeric for nicer formatting.
-function isNumericLike(v: unknown): v is number | string {
-  if (typeof v === 'number') return true;
-  if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) return true;
-  return false;
-}
-
-function fmtCell(key: string, v: unknown): string {
-  if (v === null || v === undefined || v === '') return '—';
-  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
-  if (isNumericLike(v)) {
-    const n = Number(v);
-    if (Number.isInteger(n)) return n.toLocaleString('en-IN');
-    return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  }
-  return String(v);
-}
-
 export default function DetailsModal({ title, subtitle, columns, rows, onClose }: Props) {
-  // Close on Escape.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -45,8 +27,8 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
       const s = v === null || v === undefined ? '' : String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const header = columns.map(esc).join(',');
-    const body = rows.map((r) => columns.map((c) => esc(r[c])).join(',')).join('\n');
+    const header = columns.map((c) => esc(c.label)).join(',');
+    const body = rows.map((r) => columns.map((c) => esc(r[c.key])).join(',')).join('\n');
     const blob = new Blob([header + '\n' + body], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -101,29 +83,31 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
                 <tr>
                   {columns.map((c) => (
                     <th
-                      key={c}
+                      key={c.key}
                       className="px-3 py-2 text-left font-semibold text-purple-200 bg-slate-900/95 border-b border-white/15 whitespace-nowrap"
                     >
-                      {c}
+                      {c.label}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => (
-                  <tr key={i} className="hover:bg-white/[0.04] even:bg-white/[0.015]">
+                  <tr key={i} className={'transition-colors ' + rowToneClass(r)}>
                     {columns.map((c) => {
-                      const v = r[c];
-                      const num = isNumericLike(v);
+                      const v = r[c.key];
+                      const num = isNumericCol(v);
+                      const tone = cellToneClass(c, v);
                       return (
                         <td
-                          key={c}
+                          key={c.key}
                           className={
-                            'px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-purple-100/90 ' +
-                            (num ? 'text-right tabular-nums' : 'text-left')
+                            'px-3 py-1.5 border-b border-white/5 whitespace-nowrap ' +
+                            (num ? 'text-right tabular-nums ' : 'text-left ') +
+                            (tone || 'text-purple-100/90')
                           }
                         >
-                          {fmtCell(c, v)}
+                          {formatValue(c, v)}
                         </td>
                       );
                     })}

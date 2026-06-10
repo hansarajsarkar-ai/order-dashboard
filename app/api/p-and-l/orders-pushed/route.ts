@@ -12,7 +12,7 @@ const SQL = `
 with x as (SELECT DISTINCT
         po."poNumber",
         po."id" as "purchaseOrderId",
-        po."markedPendingTime"::date AS "MarkedpendingTime",
+        to_char(po."markedPendingTime", 'YYYY-MM-DD') AS "MarkedpendingTime",
         po."amount" AS "ItemTotal",
         COALESCE(po."amount"::numeric, 0) + COALESCE(po."platformMarginDiscount"::numeric, 0) + COALESCE(po."totalDiscount"::numeric, 0) AS "GrossAmount",
         COALESCE(po."platformMarginDiscount"::numeric, 0) AS "ItemDiscount",

@@ -2,6 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import DetailsModal from './DetailsModal';
+import {
+  ColumnDef,
+  buildColumns,
+  formatValue,
+  isNumericCol,
+  cellToneClass,
+  rowToneClass,
+} from './columns';
 
 type Row = Record<string, unknown>;
 
@@ -66,11 +74,11 @@ const DIMENSIONS: Dimension[] = [
   },
 ];
 
-const TONE: Record<Tone, { dot: string; text: string; ring: string; bar: string }> = {
-  good: { dot: 'bg-emerald-400', text: 'text-emerald-300', ring: 'hover:border-emerald-400/50', bar: 'bg-emerald-400/70' },
-  warn: { dot: 'bg-amber-400', text: 'text-amber-300', ring: 'hover:border-amber-400/50', bar: 'bg-amber-400/70' },
-  bad: { dot: 'bg-orange-400', text: 'text-orange-300', ring: 'hover:border-orange-400/50', bar: 'bg-orange-400/70' },
-  critical: { dot: 'bg-rose-400', text: 'text-rose-300', ring: 'hover:border-rose-400/50', bar: 'bg-rose-400/70' },
+const TONE: Record<Tone, { dot: string; pill: string; bar: string; rowBg: string }> = {
+  good: { dot: 'bg-emerald-400', pill: 'bg-emerald-500/15 text-emerald-300', bar: 'bg-emerald-400/80', rowBg: '' },
+  warn: { dot: 'bg-amber-400', pill: 'bg-amber-500/15 text-amber-300', bar: 'bg-amber-400/80', rowBg: '' },
+  bad: { dot: 'bg-orange-400', pill: 'bg-orange-500/25 text-orange-200', bar: 'bg-orange-400/80', rowBg: 'bg-orange-500/[0.07]' },
+  critical: { dot: 'bg-rose-400', pill: 'bg-rose-500/25 text-rose-200', bar: 'bg-rose-400/80', rowBg: 'bg-rose-500/[0.08]' },
 };
 
 function numOf(v: unknown): number {
@@ -79,30 +87,13 @@ function numOf(v: unknown): number {
   return isNaN(n) ? 0 : n;
 }
 
-function isNumericLike(v: unknown): boolean {
-  if (typeof v === 'number') return true;
-  if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) return true;
-  return false;
-}
-
-function fmtCell(v: unknown): string {
-  if (v === null || v === undefined || v === '') return '—';
-  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
-  if (isNumericLike(v)) {
-    const n = Number(v);
-    if (Number.isInteger(n)) return n.toLocaleString('en-IN');
-    return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  }
-  return String(v);
-}
-
 function fmtINR(n: number): string {
   return '₹' + Math.round(n).toLocaleString('en-IN');
 }
 
 export default function OrdersPushed() {
   const [rows, setRows] = useState<Row[]>([]);
-  const [columns, setColumns] = useState<string[]>([]);
+  const [columns, setColumns] = useState<ColumnDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ title: string; subtitle: string; rows: Row[] } | null>(null);
@@ -118,7 +109,7 @@ export default function OrdersPushed() {
           setError(d.error);
         } else {
           setRows(d.rows || []);
-          setColumns(d.columns || []);
+          setColumns(buildColumns(d.columns || []));
         }
       })
       .catch((e) => alive && setError(String(e)))
@@ -128,7 +119,6 @@ export default function OrdersPushed() {
     };
   }, []);
 
-  // KPI roll-up.
   const kpis = useMemo(() => {
     let gross = 0;
     let pnl = 0;
@@ -140,7 +130,6 @@ export default function OrdersPushed() {
     return { count: rows.length, gross, pnl, pnlPct };
   }, [rows]);
 
-  // Pre-bucket rows for each dimension's bands.
   const buckets = useMemo(() => {
     return DIMENSIONS.map((dim) => {
       const bandRows: Row[][] = dim.bands.map(() => []);
@@ -170,18 +159,14 @@ export default function OrdersPushed() {
     );
   }
 
-  const openModal = (dimTitle: string, bandLabel: string, bandRows: Row[]) => {
-    setModal({
-      title: `${dimTitle} · ${bandLabel}`,
-      subtitle: 'Pushed orders matching this slab — full P&L breakdown',
-      rows: bandRows,
-    });
+  const openModal = (title: string, subtitle: string, modalRows: Row[]) => {
+    setModal({ title, subtitle, rows: modalRows });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* KPI strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label="Pushed Orders" value={kpis.count.toLocaleString('en-IN')} accent="from-fuchsia-500/30 to-purple-600/30" />
         <Kpi label="Gross Amount" value={fmtINR(kpis.gross)} accent="from-indigo-500/30 to-blue-600/30" />
         <Kpi
@@ -198,51 +183,67 @@ export default function OrdersPushed() {
         />
       </div>
 
-      {/* Breakdown alert cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Breakdown alert cards — compact + eye-catching */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
         {buckets.map(({ dim, bandRows }) => {
           const total = bandRows.reduce((s, br) => s + br.length, 0);
+          // Orders that need attention = bad + critical bands.
+          const attention = dim.bands.reduce(
+            (s, b, i) => (b.tone === 'bad' || b.tone === 'critical' ? s + bandRows[i].length : s),
+            0
+          );
           return (
             <div
               key={dim.key}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5"
+              className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-3.5"
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span className="text-lg">{dim.icon}</span>
+              <div className="flex items-center justify-between mb-2.5">
+                <h3 className="text-[13px] font-bold text-white flex items-center gap-1.5">
+                  <span className="text-base">{dim.icon}</span>
                   {dim.title}
                 </h3>
-                <span className="text-[11px] font-semibold text-purple-300/70">
-                  {total.toLocaleString('en-IN')} orders
-                </span>
+                {attention > 0 ? (
+                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/20 text-rose-200 border border-rose-400/30 animate-pulse">
+                    ⚠ {attention}
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-400/20">
+                    ✓ ok
+                  </span>
+                )}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {dim.bands.map((band, i) => {
                   const br = bandRows[i];
                   const pct = total > 0 ? (br.length * 100) / total : 0;
                   const tone = TONE[band.tone];
+                  const flag = (band.tone === 'bad' || band.tone === 'critical') && br.length > 0;
                   return (
                     <div
                       key={band.label}
                       className={
-                        'group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 transition-colors ' +
-                        tone.ring
+                        'flex items-center gap-2 rounded-lg px-2 py-1 ' + (flag ? tone.rowBg : '')
                       }
                     >
-                      <span className={'w-2 h-2 rounded-full shrink-0 ' + tone.dot} />
-                      <span className="text-sm font-medium text-purple-100 w-20 shrink-0">{band.label}</span>
-                      {/* mini bar */}
-                      <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                      <span className={'w-1.5 h-1.5 rounded-full shrink-0 ' + tone.dot} />
+                      <span className="text-[12px] font-medium text-purple-100 w-16 shrink-0">{band.label}</span>
+                      <div className="flex-1 h-1 rounded-full bg-white/5 overflow-hidden">
                         <div className={'h-full rounded-full ' + tone.bar} style={{ width: `${pct}%` }} />
                       </div>
                       <button
-                        onClick={() => openModal(dim.title, band.label, br)}
+                        onClick={() =>
+                          openModal(
+                            `${dim.title} · ${band.label}`,
+                            'Pushed orders matching this slab — full breakdown',
+                            br
+                          )
+                        }
                         disabled={br.length === 0}
                         className={
-                          'min-w-[3rem] text-right text-base font-bold tabular-nums transition-transform ' +
+                          'min-w-[2.5rem] text-center px-2 py-0.5 rounded-md text-[13px] font-bold tabular-nums transition-transform ' +
                           (br.length === 0
                             ? 'text-purple-500/40 cursor-default'
-                            : `${tone.text} hover:scale-110 hover:underline cursor-pointer`)
+                            : `${tone.pill} hover:scale-110 cursor-pointer`)
                         }
                         title={br.length ? 'Click to view orders' : 'No orders'}
                       >
@@ -274,29 +275,53 @@ export default function OrdersPushed() {
                 <tr>
                   {columns.map((c) => (
                     <th
-                      key={c}
+                      key={c.key}
                       className="px-3 py-2 text-left font-semibold text-purple-200 bg-slate-900/95 border-b border-white/15 whitespace-nowrap"
                     >
-                      {c}
+                      {c.label}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => (
-                  <tr key={i} className="hover:bg-white/[0.04] even:bg-white/[0.015]">
+                  <tr key={i} className={'transition-colors ' + rowToneClass(r)}>
                     {columns.map((c) => {
-                      const v = r[c];
-                      const num = isNumericLike(v);
+                      const v = r[c.key];
+                      const num = isNumericCol(v);
+                      const tone = cellToneClass(c, v);
+                      if (c.key === 'poNumber') {
+                        return (
+                          <td
+                            key={c.key}
+                            className="px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-right tabular-nums"
+                          >
+                            <button
+                              onClick={() =>
+                                openModal(
+                                  `PO #${formatValue(c, v)}`,
+                                  'Full order detail',
+                                  [r]
+                                )
+                              }
+                              className="font-bold text-fuchsia-300 hover:text-fuchsia-200 hover:underline cursor-pointer"
+                              title="Click to view full order detail"
+                            >
+                              {formatValue(c, v)}
+                            </button>
+                          </td>
+                        );
+                      }
                       return (
                         <td
-                          key={c}
+                          key={c.key}
                           className={
-                            'px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-purple-100/90 ' +
-                            (num ? 'text-right tabular-nums' : 'text-left')
+                            'px-3 py-1.5 border-b border-white/5 whitespace-nowrap ' +
+                            (num ? 'text-right tabular-nums ' : 'text-left ') +
+                            (tone || 'text-purple-100/90')
                           }
                         >
-                          {fmtCell(v)}
+                          {formatValue(c, v)}
                         </td>
                       );
                     })}

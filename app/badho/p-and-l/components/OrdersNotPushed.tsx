@@ -258,20 +258,42 @@ export default function OrdersNotPushed() {
             (s, b, i) => (b.tone === 'bad' || b.tone === 'critical' ? s + bandRows[i].length : s),
             0
           );
+          // All orders sitting in a bad/critical band — the siren pulls these up.
+          const attentionRows = dim.bands.flatMap((b, i) =>
+            b.tone === 'bad' || b.tone === 'critical' ? bandRows[i] : []
+          );
           return (
             <div
               key={dim.key}
-              className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-3.5"
+              className={
+                'group relative overflow-hidden rounded-xl border bg-white/[0.03] backdrop-blur-xl p-3.5 transition-colors duration-300 ' +
+                (attention > 0
+                  ? 'border-rose-400/40 breathe-red'
+                  : 'border-white/10 hover:border-white/20')
+              }
             >
+              {/* top hairline highlight */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
               <div className="flex items-center justify-between mb-2.5">
                 <h3 className="text-[13px] font-bold text-white flex items-center gap-1.5">
                   <span className="text-base">{dim.icon}</span>
                   {dim.title}
                 </h3>
                 {attention > 0 ? (
-                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/20 text-rose-200 border border-rose-400/30 animate-pulse">
-                    ⚠ {attention}
-                  </span>
+                  <button
+                    onClick={() =>
+                      openModal(
+                        `${dim.title} · ⚠ Needs attention`,
+                        `${attention} orders not pushed in high-range slabs — sorted by ${dim.title}`,
+                        attentionRows,
+                        dim.key
+                      )
+                    }
+                    className="siren-btn flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-500/30 text-rose-100 border border-rose-400/50 cursor-pointer"
+                    title={`Click to view all ${attention} high-range orders`}
+                  >
+                    🚨 {attention}
+                  </button>
                 ) : (
                   <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-400/20">
                     ✓ ok
@@ -307,10 +329,12 @@ export default function OrdersNotPushed() {
                         }
                         disabled={br.length === 0}
                         className={
-                          'min-w-[2.5rem] text-center px-2 py-0.5 rounded-md text-[13px] font-bold tabular-nums transition-transform ' +
+                          'min-w-[2.5rem] text-center rounded-md tabular-nums transition-transform ' +
                           (br.length === 0
-                            ? 'text-purple-500/40 cursor-default'
-                            : `${tone.pill} hover:scale-110 cursor-pointer`)
+                            ? 'px-2 py-0.5 text-[13px] font-bold text-purple-500/40 cursor-default'
+                            : flag
+                              ? 'px-2 py-0.5 text-[15px] font-extrabold bg-rose-500/25 text-rose-300 ring-1 ring-rose-400/50 num-alert hover:scale-110 cursor-pointer'
+                              : `px-2 py-0.5 text-[13px] font-bold ${tone.pill} hover:scale-110 cursor-pointer`)
                         }
                         title={br.length ? 'Click to view orders' : 'No orders'}
                       >

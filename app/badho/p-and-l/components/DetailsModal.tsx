@@ -294,28 +294,28 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
                         onDrop={(e) => { e.preventDefault(); handleDrop(c.key); }}
                         className={
                           'px-2 py-1 text-left align-bottom font-bold uppercase tracking-wide text-[10px] border-b border-slate-200 bg-slate-100 ' +
-                          (wrap ? 'whitespace-normal break-words max-w-[120px] ' : 'whitespace-normal max-w-[110px] ') +
+                          (wrap ? 'min-w-[90px] max-w-[140px] ' : 'min-w-[78px] max-w-[120px] ') +
                           (dragOverKey === c.key ? 'border-l-2 border-l-purple-500 ' : '') +
                           (active ? 'text-purple-700' : 'text-slate-700')
                         }
                       >
-                        <span className="inline-flex items-start gap-1">
+                        <span className="flex items-start gap-1">
                           <span
                             draggable
                             onDragStart={(e) => { dragKey.current = c.key; e.dataTransfer.effectAllowed = 'move'; }}
                             onDragEnd={() => { dragKey.current = null; setDragOverKey(null); }}
-                            className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-purple-500 select-none leading-none mt-px"
+                            className="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-purple-500 select-none leading-none mt-px"
                             title="Drag to reorder column"
                           >
                             ⠿
                           </span>
                           <span
                             onClick={() => toggleSort(c.key)}
-                            className="cursor-pointer inline-flex items-center gap-0.5 select-none"
+                            className="min-w-0 flex-1 cursor-pointer block break-words [overflow-wrap:anywhere] leading-tight select-none"
                             title="Click to sort"
                           >
                             {c.label}
-                            <span className={active ? 'opacity-100 text-purple-600' : 'opacity-30'}>
+                            <span className={'ml-0.5 inline-block align-text-bottom ' + (active ? 'opacity-100 text-purple-600' : 'opacity-30')}>
                               {active ? (sort?.dir === 'asc' ? '▲' : '▼') : '↕'}
                             </span>
                           </span>

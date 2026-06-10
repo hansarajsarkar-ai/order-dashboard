@@ -81,9 +81,17 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
   );
 
   // Build routes: each destination flows from its nearest warehouse.
+  // Tier (by share of the busiest city) drives the "hero" colour treatment so
+  // the heaviest delivery lanes glow gold/white and quieter ones stay cool.
+  type Tier = 'hero' | 'hot' | 'high' | 'mid' | 'low';
   const routes = useMemo(() => {
     if (safeOrigins.length === 0) return [];
     const maxVal = destinations.reduce((m, d) => Math.max(m, d[metric] || 0), 1);
+    // rank lookup (0 = busiest)
+    const ranked = [...destinations].sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
+    const rankOf = new Map<FlowDest, number>();
+    ranked.forEach((d, r) => rankOf.set(d, r));
+
     const out: {
       id: string;
       d: string;          // arc path
@@ -92,7 +100,10 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
       dest: FlowDest;
       w: number;          // stroke width
       dur: number;        // pulse travel seconds
-      delay: number;
+      delay: number;      // continuous-anim start
+      draw: number;       // one-time draw-in start
+      rank: number;
+      tier: Tier;
     }[] = [];
     destinations.forEach((dest, i) => {
       const dp = project(dest.lng, dest.lat);
@@ -117,19 +128,50 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
       const cx = (x0 + x1) / 2 + px * bend;
       const cy = (y0 + y1) / 2 + py * bend;
       const val = dest[metric] || 0;
-      const w = 0.8 + (val / maxVal) * 3.2;
+      const share = val / maxVal;
+      const rank = rankOf.get(dest) ?? i;
+      const tier: Tier =
+        rank === 0 ? 'hero'
+        : share >= 0.55 ? 'hot'
+        : share >= 0.28 ? 'high'
+        : share >= 0.12 ? 'mid'
+        : 'low';
+      const w = (tier === 'hero' ? 2.4 : tier === 'hot' ? 1.6 : 0.8) + share * 3.4;
       out.push({
         id: `r${i}`,
         d: `M${x0},${y0} Q${cx},${cy} ${x1},${y1}`,
         ground: `M${x0},${y0} L${x1},${y1}`,
         x0, y0, x1, y1, dest, w,
-        dur: 2.4 + (dist / W) * 3.5,
-        delay: (i % 18) * 0.18,
+        dur: 2.2 + (dist / W) * 3.2,
+        delay: 0,   // assigned after sort so the reveal cascades small → big
+        draw: 0,
+        rank,
+        tier,
       });
     });
-    // draw biggest on top
-    return out.sort((a, b) => (a.dest[metric] || 0) - (b.dest[metric] || 0));
+    // draw biggest on top; cascade the one-time reveal small → big (hero lands last)
+    out.sort((a, b) => (a.dest[metric] || 0) - (b.dest[metric] || 0));
+    const n = out.length || 1;
+    out.forEach((r, idx) => {
+      r.draw = 0.3 + (idx / n) * 2.0;          // staggered draw-in
+      r.delay = r.draw + 1.5;                    // flow/comet begin after the line is drawn
+    });
+    return out;
   }, [safeOrigins, destinations, metric, project]);
+
+  // Busiest few routes get an on-map rank label (champion + runners-up).
+  // Skip a label if a higher-ranked one already sits within ~34px (keeps dense
+  // clusters like Delhi-NCR from stacking labels on top of each other).
+  const labelRoutes = useMemo(() => {
+    const sorted = [...routes].sort((a, b) => (b.dest[metric] || 0) - (a.dest[metric] || 0));
+    const kept: typeof sorted = [];
+    for (const r of sorted) {
+      if (kept.some((k) => Math.hypot(k.x1 - r.x1, k.y1 - r.y1) < 34)) continue;
+      kept.push(r);
+      if (kept.length >= 6) break;
+    }
+    return kept;
+  }, [routes, metric]);
 
   const destMax = useMemo(() => destinations.reduce((m, d) => Math.max(m, d[metric] || 0), 1), [destinations, metric]);
   const topDest = useMemo(
@@ -170,9 +212,28 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
               style={{ width: '100%', height: 'auto' }}
             >
               <defs>
-                <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                {/* hero / hot lanes glow gold-white-pink; quieter lanes stay cool */}
+                <linearGradient id="arcHero" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#fff7e0" />
+                  <stop offset="45%" stopColor="#ffd24a" />
+                  <stop offset="100%" stopColor="#ff4fa3" />
+                </linearGradient>
+                <linearGradient id="arcHot" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#ffd24a" />
+                  <stop offset="55%" stopColor="#fb7185" />
+                  <stop offset="100%" stopColor="#e879f9" />
+                </linearGradient>
+                <linearGradient id="arcHigh" x1="0%" y1="0%" x2="100%" y2="0%">
                   <stop offset="0%" stopColor="#fbbf24" />
                   <stop offset="55%" stopColor="#e879f9" />
+                  <stop offset="100%" stopColor="#818cf8" />
+                </linearGradient>
+                <linearGradient id="arcMid" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#c084fc" />
+                  <stop offset="100%" stopColor="#22d3ee" />
+                </linearGradient>
+                <linearGradient id="arcLow" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#38bdf8" />
                   <stop offset="100%" stopColor="#22d3ee" />
                 </linearGradient>
                 <radialGradient id="hubGrad">
@@ -185,9 +246,27 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
                   <stop offset="50%" stopColor="#22d3ee" />
                   <stop offset="100%" stopColor="#0e7490" />
                 </radialGradient>
+                <radialGradient id="heroNode">
+                  <stop offset="0%" stopColor="#ffffff" />
+                  <stop offset="40%" stopColor="#ffd24a" />
+                  <stop offset="100%" stopColor="#f97316" />
+                </radialGradient>
+                <radialGradient id="hotNode">
+                  <stop offset="0%" stopColor="#ffe4f3" />
+                  <stop offset="50%" stopColor="#fb7185" />
+                  <stop offset="100%" stopColor="#be185d" />
+                </radialGradient>
                 <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
                   <feGaussianBlur stdDeviation="3.2" result="b" />
                   <feMerge>
+                    <feMergeNode in="b" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+                <filter id="heroGlow" x="-120%" y="-120%" width="340%" height="340%">
+                  <feGaussianBlur stdDeviation="6" result="b" />
+                  <feMerge>
+                    <feMergeNode in="b" />
                     <feMergeNode in="b" />
                     <feMergeNode in="SourceGraphic" />
                   </feMerge>
@@ -224,48 +303,120 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
               </g>
 
               {/* arcs */}
-              {routes.map((r) => (
-                <g key={`a-${r.id}`}>
-                  <path d={r.d} fill="none" stroke="url(#arcGrad)" strokeWidth={r.w} strokeLinecap="round" opacity={0.7} filter="url(#glow)" />
-                  {/* flowing dashes */}
-                  <path
-                    d={r.d}
-                    fill="none"
-                    stroke="#ffffff"
-                    strokeWidth={Math.max(0.6, r.w * 0.45)}
-                    strokeLinecap="round"
-                    strokeDasharray="2 16"
-                    opacity={0.85}
-                    style={{ animation: `flowDash ${r.dur}s linear ${r.delay}s infinite` }}
-                  />
-                  {/* travelling shipment pulse */}
-                  <circle r={Math.max(1.6, r.w * 0.9)} fill="#ffffff" filter="url(#glow)">
-                    <animateMotion dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" path={r.d} rotate="auto" />
-                    <animate attributeName="opacity" values="0;1;1;0" dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" />
-                  </circle>
-                </g>
-              ))}
+              {routes.map((r) => {
+                const grad = r.tier === 'hero' ? 'arcHero' : r.tier === 'hot' ? 'arcHot' : r.tier === 'high' ? 'arcHigh' : r.tier === 'mid' ? 'arcMid' : 'arcLow';
+                const arcOpacity = r.tier === 'hero' ? 1 : r.tier === 'hot' ? 0.92 : r.tier === 'high' ? 0.78 : r.tier === 'mid' ? 0.58 : 0.4;
+                const hero = r.tier === 'hero' || r.tier === 'hot';
+                const headR = (hero ? 2.4 : 1.4) + r.w * 0.6;
+                const headFill = r.tier === 'hero' ? '#fff7e0' : r.tier === 'hot' ? '#ffd9ec' : '#ffffff';
+                return (
+                  <g key={`a-${r.id}`}>
+                    {/* base lane — documentary draw-in */}
+                    <path
+                      d={r.d}
+                      fill="none"
+                      stroke={`url(#${grad})`}
+                      strokeWidth={r.w}
+                      strokeLinecap="round"
+                      opacity={arcOpacity}
+                      filter={hero ? 'url(#heroGlow)' : 'url(#glow)'}
+                      pathLength={1}
+                      strokeDasharray={1}
+                      style={{ animation: `drawIn 1.3s ease-out ${r.draw}s both` }}
+                    />
+                    {/* continuous flow — fades in only after the lane is drawn */}
+                    <g opacity={0}>
+                      <animate attributeName="opacity" begin={`${r.delay}s`} dur="0.5s" from="0" to="1" fill="freeze" />
+                      <path
+                        d={r.d}
+                        fill="none"
+                        stroke="#ffffff"
+                        strokeWidth={Math.max(0.6, r.w * 0.5)}
+                        strokeLinecap="round"
+                        strokeDasharray="2 16"
+                        opacity={hero ? 0.95 : 0.7}
+                        style={{ animation: `flowDash ${r.dur}s linear ${r.delay}s infinite` }}
+                      />
+                      {/* hero comet tail */}
+                      {hero && (
+                        <circle r={headR * 1.7} fill={headFill} opacity={0.28} filter="url(#heroGlow)">
+                          <animateMotion dur={`${r.dur}s`} begin={`${r.delay + 0.1}s`} repeatCount="indefinite" path={r.d} />
+                        </circle>
+                      )}
+                      {/* travelling shipment pulse */}
+                      <circle r={headR} fill={headFill} filter={hero ? 'url(#heroGlow)' : 'url(#glow)'}>
+                        <animateMotion dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" path={r.d} rotate="auto" />
+                        <animate attributeName="opacity" values="0;1;1;0" dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" />
+                      </circle>
+                    </g>
+                  </g>
+                );
+              })}
 
               {/* destination nodes */}
               {routes.map((r) => {
-                const rad = 1.6 + ((r.dest[metric] || 0) / destMax) * 4.5;
+                const rad = (r.tier === 'hero' ? 4 : r.tier === 'hot' ? 2.6 : 1.6) + ((r.dest[metric] || 0) / destMax) * 4.5;
+                const nodeFill = r.tier === 'hero' ? 'url(#heroNode)' : r.tier === 'hot' ? 'url(#hotNode)' : 'url(#destGrad)';
+                const ring = r.tier === 'hero' ? '#ffd24a' : r.tier === 'hot' ? '#fb7185' : '#22d3ee';
+                const stroke = r.tier === 'hero' ? '#fff7e0' : r.tier === 'hot' ? '#ffe4f3' : '#cffafe';
+                const hero = r.tier === 'hero' || r.tier === 'hot';
                 return (
                   <g key={`d-${r.id}`} transform={`translate(${r.x1},${r.y1})`}>
-                    <circle r={rad + 2.5} fill="#22d3ee" opacity={0.18}>
-                      <animate attributeName="r" values={`${rad};${rad + 6};${rad}`} dur="2.6s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="0.35;0;0.35" dur="2.6s" repeatCount="indefinite" />
+                    <circle r={rad + 2.5} fill={ring} opacity={0.2}>
+                      <animate attributeName="r" values={`${rad};${rad + (hero ? 11 : 6)};${rad}`} dur={hero ? '2.1s' : '2.6s'} repeatCount="indefinite" />
+                      <animate attributeName="opacity" values={`${hero ? 0.6 : 0.35};0;${hero ? 0.6 : 0.35}`} dur={hero ? '2.1s' : '2.6s'} repeatCount="indefinite" />
                     </circle>
                     <circle
                       r={rad}
-                      fill="url(#destGrad)"
-                      stroke="#cffafe"
-                      strokeWidth={0.5}
+                      fill={nodeFill}
+                      stroke={stroke}
+                      strokeWidth={hero ? 0.9 : 0.5}
+                      filter={hero ? 'url(#heroGlow)' : undefined}
                       style={{ cursor: 'pointer' }}
                       onMouseMove={(e: React.MouseEvent) =>
                         setTip({ x: e.clientX, y: e.clientY, title: r.dest.city || '—', sub: r.dest.state || '', count: r.dest.count, amount: r.dest.amount, kind: 'dest' })
                       }
                       onMouseLeave={() => setTip(null)}
                     />
+                    {r.tier === 'hero' && (
+                      <text textAnchor="middle" y={2.6} style={{ fontSize: 5.5, fontWeight: 900, fill: '#7c2d12', pointerEvents: 'none', userSelect: 'none' }}>★</text>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* rank labels on the busiest cities (fade in after the reveal) */}
+              {labelRoutes.map((r, i) => {
+                const rightSide = r.x1 > W * 0.62;
+                const dx = rightSide ? -9 : 9;
+                const anchor = rightSide ? 'end' : 'start';
+                const champ = r.tier === 'hero';
+                return (
+                  <g key={`lbl-${r.id}`} transform={`translate(${r.x1},${r.y1})`} opacity={0}>
+                    <animate attributeName="opacity" begin={`${2.6 + i * 0.18}s`} dur="0.7s" from="0" to="1" fill="freeze" />
+                    <text
+                      x={dx} y={-7} textAnchor={anchor}
+                      style={{
+                        fontSize: champ ? 12 : 9.5,
+                        fontWeight: champ ? 900 : 700,
+                        fill: champ ? '#ffe08a' : '#e9d5ff',
+                        paintOrder: 'stroke', stroke: '#0a0418', strokeWidth: 3,
+                        strokeLinejoin: 'round', pointerEvents: 'none', userSelect: 'none',
+                      }}
+                    >
+                      {champ ? '👑 ' : `#${r.rank + 1} `}{r.dest.city}
+                    </text>
+                    <text
+                      x={dx} y={champ ? 4 : 2.5} textAnchor={anchor}
+                      style={{
+                        fontSize: champ ? 9 : 7.5, fontWeight: 700,
+                        fill: champ ? '#fff7e0' : '#a5f3fc',
+                        paintOrder: 'stroke', stroke: '#0a0418', strokeWidth: 2.6,
+                        strokeLinejoin: 'round', pointerEvents: 'none', userSelect: 'none',
+                      }}
+                    >
+                      {metric === 'count' ? `${r.dest.count.toLocaleString('en-IN')} orders` : formatAmount(r.dest.amount)}
+                    </text>
                   </g>
                 );
               })}
@@ -307,8 +458,9 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
         </div>
         <div className="px-6 py-3 border-t border-white/10 bg-black/30 backdrop-blur flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px]">
           <span className="flex items-center gap-1.5 text-amber-200"><span className="inline-block w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]" /> Warehouse</span>
+          <span className="flex items-center gap-1.5 text-amber-100"><span className="inline-block w-3 h-3 rounded-full shadow-[0_0_10px_#ffd24a]" style={{ background: 'radial-gradient(circle,#fff7e0,#ffd24a,#f97316)' }} /> Top city 👑</span>
           <span className="flex items-center gap-1.5 text-cyan-200"><span className="inline-block w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" /> Delivery city</span>
-          <span className="flex items-center gap-1.5 text-fuchsia-200"><span className="inline-block w-6 h-[3px] rounded-full bg-gradient-to-r from-amber-400 via-fuchsia-400 to-cyan-400" /> Shipment route (thickness = volume)</span>
+          <span className="flex items-center gap-1.5 text-fuchsia-200"><span className="inline-block w-6 h-[3px] rounded-full bg-gradient-to-r from-amber-300 via-fuchsia-400 to-cyan-400" /> Route — gold = highest volume</span>
         </div>
 
         {tip && (
@@ -350,13 +502,14 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
             {topDest.map((d, i) => {
               const val = d[metric];
               const pct = ((d[metric] || 0) / (topDest[0]?.[metric] || 1)) * 100;
+              const champ = i === 0;
               return (
-                <li key={`${d.state}-${d.city}-${i}`} className="px-3 py-1.5 flex items-center gap-2">
-                  <div className="w-4 text-[10px] text-purple-300 font-bold tabular-nums">{i + 1}</div>
+                <li key={`${d.state}-${d.city}-${i}`} className={`px-3 py-1.5 flex items-center gap-2 ${champ ? 'bg-gradient-to-r from-amber-400/15 to-transparent ring-1 ring-inset ring-amber-300/30' : ''}`}>
+                  <div className={`w-4 text-[10px] font-bold tabular-nums ${champ ? 'text-amber-300' : 'text-purple-300'}`}>{champ ? '👑' : i + 1}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-white text-xs truncate">{d.city} <span className="text-purple-300/60">· {d.state}</span></div>
+                    <div className={`text-xs truncate ${champ ? 'text-amber-100 font-semibold' : 'text-white'}`}>{d.city} <span className="text-purple-300/60">· {d.state}</span></div>
                     <div className="h-1 rounded-full bg-white/5 mt-1 overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-amber-400 via-fuchsia-500 to-cyan-400" style={{ width: `${pct}%` }} />
+                      <div className={`h-full rounded-full ${champ ? 'bg-gradient-to-r from-amber-200 via-amber-400 to-orange-400' : 'bg-gradient-to-r from-amber-400 via-fuchsia-500 to-cyan-400'}`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                   <div className="text-right tabular-nums shrink-0">
@@ -373,6 +526,7 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
       {/* keyframes for flowing dashes */}
       <style jsx global>{`
         @keyframes flowDash { to { stroke-dashoffset: -180; } }
+        @keyframes drawIn { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
       `}</style>
     </div>
   );

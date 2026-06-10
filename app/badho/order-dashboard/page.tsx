@@ -337,12 +337,12 @@ function QueryModal({ title, queries, onClose }: { title: string; queries: SqlQu
         className="w-full max-w-4xl max-h-[85vh] overflow-y-auto bg-slate-950 border border-white/15 rounded-2xl shadow-[0_0_60px_rgba(168,85,247,0.3)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-slate-950 z-10">
+        <div className="flex items-center justify-between px-3 sm:px-6 py-4 border-b border-white/10 sticky top-0 bg-slate-950 z-10">
           <div>
             <p className="text-purple-300 text-[11px] uppercase tracking-wider font-semibold">SQL Query</p>
             <h3 className="text-white font-bold text-lg">{title}</h3>
           </div>
-          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2">×</button>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-xl sm:text-2xl leading-none px-2">×</button>
         </div>
         <div className="p-6 space-y-5">
           {queries.length === 0 ? (
@@ -3676,7 +3676,7 @@ export default function OrderStatusDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-3 sm:p-5 lg:p-8 relative overflow-hidden">
       {/* Animated background orbs */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
@@ -3710,7 +3710,7 @@ export default function OrderStatusDashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="mb-5 flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl w-fit">
+        <div className="mb-5 flex gap-1 p-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl w-full sm:w-fit overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {([
             { key: 'dashboard', label: 'Dashboard' },
             { key: 'trend', label: 'Trend' },
@@ -3731,7 +3731,7 @@ export default function OrderStatusDashboard() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`relative px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-300 inline-flex items-center gap-1.5 ${
+                  className={`relative shrink-0 whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-300 inline-flex items-center gap-1.5 ${
                     active
                       ? 'bg-gradient-to-r from-rose-500 via-red-500 to-orange-500 text-white shadow-[0_0_28px_rgba(244,63,94,0.7),inset_0_0_18px_rgba(251,113,133,0.4)]'
                       : hasAlerts
@@ -3771,7 +3771,7 @@ export default function OrderStatusDashboard() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 ${
+                className={`shrink-0 whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 ${
                   active
                     ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-[0_0_24px_rgba(217,70,239,0.55),inset_0_0_18px_rgba(168,85,247,0.5)]'
                     : 'text-purple-200 hover:bg-white/10 hover:text-white'
@@ -3787,14 +3787,14 @@ export default function OrderStatusDashboard() {
         <>
         {/* Revenue Goal — radial gauge */}
         <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 flex items-start justify-between gap-4">
+          <div className="px-4 sm:px-8 py-6 border-b border-white/10 flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">GMV Goal — {currentMonthYear}</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">GMV Goal — {currentMonthYear}</h2>
               <p className="text-white/60 text-sm mt-1">Sum of order amount where status is DELIVERED or COMPLETED, against the monthly goal</p>
             </div>
             {queryBtn('goal', 'GMV Goal')}
           </div>
-          <div className="p-8">
+          <div className="p-4 sm:p-8">
             {goalLoading ? (
               <div className="py-12 text-center text-white/60">Loading...</div>
             ) : !goalData ? (
@@ -3833,7 +3833,7 @@ export default function OrderStatusDashboard() {
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{currentMonth} Achieved</p>
-                      <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(animAchieved)}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-white tabular-nums">{formatAmount(animAchieved)}</p>
                       <p className="text-white/50 text-xs mt-1">{goalData.orders.toLocaleString()} orders</p>
                       {goalData.prior && (() => {
                         const d = goalData.deltaPct;
@@ -3854,12 +3854,12 @@ export default function OrderStatusDashboard() {
                     </button>
                     <div className="bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02]">
                       <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{currentMonth} Goal</p>
-                      <p className="text-3xl font-bold text-white tabular-nums">{formatAmount(animGoal)}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-white tabular-nums">{formatAmount(animGoal)}</p>
                       <p className="text-white/50 text-xs mt-1">DELIVERED + COMPLETED</p>
                     </div>
                     <div className="bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-300 hover:bg-white/15 hover:border-fuchsia-400/50 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:scale-[1.02]">
                       <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{overshoot ? 'Above Goal' : 'Remaining'}</p>
-                      <p className={`text-3xl font-bold tabular-nums ${overshoot ? 'text-emerald-400' : 'text-white'}`}>
+                      <p className={`text-2xl sm:text-3xl font-bold tabular-nums ${overshoot ? 'text-emerald-400' : 'text-white'}`}>
                         {formatAmount(overshoot ? animAbove : animRemaining)}
                       </p>
                       <p className="text-white/50 text-xs mt-1">{overshoot ? `beyond ${formatAmount(goalData.goal)}` : `to hit ${formatAmount(goalData.goal)}`}</p>
@@ -3887,9 +3887,9 @@ export default function OrderStatusDashboard() {
 
         {/* Monthly Breakdown — Status × Delivery Status (expandable pivot) */}
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+          <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Monthly Breakdown by Order Status</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">Monthly Breakdown by Order Status</h2>
               <p className="text-purple-300 text-sm mt-1">
                 {pivotGranularity === 'month'
                   ? `Click any status to drill into its delivery sub-statuses — ${currentYear}`
@@ -4047,7 +4047,7 @@ export default function OrderStatusDashboard() {
             const sql = active?.query;
             const sqlParams = active?.queryParams;
             return (
-              <div className="px-8 py-5 border-b border-white/10 bg-slate-950/60">
+              <div className="px-4 sm:px-8 py-5 border-b border-white/10 bg-slate-950/60">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-purple-300 text-xs uppercase tracking-wider font-semibold">
                     SQL Query — {pivotGranularity} view
@@ -4082,14 +4082,14 @@ export default function OrderStatusDashboard() {
             {pivotGranularity === 'month' && (
             <>
             {pivotLoading ? (
-              <div className="px-8 py-12 text-center">
+              <div className="px-4 sm:px-8 py-12 text-center">
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
                   <p className="text-purple-300">Loading pivot data...</p>
                 </div>
               </div>
             ) : !pivotData || pivotData.data.length === 0 ? (
-              <div className="px-8 py-12 text-center text-purple-300">No data available</div>
+              <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No data available</div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
@@ -4271,8 +4271,8 @@ export default function OrderStatusDashboard() {
             )}
 
             {pivotGranularity === 'week' && (() => {
-              if (pivotWeekLoading) return <div className="px-8 py-12 text-center"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" /><p className="text-purple-300">Loading weekly pivot…</p></div></div>;
-              if (!pivotWeekData || pivotWeekData.data.length === 0) return <div className="px-8 py-12 text-center text-purple-300">No data available</div>;
+              if (pivotWeekLoading) return <div className="px-4 sm:px-8 py-12 text-center"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" /><p className="text-purple-300">Loading weekly pivot…</p></div></div>;
+              if (!pivotWeekData || pivotWeekData.data.length === 0) return <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No data available</div>;
               const weeks = pivotWeekData.weeks;
               return (
                 <table className="w-full text-sm">
@@ -4376,8 +4376,8 @@ export default function OrderStatusDashboard() {
             })()}
 
             {pivotGranularity === 'day' && (() => {
-              if (pivotDayLoading) return <div className="px-8 py-12 text-center"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" /><p className="text-purple-300">Loading daily pivot…</p></div></div>;
-              if (!pivotDayData || pivotDayData.data.length === 0) return <div className="px-8 py-12 text-center text-purple-300">No orders in {MONTH_NAMES[pivotDayMonth - 1]} {currentYear}</div>;
+              if (pivotDayLoading) return <div className="px-4 sm:px-8 py-12 text-center"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" /><p className="text-purple-300">Loading daily pivot…</p></div></div>;
+              if (!pivotDayData || pivotDayData.data.length === 0) return <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No orders in {MONTH_NAMES[pivotDayMonth - 1]} {currentYear}</div>;
               const days = Array.from({ length: pivotDayData.daysInMonth }, (_, i) => i + 1);
               return (
                 <table className="w-full text-sm">
@@ -4481,9 +4481,9 @@ export default function OrderStatusDashboard() {
 
         {/* Monthly Geo Coverage — rows = pincode/city/district/state, columns = months */}
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-nowrap gap-3">
+          <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-nowrap gap-3">
             <div className="min-w-0 shrink">
-              <h2 className="text-2xl font-bold text-white truncate">
+              <h2 className="text-xl sm:text-2xl font-bold text-white truncate">
                 {geoCovGranularity === 'month' ? 'Monthly' : geoCovGranularity === 'week' ? 'Weekly' : 'Daily'} Geo Coverage
               </h2>
               <p className="text-purple-300 text-sm mt-1 truncate">
@@ -4609,14 +4609,14 @@ export default function OrderStatusDashboard() {
           </div>
           <div className="overflow-x-auto">
             {geoCoverageLoading ? (
-              <div className="px-8 py-12 text-center">
+              <div className="px-4 sm:px-8 py-12 text-center">
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
                   <p className="text-purple-300">Loading geo coverage…</p>
                 </div>
               </div>
             ) : !geoCoverageData || geoCoverageData.data.length === 0 ? (
-              <div className="px-8 py-12 text-center text-purple-300">No data available</div>
+              <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No data available</div>
             ) : (
               (() => {
                 const buckets = geoCoverageData.buckets;
@@ -4757,7 +4757,7 @@ export default function OrderStatusDashboard() {
               className="relative bg-white text-slate-900 rounded-2xl w-[92vw] max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45)] border border-slate-200"
               onClick={(e) => e.stopPropagation()}
             >
-              <header className="px-6 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white flex items-center justify-between gap-4">
+              <header className="px-3 sm:px-6 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-semibold">{geoPinGeo.charAt(0).toUpperCase() + geoPinGeo.slice(1)} Breakdown</div>
                   <h3 className="text-lg font-extrabold truncate mt-0.5">{geoPinLabel}</h3>
@@ -4771,7 +4771,7 @@ export default function OrderStatusDashboard() {
                 </button>
               </header>
               {!geoPinLoading && !geoPinError && geoPinRows && (
-                <div className="px-6 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4 flex-wrap">
+                <div className="px-3 sm:px-6 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-5 text-sm">
                     <div><span className="text-slate-500">{({ pincode: 'Pincodes', city: 'Cities', district: 'Districts', state: 'States' } as const)[geoPinGeo]}</span> <span className="font-bold tabular-nums">{geoPinRows.length.toLocaleString()}</span></div>
                     <div><span className="text-slate-500">Buyers</span> <span className="font-bold tabular-nums">{geoPinGrand.buyers.toLocaleString()}</span></div>
@@ -4789,11 +4789,11 @@ export default function OrderStatusDashboard() {
               )}
               <div className="flex-1 overflow-auto">
                 {geoPinLoading ? (
-                  <div className="px-6 py-12 text-center text-slate-500">Loading {geoPinGeo} breakdown…</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">Loading {geoPinGeo} breakdown…</div>
                 ) : geoPinError ? (
-                  <div className="px-6 py-12 text-center text-rose-600">Error: {geoPinError}</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-rose-600">Error: {geoPinError}</div>
                 ) : !geoPinRows || geoPinRows.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-slate-500">No orders for this selection.</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">No orders for this selection.</div>
                 ) : (
                   (() => {
                     const q = geoPinSearch.trim().toLowerCase();
@@ -4854,9 +4854,9 @@ export default function OrderStatusDashboard() {
 
         {/* MonthWiseOrder funnel — rows = months desc, cols = totals + 5 stages */}
         <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)] funnel-monthwise-marker">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+          <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">MonthWiseOrder</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">MonthWiseOrder</h2>
               <p className="text-purple-300 text-sm mt-1">
                 Months × stages, bucketed by <span className="font-mono text-fuchsia-300">created_at</span>
                 {funnelData?.startDate && funnelData?.endDate && ` · ${funnelData.startDate} → ${funnelData.endDate}`}
@@ -4901,7 +4901,7 @@ export default function OrderStatusDashboard() {
             )}
           </div>
           {/* Range chips */}
-          <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+          <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
             <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">created_at</span>
             {([
               { key: 'all',    label: 'All time' },
@@ -4948,9 +4948,9 @@ export default function OrderStatusDashboard() {
           {/* Table — months desc, totals + 5 stages */}
           <div className="overflow-x-auto">
             {funnelLoading || !funnelData ? (
-              <div className="px-8 py-12 text-center text-purple-300">Loading…</div>
+              <div className="px-4 sm:px-8 py-12 text-center text-purple-300">Loading…</div>
             ) : funnelData.data.length === 0 ? (
-              <div className="px-8 py-12 text-center text-purple-300">No orders in this range</div>
+              <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No orders in this range</div>
             ) : (() => {
               const months = funnelData.data; // already sorted desc
               const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -5075,7 +5075,7 @@ export default function OrderStatusDashboard() {
             })()}
           </div>
           {funnelData && funnelData.data.length > 0 && (
-            <div className="px-8 py-2 border-t border-white/10 bg-white/5 text-right text-xs text-purple-300/70">
+            <div className="px-4 sm:px-8 py-2 border-t border-white/10 bg-white/5 text-right text-xs text-purple-300/70">
               {funnelData.data.length} {funnelData.data.length === 1 ? 'row' : 'rows'}
             </div>
           )}
@@ -5172,7 +5172,7 @@ export default function OrderStatusDashboard() {
 
           const renderDonut = (title: string, subtitle: string, data: { name: string; value: number }[], total: number, fmt: (v: number) => string) => (
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
-              <div className="px-6 py-5 border-b border-white/10 bg-white/5">
+              <div className="px-3 sm:px-6 py-5 border-b border-white/10 bg-white/5">
                 <h3 className="text-lg font-bold text-white">{title}</h3>
                 <p className="text-purple-300 text-xs mt-0.5">{subtitle}</p>
               </div>
@@ -5210,7 +5210,7 @@ export default function OrderStatusDashboard() {
 
           const renderGauge = (g: { label: string; value: number; color: string; sub: string }) => (
             <div key={g.label} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
-              <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+              <div className="px-3 sm:px-6 py-4 border-b border-white/10 bg-white/5">
                 <h3 className="text-base font-bold text-white">{g.label}</h3>
               </div>
               <div className="relative" style={{ height: 210 }}>
@@ -5235,7 +5235,7 @@ export default function OrderStatusDashboard() {
                 {kpis.map((k) => (
                   <div key={k.label} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/40">
                     <div className="text-[11px] uppercase tracking-wider text-purple-300/80 font-semibold">{k.label}</div>
-                    <div className={`text-2xl font-extrabold mt-1 tabular-nums ${k.tone}`}>{k.value}</div>
+                    <div className={`text-xl sm:text-2xl font-extrabold mt-1 tabular-nums ${k.tone}`}>{k.value}</div>
                     <div className="text-[11px] text-white/50 mt-0.5">{k.sub}</div>
                   </div>
                 ))}
@@ -5249,9 +5249,9 @@ export default function OrderStatusDashboard() {
 
               {/* Monthly Revenue & MoM Growth */}
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
-                <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
+                <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
                   <div>
-                    <h3 className="text-2xl font-bold text-white">Monthly Revenue & Orders</h3>
+                    <h3 className="text-xl sm:text-2xl font-bold text-white">Monthly Revenue & Orders</h3>
                     <p className="text-purple-300 text-sm mt-1">Revenue bars with order-volume trend line — {currentYear}</p>
                   </div>
                   <div className="flex items-center gap-4 text-xs">
@@ -5338,7 +5338,7 @@ export default function OrderStatusDashboard() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Average Order Value trend */}
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
-                  <div className="px-6 py-5 border-b border-white/10 bg-white/5 flex items-start justify-between gap-3">
+                  <div className="px-3 sm:px-6 py-5 border-b border-white/10 bg-white/5 flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-lg font-bold text-white">Average Order Value</h3>
                       <p className="text-purple-300 text-xs mt-0.5">Revenue ÷ orders, per month · {currentYear}</p>
@@ -5381,7 +5381,7 @@ export default function OrderStatusDashboard() {
 
                 {/* Cumulative revenue */}
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
-                  <div className="px-6 py-5 border-b border-white/10 bg-white/5 flex items-start justify-between gap-3">
+                  <div className="px-3 sm:px-6 py-5 border-b border-white/10 bg-white/5 flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-lg font-bold text-white">Cumulative Revenue</h3>
                       <p className="text-purple-300 text-xs mt-0.5">Running total across {currentYear}</p>
@@ -5434,7 +5434,7 @@ export default function OrderStatusDashboard() {
           <div className={`mb-8 space-y-6 ${rtoInsightsLoading ? 'opacity-60 transition-opacity' : ''}`}>
             {/* COD vs. Coupon Applied vs. RTO */}
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
-              <div className="px-6 py-5 border-b border-white/10 bg-white/5 flex items-start justify-between gap-4">
+              <div className="px-3 sm:px-6 py-5 border-b border-white/10 bg-white/5 flex items-start justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-bold text-white">COD vs. Coupon Applied vs. RTO</h3>
                   <p className="text-purple-300 text-xs mt-0.5">RTO rate by coupon status × payment mode · % of (RTO + Delivered) · D2R third-party INTERCITY</p>
@@ -5485,7 +5485,7 @@ export default function OrderStatusDashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               {/* Order Amount Bucket wise RTO Count & % */}
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
-                <div className="px-6 py-5 border-b border-white/10 bg-white/5">
+                <div className="px-3 sm:px-6 py-5 border-b border-white/10 bg-white/5">
                   <h3 className="text-lg font-bold text-white">Order Amount Bucket wise RTO</h3>
                   <p className="text-purple-300 text-xs mt-0.5">RTO count, rate & ₹ value by order-value band</p>
                 </div>
@@ -5526,7 +5526,7 @@ export default function OrderStatusDashboard() {
 
               {/* RTO by TIER 1/2/3/4 City */}
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.18)]">
-                <div className="px-6 py-5 border-b border-white/10 bg-white/5">
+                <div className="px-3 sm:px-6 py-5 border-b border-white/10 bg-white/5">
                   <h3 className="text-lg font-bold text-white">RTO by TIER 1/2/3/4 City</h3>
                   <p className="text-purple-300 text-xs mt-0.5">Share of RTO orders by buyer-city tier</p>
                 </div>
@@ -5564,9 +5564,9 @@ export default function OrderStatusDashboard() {
 
         {/* Daily Order Trend — line chart */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+          <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Daily Order Trend</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">Daily Order Trend</h2>
               <p className="text-purple-300 text-sm mt-1">
                 Per-day {trendMetric === 'count' ? 'order count' : 'order value'} —
                 <span className="text-fuchsia-300"> all non-DRAFT</span> vs <span className="text-emerald-300">delivered + completed</span>
@@ -5597,7 +5597,7 @@ export default function OrderStatusDashboard() {
           </div>
 
           {/* Date-range chips */}
-          <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+          <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
             <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Date</span>
             {([
               { key: '7d', label: 'Last 7 days' },
@@ -5811,9 +5811,9 @@ export default function OrderStatusDashboard() {
 
         {/* Daily wise completed Order — last 30 days, by markedCompletedTime */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-emerald-400/50 hover:shadow-[0_0_50px_rgba(16,185,129,0.22),inset_0_0_30px_rgba(16,185,129,0.10)]">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+          <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Daily wise completed Order</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">Daily wise completed Order</h2>
               <p className="text-purple-300 text-sm mt-1">
                 Per-day <span className="text-emerald-300">order count</span>, <span className="text-fuchsia-300">order value</span> &amp; <span className="text-amber-300">avg order value</span> · last 30 days · 3PL × INTERCITY · D2R
                 <span className="text-purple-400/70"> — click any count to drill the orders</span>
@@ -6009,9 +6009,9 @@ export default function OrderStatusDashboard() {
 
         {/* Daily payment-option mix · distinct POs per day */}
         <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25)]">
-          <div className="px-8 py-6 border-b border-white/10 flex items-center justify-between gap-4 flex-wrap">
+          <div className="px-4 sm:px-8 py-6 border-b border-white/10 flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h2 className="text-2xl font-bold text-white">Payment Option Wise Order</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">Payment Option Wise Order</h2>
               <p className="text-white/60 text-sm mt-1">Daily distinct purchase orders bucketed by payment option · 3PL × INTERCITY only</p>
             </div>
             <div className="flex items-center gap-3">
@@ -6145,9 +6145,9 @@ export default function OrderStatusDashboard() {
 
         {/* Monthly Trend & Growth — Status × Month, share-of-mix with pp delta */}
         <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 flex items-center justify-between flex-wrap gap-4">
+          <div className="px-4 sm:px-8 py-6 border-b border-white/10 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Monthly Trend & Growth</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">Monthly Trend & Growth</h2>
               <p className="text-white/60 text-sm mt-1">Share of monthly orders & revenue per status, with month-over-month change in percentage points — {currentYear}</p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
@@ -6198,9 +6198,9 @@ export default function OrderStatusDashboard() {
           </div>
           <div className="overflow-x-auto">
             {monthlyLoading ? (
-              <div className="px-8 py-12 text-center text-white/60">Loading...</div>
+              <div className="px-4 sm:px-8 py-12 text-center text-white/60">Loading...</div>
             ) : !monthlyData ? (
-              <div className="px-8 py-12 text-center text-white/60">No data</div>
+              <div className="px-4 sm:px-8 py-12 text-center text-white/60">No data</div>
             ) : (() => {
               const activeMonths: number[] = [];
               for (let m = 1; m <= 12; m++) {
@@ -6366,9 +6366,9 @@ export default function OrderStatusDashboard() {
             <>
             {/* Header + KPI tiles */}
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-              <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between gap-4">
+              <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">RTO — Return To Origin</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">RTO — Return To Origin</h2>
                   <p className="text-purple-300 text-sm mt-1">
                     Orders marked REJECTED with delivery status containing &ldquo;RTO&rdquo; — bucketed by <span className="font-mono text-fuchsia-300">markedRejectedTime</span>, year {currentYear}
                   </p>
@@ -6386,7 +6386,7 @@ export default function OrderStatusDashboard() {
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">Total RTO orders</div>
-                      <div className="text-3xl font-bold text-white tabular-nums mt-1">{rtoData.grand.count.toLocaleString()}</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-white tabular-nums mt-1">{rtoData.grand.count.toLocaleString()}</div>
                       <div className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</div>
                     </button>
                     <button
@@ -6395,7 +6395,7 @@ export default function OrderStatusDashboard() {
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">RTO order value</div>
-                      <div className="text-3xl font-bold text-white tabular-nums mt-1">{formatAmount(rtoData.grand.amount)}</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-white tabular-nums mt-1">{formatAmount(rtoData.grand.amount)}</div>
                       <div className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</div>
                     </button>
                     <button
@@ -6404,7 +6404,7 @@ export default function OrderStatusDashboard() {
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">RTO rate</div>
-                      <div className="text-3xl font-bold text-rose-300 tabular-nums mt-1">{rtoData.rtoRate.toFixed(2)}%</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-rose-300 tabular-nums mt-1">{rtoData.rtoRate.toFixed(2)}%</div>
                       <div className="text-[10px] text-purple-300/60 mt-0.5">vs delivered+completed</div>
                       <div className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</div>
                     </button>
@@ -6414,7 +6414,7 @@ export default function OrderStatusDashboard() {
                       className="text-left bg-white/5 border border-white/10 rounded-xl p-5 transition-all duration-200 hover:bg-white/10 hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_rgba(217,70,239,0.25)] hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                     >
                       <div className="text-[10px] text-purple-300 uppercase tracking-wider">Avg RTO value</div>
-                      <div className="text-3xl font-bold text-white tabular-nums mt-1">{formatAmount(rtoData.avgRtoValue)}</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-white tabular-nums mt-1">{formatAmount(rtoData.avgRtoValue)}</div>
                       <div className="text-[10px] text-fuchsia-300/70 mt-1">click for details →</div>
                     </button>
                   </div>
@@ -6424,7 +6424,7 @@ export default function OrderStatusDashboard() {
 
             {/* RTO trend chart with granularity toggle */}
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-              <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+              <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
                 <div>
                   <h3 className="text-lg font-bold text-white">RTO trend</h3>
                   <p className="text-purple-300 text-xs mt-1">
@@ -6468,7 +6468,7 @@ export default function OrderStatusDashboard() {
               </div>
               {/* Custom date pickers row */}
               {rtoTrendGranularity === 'custom' && (
-                <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+                <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
                   <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Range</span>
                   <input
                     type="date"
@@ -6641,7 +6641,7 @@ export default function OrderStatusDashboard() {
 
             {/* Monthly RTO rate trend (cohort by markedPendingTime month) */}
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-              <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+              <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
                 <div>
                   <h3 className="text-lg font-bold text-white">Monthly RTO rate — {currentYear}</h3>
                   <p className="text-purple-300 text-xs mt-1">
@@ -6753,7 +6753,7 @@ export default function OrderStatusDashboard() {
             {/* Two-column: top sellers + top states */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-                <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
+                <div className="px-3 sm:px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-bold text-white">Top sellers by RTO</h3>
                     <p className="text-purple-300/70 text-xs mt-0.5">Punch → Delivered → RTO funnel (cohort: <span className="font-mono text-fuchsia-300">markedPendingTime</span> in {currentYear})</p>
@@ -6784,9 +6784,9 @@ export default function OrderStatusDashboard() {
                 </div>
                 <div className="overflow-x-auto">
                   {rtoLoading || !rtoData ? (
-                    <div className="px-6 py-12 text-center text-purple-300">Loading…</div>
+                    <div className="px-3 sm:px-6 py-12 text-center text-purple-300">Loading…</div>
                   ) : rtoData.topSellers.length === 0 ? (
-                    <div className="px-6 py-12 text-center text-purple-300">No RTO data</div>
+                    <div className="px-3 sm:px-6 py-12 text-center text-purple-300">No RTO data</div>
                   ) : (
                     <table className="w-full text-sm">
                       <thead className="bg-white/5 border-b border-white/10">
@@ -6853,7 +6853,7 @@ export default function OrderStatusDashboard() {
                   )}
                 </div>
                 {rtoSellersPaged && rtoSellersPaged.total > RTO_PAGE_SIZE && (
-                  <div className="px-6 py-3 border-t border-white/10 bg-white/5 flex items-center justify-between text-xs text-purple-200 flex-wrap gap-2">
+                  <div className="px-3 sm:px-6 py-3 border-t border-white/10 bg-white/5 flex items-center justify-between text-xs text-purple-200 flex-wrap gap-2">
                     <div>
                       Showing <span className="font-semibold text-white">{rtoSellersPaged.startIdx + 1}</span>–<span className="font-semibold text-white">{rtoSellersPaged.endIdx}</span> of <span className="font-semibold text-white">{rtoSellersPaged.total.toLocaleString()}</span>
                     </div>
@@ -6881,7 +6881,7 @@ export default function OrderStatusDashboard() {
               </div>
 
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-                <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
+                <div className="px-3 sm:px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-bold text-white">Top states by RTO</h3>
                     <p className="text-purple-300/70 text-xs mt-0.5">Punch → Delivered → RTO funnel (cohort: <span className="font-mono text-fuchsia-300">markedPendingTime</span> in {currentYear})</p>
@@ -6912,9 +6912,9 @@ export default function OrderStatusDashboard() {
                 </div>
                 <div className="overflow-x-auto">
                   {rtoLoading || !rtoData ? (
-                    <div className="px-6 py-12 text-center text-purple-300">Loading…</div>
+                    <div className="px-3 sm:px-6 py-12 text-center text-purple-300">Loading…</div>
                   ) : rtoData.topStates.length === 0 ? (
-                    <div className="px-6 py-12 text-center text-purple-300">No RTO data</div>
+                    <div className="px-3 sm:px-6 py-12 text-center text-purple-300">No RTO data</div>
                   ) : (
                     <table className="w-full text-sm">
                       <thead className="bg-white/5 border-b border-white/10">
@@ -6962,7 +6962,7 @@ export default function OrderStatusDashboard() {
                   )}
                 </div>
                 {rtoStatesPaged && rtoStatesPaged.total > RTO_PAGE_SIZE && (
-                  <div className="px-6 py-3 border-t border-white/10 bg-white/5 flex items-center justify-between text-xs text-purple-200 flex-wrap gap-2">
+                  <div className="px-3 sm:px-6 py-3 border-t border-white/10 bg-white/5 flex items-center justify-between text-xs text-purple-200 flex-wrap gap-2">
                     <div>
                       Showing <span className="font-semibold text-white">{rtoStatesPaged.startIdx + 1}</span>–<span className="font-semibold text-white">{rtoStatesPaged.endIdx}</span> of <span className="font-semibold text-white">{rtoStatesPaged.total.toLocaleString()}</span>
                     </div>
@@ -6994,9 +6994,9 @@ export default function OrderStatusDashboard() {
 
             {rtoSubTab === 'details' && (
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-              <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+              <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">RTO Order Details</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">RTO Order Details</h2>
                   <p className="text-purple-300 text-sm mt-1">
                     RTO orders bucketed by <span className="font-mono text-fuchsia-300">markedRejectedTime</span> —
                     {' '}
@@ -7060,7 +7060,7 @@ export default function OrderStatusDashboard() {
                   )}
                 </div>
               </div>
-              <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+              <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
                 <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Rejected</span>
                 {([
                   { key: 'year',   label: `${currentYear}` },
@@ -7159,7 +7159,7 @@ export default function OrderStatusDashboard() {
                   );
                 })()}
               </div>
-              <div className="px-8 py-3 border-b border-white/10 bg-white/5">
+              <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5">
                 <input
                   type="text"
                   value={rtoListSearch}
@@ -7178,7 +7178,7 @@ export default function OrderStatusDashboard() {
                 const avg = rows.length ? gmv / rows.length : 0;
                 const isFiltered = !!rtoListData && rows.length !== rtoListData.length;
                 return (
-                  <div className="px-8 py-3 border-b border-white/10 bg-fuchsia-500/5 flex items-center gap-6 flex-wrap text-sm">
+                  <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-fuchsia-500/5 flex items-center gap-6 flex-wrap text-sm">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-fuchsia-300">
                       {isFiltered ? 'Filtered summary' : 'Summary'}
                     </span>
@@ -7192,11 +7192,11 @@ export default function OrderStatusDashboard() {
               })()}
               <div className="overflow-auto max-h-[640px]">
                 {rtoListLoading ? (
-                  <div className="px-8 py-12 text-center text-purple-300">Loading RTO orders…</div>
+                  <div className="px-4 sm:px-8 py-12 text-center text-purple-300">Loading RTO orders…</div>
                 ) : !rtoListData || rtoListData.length === 0 ? (
-                  <div className="px-8 py-12 text-center text-purple-300">No RTO orders in this range</div>
+                  <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No RTO orders in this range</div>
                 ) : !filteredRtoListRows || filteredRtoListRows.length === 0 ? (
-                  <div className="px-8 py-12 text-center text-purple-300">No matches for &ldquo;{rtoListSearch}&rdquo;</div>
+                  <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No matches for &ldquo;{rtoListSearch}&rdquo;</div>
                 ) : (
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur">
@@ -7309,7 +7309,7 @@ export default function OrderStatusDashboard() {
                 )}
               </div>
               {rtoListPaged && filteredRtoListRows && filteredRtoListRows.length > 0 && (
-                <div className="px-8 py-3 border-t border-white/10 bg-white/5 flex items-center justify-between text-sm text-purple-200 flex-wrap gap-3">
+                <div className="px-4 sm:px-8 py-3 border-t border-white/10 bg-white/5 flex items-center justify-between text-sm text-purple-200 flex-wrap gap-3">
                   <div>
                     Showing <span className="font-semibold text-white">{rtoListPaged.startIdx + 1}</span>–<span className="font-semibold text-white">{rtoListPaged.endIdx}</span> of <span className="font-semibold text-white">{filteredRtoListRows.length}</span>
                   </div>
@@ -7351,9 +7351,9 @@ export default function OrderStatusDashboard() {
               };
               return (
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-                <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
+                <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Destination Hub Order Tracking</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-white">Destination Hub Order Tracking</h2>
                     <p className="text-purple-300 text-sm mt-1">Delhivery RTO / OFD / Reached-At-Destination shipments — spot orders stuck at the destination hub.</p>
                   </div>
                   {queryBtn('hub', 'Destination Hub Order Tracking')}
@@ -7426,7 +7426,7 @@ export default function OrderStatusDashboard() {
                 </div>
 
                 {/* Filter bar */}
-                <div className="px-6 py-3 border-b border-white/10 bg-white/[0.02] flex flex-col gap-3">
+                <div className="px-3 sm:px-6 py-3 border-b border-white/10 bg-white/[0.02] flex flex-col gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
                     <div className="relative flex-1 min-w-[300px] max-w-[520px]">
                       <input
@@ -7585,9 +7585,9 @@ export default function OrderStatusDashboard() {
                 {/* Table */}
                 <div className="overflow-auto" style={{ maxHeight: '70vh' }}>
                   {hubLoading || !hubData ? (
-                    <div className="px-8 py-16 text-center text-sm text-purple-300">Loading destination-hub shipments…</div>
+                    <div className="px-4 sm:px-8 py-16 text-center text-sm text-purple-300">Loading destination-hub shipments…</div>
                   ) : filtered.length === 0 ? (
-                    <div className="px-8 py-16 text-center text-sm text-purple-300">
+                    <div className="px-4 sm:px-8 py-16 text-center text-sm text-purple-300">
                       No shipments match the current filters.
                     </div>
                   ) : (
@@ -7720,7 +7720,7 @@ export default function OrderStatusDashboard() {
                               </tr>
                               {isOpen && (
                                 <tr className="bg-white/[0.02]">
-                                  <td colSpan={20} className="px-6 py-4 border-b border-fuchsia-400/20">
+                                  <td colSpan={20} className="px-3 sm:px-6 py-4 border-b border-fuchsia-400/20">
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-3">
                                       <div>
                                         <div className="text-[9px] uppercase tracking-wider font-bold text-purple-300/60 mb-1">Order</div>
@@ -7761,7 +7761,7 @@ export default function OrderStatusDashboard() {
 
                 {/* Pagination */}
                 {hubData && filtered.length > 0 && (
-                  <div className="px-6 py-3 border-t border-white/10 bg-white/[0.02] flex items-center justify-between flex-wrap gap-3 text-xs">
+                  <div className="px-3 sm:px-6 py-3 border-t border-white/10 bg-white/[0.02] flex items-center justify-between flex-wrap gap-3 text-xs">
                     <div className="text-purple-200/80">
                       Showing <span className="text-white font-bold">{Math.min(pageStart + 1, filtered.length)}</span>–<span className="text-white font-bold">{Math.min(pageStart + hubSize, filtered.length)}</span> of <span className="text-white font-bold">{filtered.length.toLocaleString('en-IN')}</span>
                     </div>
@@ -7785,9 +7785,9 @@ export default function OrderStatusDashboard() {
         {activeTab === 'seller' && (
         <Fragment>
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+            <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-white">Seller wise</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-white">Seller wise</h2>
                 <p className="text-purple-300 text-sm mt-1">Order count & revenue by status per seller — {currentYear}</p>
               </div>
               {queryBtn('seller', 'Seller wise')}
@@ -7825,7 +7825,7 @@ export default function OrderStatusDashboard() {
                 </div>
               )}
             </div>
-            <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+            <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
               <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Date</span>
               {([
                 { key: 'all', label: `${currentYear} (full year)` },
@@ -7893,7 +7893,7 @@ export default function OrderStatusDashboard() {
                 </button>
               )}
             </div>
-            <div className="px-8 py-3 border-b border-white/10 bg-white/5">
+            <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5">
               <input
                 type="text"
                 value={sellerSearch}
@@ -7904,14 +7904,14 @@ export default function OrderStatusDashboard() {
             </div>
             <div className="overflow-x-auto">
               {sellerLoading ? (
-                <div className="px-8 py-12 text-center">
+                <div className="px-4 sm:px-8 py-12 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-8 h-8 rounded-full border-2 border-purple-500/30 border-t-purple-500 animate-spin"></div>
                     <p className="text-purple-300">Loading seller data...</p>
                   </div>
                 </div>
               ) : !sellerData || sellerData.data.length === 0 ? (
-                <div className="px-8 py-12 text-center text-purple-300">No seller data available</div>
+                <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No seller data available</div>
               ) : (() => {
                 const q = sellerSearch.trim().toLowerCase();
                 const filtered = q
@@ -7921,7 +7921,7 @@ export default function OrderStatusDashboard() {
                     )
                   : sellerData.data;
                 if (filtered.length === 0) {
-                  return <div className="px-8 py-12 text-center text-purple-300">No matches for &ldquo;{sellerSearch}&rdquo;</div>;
+                  return <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No matches for &ldquo;{sellerSearch}&rdquo;</div>;
                 }
                 const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
                 const safePage = Math.min(sellerTablePage, totalPages);
@@ -8019,7 +8019,7 @@ export default function OrderStatusDashboard() {
                     </tbody>
                   </table>
                   </div>
-                  <div className="px-8 py-4 border-t border-white/10 bg-white/5 flex items-center justify-between text-sm text-purple-200 flex-wrap gap-3">
+                  <div className="px-4 sm:px-8 py-4 border-t border-white/10 bg-white/5 flex items-center justify-between text-sm text-purple-200 flex-wrap gap-3">
                     <div>
                       Showing <span className="font-semibold text-white">{startIdx + 1}</span>–<span className="font-semibold text-white">{endIdx}</span> of <span className="font-semibold text-white">{filtered.length}</span>
                     </div>
@@ -8049,9 +8049,9 @@ export default function OrderStatusDashboard() {
 
           {/* Seller × Month × Amount Slab */}
           <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+            <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-white">Seller × Month × Amount Slab</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-white">Seller × Month × Amount Slab</h2>
                 <p className="text-purple-300 text-sm mt-1">
                   Only <span className="font-mono text-fuchsia-300">DELIVERED + COMPLETED</span> orders, bucketed by order value per month — {currentYear}
                 </p>
@@ -8092,7 +8092,7 @@ export default function OrderStatusDashboard() {
                 </div>
               )}
             </div>
-            <div className="px-8 py-3 border-b border-white/10 bg-white/5">
+            <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5">
               <input
                 type="text"
                 value={slabSearch}
@@ -8103,14 +8103,14 @@ export default function OrderStatusDashboard() {
             </div>
             <div className="overflow-x-auto">
               {slabLoading ? (
-                <div className="px-8 py-12 text-center">
+                <div className="px-4 sm:px-8 py-12 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
                     <p className="text-purple-300">Loading slab data...</p>
                   </div>
                 </div>
               ) : !slabData || slabData.data.length === 0 ? (
-                <div className="px-8 py-12 text-center text-purple-300">No slab data available</div>
+                <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No slab data available</div>
               ) : (() => {
                 const q = slabSearch.trim().toLowerCase();
                 const filtered = q
@@ -8120,7 +8120,7 @@ export default function OrderStatusDashboard() {
                     )
                   : slabData.data;
                 if (filtered.length === 0) {
-                  return <div className="px-8 py-12 text-center text-purple-300">No matches for &ldquo;{slabSearch}&rdquo;</div>;
+                  return <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No matches for &ldquo;{slabSearch}&rdquo;</div>;
                 }
                 const months = slabData.months;
                 return (
@@ -8261,12 +8261,12 @@ export default function OrderStatusDashboard() {
           </div>
 
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+            <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               {geographySubTab === 'statewise' ? (
                 <div />
               ) : (
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Geography</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">Geography</h2>
                   <p className="text-purple-300 text-sm mt-1">
                     {geoMode === 'state'
                       ? 'Delivered + Completed orders across Indian states — click any state to drill into its districts'
@@ -8349,7 +8349,7 @@ export default function OrderStatusDashboard() {
             </div>
 
             {/* Date filter */}
-            <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+            <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
               <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Date</span>
               {([
                 { key: 'all', label: `${currentYear} (full year)` },
@@ -8406,7 +8406,7 @@ export default function OrderStatusDashboard() {
             </div>
 
             {/* Brand selector + activity card (multi-select; brands grouped by businessName prefix) */}
-            <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap relative">
+            <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap relative">
               <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Brand</span>
               <div className="relative">
                 <button
@@ -8577,7 +8577,7 @@ export default function OrderStatusDashboard() {
             {geographySubTab === 'geography' && (
             <>
             {geoMode === 'district' && (
-              <div className="px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
+              <div className="px-4 sm:px-8 py-3 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-wrap">
                 <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">State</span>
                 <select
                   value={districtSelectedState || ''}
@@ -8642,7 +8642,7 @@ export default function OrderStatusDashboard() {
 
             {/* Brand × State breakdown table */}
             <div className="border-t border-white/10">
-              <div className="px-8 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-3">
+              <div className="px-4 sm:px-8 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <h3 className="text-base font-bold text-white">Brand × State breakdown</h3>
                   <p className="text-purple-300/70 text-xs mt-0.5">
@@ -8685,9 +8685,9 @@ export default function OrderStatusDashboard() {
               </div>
               <div className="overflow-auto max-h-[560px]">
                 {brandStateLoading || !brandStateData ? (
-                  <div className="px-8 py-12 text-center text-purple-300">Loading…</div>
+                  <div className="px-4 sm:px-8 py-12 text-center text-purple-300">Loading…</div>
                 ) : brandStateData.length === 0 ? (
-                  <div className="px-8 py-12 text-center text-purple-300">No delivered/completed orders in this slice</div>
+                  <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No delivered/completed orders in this slice</div>
                 ) : (() => {
                   const q = brandStateSearch.trim().toLowerCase();
                   const filtered = q
@@ -8704,7 +8704,7 @@ export default function OrderStatusDashboard() {
                     return 0;
                   });
                   if (sorted.length === 0) {
-                    return <div className="px-8 py-12 text-center text-purple-300">No matches</div>;
+                    return <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No matches</div>;
                   }
                   const filteredCount  = filtered.reduce((s, r) => s + r.count,  0);
                   const filteredAmount = filtered.reduce((s, r) => s + r.amount, 0);
@@ -8801,7 +8801,7 @@ export default function OrderStatusDashboard() {
                 );
               }
               if (stateMonthData.length === 0) {
-                return <div className="px-8 py-16 text-center text-purple-300">No orders in this slice</div>;
+                return <div className="px-4 sm:px-8 py-16 text-center text-purple-300">No orders in this slice</div>;
               }
 
               const emptyB = (): Record<SKey, StatusBucket> => ({
@@ -8882,10 +8882,10 @@ export default function OrderStatusDashboard() {
               return (
                 <div>
                   {/* Hero funnel strip — overall picture across the whole period */}
-                  <div className="px-8 pt-6 pb-2 grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="px-4 sm:px-8 pt-6 pb-2 grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                       <div className="text-[11px] font-semibold text-purple-300/70 uppercase tracking-wider">Punched</div>
-                      <div className="mt-1 text-2xl font-extrabold text-white tabular-nums">{grand.punched.count.toLocaleString('en-IN')}</div>
+                      <div className="mt-1 text-xl sm:text-2xl font-extrabold text-white tabular-nums">{grand.punched.count.toLocaleString('en-IN')}</div>
                       <div className="text-[11px] text-purple-300/60 tabular-nums">{formatAmount(grand.punched.amount)}</div>
                     </div>
                     {STATUS_COLS.filter((c) => !c.isPunched).map((m) => {
@@ -8895,7 +8895,7 @@ export default function OrderStatusDashboard() {
                           <div className="absolute inset-x-0 bottom-0 h-1" style={{ width: `${Math.min(p, 100)}%`, background: m.hex, opacity: 0.85 }} />
                           <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: m.hex }}>{m.label}</div>
                           <div className="mt-1 flex items-baseline gap-2">
-                            <span className="text-2xl font-extrabold text-white tabular-nums">{fmtPct(p)}</span>
+                            <span className="text-xl sm:text-2xl font-extrabold text-white tabular-nums">{fmtPct(p)}</span>
                             <span className="text-xs text-purple-300/70 tabular-nums">{grand[m.key].count.toLocaleString('en-IN')}</span>
                           </div>
                           <div className="text-[11px] text-purple-300/60 tabular-nums">{formatAmount(grand[m.key].amount)}</div>
@@ -8905,7 +8905,7 @@ export default function OrderStatusDashboard() {
                   </div>
 
                   {/* Table header bar */}
-                  <div className="px-8 py-4 flex items-center justify-between flex-wrap gap-3">
+                  <div className="px-4 sm:px-8 py-4 flex items-center justify-between flex-wrap gap-3">
                     <div>
                       <h3 className="text-base font-bold text-white">State × month × order-status</h3>
                       <p className="text-purple-300/70 text-xs mt-0.5">
@@ -9039,7 +9039,7 @@ export default function OrderStatusDashboard() {
                   </div>
 
                   {/* Legend */}
-                  <div className="px-8 py-3 flex items-center gap-4 flex-wrap text-[11px] text-purple-300/70 border-t border-white/10">
+                  <div className="px-4 sm:px-8 py-3 flex items-center gap-4 flex-wrap text-[11px] text-purple-300/70 border-t border-white/10">
                     <span className="font-semibold uppercase tracking-wider text-purple-300/50">Status</span>
                     {STATUS_COLS.map((c) => (
                       <span key={c.key} className="inline-flex items-center gap-1.5">
@@ -9142,7 +9142,7 @@ export default function OrderStatusDashboard() {
           {/* Row 1: donut + bar (% share) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+            <div className="px-3 sm:px-6 py-4 border-b border-white/10 bg-white/5">
               <h2 className="text-base font-bold text-white">Zone share · pie</h2>
               <p className="text-purple-300 text-xs mt-0.5">Share of total Delhivery POs</p>
             </div>
@@ -9201,7 +9201,7 @@ export default function OrderStatusDashboard() {
           </div>
 
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+            <div className="px-3 sm:px-6 py-4 border-b border-white/10 bg-white/5">
               <h2 className="text-base font-bold text-white">Zone share · bar</h2>
               <p className="text-purple-300 text-xs mt-0.5">% of POs per zone with PO counts inside the bar</p>
             </div>
@@ -9253,7 +9253,7 @@ export default function OrderStatusDashboard() {
 
           {/* Row 2: weight profile per zone (avg / mode / median) */}
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+            <div className="px-3 sm:px-6 py-4 border-b border-white/10 bg-white/5">
               <h2 className="text-base font-bold text-white">Weight profile by zone</h2>
               <p className="text-purple-300 text-xs mt-0.5">Average, mode, and median charged weight (kg) per Delhivery zone</p>
             </div>
@@ -9303,9 +9303,9 @@ export default function OrderStatusDashboard() {
 
           {zoneSubTab === 'table' && (
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-            <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
+            <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-center justify-between flex-wrap gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-white">Zone Wise · Delhivery</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-white">Zone Wise · Delhivery</h2>
                 <p className="text-purple-300 text-sm mt-1">Seller × zone × delivery status · count and modal charged weight (kg)</p>
               </div>
               {queryBtn('zone', 'Zone Wise · Delhivery')}
@@ -9542,7 +9542,7 @@ export default function OrderStatusDashboard() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="absolute -top-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-fuchsia-400 to-transparent" />
-                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-r from-fuchsia-500/10 via-purple-500/10 to-transparent">
+                <div className="flex items-center justify-between px-3 sm:px-6 py-4 border-b border-white/10 bg-gradient-to-r from-fuchsia-500/10 via-purple-500/10 to-transparent">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(217,70,239,0.5)]">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
@@ -9637,7 +9637,7 @@ export default function OrderStatusDashboard() {
           const Kpi = ({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent: string }) => (
             <div className={`bg-gradient-to-br ${accentRing[accent]} backdrop-blur-xl border rounded-2xl p-4 animate-corner-breath`}>
               <div className="text-[11px] uppercase tracking-wide text-purple-200/70 font-semibold">{label}</div>
-              <div className="text-2xl font-bold text-white mt-1 tabular-nums">{value}</div>
+              <div className="text-xl sm:text-2xl font-bold text-white mt-1 tabular-nums">{value}</div>
               {sub && <div className="text-[11px] text-purple-200/60 mt-0.5">{sub}</div>}
             </div>
           );
@@ -9647,7 +9647,7 @@ export default function OrderStatusDashboard() {
               {/* Header + range toggle */}
               <div className="mb-5 flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">P&amp;L Overview</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">P&amp;L Overview</h2>
                   <p className="text-white/60 text-sm mt-1">
                     Daily P&amp;L — D2R brand sellers · third-party INTERCITY orders · badho margin vs operational cost
                   </p>
@@ -10042,7 +10042,7 @@ export default function OrderStatusDashboard() {
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between gap-3">
+                <div className="px-3 sm:px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-lg font-bold text-white">Order-level P&amp;L · {fmtDay(marginDayModal)}</h3>
                     <p className="text-xs text-purple-200/70 mt-0.5">
@@ -10256,7 +10256,7 @@ export default function OrderStatusDashboard() {
             {/* Animated alert stripe across the top */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-amber-400 to-rose-500 bg-[length:200%_100%] animate-stripe-flow" />
 
-            <div className="px-8 py-6 border-b border-rose-500/30 bg-gradient-to-r from-rose-500/15 via-red-500/10 to-amber-500/10 flex items-center justify-between flex-wrap gap-4">
+            <div className="px-4 sm:px-8 py-6 border-b border-rose-500/30 bg-gradient-to-r from-rose-500/15 via-red-500/10 to-amber-500/10 flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-start gap-4">
                 <div className="relative shrink-0 mt-1">
                   <div className="absolute inset-0 rounded-full bg-rose-500/40 animate-ping" />
@@ -10279,7 +10279,7 @@ export default function OrderStatusDashboard() {
                   </div>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-rose-200 via-amber-200 to-rose-200 flex items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-rose-200 via-amber-200 to-rose-200 flex items-center gap-2">
                     Brand-wise SLA Breach
                     {alertBrandData && alertBrandData.grandTotal.count > 0 && (
                       <span className="px-2.5 py-0.5 rounded-full bg-rose-500/30 border border-rose-400/50 text-rose-100 text-xs font-bold tracking-wide uppercase">
@@ -10312,14 +10312,14 @@ export default function OrderStatusDashboard() {
             </div>
             <div className="overflow-x-auto">
               {alertBrandLoading && !alertBrandData ? (
-                <div className="px-8 py-16 text-center">
+                <div className="px-4 sm:px-8 py-16 text-center">
                   <div className="inline-block w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin mb-3" />
                   <p className="text-purple-300">Loading brand-wise breakdown…</p>
                 </div>
               ) : alertBrandError ? (
-                <div className="px-8 py-12 text-center text-rose-300">Error: {alertBrandError}</div>
+                <div className="px-4 sm:px-8 py-12 text-center text-rose-300">Error: {alertBrandError}</div>
               ) : !alertBrandData || alertBrandData.data.length === 0 ? (
-                <div className="px-8 py-12 text-center text-purple-300">No brand-wise SLA breaches right now.</div>
+                <div className="px-4 sm:px-8 py-12 text-center text-purple-300">No brand-wise SLA breaches right now.</div>
               ) : (() => {
                 const q = alertBrandSearch.trim().toLowerCase();
                 const filteredRows = q
@@ -10467,7 +10467,7 @@ export default function OrderStatusDashboard() {
               })()}
             </div>
             {alertBrandData && (
-              <div className="px-8 py-3 border-t border-white/10 bg-white/5 text-xs text-purple-300/70 flex items-center justify-between">
+              <div className="px-4 sm:px-8 py-3 border-t border-white/10 bg-white/5 text-xs text-purple-300/70 flex items-center justify-between">
                 <span>
                   {alertBrandData.data.length} brands · {alertBrandData.grandTotal.count.toLocaleString()} total breached orders
                 </span>
@@ -10481,7 +10481,7 @@ export default function OrderStatusDashboard() {
         {activeTab === 'alert' && alertSubTab === 'sla' && (
           <div className="mt-6 relative bg-gradient-to-br from-amber-950/40 via-slate-900/30 to-orange-950/30 backdrop-blur-xl border-2 border-amber-500/40 rounded-2xl overflow-hidden shadow-[0_0_60px_rgba(245,158,11,0.22),inset_0_0_30px_rgba(245,158,11,0.05)]">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500 bg-[length:200%_100%] animate-stripe-flow" />
-            <div className="px-8 py-6 border-b border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-rose-500/10 flex items-center justify-between flex-wrap gap-4">
+            <div className="px-4 sm:px-8 py-6 border-b border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-rose-500/10 flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-start gap-4">
                 <div className="relative shrink-0 mt-1">
                   <div className="w-11 h-11 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.6)]">
@@ -10492,7 +10492,7 @@ export default function OrderStatusDashboard() {
                   </div>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-orange-200 to-amber-200">
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-orange-200 to-amber-200">
                     Alert Delhivery SLA Breach
                   </h2>
                   <p className="text-amber-200/80 text-sm mt-1">
@@ -10565,14 +10565,14 @@ export default function OrderStatusDashboard() {
             </div>
             <div className="overflow-x-auto">
               {agingLoading && !agingData ? (
-                <div className="px-8 py-16 text-center">
+                <div className="px-4 sm:px-8 py-16 text-center">
                   <div className="inline-block w-8 h-8 rounded-full border-2 border-amber-500/30 border-t-amber-500 animate-spin mb-3" />
                   <p className="text-amber-200">Loading InProgress aging…</p>
                 </div>
               ) : agingError ? (
-                <div className="px-8 py-12 text-center text-rose-300">Error: {agingError}</div>
+                <div className="px-4 sm:px-8 py-12 text-center text-rose-300">Error: {agingError}</div>
               ) : !agingData || agingData.data.length === 0 ? (
-                <div className="px-8 py-12 text-center text-amber-200/80">No InProgress aging beyond 1 day right now.</div>
+                <div className="px-4 sm:px-8 py-12 text-center text-amber-200/80">No InProgress aging beyond 1 day right now.</div>
               ) : (() => {
                 const q = agingSearch.trim().toLowerCase();
                 const filtered = q
@@ -10784,7 +10784,7 @@ export default function OrderStatusDashboard() {
               })()}
             </div>
             {agingData && (
-              <div className="px-8 py-3 border-t border-white/10 bg-white/5 text-xs text-amber-200/70 flex items-center justify-between">
+              <div className="px-4 sm:px-8 py-3 border-t border-white/10 bg-white/5 text-xs text-amber-200/70 flex items-center justify-between">
                 <span>
                   {agingData.data.length} sellers · {agingData.grand.poCount.toLocaleString()} stuck orders
                 </span>
@@ -10798,9 +10798,9 @@ export default function OrderStatusDashboard() {
         {/* Order Anomalies — relocated here as the Alert > Order Anomalies sub-tab */}
         {activeTab === 'alert' && alertSubTab === 'anomalies' && (
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden mb-8 transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/50 hover:shadow-[0_0_50px_rgba(217,70,239,0.25),inset_0_0_30px_rgba(168,85,247,0.12)]">
-          <div className="px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
+          <div className="px-4 sm:px-8 py-6 border-b border-white/10 bg-white/5 flex items-start justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white">Order Anomalies</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">Order Anomalies</h2>
               <p className="text-purple-300 text-sm mt-1">
                 Share of order statuses per day (100% stacked) — last 30 days
               </p>
@@ -11075,7 +11075,7 @@ export default function OrderStatusDashboard() {
               className="relative bg-white text-slate-900 rounded-2xl w-[96vw] max-w-6xl max-h-[92vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45)] border border-slate-200 animate-modal-scale"
               onClick={(e) => e.stopPropagation()}
             >
-              <header className="relative px-6 py-5 bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white overflow-hidden">
+              <header className="relative px-3 sm:px-6 py-5 bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white overflow-hidden">
                 <div className="pointer-events-none absolute -top-16 -right-12 w-56 h-56 rounded-full bg-white/10 blur-2xl" />
                 <div className="pointer-events-none absolute -bottom-24 left-1/4 w-52 h-52 rounded-full bg-fuchsia-300/20 blur-3xl" />
                 <div className="relative flex items-center justify-between gap-4">
@@ -11106,11 +11106,11 @@ export default function OrderStatusDashboard() {
               </header>
               <div className="flex-1 overflow-auto">
                 {buyerModalLoading ? (
-                  <div className="px-6 py-12 text-center text-slate-500">Loading buyer details…</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">Loading buyer details…</div>
                 ) : buyerModalError ? (
-                  <div className="px-6 py-12 text-center text-rose-600">Error: {buyerModalError}</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-rose-600">Error: {buyerModalError}</div>
                 ) : !buyerModalData ? (
-                  <div className="px-6 py-12 text-center text-slate-500">No data.</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">No data.</div>
                 ) : (
                   <div className="grid lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
                     {/* LEFT — buyer profile */}
@@ -11197,7 +11197,7 @@ export default function OrderStatusDashboard() {
                                 <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Total Orders Placed</div>
                               </div>
                               <div className="text-right">
-                                <div className="text-2xl font-black tabular-nums leading-none text-indigo-600">{formatAmount(buyerHistory.summary.totalGmv)}</div>
+                                <div className="text-xl sm:text-2xl font-black tabular-nums leading-none text-indigo-600">{formatAmount(buyerHistory.summary.totalGmv)}</div>
                                 <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mt-1">Total Value</div>
                               </div>
                             </div>
@@ -11211,7 +11211,7 @@ export default function OrderStatusDashboard() {
                                 { label: 'Cancelled',   value: buyerHistory.summary.cancelled,   amount: buyerHistory.summary.cancelledGmv,   cls: 'text-amber-600',   bg: 'bg-amber-50 border-amber-200' },
                               ]).map((t) => (
                                 <div key={t.label} className={`rounded-xl border ${t.bg} px-2 py-2.5 text-center`}>
-                                  <div className={`text-2xl font-extrabold tabular-nums leading-none ${t.cls}`}>{t.value.toLocaleString('en-IN')}</div>
+                                  <div className={`text-xl sm:text-2xl font-extrabold tabular-nums leading-none ${t.cls}`}>{t.value.toLocaleString('en-IN')}</div>
                                   <div className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 mt-1">{t.label}</div>
                                   <div className="text-[11px] font-bold tabular-nums text-slate-600 mt-1">{formatAmount(t.amount)}</div>
                                 </div>
@@ -11223,11 +11223,11 @@ export default function OrderStatusDashboard() {
                             <div className="pointer-events-none absolute -top-8 -right-6 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
                             <div className="relative">
                               <div className="text-[10px] uppercase tracking-wider text-white/70 font-bold">Completed Value</div>
-                              <div className="text-2xl font-black tabular-nums mt-0.5">{formatAmount(buyerHistory.summary.completedGmv)}</div>
+                              <div className="text-xl sm:text-2xl font-black tabular-nums mt-0.5">{formatAmount(buyerHistory.summary.completedGmv)}</div>
                             </div>
                             <div className="relative text-right">
                               <div className="text-[10px] uppercase tracking-wider text-white/70 font-bold">Completion</div>
-                              <div className="text-2xl font-black tabular-nums mt-0.5">{buyerHistory.summary.completionRate.toFixed(0)}%</div>
+                              <div className="text-xl sm:text-2xl font-black tabular-nums mt-0.5">{buyerHistory.summary.completionRate.toFixed(0)}%</div>
                             </div>
                           </div>
 
@@ -11327,7 +11327,7 @@ export default function OrderStatusDashboard() {
                               <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-violet-600 mb-2.5">Draft Carts · never placed</div>
                               <div className="grid grid-cols-3 gap-3 text-center">
                                 <div>
-                                  <div className="text-2xl font-black tabular-nums text-violet-700 leading-none">{buyerHistory.summary.draftCount.toLocaleString('en-IN')}</div>
+                                  <div className="text-xl sm:text-2xl font-black tabular-nums text-violet-700 leading-none">{buyerHistory.summary.draftCount.toLocaleString('en-IN')}</div>
                                   <div className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 mt-1.5">Drafts Created</div>
                                 </div>
                                 <div>
@@ -11335,7 +11335,7 @@ export default function OrderStatusDashboard() {
                                   <div className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 mt-1.5">Last Draft</div>
                                 </div>
                                 <div>
-                                  <div className="text-2xl font-black tabular-nums text-violet-700 leading-none">{buyerHistory.summary.daysSinceLastDraft != null ? buyerHistory.summary.daysSinceLastDraft : '—'}<span className="text-xs font-bold">{buyerHistory.summary.daysSinceLastDraft != null ? 'd' : ''}</span></div>
+                                  <div className="text-xl sm:text-2xl font-black tabular-nums text-violet-700 leading-none">{buyerHistory.summary.daysSinceLastDraft != null ? buyerHistory.summary.daysSinceLastDraft : '—'}<span className="text-xs font-bold">{buyerHistory.summary.daysSinceLastDraft != null ? 'd' : ''}</span></div>
                                   <div className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 mt-1.5">Since Last Draft</div>
                                 </div>
                               </div>
@@ -11361,7 +11361,7 @@ export default function OrderStatusDashboard() {
               className="relative bg-white text-slate-900 rounded-2xl w-[92vw] max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_30px_80px_-20px_rgba(217,70,239,0.45)] border border-slate-200"
               onClick={(e) => e.stopPropagation()}
             >
-              <header className="px-6 py-4 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-600 text-white flex items-center justify-between gap-4">
+              <header className="px-3 sm:px-6 py-4 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-600 text-white flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-semibold">Seller Details</div>
                   <h3 className="text-lg font-extrabold truncate mt-0.5">
@@ -11378,11 +11378,11 @@ export default function OrderStatusDashboard() {
               </header>
               <div className="flex-1 overflow-auto">
                 {sellerModalLoading ? (
-                  <div className="px-6 py-12 text-center text-slate-500">Loading seller details…</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">Loading seller details…</div>
                 ) : sellerModalError ? (
-                  <div className="px-6 py-12 text-center text-rose-600">Error: {sellerModalError}</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-rose-600">Error: {sellerModalError}</div>
                 ) : !sellerModalData ? (
-                  <div className="px-6 py-12 text-center text-slate-500">No data.</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">No data.</div>
                 ) : (
                   <dl className="divide-y divide-slate-100">
                     {([
@@ -11401,14 +11401,14 @@ export default function OrderStatusDashboard() {
                       { label: 'Full Address',    value: sellerModalData.fullAddress, wrap: true },
                       { label: 'Landmark',        value: sellerModalData.landmark },
                     ] as { label: string; value: string | null; mono?: boolean; wrap?: boolean }[]).map((row) => (
-                      <div key={row.label} className="grid grid-cols-3 gap-4 px-6 py-3 hover:bg-slate-50">
+                      <div key={row.label} className="grid grid-cols-3 gap-4 px-3 sm:px-6 py-3 hover:bg-slate-50">
                         <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 self-center">{row.label}</dt>
                         <dd className={`col-span-2 text-sm text-slate-900 ${row.mono ? 'font-mono tabular-nums' : ''} ${row.wrap ? 'whitespace-normal' : 'whitespace-nowrap'} break-words`}>
                           {row.value ? <span>{row.value}</span> : <span className="text-slate-400">—</span>}
                         </dd>
                       </div>
                     ))}
-                    <div className="grid grid-cols-3 gap-4 px-6 py-3 hover:bg-slate-50">
+                    <div className="grid grid-cols-3 gap-4 px-3 sm:px-6 py-3 hover:bg-slate-50">
                       <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 self-center">Flags</dt>
                       <dd className="col-span-2 text-sm flex flex-wrap gap-1.5">
                         {sellerModalData.isD2RBrandSeller && (
@@ -11423,7 +11423,7 @@ export default function OrderStatusDashboard() {
                       </dd>
                     </div>
                     {(sellerModalData.longitude || sellerModalData.lattitude) && (
-                      <div className="grid grid-cols-3 gap-4 px-6 py-3 hover:bg-slate-50">
+                      <div className="grid grid-cols-3 gap-4 px-3 sm:px-6 py-3 hover:bg-slate-50">
                         <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 self-center">Map</dt>
                         <dd className="col-span-2 text-sm">
                           <a
@@ -11456,7 +11456,7 @@ export default function OrderStatusDashboard() {
             >
 
               {/* Hero header — minimal */}
-              <header className="relative px-6 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white overflow-hidden flex items-center justify-between gap-4">
+              <header className="relative px-3 sm:px-6 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white overflow-hidden flex items-center justify-between gap-4">
                 <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_30%,rgba(255,255,255,0.14)_50%,transparent_70%)] bg-[length:200%_100%] animate-shimmer pointer-events-none" />
                 <div className="relative flex items-baseline gap-3 min-w-0">
                   <span className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-semibold">PO</span>
@@ -11500,7 +11500,7 @@ export default function OrderStatusDashboard() {
                   'PENDING':     'bg-slate-400',
                 };
                 return (
-                  <div className="px-6 py-2.5 border-b border-slate-200 bg-slate-50/70 flex items-center gap-2 flex-wrap text-xs">
+                  <div className="px-3 sm:px-6 py-2.5 border-b border-slate-200 bg-slate-50/70 flex items-center gap-2 flex-wrap text-xs">
                     <div className="relative flex-1 min-w-[180px] max-w-xs">
                       <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
@@ -11558,7 +11558,7 @@ export default function OrderStatusDashboard() {
               {/* Body — clean table */}
               <div className="relative flex-1 overflow-auto">
                 {poItemsLoading ? (
-                  <div className="px-6 py-6 space-y-2">
+                  <div className="px-3 sm:px-6 py-6 space-y-2">
                     {[1, 2, 3, 4, 5].map((i) => (
                       <div
                         key={i}
@@ -11568,9 +11568,9 @@ export default function OrderStatusDashboard() {
                     ))}
                   </div>
                 ) : poItemsError ? (
-                  <div className="px-6 py-16 text-center text-rose-600 text-sm">⚠ {poItemsError}</div>
+                  <div className="px-3 sm:px-6 py-16 text-center text-rose-600 text-sm">⚠ {poItemsError}</div>
                 ) : !poItemsData || poItemsData.length === 0 ? (
-                  <div className="px-6 py-16 text-center text-slate-500 text-sm">No items found for this PO</div>
+                  <div className="px-3 sm:px-6 py-16 text-center text-slate-500 text-sm">No items found for this PO</div>
                 ) : (() => {
                   const maxAmount = Math.max(...poItemsData.map((i) => i.amount || 0), 1);
                   const topAmount = maxAmount;
@@ -11607,7 +11607,7 @@ export default function OrderStatusDashboard() {
                   });
 
                   if (rows.length === 0) {
-                    return <div className="px-6 py-16 text-center text-slate-500 text-sm">No items match your filters</div>;
+                    return <div className="px-3 sm:px-6 py-16 text-center text-slate-500 text-sm">No items match your filters</div>;
                   }
 
                   return (
@@ -11682,7 +11682,7 @@ export default function OrderStatusDashboard() {
 
               {/* Footer — single clean line */}
               {poItemsTotals && poItemsData && poItemsData.length > 0 && (
-                <footer className="px-6 py-3 border-t border-slate-200 bg-slate-50/80 flex items-center justify-between text-xs">
+                <footer className="px-3 sm:px-6 py-3 border-t border-slate-200 bg-slate-50/80 flex items-center justify-between text-xs">
                   <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
                     {poItemsTotals.items} SKU{poItemsTotals.items === 1 ? '' : 's'} · Order Total
                   </span>
@@ -12056,11 +12056,11 @@ export default function OrderStatusDashboard() {
               })()}
               <div className="relative flex-1 overflow-auto">
                 {alertModalLoading ? (
-                  <div className="px-6 py-12 text-center text-slate-500">Loading orders…</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">Loading orders…</div>
                 ) : alertModalError ? (
-                  <div className="px-6 py-12 text-center text-rose-600">{alertModalError}</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-rose-600">{alertModalError}</div>
                 ) : !alertModalData || alertModalData.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">No orders found</div>
                 ) : (() => {
                   const q = alertModalSearch.trim().toLowerCase();
                   let filtered: AlertDetailRow[] = q
@@ -12784,13 +12784,13 @@ export default function OrderStatusDashboard() {
               </div>
               <div className="relative flex-1 overflow-auto">
                 {pivotDrillLoading ? (
-                  <div className="px-6 py-12 text-center text-slate-500">Loading orders…</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">Loading orders…</div>
                 ) : pivotDrillError ? (
-                  <div className="px-6 py-12 text-center text-rose-600">{pivotDrillError}</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-rose-600">{pivotDrillError}</div>
                 ) : !pivotDrillRows || pivotDrillRows.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">No orders found</div>
                 ) : !filteredPivotDrillRows || filteredPivotDrillRows.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-slate-500">No matches for &ldquo;{pivotDrillSearch}&rdquo;</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">No matches for &ldquo;{pivotDrillSearch}&rdquo;</div>
                 ) : (
                   <table className="w-full text-xs">
                     <thead className="shadow-[0_2px_0_rgba(168,85,247,0.4)]">
@@ -13155,7 +13155,7 @@ export default function OrderStatusDashboard() {
               className="bg-white text-slate-900 border border-slate-200 rounded-2xl max-w-7xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-purple-50">
+              <div className="px-3 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-purple-50">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">{sellerDrillName}</h3>
                   <p className="text-slate-500 text-sm tabular-nums mt-0.5">{sellerDrillPhone}</p>
@@ -13186,21 +13186,21 @@ export default function OrderStatusDashboard() {
               </div>
 
               {sellerDrillSummary && (
-                <div className="px-6 py-4 border-b border-slate-200 bg-white grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="px-3 sm:px-6 py-4 border-b border-slate-200 bg-white grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
                     <div className="text-xs text-slate-500 uppercase tracking-wide">Orders</div>
-                    <div className="text-2xl font-bold text-slate-900 tabular-nums">{sellerDrillSummary.total.toLocaleString()}</div>
+                    <div className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">{sellerDrillSummary.total.toLocaleString()}</div>
                     {sellerDrillRows && sellerDrillRows.length !== sellerDrillSummary.total && (
                       <div className="text-xs text-slate-400 mt-0.5">of {sellerDrillRows.length.toLocaleString()}</div>
                     )}
                   </div>
                   <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
                     <div className="text-xs text-slate-500 uppercase tracking-wide">Revenue</div>
-                    <div className="text-2xl font-bold text-slate-900 tabular-nums">{formatAmount(sellerDrillSummary.amount)}</div>
+                    <div className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">{formatAmount(sellerDrillSummary.amount)}</div>
                   </div>
                   <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
                     <div className="text-xs text-slate-500 uppercase tracking-wide">Avg Order</div>
-                    <div className="text-2xl font-bold text-slate-900 tabular-nums">{formatAmount(sellerDrillSummary.avg)}</div>
+                    <div className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">{formatAmount(sellerDrillSummary.avg)}</div>
                   </div>
                   <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
                     <div className="text-xs text-slate-500 uppercase tracking-wide">Status Mix</div>
@@ -13225,7 +13225,7 @@ export default function OrderStatusDashboard() {
                 </div>
               )}
 
-              <div className="px-6 py-3 border-b border-slate-200 bg-white grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="px-3 sm:px-6 py-3 border-b border-slate-200 bg-white grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">From</label>
                   <input
@@ -13271,13 +13271,13 @@ export default function OrderStatusDashboard() {
 
               <div className="flex-1 overflow-auto">
                 {sellerDrillLoading ? (
-                  <div className="px-6 py-12 text-center text-slate-500">Loading orders...</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">Loading orders...</div>
                 ) : sellerDrillError ? (
-                  <div className="px-6 py-12 text-center text-rose-600">{sellerDrillError}</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-rose-600">{sellerDrillError}</div>
                 ) : !sellerDrillRows || sellerDrillRows.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">No orders found</div>
                 ) : !filteredSellerDrillRows || filteredSellerDrillRows.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-slate-500">No matches for current filters</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">No matches for current filters</div>
                 ) : (
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-slate-100 z-10">
@@ -13335,7 +13335,7 @@ export default function OrderStatusDashboard() {
                 )}
               </div>
               {sellerDrillPaged && filteredSellerDrillRows && filteredSellerDrillRows.length > 0 && (
-                <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-sm text-slate-600 flex-wrap gap-2">
+                <div className="px-3 sm:px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-sm text-slate-600 flex-wrap gap-2">
                   <div>
                     Showing <span className="font-semibold text-slate-900">{sellerDrillPaged.startIdx + 1}</span>–<span className="font-semibold text-slate-900">{sellerDrillPaged.endIdx}</span> of <span className="font-semibold text-slate-900">{filteredSellerDrillRows.length}</span>
                   </div>
@@ -13372,7 +13372,7 @@ export default function OrderStatusDashboard() {
               className="bg-white text-slate-900 border border-slate-200 rounded-2xl max-w-7xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="px-3 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                 <div>
                   <h3 className="text-xl font-semibold text-slate-900">
                     {drillStatus} — {drillMonth ? `${MONTH_NAMES[drillMonth - 1]} ${currentYear}` : `${currentYear} (all months)`}
@@ -13409,7 +13409,7 @@ export default function OrderStatusDashboard() {
                   </button>
                 </div>
               </div>
-              <div className="px-6 py-3 border-b border-slate-200 bg-white">
+              <div className="px-3 sm:px-6 py-3 border-b border-slate-200 bg-white">
                 <input
                   type="text"
                   value={drillSearch}
@@ -13420,13 +13420,13 @@ export default function OrderStatusDashboard() {
               </div>
               <div className="flex-1 overflow-auto">
                 {drillLoading ? (
-                  <div className="px-6 py-12 text-center text-slate-500">Loading orders...</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">Loading orders...</div>
                 ) : drillError ? (
-                  <div className="px-6 py-12 text-center text-rose-600">{drillError}</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-rose-600">{drillError}</div>
                 ) : !drillRows || drillRows.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-slate-500">No orders found</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">No orders found</div>
                 ) : !filteredDrillRows || filteredDrillRows.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-slate-500">No matches for &ldquo;{drillSearch}&rdquo;</div>
+                  <div className="px-3 sm:px-6 py-12 text-center text-slate-500">No matches for &ldquo;{drillSearch}&rdquo;</div>
                 ) : (
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-slate-100 z-10">
@@ -13472,7 +13472,7 @@ export default function OrderStatusDashboard() {
                 )}
               </div>
               {drillPaged && filteredDrillRows && filteredDrillRows.length > 0 && (
-                <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-sm text-slate-600 flex-wrap gap-2">
+                <div className="px-3 sm:px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-sm text-slate-600 flex-wrap gap-2">
                   <div>
                     Showing <span className="font-semibold text-slate-900">{drillPaged.startIdx + 1}</span>–<span className="font-semibold text-slate-900">{drillPaged.endIdx}</span> of <span className="font-semibold text-slate-900">{filteredDrillRows.length}</span>
                   </div>
@@ -13511,7 +13511,7 @@ export default function OrderStatusDashboard() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-rose-50 to-fuchsia-50">
+              <div className="px-3 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-rose-50 to-fuchsia-50">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">
                     RTO orders
@@ -13543,7 +13543,7 @@ export default function OrderStatusDashboard() {
                   <GroupByMenu selected={rtoGroupByDims} onChange={setRtoGroupByDims} align="right" />
                   <button
                     onClick={() => setRtoKpiModal(null)}
-                    className="text-slate-400 hover:text-slate-700 text-2xl leading-none p-1"
+                    className="text-slate-400 hover:text-slate-700 text-xl sm:text-2xl leading-none p-1"
                     aria-label="Close"
                   >
                     ×
@@ -13553,7 +13553,7 @@ export default function OrderStatusDashboard() {
 
               {/* Stats strip for rate */}
               {rtoKpiModal === 'rate' && rtoData && (
-                <div className="px-6 py-3 border-b border-slate-200 bg-slate-50 grid grid-cols-3 gap-4 text-sm">
+                <div className="px-3 sm:px-6 py-3 border-b border-slate-200 bg-slate-50 grid grid-cols-3 gap-4 text-sm">
                   <div>
                     <div className="text-[10px] uppercase tracking-wide text-slate-500">RTO (numerator)</div>
                     <div className="text-lg font-bold text-rose-600 tabular-nums">{rtoData.grand.count.toLocaleString()}</div>
@@ -13648,7 +13648,7 @@ export default function OrderStatusDashboard() {
                 const avgGmv = filteredCount ? sumGmv / filteredCount : 0;
                 return (
                   <>
-                  <div className="px-6 py-2.5 border-b border-slate-200 bg-slate-50/80 flex items-center gap-2 flex-wrap">
+                  <div className="px-3 sm:px-6 py-2.5 border-b border-slate-200 bg-slate-50/80 flex items-center gap-2 flex-wrap">
                     <div className="relative w-64 max-w-full">
                       <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <circle cx="11" cy="11" r="7" />
@@ -13796,7 +13796,7 @@ export default function OrderStatusDashboard() {
                     </button>
                   </div>
                   {filteredCount > 0 && (
-                    <div className="px-6 py-2 border-b border-slate-200 bg-fuchsia-50/70 flex items-center gap-5 flex-wrap text-sm">
+                    <div className="px-3 sm:px-6 py-2 border-b border-slate-200 bg-fuchsia-50/70 flex items-center gap-5 flex-wrap text-sm">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-fuchsia-600">
                         {filtersActive ? 'Filtered summary' : 'Summary'}
                       </span>
@@ -13821,9 +13821,9 @@ export default function OrderStatusDashboard() {
               {/* Table */}
               <div className="flex-1 overflow-auto">
                 {rtoKpiModalLoading || !rtoKpiModalData ? (
-                  <div className="px-8 py-16 text-center text-slate-500">Loading RTO orders…</div>
+                  <div className="px-4 sm:px-8 py-16 text-center text-slate-500">Loading RTO orders…</div>
                 ) : rtoKpiModalData.length === 0 ? (
-                  <div className="px-8 py-16 text-center text-slate-500">No RTO orders for {currentYear}</div>
+                  <div className="px-4 sm:px-8 py-16 text-center text-slate-500">No RTO orders for {currentYear}</div>
                 ) : (() => {
                   const q = rtoKpiModalSearch.trim().toLowerCase();
                   let filtered: RtoOrderRow[] = q
@@ -13933,7 +13933,7 @@ export default function OrderStatusDashboard() {
                     });
                   }
                   if (filtered.length === 0) {
-                    return <div className="px-8 py-16 text-center text-slate-500">No matches for the selected filters</div>;
+                    return <div className="px-4 sm:px-8 py-16 text-center text-slate-500">No matches for the selected filters</div>;
                   }
                   const fmtAmt = (n: number | null | undefined) => n != null ? `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—';
                   const dash = <span className="text-slate-400">—</span>;
@@ -14204,7 +14204,7 @@ export default function OrderStatusDashboard() {
               className="bg-white text-slate-900 border border-slate-200 rounded-2xl max-w-7xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-fuchsia-50">
+              <div className="px-3 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-fuchsia-50">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">
                     Achieved — DELIVERED + COMPLETED
@@ -14218,14 +14218,14 @@ export default function OrderStatusDashboard() {
                 </div>
                 <button
                   onClick={() => setGoalModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-700 text-2xl leading-none p-1"
+                  className="text-slate-400 hover:text-slate-700 text-xl sm:text-2xl leading-none p-1"
                   aria-label="Close"
                 >
                   ×
                 </button>
               </div>
 
-              <div className="px-6 py-3 border-b border-slate-200 bg-white flex items-center gap-3 flex-wrap">
+              <div className="px-3 sm:px-6 py-3 border-b border-slate-200 bg-white flex items-center gap-3 flex-wrap">
                 <input
                   type="text"
                   value={goalModalSearch}
@@ -14282,9 +14282,9 @@ export default function OrderStatusDashboard() {
 
               <div className="flex-1 overflow-auto">
                 {goalModalLoading || !goalModalData ? (
-                  <div className="px-8 py-16 text-center text-slate-500">Loading orders…</div>
+                  <div className="px-4 sm:px-8 py-16 text-center text-slate-500">Loading orders…</div>
                 ) : goalModalData.length === 0 ? (
-                  <div className="px-8 py-16 text-center text-slate-500">No orders for {currentYear}</div>
+                  <div className="px-4 sm:px-8 py-16 text-center text-slate-500">No orders for {currentYear}</div>
                 ) : (() => {
                   const q = goalModalSearch.trim().toLowerCase();
                   const filtered = q
@@ -14300,7 +14300,7 @@ export default function OrderStatusDashboard() {
                       )
                     : goalModalData;
                   if (filtered.length === 0) {
-                    return <div className="px-8 py-16 text-center text-slate-500">No matches for &ldquo;{goalModalSearch}&rdquo;</div>;
+                    return <div className="px-4 sm:px-8 py-16 text-center text-slate-500">No matches for &ldquo;{goalModalSearch}&rdquo;</div>;
                   }
                   return (
                     <table className="w-full text-xs">
@@ -14426,7 +14426,7 @@ export default function OrderStatusDashboard() {
                 })()}
               </div>
               {goalModalData && goalModalData.length > 2000 && (
-                <div className="px-6 py-2 border-t border-slate-200 bg-amber-50 text-amber-700 text-xs">
+                <div className="px-3 sm:px-6 py-2 border-t border-slate-200 bg-amber-50 text-amber-700 text-xs">
                   Showing first 2,000 of {goalModalData.length.toLocaleString()} rows in the table — CSV includes everything.
                 </div>
               )}

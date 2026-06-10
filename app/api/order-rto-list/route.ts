@@ -88,6 +88,15 @@ async function _GET(req: NextRequest) {
       dateFilter = `EXTRACT(YEAR FROM po."markedRejectedTime") = EXTRACT(YEAR FROM CURRENT_DATE)`;
     }
 
+    // Optional "filter to selected seller(s)" — comma-separated sellerIds.
+    // Carries the RTO trend chart's seller filter into the drill-down list.
+    let sellerFilter = '';
+    const sellerIds = searchParams.get('sellerIds');
+    if (sellerIds) {
+      params.push(sellerIds);
+      sellerFilter = `AND po."sellerId"::text = ANY(string_to_array($${params.length}, ','))`;
+    }
+
     const sql = `
       SELECT
         TO_CHAR(po."markedPendingTime",  'DD Mon YYYY HH12:MI AM') AS order_date,
@@ -298,6 +307,7 @@ async function _GET(req: NextRequest) {
         AND di."isTest"          = FALSE
         AND di."id"              = di_latest."id"
         AND ${dateFilter}
+        ${sellerFilter}
         AND di."status" ILIKE '%rto%'
       ORDER BY po."markedRejectedTime" DESC, po."markedPendingTime" DESC;
     `;

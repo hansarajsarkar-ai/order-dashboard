@@ -1412,7 +1412,8 @@ export default function OrderStatusDashboard() {
   type RtoKpiKind = 'count' | 'value' | 'rate' | 'avg';
   const [rtoKpiModal, setRtoKpiModal] = useState<RtoKpiKind | null>(null);
   // When set, the RTO KPI modal is scoped to a single trend bucket (date window) instead of the full year.
-  const [rtoKpiWindow, setRtoKpiWindow] = useState<{ startDate: string; endDate: string; label: string } | null>(null);
+  // sellerIds (optional) carries the trend chart's seller filter into the drill-down list.
+  const [rtoKpiWindow, setRtoKpiWindow] = useState<{ startDate: string; endDate: string; label: string; sellerIds?: string[] } | null>(null);
   const [rtoKpiModalSearch, setRtoKpiModalSearch] = useState('');
   const [rtoKpiModalPushedFilter, setRtoKpiModalPushedFilter] = useState<'all' | 'Pushed' | 'Not Pushed'>('all');
   const [rtoKpiModalPaymentFilter, setRtoKpiModalPaymentFilter] = useState<Set<string>>(new Set());
@@ -2189,12 +2190,13 @@ export default function OrderStatusDashboard() {
   }, [activeTab]);
 
   // Modal fetcher — current year RTO orders (defaults; no params)
-  const fetchRtoKpiModalData = async (win?: { startDate?: string; endDate?: string } | null) => {
+  const fetchRtoKpiModalData = async (win?: { startDate?: string; endDate?: string; sellerIds?: string[] } | null) => {
     try {
       setRtoKpiModalLoading(true);
       const qs = new URLSearchParams();
       if (win?.startDate) qs.set('startDate', win.startDate);
       if (win?.endDate) qs.set('endDate', win.endDate);
+      if (win?.sellerIds?.length) qs.set('sellerIds', win.sellerIds.join(','));
       const res = await fetch(`/api/order-rto-list${qs.toString() ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('Failed to fetch RTO orders for modal');
       const json = await res.json();
@@ -2758,7 +2760,7 @@ export default function OrderStatusDashboard() {
         if (rtoTrendCustomTo && rtoTrendCustomTo < endDate) endDate = rtoTrendCustomTo;
       }
     }
-    setRtoKpiWindow({ startDate, endDate, label });
+    setRtoKpiWindow({ startDate, endDate, label, sellerIds: rtoTrendSellerIds.length ? rtoTrendSellerIds : undefined });
     setRtoKpiModal('count');
   };
 

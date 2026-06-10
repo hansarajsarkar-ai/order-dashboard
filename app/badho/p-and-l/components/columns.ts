@@ -29,7 +29,7 @@ const ORDERED: ColumnDef[] = [
   { key: 'discountByBadho', label: 'Discount by badho on payment' },
   { key: 'appliedWalletAmount', label: 'Applied Wallet Amount' },
   { key: 'appliedVolumeDiscountAmount', label: 'Applied Volume Discount' },
-  { key: 'deliveryCHargeWithWDC', label: 'DelhiveryChargeWithWDC' },
+  { key: 'deliveryCHargeWithWDC', label: 'Delhivery Chg (WDC)' },
   { key: 'OperationalCost', label: 'Operational Cost' },
   { key: 'expectedCommission', label: 'Expected Commission' },
   { key: 'ItemDiscount%', label: 'Item Discount %', percent: true, cellTone: (n) => (n < 10 ? 'green' : 'red') },

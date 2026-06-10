@@ -5,8 +5,6 @@ import {
   ColumnDef,
   formatValue,
   isNumericCol,
-  cellToneClass,
-  rowToneClass,
   computeMaxLoss,
   heatBg,
 } from './columns';
@@ -27,6 +25,27 @@ const num = (v: unknown): number | null => {
   const n = Number(v);
   return isNaN(n) ? null : n;
 };
+
+// Light-theme cell tone (green / red text) for the conditional % + P&L columns.
+function lightCellTone(col: ColumnDef, v: unknown): string {
+  const n = num(v);
+  if (!col.cellTone || n === null) return '';
+  const t = col.cellTone(n);
+  if (t === 'green') return 'text-emerald-600 font-semibold';
+  if (t === 'red') return 'text-rose-600 font-semibold';
+  return '';
+}
+
+// Light-theme row tint driven by P&L %: >0 → faint green, <0 → faint red,
+// otherwise zebra striping. Hover always highlights purple.
+function lightRowTone(row: Row, idx: number): string {
+  const n = num(row['p&l%']);
+  if (n !== null) {
+    if (n > 0) return 'bg-emerald-50 hover:bg-purple-50';
+    if (n < 0) return 'bg-rose-50 hover:bg-purple-50';
+  }
+  return (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50') + ' hover:bg-purple-50';
+}
 
 // Build the optimistic price panel from the P&L row; PoItemsModal overwrites it
 // with the full aggregated figures from /api/po-financials once they arrive.
@@ -49,14 +68,14 @@ function buildBreakup(r: Row): PriceBreakup {
 // monthly drill modal).
 function awbLink(awb: unknown) {
   const s = awb == null || awb === '' ? '' : String(awb);
-  if (!s) return <span className="text-purple-500/40">—</span>;
+  if (!s) return <span className="text-slate-400">—</span>;
   return (
     <a
       href={`https://one.delhivery.com/shipments/forward/${encodeURIComponent(s)}`}
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className="text-cyan-300 hover:text-cyan-200 hover:underline cursor-pointer"
+      className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
       title="Track this shipment on Delhivery"
     >
       {s}
@@ -111,19 +130,19 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
   return (
     <>
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[97vw] max-h-[92vh] flex flex-col rounded-2xl border border-white/15 bg-gradient-to-br from-slate-900 to-purple-950/90 shadow-[0_0_60px_rgba(217,70,239,0.25)] overflow-hidden"
+        className="w-[97vw] max-w-[97vw] h-[95vh] max-h-[95vh] flex flex-col rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-white/10 bg-white/[0.03]">
-          <div>
-            <h3 className="text-lg font-bold text-white">{title}</h3>
-            {subtitle && <p className="text-xs text-purple-300/80 mt-0.5">{subtitle}</p>}
-            <p className="text-xs text-fuchsia-300 mt-1 font-semibold">
+        <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-purple-50 to-fuchsia-50">
+          <div className="min-w-0">
+            <h3 className="text-lg font-bold text-slate-900 truncate">{title}</h3>
+            {subtitle && <p className="text-xs text-slate-500 mt-0.5 truncate">{subtitle}</p>}
+            <p className="text-xs text-purple-600 mt-1 font-semibold">
               {filteredRows.length.toLocaleString('en-IN')}
               {filteredRows.length !== rows.length ? ` / ${rows.length.toLocaleString('en-IN')}` : ''}{' '}
               {rows.length === 1 ? 'order' : 'orders'}
@@ -135,12 +154,12 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search PO, AWB, buyer, seller…"
-                className="w-60 pl-3 pr-7 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 text-white placeholder-purple-300/50 focus:border-fuchsia-400/50 focus:outline-none focus:ring-1 focus:ring-fuchsia-400/30"
+                className="w-60 pl-3 pr-7 py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400"
               />
               {search && (
                 <button
                   onClick={() => setSearch('')}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-purple-300/70 hover:text-white text-xs px-1"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs px-1"
                   title="Clear"
                 >
                   ×
@@ -149,13 +168,13 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
             </div>
             <button
               onClick={downloadCsv}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 text-purple-100 hover:bg-white/10 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-500 hover:bg-purple-600 border border-purple-600 text-white transition-colors shadow-[0_2px_8px_-2px_rgba(168,85,247,0.5)]"
             >
               ⬇ CSV
             </button>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-purple-200 hover:text-white hover:bg-white/10 border border-white/10 transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-all hover:rotate-90"
               title="Close"
             >
               ✕
@@ -166,24 +185,24 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
         {/* Body */}
         <div className="overflow-auto flex-1">
           {filteredRows.length === 0 ? (
-            <div className="p-12 text-center text-purple-300/70 text-sm">
+            <div className="p-12 text-center text-slate-500 text-sm">
               {rows.length === 0 ? 'No orders in this slab.' : 'No rows match the current search.'}
             </div>
           ) : (
             <table className="text-xs border-collapse">
-              <thead className="sticky top-0 z-10">
+              <thead className="sticky top-0 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                 <tr>
                   {/* Action columns mirror the monthly drill modal */}
-                  <th className="px-3 py-2 text-left font-semibold text-purple-200 bg-slate-900/95 border-b border-white/15 whitespace-nowrap">
+                  <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-700 bg-slate-100 border-b border-slate-200 whitespace-nowrap">
                     Items
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold text-purple-200 bg-slate-900/95 border-b border-white/15 whitespace-nowrap">
+                  <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-700 bg-slate-100 border-b border-slate-200 whitespace-nowrap">
                     View Ticket
                   </th>
                   {columns.map((c) => (
                     <th
                       key={c.key}
-                      className="px-3 py-2 text-left font-semibold text-purple-200 bg-slate-900/95 border-b border-white/15 whitespace-nowrap"
+                      className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-700 bg-slate-100 border-b border-slate-200 whitespace-nowrap"
                     >
                       {c.label}
                     </th>
@@ -194,14 +213,14 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
                 {filteredRows.map((r, i) => {
                   const po = String(r['poNumber'] ?? '');
                   return (
-                    <tr key={i} className={'transition-colors ' + rowToneClass(r)}>
+                    <tr key={i} className={'border-b border-slate-100 transition-colors ' + lightRowTone(r, i)}>
                       {/* View Items */}
-                      <td className="px-3 py-1.5 border-b border-white/5 whitespace-nowrap">
+                      <td className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
                         <button
                           type="button"
                           disabled={!po}
                           onClick={() => setPoItems({ poNumber: po, breakup: buildBreakup(r) })}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 text-[11px] font-bold border border-emerald-400/30 hover:border-emerald-400/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[11px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                           title="View items in this PO"
                         >
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -213,14 +232,14 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
                         </button>
                       </td>
                       {/* View Ticket */}
-                      <td className="px-3 py-1.5 border-b border-white/5 whitespace-nowrap">
+                      <td className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
                         {po ? (
                           <a
                             href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(po)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-sky-500/15 hover:bg-sky-500/25 text-sky-200 text-[11px] font-bold border border-sky-400/30 hover:border-sky-400/50 transition-all"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 text-[11px] font-bold border border-sky-300 hover:border-sky-400 transition-all"
                             title={`Search Freshdesk tickets for PO ${po}`}
                           >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -230,7 +249,7 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
                             View Ticket
                           </a>
                         ) : (
-                          <span className="text-purple-500/40">—</span>
+                          <span className="text-slate-400">—</span>
                         )}
                       </td>
                       {columns.map((c) => {
@@ -238,20 +257,20 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
                         // poNumber → D2R support detail link.
                         if (c.key === 'poNumber') {
                           return (
-                            <td key={c.key} className="px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-left">
+                            <td key={c.key} className="px-3 py-2 border-b border-slate-100 whitespace-nowrap text-left">
                               {po ? (
                                 <a
                                   href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(po)}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
-                                  className="font-bold text-fuchsia-300 hover:text-fuchsia-200 hover:underline cursor-pointer"
+                                  className="font-bold text-purple-700 hover:text-purple-900 hover:underline cursor-pointer tabular-nums"
                                   title="Open in D2R Support Dashboard"
                                 >
                                   {formatValue(c, v)}
                                 </a>
                               ) : (
-                                <span className="text-purple-500/40">—</span>
+                                <span className="text-slate-400">—</span>
                               )}
                             </td>
                           );
@@ -259,22 +278,22 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
                         // AWB → Delhivery tracking link.
                         if (c.key === 'AWBNumber') {
                           return (
-                            <td key={c.key} className="px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-left tabular-nums">
+                            <td key={c.key} className="px-3 py-2 border-b border-slate-100 whitespace-nowrap text-left tabular-nums">
                               {awbLink(v)}
                             </td>
                           );
                         }
                         const isNum = isNumericCol(v, c.key);
-                        const tone = cellToneClass(c, v);
+                        const tone = lightCellTone(c, v);
                         const heat = heatBg(c, v, maxLoss);
                         return (
                           <td
                             key={c.key}
                             style={heat ? { backgroundColor: heat } : undefined}
                             className={
-                              'px-3 py-1.5 border-b border-white/5 whitespace-nowrap ' +
+                              'px-3 py-2 border-b border-slate-100 whitespace-nowrap ' +
                               (isNum ? 'text-right tabular-nums ' : 'text-left ') +
-                              (heat ? 'text-rose-50 font-semibold' : tone || 'text-purple-100/90')
+                              (heat ? 'text-rose-900 font-bold' : tone || 'text-slate-700')
                             }
                           >
                             {formatValue(c, v)}

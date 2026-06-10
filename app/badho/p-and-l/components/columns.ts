@@ -17,6 +17,10 @@ export interface ColumnDef {
 const ORDERED: ColumnDef[] = [
   { key: 'poNumber', label: 'poNumber' },
   { key: 'MarkedpendingTime', label: 'markedPendingTime' },
+  // P&L summary leads — the numbers that matter most, up front.
+  { key: 'p&l%', label: 'P&L %', percent: true, cellTone: (n) => (n >= 0 ? 'green' : 'red') },
+  { key: 'P&LAmount', label: 'P&L Amount', cellTone: (n) => (n >= 0 ? 'green' : 'red') },
+  { key: 'ExpectedDeliveryLoss%', label: 'Expected Delivery Loss %', percent: true, cellTone: (n) => (n <= 20 ? 'green' : 'red') },
   { key: 'GrossAmount', label: 'Gross Amount' },
   { key: 'ItemTotal', label: 'Item Total' },
   { key: 'ItemDiscount', label: 'Item Discount' },
@@ -28,12 +32,9 @@ const ORDERED: ColumnDef[] = [
   { key: 'deliveryCHargeWithWDC', label: 'DelhiveryChargeWithWDC' },
   { key: 'OperationalCost', label: 'Operational Cost' },
   { key: 'expectedCommission', label: 'Expected Commission' },
-  { key: 'P&LAmount', label: 'P&L Amount' },
-  { key: 'p&l%', label: 'P&L %', percent: true },
   { key: 'ItemDiscount%', label: 'Item Discount %', percent: true, cellTone: (n) => (n < 10 ? 'green' : 'red') },
   { key: 'CouponApplied%', label: 'Coupon Applied %', percent: true, cellTone: (n) => (n < 10 ? 'green' : 'red') },
   { key: 'PaymentDiscount%', label: 'Payment Discount %', percent: true, cellTone: (n) => (n <= 5 ? 'green' : 'red') },
-  { key: 'ExpectedDeliveryLoss%', label: 'Expected Delivery Loss %', percent: true, cellTone: (n) => (n <= 20 ? 'green' : 'red') },
   { key: 'OperationalCost%', label: 'Operational Cost %', percent: true },
 ];
 

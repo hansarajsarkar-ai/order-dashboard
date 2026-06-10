@@ -136,15 +136,30 @@ export default function IndiaStateMap({ data, metric, onStateClick, selectedStat
   const [tooltip, setTooltip] = useState<{ x: number; y: number; state: string; count: number; amount: number } | null>(null);
   const [sellerTip, setSellerTip] = useState<{ x: number; y: number; seller: SellerPoint } | null>(null);
 
+  // Only plot pins with finite coordinates inside India's bounding box; an
+  // unprojectable point makes react-simple-maps' Marker throw (it destructures
+  // projection(coords), which is null for bad input) and would blank the page.
+  const safeSellerPoints = useMemo(
+    () =>
+      (sellerPoints ?? []).filter(
+        (p) =>
+          Number.isFinite(p.lat) &&
+          Number.isFinite(p.lng) &&
+          p.lat >= 6 && p.lat <= 38 &&
+          p.lng >= 68 && p.lng <= 98
+      ),
+    [sellerPoints]
+  );
+
   // Radius scale for seller pins: sqrt so area ~ value, clamped to a readable range.
+  // reduce (not Math.max(...spread)) so a large seller list can't overflow the call stack.
   const pinRadius = useMemo(() => {
-    const pts = sellerPoints ?? [];
-    const max = Math.max(...pts.map((p) => p[metric] || 0), 1);
+    const max = safeSellerPoints.reduce((m, p) => Math.max(m, p[metric] || 0), 1);
     return (v: number) => {
       const r = Math.sqrt(Math.max(v, 0) / max) * 14;
       return Math.max(3, Math.min(16, r));
     };
-  }, [sellerPoints, metric]);
+  }, [safeSellerPoints, metric]);
 
   useEffect(() => {
     fetch('/india-states.geojson')
@@ -330,7 +345,7 @@ export default function IndiaStateMap({ data, metric, onStateClick, selectedStat
           </Geographies>
 
           {/* Seller operating-location pins — one per seller at their lat/long. */}
-          {sellerPoints?.map((p) => {
+          {safeSellerPoints.map((p) => {
             const r = pinRadius(p[metric] || 0);
             return (
               <Marker key={`seller-${p.sellerId}`} coordinates={[p.lng, p.lat]}>

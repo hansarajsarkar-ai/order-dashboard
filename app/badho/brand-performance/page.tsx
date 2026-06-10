@@ -9,6 +9,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import IndiaStateMap, { type StateRow, type SellerPoint } from '../order-dashboard/components/IndiaStateMap';
+import MapErrorBoundary from '../order-dashboard/components/MapErrorBoundary';
 import MbsRichDrillModal, { type MbsOrderRow } from '../order-dashboard/components/MbsRichDrillModal';
 
 // ─── CSV utility ─────────────────────────────────────────────────────────
@@ -1755,14 +1756,16 @@ export default function BrandPerformanceDashboard() {
                       No delivered orders for this selection
                     </div>
                   ) : (
-                    <IndiaStateMap
-                      data={mapData}
-                      metric={mapMetric}
-                      showAllStatesScrollable
-                      selectedState={selectedMapState}
-                      onStateClick={(name) => { setSelectedMapState(name === selectedMapState ? null : name); setCitySearch(''); }}
-                      sellerPoints={showSellerPins ? (sellerLocData ?? undefined) : undefined}
-                    />
+                    <MapErrorBoundary label="Where they sell">
+                      <IndiaStateMap
+                        data={mapData}
+                        metric={mapMetric}
+                        showAllStatesScrollable
+                        selectedState={selectedMapState}
+                        onStateClick={(name) => { setSelectedMapState(name === selectedMapState ? null : name); setCitySearch(''); }}
+                        sellerPoints={showSellerPins ? (sellerLocData ?? undefined) : undefined}
+                      />
+                    </MapErrorBoundary>
                   )}
                   {showSellerPins && (
                     <div className={`mt-3 flex items-center gap-2 text-[11px] ${t.isDark ? 'text-amber-200/80' : 'text-amber-700'}`}>

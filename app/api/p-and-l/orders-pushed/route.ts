@@ -27,6 +27,8 @@ with x as (SELECT DISTINCT
         dv."trackingInfo"->>'awbNumber' as "AWBNumber",
         dv."trackingInfo"->>'courierName' as "CourierName",
         po."paymentInfo"->>'option' AS PaymentOption,
+        b."phone" as "buyerPhone",
+        b."businessName" as "buyerBusinessName",
         s."phone" as sellerPhone,
         s."businessName" as sellerBusinessName,
         -COALESCE(pop."UpiDiscountBySeller",0) as "UpiDiscountBySeller",

@@ -46,6 +46,8 @@ const REST_LABELS: Record<string, string> = {
   AWBNumber: 'AWB Number',
   CourierName: 'Courier Name',
   paymentoption: 'Payment Option',
+  buyerPhone: 'Buyer Phone',
+  buyerBusinessName: 'Buyer Business Name',
   sellerphone: 'Seller Phone',
   sellerbusinessname: 'Seller Business Name',
   UpiDiscountBySeller: 'UPI Discount By Seller',
@@ -84,7 +86,7 @@ function isNumericLike(v: unknown): boolean {
 }
 
 // Identifier-ish columns shown verbatim as text — NO thousands separators.
-export const TEXT_KEYS = new Set(['poNumber', 'AWBNumber', 'sellerphone']);
+export const TEXT_KEYS = new Set(['poNumber', 'AWBNumber', 'sellerphone', 'buyerPhone']);
 
 export function isTextKey(key: string): boolean {
   return TEXT_KEYS.has(key);

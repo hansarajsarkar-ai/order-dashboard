@@ -98,7 +98,7 @@ export default function OrdersPushed() {
   const [columns, setColumns] = useState<ColumnDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modal, setModal] = useState<{ title: string; subtitle: string; rows: Row[] } | null>(null);
+  const [modal, setModal] = useState<{ title: string; subtitle: string; rows: Row[]; sortKey?: string } | null>(null);
 
   // Table filters + sort.
   const [filterPo, setFilterPo] = useState('');
@@ -207,8 +207,8 @@ export default function OrdersPushed() {
     );
   }
 
-  const openModal = (title: string, subtitle: string, modalRows: Row[]) => {
-    setModal({ title, subtitle, rows: modalRows });
+  const openModal = (title: string, subtitle: string, modalRows: Row[], sortKey?: string) => {
+    setModal({ title, subtitle, rows: modalRows, sortKey });
   };
 
   return (
@@ -282,8 +282,9 @@ export default function OrdersPushed() {
                         onClick={() =>
                           openModal(
                             `${dim.title} · ${band.label}`,
-                            'Pushed orders matching this slab — full breakdown',
-                            br
+                            `Pushed orders matching this slab — sorted by ${dim.title}`,
+                            br,
+                            dim.key
                           )
                         }
                         disabled={br.length === 0}
@@ -447,6 +448,7 @@ export default function OrdersPushed() {
           subtitle={modal.subtitle}
           columns={columns}
           rows={modal.rows}
+          defaultSortKey={modal.sortKey}
           onClose={() => setModal(null)}
         />
       )}

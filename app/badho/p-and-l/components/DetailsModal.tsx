@@ -18,7 +18,12 @@ interface Props {
   columns: ColumnDef[];
   rows: Row[];
   onClose: () => void;
+  // When set, the modal opens sorted by this column key (desc) — used so a
+  // slab click lands sorted by that dimension's % (worst rows on top).
+  defaultSortKey?: string;
 }
+
+type SortState = { key: string; dir: 'asc' | 'desc' };
 
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === '') return null;
@@ -83,10 +88,17 @@ function awbLink(awb: unknown) {
   );
 }
 
-export default function DetailsModal({ title, subtitle, columns, rows, onClose }: Props) {
+export default function DetailsModal({ title, subtitle, columns, rows, onClose, defaultSortKey }: Props) {
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<SortState | null>(defaultSortKey ? { key: defaultSortKey, dir: 'desc' } : null);
   // PO Items / Price Breakup sub-modal — opened from a row's "View Items" button.
   const [poItems, setPoItems] = useState<{ poNumber: string; breakup: PriceBreakup } | null>(null);
+
+  // Reset search + sort whenever a different slab opens this modal.
+  useEffect(() => {
+    setSearch('');
+    setSort(defaultSortKey ? { key: defaultSortKey, dir: 'desc' } : null);
+  }, [defaultSortKey, rows]);
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -100,6 +112,33 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
       String(r['sellerbusinessname'] ?? '').toLowerCase().includes(q)
     );
   }, [rows, search]);
+
+  const sortedRows = useMemo(() => {
+    if (!sort) return filteredRows;
+    const { key, dir } = sort;
+    const mul = dir === 'asc' ? 1 : -1;
+    return [...filteredRows].sort((a, b) => {
+      const av = a[key];
+      const bv = b[key];
+      const aEmpty = av === null || av === undefined || av === '';
+      const bEmpty = bv === null || bv === undefined || bv === '';
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1; // empties always last, regardless of direction
+      if (bEmpty) return -1;
+      const an = Number(av);
+      const bn = Number(bv);
+      if (!isNaN(an) && !isNaN(bn)) return (an - bn) * mul;
+      return String(av).localeCompare(String(bv)) * mul;
+    });
+  }, [filteredRows, sort]);
+
+  const toggleSort = (key: string) => {
+    setSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: 'desc' };
+      if (prev.dir === 'desc') return { key, dir: 'asc' };
+      return null; // third click clears the sort
+    });
+  };
 
   const maxLoss = useMemo(() => computeMaxLoss(filteredRows, columns), [filteredRows, columns]);
 
@@ -117,7 +156,7 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const header = columns.map((c) => esc(c.label)).join(',');
-    const body = filteredRows.map((r) => columns.map((c) => esc(r[c.key])).join(',')).join('\n');
+    const body = sortedRows.map((r) => columns.map((c) => esc(r[c.key])).join(',')).join('\n');
     const blob = new Blob([header + '\n' + body], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -199,18 +238,31 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
                   <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-700 bg-slate-100 border-b border-slate-200 whitespace-nowrap">
                     View Ticket
                   </th>
-                  {columns.map((c) => (
-                    <th
-                      key={c.key}
-                      className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-700 bg-slate-100 border-b border-slate-200 whitespace-nowrap"
-                    >
-                      {c.label}
-                    </th>
-                  ))}
+                  {columns.map((c) => {
+                    const active = sort?.key === c.key;
+                    return (
+                      <th
+                        key={c.key}
+                        onClick={() => toggleSort(c.key)}
+                        className={
+                          'px-3 py-2.5 text-left font-bold uppercase tracking-wider border-b border-slate-200 whitespace-nowrap cursor-pointer select-none bg-slate-100 hover:bg-slate-200/80 ' +
+                          (active ? 'text-purple-700' : 'text-slate-700')
+                        }
+                        title="Click to sort"
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {c.label}
+                          <span className={'text-[10px] ' + (active ? 'opacity-100 text-purple-600' : 'opacity-30')}>
+                            {active ? (sort?.dir === 'asc' ? '▲' : '▼') : '↕'}
+                          </span>
+                        </span>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.map((r, i) => {
+                {sortedRows.map((r, i) => {
                   const po = String(r['poNumber'] ?? '');
                   return (
                     <tr key={i} className={'border-b border-slate-100 transition-colors ' + lightRowTone(r, i)}>

@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withQueryCapture } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,7 +89,7 @@ const SQL = `
   ORDER BY pos."unitPrice" ASC NULLS LAST;
 `;
 
-export async function GET(_req: NextRequest) {
+async function _GET(_req: NextRequest) {
   try {
     const rows = await query<Row>(SQL);
 
@@ -146,3 +146,5 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const GET = withQueryCapture(_GET);

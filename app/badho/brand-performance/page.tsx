@@ -286,6 +286,60 @@ function buildTheme(theme: Theme) {
   };
 }
 
+// ─── View Query infra ────────────────────────────────────────────────────
+// Each brand-performance API route is wrapped with withQueryCapture(), so its
+// JSON response carries a `__queries` array. captureQuery() stashes it per
+// section; queryBtn() renders a button that opens this modal with the SQL.
+type SqlQuery = { sql: string; params?: unknown[] };
+
+const QUERY_BTN_CLASS =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap bg-white/10 hover:bg-fuchsia-500/30 border border-white/10 hover:border-fuchsia-400/50 text-purple-200 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+
+function QueryModal({ title, queries, onClose }: { title: string; queries: SqlQuery[]; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-4xl max-h-[85vh] overflow-y-auto bg-slate-950 border border-white/15 rounded-2xl shadow-[0_0_60px_rgba(168,85,247,0.3)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-slate-950 z-10">
+          <div>
+            <p className="text-purple-300 text-[11px] uppercase tracking-wider font-semibold">SQL Query</p>
+            <h3 className="text-white font-bold text-lg">{title}</h3>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2">×</button>
+        </div>
+        <div className="p-6 space-y-5">
+          {queries.length === 0 ? (
+            <p className="text-purple-300 text-sm">Query unavailable — load this section first, then reopen.</p>
+          ) : queries.map((q, i) => (
+            <div key={i}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-purple-300 text-xs uppercase tracking-wider font-semibold">
+                  {queries.length > 1 ? `Query #${i + 1}` : 'Query'}
+                </p>
+                <button
+                  onClick={() => navigator.clipboard?.writeText(q.sql)}
+                  className="px-3 py-1 rounded-lg text-[11px] font-semibold text-purple-200 border border-white/10 bg-white/5 hover:bg-white/10 transition-all"
+                >Copy</button>
+              </div>
+              <pre className="text-[11px] leading-relaxed text-emerald-200/90 font-mono whitespace-pre-wrap overflow-x-auto bg-black/40 rounded-xl p-4 border border-white/10">{q.sql}</pre>
+              {q.params && q.params.length > 0 && (
+                <p className="text-purple-300/70 text-[11px] mt-2 font-mono break-all">params: [{q.params.map((p) => JSON.stringify(p)).join(', ')}]</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BrandPerformanceDashboard() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
@@ -320,6 +374,33 @@ export default function BrandPerformanceDashboard() {
   const t = buildTheme(theme);
 
   const currentYear = new Date().getFullYear();
+
+  // ── View Query state ──────────────────────────────────────────────────
+  const [sectionQueries, setSectionQueries] = useState<Record<string, SqlQuery[]>>({});
+  const [queryModalState, setQueryModalState] = useState<{ title: string; queries: SqlQuery[] } | null>(null);
+  // Pull __queries out of a fetch response and stash them under a section key.
+  const captureQuery = (key: string, json: unknown) => {
+    const q = (json as { __queries?: SqlQuery[] } | null)?.__queries;
+    if (Array.isArray(q) && q.length > 0) setSectionQueries((prev) => ({ ...prev, [key]: q }));
+  };
+  // Render a "View Query" button. Pass one key or several (combined into one modal).
+  const queryBtn = (keys: string | string[], title: string) => {
+    const arr = Array.isArray(keys) ? keys : [keys];
+    const queries = arr.flatMap((k) => sectionQueries[k] ?? []);
+    const has = queries.length > 0;
+    return (
+      <button
+        type="button"
+        disabled={!has}
+        title={has ? 'Show the SQL behind this section' : 'Load this section first'}
+        onClick={() => has && setQueryModalState({ title, queries })}
+        className={QUERY_BTN_CLASS}
+      >
+        {'</>'} View Query
+      </button>
+    );
+  };
+
   const [pivotData, setPivotData] = useState<PivotData | null>(null);
   const [pivotLoading, setPivotLoading] = useState(false);
   const [range, setRange] = useState<'year' | '30d' | '7d' | 'today' | 'custom'>('year');
@@ -559,6 +640,7 @@ export default function BrandPerformanceDashboard() {
       const res = await fetch(`/api/brand-performance/status-pivot?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
+      captureQuery('pivot', json);
       setPivotData(json);
     } catch (err) {
       console.error('Brand pivot fetch error:', err);
@@ -585,6 +667,7 @@ export default function BrandPerformanceDashboard() {
       const res = await fetch(`/api/brand-performance/monthly-by-status?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
+      captureQuery('mbs', json);
       setMbsData(json);
     } catch (err) {
       console.error('MBS fetch error:', err);
@@ -611,6 +694,7 @@ export default function BrandPerformanceDashboard() {
       const res = await fetch(`/api/brand-performance/by-state?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
+      captureQuery('map', json);
       setMapData(json.data);
     } catch (err) {
       console.error('Map fetch error:', err);
@@ -637,6 +721,7 @@ export default function BrandPerformanceDashboard() {
       const res = await fetch(`/api/brand-performance/by-city?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
+      captureQuery('city', json);
       setCityData(json);
     } catch (err) {
       console.error('City fetch error:', err);
@@ -659,6 +744,7 @@ export default function BrandPerformanceDashboard() {
       const res = await fetch(`/api/brand-performance/product-price-set`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
+      captureQuery('priceset', json);
       setPriceData(json);
     } catch (err) {
       console.error('Price set fetch error:', err);
@@ -687,6 +773,7 @@ export default function BrandPerformanceDashboard() {
       const res = await fetch(`/api/brand-performance/monthly-by-product?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
+      captureQuery('products', json);
       setProductData(json);
     } catch (err) {
       console.error('Product fetch error:', err);
@@ -713,6 +800,7 @@ export default function BrandPerformanceDashboard() {
       const res = await fetch(`/api/brand-performance/brand-product-summary?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
+      captureQuery('topsellers', json);
       setTopData(json);
     } catch (err) {
       console.error('Top sellers fetch error:', err);
@@ -888,6 +976,7 @@ export default function BrandPerformanceDashboard() {
       const res = await fetch(`/api/brand-performance/trend?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
+      captureQuery('trend', json);
       setTrendData(json);
     } catch (err) {
       console.error('Trend fetch error:', err);
@@ -908,6 +997,7 @@ export default function BrandPerformanceDashboard() {
       const res = await fetch(`/api/brand-performance/trends?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
+      captureQuery('trendsExtra', json);
       setTrendsExtra(json);
     } catch (err) {
       console.error('Trends-extra fetch error:', err);
@@ -1070,6 +1160,7 @@ export default function BrandPerformanceDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
+              {queryBtn('mbs', 'Monthly Breakdown by Order Status')}
               {/* Brand multi-select picker */}
               <div className="relative">
                 <button
@@ -1542,6 +1633,8 @@ export default function BrandPerformanceDashboard() {
                           : <> Filtered to <span className={t.isDark ? 'text-fuchsia-300 font-semibold' : 'text-purple-700 font-semibold'}>{mbsBrands.size} brands</span>.</>}
                     </p>
                   </div>
+                  <div className="flex items-center gap-3">
+                  {queryBtn('map', 'Where they sell — state-wise')}
                   <div className={`inline-flex gap-1 p-1 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
                     {(['count', 'amount'] as const).map((m) => {
                       const active = mapMetric === m;
@@ -1555,6 +1648,7 @@ export default function BrandPerformanceDashboard() {
                         </button>
                       );
                     })}
+                  </div>
                   </div>
                 </div>
                 <div className="p-4">
@@ -1598,6 +1692,7 @@ export default function BrandPerformanceDashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
+                      {queryBtn('city', 'City drill-down')}
                       <input
                         type="text"
                         value={citySearch}
@@ -1732,6 +1827,8 @@ export default function BrandPerformanceDashboard() {
                 Rows = brand (businessName prefix; ChukDe-GT + ChukDe-NonGT merged). Top columns = month. Sub-columns = status — click any status header to reveal its delivery-status breakdown.
               </p>
             </div>
+            <div className="flex items-center gap-3">
+            {queryBtn('pivot', 'Brand × Month × Status')}
             {pivotData && (
               <button
                 className={t.csvBtn}
@@ -1759,6 +1856,7 @@ export default function BrandPerformanceDashboard() {
                 ↓ CSV
               </button>
             )}
+            </div>
           </div>
 
           <div className={t.chipRow}>
@@ -2012,6 +2110,7 @@ export default function BrandPerformanceDashboard() {
             <span className={t.sectionTag('details')}>PRODUCT</span>
             <h2 className={`text-base font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Product × Month</h2>
             <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>delivered + completed orders · top {productData?.limit ?? 300} SKUs by ₹ value</span>
+            <div className="ml-auto">{queryBtn('products', 'Product × Month')}</div>
           </div>
 
           <div className={`px-6 py-2 border-b flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
@@ -2345,6 +2444,7 @@ export default function BrandPerformanceDashboard() {
             <span className={t.sectionTag('pivot')}>TOP SELLERS</span>
             <h2 className={`text-base font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Brand × Product</h2>
             <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>delivered + completed orders · click any brand to expand top SKUs</span>
+            <div className="ml-auto">{queryBtn('topsellers', 'Brand × Product')}</div>
           </div>
 
           <div className={`px-6 py-2 border-b flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
@@ -2810,6 +2910,7 @@ export default function BrandPerformanceDashboard() {
                   <span className={t.sectionTag('pivot')}>CHART &amp; TREND</span>
                   <h2 className={`text-base font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>Business view</h2>
                   <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>trend · top brands · status mix · top SKUs · Pareto</span>
+                  <div className="ml-auto">{queryBtn(['trend', 'trendsExtra', 'mbs', 'topsellers'], 'Chart & Trend — all queries')}</div>
                 </div>
                 <div className={`px-6 py-2 border-b flex items-center gap-2 flex-wrap ${t.isDark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
                   <span className={t.chipLabel}>Date</span>
@@ -3468,6 +3569,7 @@ export default function BrandPerformanceDashboard() {
               <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
                 {priceData ? <>{sorted.length.toLocaleString('en-IN')} of {priceData.summary.rows.toLocaleString('en-IN')} rows · {priceData.summary.sellers} sellers · {priceData.summary.brands} brands · {priceData.summary.products.toLocaleString('en-IN')} SKUs</> : 'loading…'}
               </span>
+              <div className="ml-auto">{queryBtn('priceset', 'Seller × Product unit price')}</div>
             </div>
 
             {/* Stat strip */}
@@ -3759,6 +3861,7 @@ export default function BrandPerformanceDashboard() {
               <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
                 {priceData ? <>{flagged.length.toLocaleString('en-IN')} of {priceData.summary.rows.toLocaleString('en-IN')} catalog rows have ≥1 issue</> : 'loading…'}
               </span>
+              <div className="ml-auto">{queryBtn('priceset', 'Alerts — price catalog query')}</div>
             </div>
 
             {/* Alert cards */}
@@ -4023,6 +4126,14 @@ export default function BrandPerformanceDashboard() {
         csvFilename={productDrill ? `product-${productDrill.skuId}-${productDrill.month ? MONTH_NAMES[productDrill.month - 1] : 'all'}-${currentYear}.csv` : 'product-drill.csv'}
         resetKey={productDrill ? `${productDrill.skuId}|${productDrill.month}` : ''}
       />
+
+      {queryModalState && (
+        <QueryModal
+          title={queryModalState.title}
+          queries={queryModalState.queries}
+          onClose={() => setQueryModalState(null)}
+        />
+      )}
 
       <style jsx>{`
         .animation-delay-2000 { animation-delay: 2s; }

@@ -4,6 +4,15 @@ html, body {
   background: #0f172a;
 }
 
+/* Mobile safety net: never let any element force the page wider than the
+   screen. Wide tables/charts keep their own overflow-x-auto scroll wrappers;
+   this only clips accidental overflow so phones never zoom out / prompt
+   "Request desktop site". */
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
 @keyframes pulse-slow {
   0%, 100% { opacity: 0.2; }
   50% { opacity: 0.3; }

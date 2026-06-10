@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useState, useRef, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -373,26 +373,6 @@ export default function BrandPerformanceDashboard() {
     router.replace('/login');
   };
 
-  // Jump to the Delivery flow map: switch to the Dashboard tab (where it lives),
-  // wait for the heavy content above (KPIs, tables, India map) to finish loading
-  // and stop pushing the section around, then do one clean smooth scroll.
-  const goToDeliveryFlow = () => {
-    setBpTab('dashboard');
-    let lastPos = NaN;
-    let stable = 0;
-    const run = (attempts = 0) => {
-      const el = document.getElementById('delivery-flow-section');
-      if (el) {
-        const pos = Math.round(el.getBoundingClientRect().top + window.scrollY);
-        if (pos === lastPos) stable += 1;
-        else { stable = 0; lastPos = pos; }
-        if (stable >= 3) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-      }
-      if (attempts < 50) setTimeout(() => run(attempts + 1), 150);
-    };
-    setTimeout(() => run(), 80);
-  };
-
   const t = buildTheme(theme);
 
   const currentYear = new Date().getFullYear();
@@ -430,7 +410,7 @@ export default function BrandPerformanceDashboard() {
   const [customTo, setCustomTo] = useState('');
   const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
-  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers' | 'trends' | 'priceset' | 'alerts'>('trends');
+  const [bpTab, setBpTab] = useState<'dashboard' | 'details' | 'product' | 'topsellers' | 'trends' | 'priceset' | 'alerts' | 'map'>('trends');
   const [detailsSearch, setDetailsSearch] = useState('');
   const [detailsSort, setDetailsSort] = useState<'orders' | 'gmv' | 'brand' | 'month' | 'status'>('orders');
 
@@ -460,9 +440,15 @@ export default function BrandPerformanceDashboard() {
   const [showSellerPins, setShowSellerPins] = useState(false);
   const [sellerLocData, setSellerLocData] = useState<SellerPoint[] | null>(null);
   const [sellerLocLoading, setSellerLocLoading] = useState(false);
-  // Delivery-flow map (warehouse → delivery cities), shown when a brand is selected
+  // Delivery-flow map (warehouse → delivery cities), shown when a brand is selected.
+  // Lives on its own "Map" tab with a dedicated brand filter (defaults to Hoppin Candy),
+  // independent of the global mbsBrands filter used by the other tabs.
   const [flowData, setFlowData] = useState<{ origins: FlowOrigin[]; destinations: FlowDest[] } | null>(null);
   const [flowLoading, setFlowLoading] = useState(false);
+  const [mapBrands, setMapBrands] = useState<Set<string>>(new Set()); // map-tab brand filter; seeded with Hoppin Candy once brands load
+  const [mapBrandSearch, setMapBrandSearch] = useState('');
+  const [mapBrandDropdownOpen, setMapBrandDropdownOpen] = useState(false);
+  const mapBrandSeeded = useRef(false); // ensures the Hoppin Candy default is applied only once
   interface CityRow { city: string | null; district: string | null; count: number; amount: number; buyers: number; }
   const [cityData, setCityData] = useState<{ data: CityRow[]; grand: { count: number; amount: number; buyers: number } } | null>(null);
   const [cityLoading, setCityLoading] = useState(false);
@@ -788,7 +774,7 @@ export default function BrandPerformanceDashboard() {
       const { startDate, endDate } = resolveRange();
       if (startDate) params.append('startDate', startDate);
       if (endDate)   params.append('endDate',   endDate);
-      params.append('brand', Array.from(mbsBrands).join(','));
+      params.append('brand', Array.from(mapBrands).join(','));
       const res = await fetch(`/api/brand-performance/delivery-flows?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
       const json = await res.json();
@@ -803,13 +789,26 @@ export default function BrandPerformanceDashboard() {
   };
 
   // The delivery-flow map only makes sense per-brand — fetch when ≥1 brand is
-  // selected, clear otherwise.
+  // selected on the Map tab, clear otherwise.
   useEffect(() => {
-    if (!authChecked || bpTab !== 'dashboard') return;
-    if (mbsBrands.size === 0) { setFlowData(null); return; }
+    if (!authChecked || bpTab !== 'map') return;
+    if (mapBrands.size === 0) { setFlowData(null); return; }
     fetchDeliveryFlows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, bpTab, mbsBrands, range, customFrom, customTo]);
+  }, [authChecked, bpTab, mapBrands, range, customFrom, customTo]);
+
+  // Seed the Map tab's brand filter with Hoppin Candy the first time the brand
+  // list is available, so the delivery flow shows a meaningful default.
+  useEffect(() => {
+    if (mapBrandSeeded.current) return;
+    const brands = pivotData?.brands;
+    if (!brands || brands.length === 0) return;
+    const match = brands.find((b) => b.brandName.toLowerCase() === 'hoppin candy')
+      ?? brands.find((b) => b.brandName.toLowerCase().includes('hoppin candy'));
+    if (match) setMapBrands(new Set([match.brandName]));
+    mapBrandSeeded.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pivotData]);
 
   const fetchCity = async (stateName: string) => {
     try {
@@ -1260,6 +1259,8 @@ export default function BrandPerformanceDashboard() {
                 { key: 'trends',     label: 'Chart & Trend',   icon: (<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" /></svg>) },
                 // Dashboard → layout panels
                 { key: 'dashboard',  label: 'Dashboard',       icon: (<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></svg>) },
+                // Delivery flow → map / route folds
+                { key: 'map',        label: 'Delivery map',    icon: (<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 21.381V8.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" /><path d="M15 5.764v15" /><path d="M9 3.236v15" /></svg>) },
                 // Pivot → table grid
                 { key: 'details',    label: 'Pivot',           icon: (<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /></svg>) },
                 // Product wise → package / box
@@ -1296,28 +1297,6 @@ export default function BrandPerformanceDashboard() {
                   </button>
                 );
               })}
-
-              {/* Divider */}
-              <div className={`mx-auto my-0.5 h-px w-7 ${t.isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
-
-              {/* Jump-to-map shortcut — scrolls to the Delivery flow map on the Dashboard tab */}
-              <button
-                onClick={goToDeliveryFlow}
-                aria-label="Delivery map"
-                className={`group relative h-10 w-10 mx-auto rounded-xl flex items-center justify-center transition-all duration-300 ${t.tabInactive}`}
-              >
-                <span className="inline-flex items-center justify-center transition-transform duration-300 group-hover:scale-110 opacity-70 group-hover:opacity-100">
-                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 21.381V8.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" /><path d="M15 5.764v15" /><path d="M9 3.236v15" /></svg>
-                </span>
-
-                {/* Flyout label */}
-                <span
-                  className={`pointer-events-none absolute left-full ml-3 top-1/2 -translate-y-1/2 -translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 ease-out whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide z-50 ${t.isDark ? 'bg-slate-800 text-white border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.55)]' : 'bg-slate-900 text-white shadow-[0_8px_24px_rgba(0,0,0,0.25)]'}`}
-                >
-                  Delivery map
-                  <span className={`absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 ${t.isDark ? 'bg-slate-800 border-l border-b border-white/10' : 'bg-slate-900'}`} />
-                </span>
-              </button>
             </nav>
           </aside>
 
@@ -1891,56 +1870,6 @@ export default function BrandPerformanceDashboard() {
                 </div>
               </div>
 
-              {/* Delivery flow — animated warehouse → delivery-city routes for the selected brand */}
-              <div id="delivery-flow-section" className={`${t.sectionCard} scroll-mt-4`}>
-                <div className={t.sectionAccent} />
-                <div className={t.sectionHeader}>
-                  <div>
-                    <h2 className={`${t.h2} text-lg`}>Delivery flow</h2>
-                    <p className={`${t.p} mt-1`}>
-                      Animated shipment routes from a brand’s warehouse to every city it delivered to.
-                      {mbsBrands.size === 0
-                        ? ' Select a brand above to play it.'
-                        : mbsBrands.size === 1
-                          ? <> Showing <span className={t.isDark ? 'text-amber-300 font-semibold' : 'text-amber-700 font-semibold'}>{Array.from(mbsBrands)[0]}</span>.</>
-                          : <> Showing <span className={t.isDark ? 'text-amber-300 font-semibold' : 'text-amber-700 font-semibold'}>{mbsBrands.size} brands</span>.</>}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {mbsBrands.size > 0 && queryBtn('flows', 'Delivery flow — warehouse → cities')}
-                  </div>
-                </div>
-                <div className="p-4">
-                  {mbsBrands.size === 0 ? (
-                    <div className={`h-[420px] flex flex-col items-center justify-center gap-3 text-center ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
-                      <span className="text-4xl">🚚</span>
-                      <div className="text-sm font-semibold">Pick a brand to see its delivery network</div>
-                      <div className="text-xs max-w-sm opacity-80">Use the brand selector on the “Where they sell” card above. Routes animate from the brand’s warehouse to each delivery city, thicker where more orders landed.</div>
-                    </div>
-                  ) : flowLoading || !flowData ? (
-                    <div className={`h-[640px] flex items-center justify-center ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
-                      <div className="flex flex-col items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full border-2 ${t.isDark ? 'border-amber-500/30 border-t-amber-400' : 'border-amber-300 border-t-amber-600'} animate-spin`} />
-                        <span className="text-xs">Plotting delivery routes…</span>
-                      </div>
-                    </div>
-                  ) : flowData.origins.length === 0 || flowData.destinations.length === 0 ? (
-                    <div className={`h-[420px] flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
-                      No warehouse coordinates or delivered orders for this selection.
-                    </div>
-                  ) : (
-                    <MapErrorBoundary label="Delivery flow">
-                      <DeliveryFlowMap
-                        origins={flowData.origins}
-                        destinations={flowData.destinations}
-                        metric={mapMetric}
-                        brandLabel={mbsBrands.size === 1 ? Array.from(mbsBrands)[0] : `${mbsBrands.size} brands`}
-                      />
-                    </MapErrorBoundary>
-                  )}
-                </div>
-              </div>
-
               {/* City drill-down panel — shown when a state is selected */}
               {selectedMapState && (
                 <div className={t.sectionCard}>
@@ -2078,6 +2007,162 @@ export default function BrandPerformanceDashboard() {
             </div>
           );
         })()}
+
+        {/* Map tab — Delivery flow (warehouse → delivery cities) with its own brand filter */}
+        {bpTab === 'map' && (
+        <div className={`${t.sectionCard} mb-6`}>
+          <div className={t.sectionAccent} />
+          <div className={t.sectionHeader}>
+            <div>
+              <h2 className={t.h2}>Delivery flow</h2>
+              <p className={`${t.p} mt-1`}>
+                Animated shipment routes from a brand’s warehouse to every city it delivered to.
+                {mapBrands.size === 0
+                  ? ' Pick a brand to play it.'
+                  : mapBrands.size === 1
+                    ? <> Showing <span className={t.isDark ? 'text-amber-300 font-semibold' : 'text-amber-700 font-semibold'}>{Array.from(mapBrands)[0]}</span>.</>
+                    : <> Showing <span className={t.isDark ? 'text-amber-300 font-semibold' : 'text-amber-700 font-semibold'}>{mapBrands.size} brands</span>.</>}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {mapBrands.size > 0 && queryBtn('flows', 'Delivery flow — warehouse → cities')}
+              {/* Metric toggle */}
+              <div className={`inline-flex gap-1 p-1 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
+                {(['count', 'amount'] as const).map((m) => {
+                  const active = mapMetric === m;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setMapMetric(m)}
+                      className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}
+                    >
+                      {m === 'count' ? 'By orders' : 'By GMV'}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Brand multi-select picker (Map tab — defaults to Hoppin Candy) */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMapBrandDropdownOpen((v) => !v)}
+                  className={`min-w-[240px] px-3 py-1.5 text-xs rounded-lg text-left flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/10 border border-white/20 text-white hover:bg-white/15' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+                >
+                  <span className="truncate font-semibold">
+                    {mapBrands.size === 0 && <span className={t.isDark ? 'text-purple-300/70' : 'text-slate-400'}>Pick a brand</span>}
+                    {mapBrands.size === 1 && Array.from(mapBrands)[0]}
+                    {mapBrands.size > 1 && <span className={t.isDark ? 'text-fuchsia-200' : 'text-purple-700'}>{mapBrands.size} brands selected</span>}
+                  </span>
+                  <span className={t.isDark ? 'text-purple-300 text-[10px]' : 'text-slate-400 text-[10px]'}>▾</span>
+                </button>
+                {mapBrandDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[55]" onClick={() => setMapBrandDropdownOpen(false)} />
+                    <div className={`absolute top-full right-0 mt-1 z-[60] w-[340px] max-h-[420px] rounded-lg shadow-2xl flex flex-col overflow-hidden ${t.isDark ? 'bg-slate-950 border border-white/15' : 'bg-white border border-slate-200'}`}>
+                      <div className={`p-2 border-b flex items-center gap-2 ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={mapBrandSearch}
+                          onChange={(e) => setMapBrandSearch(e.target.value)}
+                          placeholder="Search brand…"
+                          className={t.searchInput.replace('ml-auto', '').replace('min-w-[220px]', 'flex-1 min-w-0')}
+                        />
+                        {mapBrands.size > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setMapBrands(new Set())}
+                            className={`px-2 py-1.5 text-[10px] font-bold rounded border whitespace-nowrap ${t.isDark ? 'bg-rose-500/20 text-rose-200 border-rose-400/40 hover:bg-rose-500/30' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'}`}
+                          >
+                            Clear all
+                          </button>
+                        )}
+                      </div>
+                      <div className={`overflow-y-auto flex-1 ${t.isDark ? 'bg-slate-950' : 'bg-white'}`}>
+                        {(() => {
+                          const allBrands = pivotData?.brands?.map((b) => b.brandName) ?? [];
+                          const q = mapBrandSearch.trim().toLowerCase();
+                          const filtered = q ? allBrands.filter((n) => n.toLowerCase().includes(q)) : allBrands;
+                          if (filtered.length === 0) {
+                            return <div className={`px-3 py-4 text-xs ${t.isDark ? 'bg-slate-950 text-purple-300/60' : 'bg-white text-slate-400'}`}>No matches</div>;
+                          }
+                          const toggle = (name: string) => {
+                            setMapBrands((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(name)) next.delete(name); else next.add(name);
+                              return next;
+                            });
+                          };
+                          return filtered.map((name) => {
+                            const checked = mapBrands.has(name);
+                            return (
+                              <label
+                                key={name}
+                                className={`flex items-center gap-2 px-3 py-2 text-xs border-b cursor-pointer ${t.isDark ? 'bg-slate-950 border-white/5 hover:bg-white/10' : 'bg-white border-slate-100 hover:bg-slate-100'} ${checked ? (t.isDark ? 'bg-fuchsia-500/15' : 'bg-purple-50') : ''}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggle(name)}
+                                  className="accent-fuchsia-500 w-3.5 h-3.5"
+                                />
+                                <span className={checked ? (t.isDark ? 'text-fuchsia-200 font-semibold' : 'text-purple-700 font-semibold') : (t.isDark ? 'text-white' : 'text-slate-800')}>
+                                  {name}
+                                </span>
+                              </label>
+                            );
+                          });
+                        })()}
+                      </div>
+                      <div className={`p-2 border-t flex items-center justify-between gap-2 ${t.isDark ? 'bg-slate-950 border-white/10' : 'bg-white border-slate-200'}`}>
+                        <span className={`text-[10px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                          {mapBrands.size === 0 ? 'pick at least one brand' : `${mapBrands.size} selected`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setMapBrandDropdownOpen(false)}
+                          className="px-3 py-1 text-[11px] font-semibold rounded bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="p-4">
+            {mapBrands.size === 0 ? (
+              <div className={`h-[420px] flex flex-col items-center justify-center gap-3 text-center ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                <span className="text-4xl">🚚</span>
+                <div className="text-sm font-semibold">Pick a brand to see its delivery network</div>
+                <div className="text-xs max-w-sm opacity-80">Use the brand selector above. Routes animate from the brand’s warehouse to each delivery city, thicker where more orders landed.</div>
+              </div>
+            ) : flowLoading || !flowData ? (
+              <div className={`h-[640px] flex items-center justify-center ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                <div className="flex flex-col items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full border-2 ${t.isDark ? 'border-amber-500/30 border-t-amber-400' : 'border-amber-300 border-t-amber-600'} animate-spin`} />
+                  <span className="text-xs">Plotting delivery routes…</span>
+                </div>
+              </div>
+            ) : flowData.origins.length === 0 || flowData.destinations.length === 0 ? (
+              <div className={`h-[420px] flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                No warehouse coordinates or delivered orders for this selection.
+              </div>
+            ) : (
+              <MapErrorBoundary label="Delivery flow">
+                <DeliveryFlowMap
+                  origins={flowData.origins}
+                  destinations={flowData.destinations}
+                  metric={mapMetric}
+                  brandLabel={mapBrands.size === 1 ? Array.from(mapBrands)[0] : `${mapBrands.size} brands`}
+                />
+              </MapErrorBoundary>
+            )}
+          </div>
+        </div>
+        )}
 
         {bpTab === 'details' && (
         /* Pivot section */

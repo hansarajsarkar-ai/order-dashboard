@@ -1142,7 +1142,7 @@ export default function BrandPerformanceDashboard() {
         />
       )}
 
-      <div className="w-[95%] mx-auto relative z-10">
+      <div className="w-full relative z-10">
         {/* Top bar */}
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <Link href="/badho" className={t.backLink}>
@@ -1194,7 +1194,7 @@ export default function BrandPerformanceDashboard() {
         {/* Vertical nav + content — sidebar keeps tabs in view, content swaps in place */}
         <div className="flex gap-6 items-start">
           {/* Vertical sidebar nav */}
-          <aside className="w-52 shrink-0 sticky top-4 self-start z-20">
+          <aside className="w-40 shrink-0 sticky top-4 self-start z-20">
             <nav className={`flex flex-col gap-1 p-2 rounded-xl ${t.isDark ? 'bg-slate-900/70 backdrop-blur-xl border border-white/10 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.6)]' : 'bg-white border border-slate-200 shadow-sm'}`}>
               {([
                 { key: 'trends',     label: 'Chart & Trend',   icon: '∿' },
@@ -1210,7 +1210,7 @@ export default function BrandPerformanceDashboard() {
                   <button
                     key={tab.key}
                     onClick={() => setBpTab(tab.key)}
-                    className={`relative w-full px-4 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 flex items-center gap-2.5 text-left ${active ? t.tabActive : t.tabInactive}`}
+                    className={`relative w-full px-3 py-2 rounded-lg text-[13px] font-bold transition-all duration-300 flex items-center gap-2 text-left ${active ? t.tabActive : t.tabInactive}`}
                   >
                     <span className={`text-base leading-none ${active ? 'opacity-90' : 'opacity-60'}`}>{tab.icon}</span>
                     {tab.label}

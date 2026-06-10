@@ -65,3 +65,12 @@ body {
   animation-play-state: paused;
   transform: scale(1.12);
 }
+
+/* Police officer avatar — gently bobs to look like it's on the case. */
+@keyframes police-bob {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50%      { transform: translateY(-3px) rotate(3deg); }
+}
+.police-bob {
+  animation: police-bob 1.6s ease-in-out infinite;
+}

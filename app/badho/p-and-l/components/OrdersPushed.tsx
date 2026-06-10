@@ -244,6 +244,17 @@ export default function OrdersPushed() {
             (s, b, i) => (b.tone === 'bad' || b.tone === 'critical' ? s + bandRows[i].length : s),
             0
           );
+          // All orders sitting in a bad/critical band — the siren + police pull these up.
+          const attentionRows = dim.bands.flatMap((b, i) =>
+            b.tone === 'bad' || b.tone === 'critical' ? bandRows[i] : []
+          );
+          const openAttention = () =>
+            openModal(
+              `${dim.title} · 🚓 Investigate`,
+              `${attention} pushed orders in high-range slabs — sorted by ${dim.title}`,
+              attentionRows,
+              dim.key
+            );
           return (
             <div
               key={dim.key}
@@ -264,9 +275,13 @@ export default function OrdersPushed() {
                   {dim.title}
                 </h3>
                 {attention > 0 ? (
-                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/20 text-rose-200 border border-rose-400/30 animate-pulse">
-                    ⚠ {attention}
-                  </span>
+                  <button
+                    onClick={openAttention}
+                    className="siren-btn flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-500/30 text-rose-100 border border-rose-400/50 cursor-pointer"
+                    title={`Click to investigate all ${attention} high-range orders`}
+                  >
+                    🚨 {attention}
+                  </button>
                 ) : (
                   <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-400/20">
                     ✓ ok
@@ -317,6 +332,20 @@ export default function OrdersPushed() {
                   );
                 })}
               </div>
+              {attention > 0 && (
+                <button
+                  onClick={openAttention}
+                  className="mt-3 w-full flex items-center gap-2.5 rounded-xl border border-rose-400/30 bg-rose-500/10 px-2.5 py-2 text-left transition-colors hover:bg-rose-500/20 cursor-pointer"
+                  title="Click to investigate these orders"
+                >
+                  <span className="police-bob text-xl leading-none shrink-0">👮‍♂️</span>
+                  <span className="relative rounded-lg bg-white/10 px-2 py-1 text-[11px] font-semibold text-rose-100 leading-snug">
+                    Officer here — please investigate these {attention} orders.
+                    <span className="absolute -left-1 top-1/2 -translate-y-1/2 h-2 w-2 rotate-45 bg-white/10" />
+                  </span>
+                  <span className="ml-auto text-rose-200 text-sm shrink-0">→</span>
+                </button>
+              )}
             </div>
           );
         })}

@@ -28,6 +28,9 @@ interface Row {
   RefundCompletedTime: string | null;
   RefundAmount: string | null;
   codAmountToBeCollected: string | null;
+  volumetricWeight: string | null;
+  absoluteWeight: string | null;
+  chargeableWeight: string | null;
   pushedStatus: string;
   rejectReason: string | null;
   rejectedBy: string | null;
@@ -144,6 +147,10 @@ async function _GET(req: NextRequest) {
           pf."markedStatusCompletedTime"  AS "RefundCompletedTime",
           pf."refundAmount"::text         AS "RefundAmount",
           dv."codAmountToBeCollected"::text AS "codAmountToBeCollected",
+          -- Weights from latest intercity delivery metaDetails (dims in cm).
+          ROUND(((dv."metaDetails"->>'length')::numeric * (dv."metaDetails"->>'breadth')::numeric * (dv."metaDetails"->>'height')::numeric) / 5000.0, 3)::text AS "volumetricWeight",
+          (dv."metaDetails"->>'weight')::numeric::text AS "absoluteWeight",
+          ROUND(GREATEST(((dv."metaDetails"->>'length')::numeric * (dv."metaDetails"->>'breadth')::numeric * (dv."metaDetails"->>'height')::numeric) / 5000.0, (dv."metaDetails"->>'weight')::numeric), 3)::text AS "chargeableWeight",
           CASE WHEN dv."trackingInfo"->>'awbNumber' IS NOT NULL THEN 'Pushed' ELSE 'Not Pushed' END AS "pushedStatus",
           po."rejectReason",
           po."rejectedBy",
@@ -271,6 +278,9 @@ async function _GET(req: NextRequest) {
       RefundCompletedTime: r.RefundCompletedTime,
       RefundAmount: r.RefundAmount != null ? parseFloat(r.RefundAmount) : null,
       codAmountToBeCollected: num(r.codAmountToBeCollected),
+      volumetricWeight: num(r.volumetricWeight),
+      absoluteWeight: num(r.absoluteWeight),
+      chargeableWeight: num(r.chargeableWeight),
       pushedStatus: r.pushedStatus,
       rejectReason: r.rejectReason,
       rejectedBy: r.rejectedBy,

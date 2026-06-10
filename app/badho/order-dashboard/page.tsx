@@ -1038,6 +1038,9 @@ export default function OrderStatusDashboard() {
     RefundCompletedTime: string | null;
     RefundAmount: number | null;
     codAmountToBeCollected: number | null;
+    volumetricWeight: number | null;
+    absoluteWeight: number | null;
+    chargeableWeight: number | null;
     pushedStatus: string;
     rejectReason: string | null;
     rejectedBy: string | null;
@@ -1109,6 +1112,9 @@ export default function OrderStatusDashboard() {
       case 'courier': return r.courierName ?? '';
       case 'deliveryStatus': return r.deliveryStatus ?? '';
       case 'cod': return num(r.codAmountToBeCollected);
+      case 'volumetricWeight': return num(r.volumetricWeight);
+      case 'absoluteWeight': return num(r.absoluteWeight);
+      case 'chargeableWeight': return num(r.chargeableWeight);
       case 'buyerPhone': return r.buyerPhone ?? '';
       case 'buyerBusiness': return r.buyerBusinessName ?? '';
       case 'sellerPhone': return r.sellerPhone ?? '';
@@ -1620,6 +1626,9 @@ export default function OrderStatusDashboard() {
     awbNumber: string | null;
     logisticName: string | null;
     codCollect: number;
+    volumetricWeight: number | null;
+    absoluteWeight: number | null;
+    chargeableWeight: number | null;
     buyerName: string | null;
     buyerBusinessName: string | null;
     buyerPhone: string | null;
@@ -7384,6 +7393,7 @@ export default function OrderStatusDashboard() {
                             'Attempt 5 Time', 'Attempt 5 Remarks',
                             'Attempt 6 Time', 'Attempt 6 Remarks',
                             'AWB Number', 'Logistic Name', 'COD Collect',
+                            'Volumetric Wt (kg)', 'Absolute Wt (kg)', 'Chargeable Wt (kg)',
                             'Buyer Name', 'Buyer Business Name', 'Buyer Phone',
                             'Buyer Full Address', 'Buyer Longitude', 'Buyer Latitude',
                           ];
@@ -7402,6 +7412,7 @@ export default function OrderStatusDashboard() {
                             r.attempts[4]?.time, r.attempts[4]?.remarks,
                             r.attempts[5]?.time, r.attempts[5]?.remarks,
                             r.awbNumber, r.logisticName, r.codCollect,
+                            r.volumetricWeight ?? '', r.absoluteWeight ?? '', r.chargeableWeight ?? '',
                             r.buyerName, r.buyerBusinessName, r.buyerPhone,
                             r.buyerFullAddress, r.buyerLongitude, r.buyerLatitude,
                           ]);
@@ -7594,6 +7605,9 @@ export default function OrderStatusDashboard() {
                           <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Coupon ₹</th>
                           <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Payment</th>
                           <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">COD ₹</th>
+                          <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-sky-300/80 font-bold uppercase tracking-wider">Volumetric Wt (kg)</th>
+                          <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-sky-300/80 font-bold uppercase tracking-wider">Absolute Wt (kg)</th>
+                          <th className="px-3 py-2 text-right border-b border-white/10 text-[10px] text-sky-300/80 font-bold uppercase tracking-wider">Chargeable Wt (kg)</th>
                           <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Marked pending</th>
                           <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Reached hub</th>
                           <th className="px-3 py-2 text-left border-b border-white/10 text-[10px] text-purple-300/70 font-bold uppercase tracking-wider">Latest scan</th>
@@ -7663,6 +7677,9 @@ export default function OrderStatusDashboard() {
                                 <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className={`text-xs font-bold tabular-nums ${r.couponValue > 0 ? 'text-fuchsia-200' : 'text-white/40'}`}>{r.couponValue > 0 ? formatAmount(r.couponValue) : '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${r.paymentMode ? 'bg-sky-500/15 text-sky-200 border-sky-400/30' : 'bg-white/5 text-white/40 border-white/10'}`}>{r.paymentMode ?? '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className={`text-xs font-bold tabular-nums ${r.codCollect > 0 ? 'text-emerald-200' : 'text-white/40'}`}>{r.codCollect > 0 ? formatAmount(r.codCollect) : '—'}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className="text-xs tabular-nums text-sky-200/90">{r.volumetricWeight != null ? r.volumetricWeight.toFixed(3) : '—'}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className="text-xs tabular-nums text-sky-200/90">{r.absoluteWeight != null ? r.absoluteWeight.toFixed(3) : '—'}</span></td>
+                                <td className="px-3 py-1.5 border-b border-white/5 text-right"><span className="text-xs font-bold tabular-nums text-sky-100">{r.chargeableWeight != null ? r.chargeableWeight.toFixed(3) : '—'}</span></td>
                                 <td className="px-3 py-1.5 border-b border-white/5">
                                   <div className="text-[11px] font-semibold text-white whitespace-nowrap" title={r.orderDateTime ?? ''}>{r.orderDateTime ?? '—'}</div>
                                 </td>
@@ -7703,7 +7720,7 @@ export default function OrderStatusDashboard() {
                               </tr>
                               {isOpen && (
                                 <tr className="bg-white/[0.02]">
-                                  <td colSpan={17} className="px-6 py-4 border-b border-fuchsia-400/20">
+                                  <td colSpan={20} className="px-6 py-4 border-b border-fuchsia-400/20">
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-3">
                                       <div>
                                         <div className="text-[9px] uppercase tracking-wider font-bold text-purple-300/60 mb-1">Order</div>
@@ -11901,6 +11918,7 @@ export default function OrderStatusDashboard() {
                         'itemTotal', 'grossAmount', 'orderMarginDiscount', 'paidAmount', 'CoupanAmount',
                         'discountBySeller', 'appliedWalletAmount',
                         'PaymentOption', 'awbNumber', 'courierName', 'codAmountToBeCollected',
+                        'Volumetric Wt (kg)', 'Absolute Wt (kg)', 'Chargeable Wt (kg)',
                         'PaymentOptionDiscountByBadho', 'paymentDate', 'paymentEvent',
                         'deliveryStatus', 'buyerBusinessName', 'buyerPhone', 'buyerAddress',
                         'sellerPhone', 'sellerBusinessName',
@@ -11912,6 +11930,7 @@ export default function OrderStatusDashboard() {
                         r.itemTotal ?? '', r.grossAmount ?? '', r.orderMarginDiscount ?? '', r.paidAmount, r.CoupanAmount,
                         r.discountBySeller, r.appliedWalletAmount,
                         r.PaymentOption, r.awbNumber, r.courierName, r.codAmountToBeCollected,
+                        r.volumetricWeight ?? '', r.absoluteWeight ?? '', r.chargeableWeight ?? '',
                         r.PaymentOptionDiscountByBadho, r.paymentDate, r.paymentEvent,
                         r.deliveryStatus, r.buyerBusinessName, r.buyerPhone, r.buyerFullAddress,
                         r.sellerPhone, r.sellerBusinessName,
@@ -12138,6 +12157,9 @@ export default function OrderStatusDashboard() {
                           <SortTh k="sellerDiscount" label="Seller Discount" />
                           <SortTh k="badhoDiscount" label="Payment Option Badho Discount" />
                           <SortTh k="cod" label="COD Amount" />
+                          <SortTh k="volumetricWeight" label="Volumetric Wt (kg)" cls="text-sky-700 bg-sky-50/70" />
+                          <SortTh k="absoluteWeight" label="Absolute Wt (kg)" cls="text-sky-700 bg-sky-50/70" />
+                          <SortTh k="chargeableWeight" label="Chargeable Wt (kg)" cls="text-sky-700 bg-sky-50/70" />
                           <SortTh k="deliveryStatus" label="Delivery Status" />
                           <SortTh k="paidAmount" label="Paid Amount" />
                           <SortTh k="paymentOption" label="Payment Option" />
@@ -12292,6 +12314,9 @@ export default function OrderStatusDashboard() {
                               <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-sky-700 tabular-nums whitespace-nowrap bg-sky-50/40">{r.volumetricWeight != null ? r.volumetricWeight.toFixed(3) : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-sky-700 tabular-nums whitespace-nowrap bg-sky-50/40">{r.absoluteWeight != null ? r.absoluteWeight.toFixed(3) : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-2.5 py-2 text-right text-sky-800 font-semibold tabular-nums whitespace-nowrap bg-sky-50/40">{r.chargeableWeight != null ? r.chargeableWeight.toFixed(3) : <span className="text-slate-400">—</span>}</td>
                               <td className="px-2.5 py-2 whitespace-nowrap">
                                 {r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : <span className="text-slate-400">—</span>}
                               </td>
@@ -12418,6 +12443,9 @@ export default function OrderStatusDashboard() {
                               <td className={num}>{money(t.seller)}</td>
                               <td className={num}>{money(t.badho)}</td>
                               <td className={num}>{money(t.cod)}</td>
+                              <td className={cell} />
+                              <td className={cell} />
+                              <td className={cell} />
                               <td className={cell} />
                               <td className={num}>{money(t.paid)}</td>
                               <td className={cell} />

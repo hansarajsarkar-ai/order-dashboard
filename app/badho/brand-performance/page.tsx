@@ -373,6 +373,26 @@ export default function BrandPerformanceDashboard() {
     router.replace('/login');
   };
 
+  // Jump to the Delivery flow map: switch to the Dashboard tab (where it lives),
+  // wait for the heavy content above (KPIs, tables, India map) to finish loading
+  // and stop pushing the section around, then do one clean smooth scroll.
+  const goToDeliveryFlow = () => {
+    setBpTab('dashboard');
+    let lastPos = NaN;
+    let stable = 0;
+    const run = (attempts = 0) => {
+      const el = document.getElementById('delivery-flow-section');
+      if (el) {
+        const pos = Math.round(el.getBoundingClientRect().top + window.scrollY);
+        if (pos === lastPos) stable += 1;
+        else { stable = 0; lastPos = pos; }
+        if (stable >= 3) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      }
+      if (attempts < 50) setTimeout(() => run(attempts + 1), 150);
+    };
+    setTimeout(() => run(), 80);
+  };
+
   const t = buildTheme(theme);
 
   const currentYear = new Date().getFullYear();
@@ -1276,6 +1296,28 @@ export default function BrandPerformanceDashboard() {
                   </button>
                 );
               })}
+
+              {/* Divider */}
+              <div className={`mx-auto my-0.5 h-px w-7 ${t.isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
+
+              {/* Jump-to-map shortcut — scrolls to the Delivery flow map on the Dashboard tab */}
+              <button
+                onClick={goToDeliveryFlow}
+                aria-label="Delivery map"
+                className={`group relative h-10 w-10 mx-auto rounded-xl flex items-center justify-center transition-all duration-300 ${t.tabInactive}`}
+              >
+                <span className="inline-flex items-center justify-center transition-transform duration-300 group-hover:scale-110 opacity-70 group-hover:opacity-100">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 21.381V8.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" /><path d="M15 5.764v15" /><path d="M9 3.236v15" /></svg>
+                </span>
+
+                {/* Flyout label */}
+                <span
+                  className={`pointer-events-none absolute left-full ml-3 top-1/2 -translate-y-1/2 -translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 ease-out whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide z-50 ${t.isDark ? 'bg-slate-800 text-white border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.55)]' : 'bg-slate-900 text-white shadow-[0_8px_24px_rgba(0,0,0,0.25)]'}`}
+                >
+                  Delivery map
+                  <span className={`absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 ${t.isDark ? 'bg-slate-800 border-l border-b border-white/10' : 'bg-slate-900'}`} />
+                </span>
+              </button>
             </nav>
           </aside>
 
@@ -1840,7 +1882,7 @@ export default function BrandPerformanceDashboard() {
               </div>
 
               {/* Delivery flow — animated warehouse → delivery-city routes for the selected brand */}
-              <div className={t.sectionCard}>
+              <div id="delivery-flow-section" className={`${t.sectionCard} scroll-mt-4`}>
                 <div className={t.sectionAccent} />
                 <div className={t.sectionHeader}>
                   <div>

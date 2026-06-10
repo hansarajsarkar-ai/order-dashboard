@@ -140,7 +140,7 @@ const DASHBOARDS: DashboardEntry[] = [
     description:
       'Profit & loss overview — revenue, costs, margins, and net P&L across sellers, brands, and time periods.',
     icon: '📒',
-    status: 'coming-soon',
+    status: 'live',
   },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];

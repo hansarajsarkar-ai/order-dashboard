@@ -150,6 +150,27 @@ export default function OrdersPushed() {
     });
   }, [rows]);
 
+  // Every pushed order sitting in a bad/critical slab on ANY dimension,
+  // deduped by poNumber — the big officer wants the whole rogues' gallery.
+  const flaggedAll = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Row[] = [];
+    buckets.forEach(({ dim, bandRows }) => {
+      dim.bands.forEach((b, i) => {
+        if (b.tone === 'bad' || b.tone === 'critical') {
+          for (const r of bandRows[i]) {
+            const key = String(r['poNumber'] ?? `${dim.key}-${out.length}`);
+            if (!seen.has(key)) {
+              seen.add(key);
+              out.push(r);
+            }
+          }
+        }
+      });
+    });
+    return out;
+  }, [buckets]);
+
   // Filtered + sorted rows for the main table.
   const displayRows = useMemo(() => {
     const po = filterPo.trim().toLowerCase();
@@ -368,6 +389,48 @@ export default function OrdersPushed() {
           );
         })}
       </div>
+
+      {/* Big police officer — standing guard outside the cards, demanding a look */}
+      {flaggedAll.length > 0 && (
+        <div className="relative overflow-visible rounded-2xl border border-rose-400/40 bg-gradient-to-r from-rose-500/15 via-rose-500/[0.06] to-transparent breathe-red px-5 pt-6 pb-5 sm:pl-44">
+          {/* The officer himself — oversized, bobbing, lifting out past the card edge */}
+          <div className="pointer-events-none absolute -top-10 left-2 sm:-left-4 z-10">
+            <div className="absolute inset-0 -z-10 translate-y-6 rounded-full bg-rose-500/30 blur-3xl" />
+            <div className="police-bob text-[110px] sm:text-[150px] leading-none drop-shadow-[0_10px_28px_rgba(244,63,94,0.5)]">
+              👮‍♂️
+            </div>
+            <span className="siren-btn absolute top-4 right-3 text-3xl">🚨</span>
+          </div>
+
+          {/* Speech bubble */}
+          <div className="relative ml-2 sm:ml-0">
+            <span className="hidden sm:block absolute -left-3 top-9 h-5 w-5 rotate-45 bg-white/10 border-l border-b border-white/15" />
+            <div className="rounded-2xl bg-white/10 border border-white/15 px-5 py-4">
+              <div className="text-rose-100 text-lg sm:text-2xl font-extrabold leading-snug">
+                🚓 Halt! {flaggedAll.length} pushed orders are leaking margin.
+              </div>
+              <div className="text-rose-200/85 text-sm mt-1 max-w-2xl">
+                These orders fall in high-range discount / delivery-loss slabs across one or more
+                checks. Let&apos;s investigate them before they eat into P&amp;L.
+              </div>
+              <button
+                onClick={() =>
+                  openModal(
+                    '🚓 Investigate flagged orders',
+                    `${flaggedAll.length} pushed orders flagged in high-range slabs (across all checks)`,
+                    flaggedAll,
+                    'P&LAmount'
+                  )
+                }
+                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-rose-500/90 hover:bg-rose-500 text-white font-bold text-sm px-4 py-2 cursor-pointer transition-colors shadow-lg shadow-rose-900/30 animate-pulse"
+              >
+                🔍 Investigate these {flaggedAll.length} orders
+                <span aria-hidden>→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Full Orders Pushed table */}
       <div className="relative rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">

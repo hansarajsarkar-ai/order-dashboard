@@ -105,6 +105,16 @@ export default function OrdersPushed() {
   const [filterAwb, setFilterAwb] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  // Multi-select Order Status filter (top of page). Empty set = show all.
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+
+  const toggleStatus = (s: string) =>
+    setStatusFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
 
   useEffect(() => {
     let alive = true;
@@ -127,28 +137,44 @@ export default function OrdersPushed() {
     };
   }, []);
 
+  // Distinct Order Status values present in the data, for the filter chips.
+  const statusOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) {
+      const v = r['orderStatus'];
+      if (v !== null && v !== undefined && v !== '') s.add(String(v));
+    }
+    return [...s].sort();
+  }, [rows]);
+
+  // Base rows after the status filter — feeds the KPIs, cards, officer and table.
+  const statusFiltered = useMemo(() => {
+    if (statusFilter.size === 0) return rows;
+    return rows.filter((r) => statusFilter.has(String(r['orderStatus'])));
+  }, [rows, statusFilter]);
+
   const kpis = useMemo(() => {
     let gross = 0;
     let pnl = 0;
-    for (const r of rows) {
+    for (const r of statusFiltered) {
       gross += numOf(r['GrossAmount']);
       pnl += numOf(r['P&LAmount']);
     }
     const pnlPct = gross > 0 ? (pnl * 100) / gross : 0;
-    return { count: rows.length, gross, pnl, pnlPct };
-  }, [rows]);
+    return { count: statusFiltered.length, gross, pnl, pnlPct };
+  }, [statusFiltered]);
 
   const buckets = useMemo(() => {
     return DIMENSIONS.map((dim) => {
       const bandRows: Row[][] = dim.bands.map(() => []);
-      for (const r of rows) {
+      for (const r of statusFiltered) {
         const x = numOf(r[dim.key]);
         const idx = dim.bands.findIndex((b) => b.test(x));
         if (idx >= 0) bandRows[idx].push(r);
       }
       return { dim, bandRows };
     });
-  }, [rows]);
+  }, [statusFiltered]);
 
   // Every pushed order sitting in a bad/critical slab on ANY dimension,
   // deduped by poNumber — the big officer wants the whole rogues' gallery.
@@ -175,7 +201,7 @@ export default function OrdersPushed() {
   const displayRows = useMemo(() => {
     const po = filterPo.trim().toLowerCase();
     const awb = filterAwb.trim().toLowerCase();
-    let out = rows.filter((r) => {
+    let out = statusFiltered.filter((r) => {
       if (po && !String(r['poNumber'] ?? '').toLowerCase().includes(po)) return false;
       if (awb && !String(r['AWBNumber'] ?? '').toLowerCase().includes(awb)) return false;
       return true;
@@ -197,7 +223,7 @@ export default function OrdersPushed() {
       });
     }
     return out;
-  }, [rows, filterPo, filterAwb, sortKey, sortDir]);
+  }, [statusFiltered, filterPo, filterAwb, sortKey, sortDir]);
 
   // Max-loss heatmap is relative to the rows currently in view.
   const maxLoss = useMemo(() => computeMaxLoss(displayRows, columns), [displayRows, columns]);
@@ -252,6 +278,47 @@ export default function OrdersPushed() {
 
   return (
     <div className="space-y-5">
+      {/* Order Status filter — pick one or many; empty = all */}
+      {statusOptions.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl px-3.5 py-2.5">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-purple-300/70 flex items-center gap-1.5 mr-1">
+            <span className="text-sm">🏷️</span> Status
+          </span>
+          {statusOptions.map((s) => {
+            const active = statusFilter.has(s);
+            return (
+              <button
+                key={s}
+                onClick={() => toggleStatus(s)}
+                aria-pressed={active}
+                className={
+                  'px-2.5 py-1 rounded-lg text-[12px] font-bold transition-colors cursor-pointer border ' +
+                  (active
+                    ? 'bg-fuchsia-500/30 text-white border-fuchsia-400/60 shadow-sm shadow-fuchsia-900/30'
+                    : 'bg-white/5 text-purple-200 border-white/10 hover:border-white/25 hover:text-white')
+                }
+              >
+                {active ? '✓ ' : ''}
+                {s}
+              </button>
+            );
+          })}
+          {statusFilter.size > 0 && (
+            <button
+              onClick={() => setStatusFilter(new Set())}
+              className="px-2.5 py-1 rounded-lg text-[12px] font-semibold text-rose-200 border border-rose-400/30 bg-rose-500/10 hover:bg-rose-500/20 transition-colors cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
+          <span className="ml-auto text-[11px] font-medium text-purple-300/60 tabular-nums">
+            {statusFilter.size > 0
+              ? `${statusFiltered.length} of ${rows.length} orders`
+              : `${rows.length} orders`}
+          </span>
+        </div>
+      )}
+
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label="Pushed Orders" value={kpis.count.toLocaleString('en-IN')} icon="📦" glow="bg-fuchsia-500/25" />

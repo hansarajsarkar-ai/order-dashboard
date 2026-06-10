@@ -1228,7 +1228,7 @@ export default function BrandPerformanceDashboard() {
         {/* Vertical nav + content — sidebar keeps tabs in view, content swaps in place */}
         <div className="flex gap-6 items-start">
           {/* Vertical sidebar nav — icon rail, labels reveal on hover */}
-          <aside className="w-16 shrink-0 sticky top-4 self-start z-30">
+          <aside className="w-14 shrink-0 sticky top-4 self-start z-[60]">
             <nav className={`flex flex-col gap-1.5 p-2 rounded-2xl ${t.isDark ? 'bg-slate-900/70 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.7)]' : 'bg-white border border-slate-200 shadow-md'}`}>
               {([
                 { key: 'trends',     label: 'Chart & Trend',   icon: '∿' },
@@ -1245,7 +1245,7 @@ export default function BrandPerformanceDashboard() {
                     key={tab.key}
                     onClick={() => setBpTab(tab.key)}
                     aria-label={tab.label}
-                    className={`group relative h-11 w-11 mx-auto rounded-xl flex items-center justify-center transition-all duration-300 ${active ? t.tabActive : t.tabInactive}`}
+                    className={`group relative h-10 w-10 mx-auto rounded-xl flex items-center justify-center transition-all duration-300 ${active ? t.tabActive : t.tabInactive}`}
                   >
                     {/* Active accent bar on the left edge */}
                     {active && (

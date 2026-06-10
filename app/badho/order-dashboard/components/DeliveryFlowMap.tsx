@@ -309,6 +309,11 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
                 const hero = r.tier === 'hero' || r.tier === 'hot';
                 const headR = (hero ? 2.4 : 1.4) + r.w * 0.6;
                 const headFill = r.tier === 'hero' ? '#fff7e0' : r.tier === 'hot' ? '#ffd9ec' : '#ffffff';
+                // delivery truck that drives the lane (faces travel direction)
+                const dir = r.x1 < r.x0 ? -1 : 1;
+                const ts = r.tier === 'hero' ? 0.95 : r.tier === 'hot' ? 0.82 : 0.58;
+                const body = r.tier === 'hero' ? '#ffd24a' : r.tier === 'hot' ? '#fb7185' : '#e0f2fe';
+                const cab = r.tier === 'hero' ? '#fff7e0' : r.tier === 'hot' ? '#ffe4f3' : '#ffffff';
                 return (
                   <g key={`a-${r.id}`}>
                     {/* base lane — documentary draw-in */}
@@ -343,11 +348,22 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
                           <animateMotion dur={`${r.dur}s`} begin={`${r.delay + 0.1}s`} repeatCount="indefinite" path={r.d} />
                         </circle>
                       )}
-                      {/* travelling shipment pulse */}
-                      <circle r={headR} fill={headFill} filter={hero ? 'url(#heroGlow)' : 'url(#glow)'}>
-                        <animateMotion dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" path={r.d} rotate="auto" />
+                      {/* delivery truck driving the lane */}
+                      <g>
                         <animate attributeName="opacity" values="0;1;1;0" dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" />
-                      </circle>
+                        <g>
+                          <animateMotion dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" path={r.d} />
+                          <g transform={`scale(${dir * ts},${ts})`} filter={hero ? 'url(#heroGlow)' : undefined}>
+                            <rect x={-8} y={-3.2} width={7.6} height={6.4} rx={1} fill={body} stroke="#0a0418" strokeWidth={0.4} />
+                            <path d="M-0.4 -3.2 L2.6 -3.2 L4.6 -0.7 L4.6 3.2 L-0.4 3.2 Z" fill={cab} stroke="#0a0418" strokeWidth={0.4} />
+                            <rect x={0.5} y={-2.1} width={2.5} height={2} rx={0.3} fill="#0a0418" opacity={0.55} />
+                            <circle cx={-5.2} cy={3.5} r={1.5} fill="#0a0418" />
+                            <circle cx={2.2} cy={3.5} r={1.5} fill="#0a0418" />
+                            <circle cx={-5.2} cy={3.5} r={0.6} fill="#cbd5e1" />
+                            <circle cx={2.2} cy={3.5} r={0.6} fill="#cbd5e1" />
+                          </g>
+                        </g>
+                      </g>
                     </g>
                   </g>
                 );
@@ -429,19 +445,26 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
                 return (
                   <g key={`hub-${i}`} transform={`translate(${x},${y})`}>
                     {[0, 1].map((k) => (
-                      <circle key={k} r={6} fill="none" stroke="#fbbf24" strokeWidth={1.5} opacity={0.7}>
-                        <animate attributeName="r" values="6;26" dur="2.4s" begin={`${k * 1.2}s`} repeatCount="indefinite" />
+                      <circle key={k} r={8} fill="none" stroke="#fbbf24" strokeWidth={1.5} opacity={0.7}>
+                        <animate attributeName="r" values="8;32" dur="2.4s" begin={`${k * 1.2}s`} repeatCount="indefinite" />
                         <animate attributeName="opacity" values="0.7;0" dur="2.4s" begin={`${k * 1.2}s`} repeatCount="indefinite" />
                       </circle>
                     ))}
-                    <circle r={8} fill="url(#hubGrad)" stroke="#fffbeb" strokeWidth={1.2} filter="url(#glow)"
+                    <circle r={11} fill="url(#hubGrad)" stroke="#fffbeb" strokeWidth={1.4} filter="url(#heroGlow)"
                       style={{ cursor: 'pointer' }}
                       onMouseMove={(e: React.MouseEvent) =>
                         setTip({ x: e.clientX, y: e.clientY, title: o.businessName || 'Warehouse', sub: [o.city, o.state].filter(Boolean).join(', '), count: o.count, amount: o.amount, kind: 'hub' })
                       }
                       onMouseLeave={() => setTip(null)}
                     />
-                    <text textAnchor="middle" y={3} style={{ fontSize: 9, fontWeight: 900, fill: '#7c2d12', pointerEvents: 'none', userSelect: 'none' }}>★</text>
+                    {/* warehouse building icon */}
+                    <g style={{ pointerEvents: 'none' }}>
+                      <path d="M-6.5 -1.4 L0 -5.6 L6.5 -1.4 Z" fill="#7c2d12" />
+                      <rect x={-5.6} y={-1.8} width={11.2} height={6.6} rx={0.6} fill="#7c2d12" />
+                      <rect x={-2.4} y={0.6} width={4.8} height={4.2} rx={0.4} fill="#fde68a" />
+                      <rect x={-2.4} y={1.9} width={4.8} height={0.5} fill="#7c2d12" />
+                      <rect x={-2.4} y={3.1} width={4.8} height={0.5} fill="#7c2d12" />
+                    </g>
                   </g>
                 );
               })}

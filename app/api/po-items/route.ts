@@ -33,7 +33,7 @@ async function _GET(req: NextRequest) {
         poi."id"                          AS "id",
         poi."brandSKUId"                  AS "brandSKUId",
         bsku."label"                      AS "skuLabel",
-        bsku."brandLabel"                 AS "brandLabel",
+        COALESCE(NULLIF(bsku."brandLabel", ''), b."label") AS "brandLabel",
         poi."status"                      AS "status",
         poi."quantity"                    AS "quantity",
         poi."quantityUnit"                AS "quantityUnit",
@@ -49,6 +49,8 @@ async function _GET(req: NextRequest) {
              ON poi."purchaseOrderId" = po."id"
       LEFT JOIN "brands"."brandSKU" bsku
              ON bsku."id" = poi."brandSKUId"
+      LEFT JOIN "brands"."brand" b
+             ON b."id" = bsku."brandId"
       WHERE po."poNumber" = $1::int
         AND COALESCE(poi."isArchived", FALSE) = FALSE
       ORDER BY poi."created_at" ASC;

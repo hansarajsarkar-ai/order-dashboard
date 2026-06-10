@@ -21,3 +21,30 @@ body {
 .animation-delay-2000 {
   animation-delay: 2s;
 }
+
+/* Breathing red glow for cards that need attention (bad/critical orders).
+   The border + outer halo swell and fade so the eye is drawn straight to
+   the problem cards. */
+@keyframes breathe-red {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.28), 0 0 18px 0 rgba(244, 63, 94, 0.12);
+    border-color: rgba(244, 63, 94, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.7), 0 0 34px 6px rgba(244, 63, 94, 0.34);
+    border-color: rgba(244, 63, 94, 0.7);
+  }
+}
+.breathe-red {
+  animation: breathe-red 2.6s ease-in-out infinite;
+}
+
+/* Glowing red count for high-range slabs — makes the number itself the first
+   thing the eye lands on. */
+@keyframes pulse-red-num {
+  0%, 100% { text-shadow: 0 0 8px rgba(244, 63, 94, 0.45); }
+  50% { text-shadow: 0 0 15px rgba(244, 63, 94, 0.85); }
+}
+.num-alert {
+  animation: pulse-red-num 1.8s ease-in-out infinite;
+}

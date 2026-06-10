@@ -247,7 +247,12 @@ export default function OrdersPushed() {
           return (
             <div
               key={dim.key}
-              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-4 transition-colors duration-300 hover:border-white/20"
+              className={
+                'group relative overflow-hidden rounded-2xl border bg-white/[0.035] backdrop-blur-xl p-4 transition-colors duration-300 ' +
+                (attention > 0
+                  ? 'border-rose-400/40 breathe-red'
+                  : 'border-white/10 hover:border-white/20')
+              }
             >
               {/* top hairline highlight — matches KPI cards */}
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
@@ -297,10 +302,12 @@ export default function OrdersPushed() {
                         }
                         disabled={br.length === 0}
                         className={
-                          'min-w-[2.5rem] text-center px-2 py-0.5 rounded-md text-[13px] font-bold tabular-nums transition-transform ' +
+                          'min-w-[2.5rem] text-center rounded-md tabular-nums transition-transform ' +
                           (br.length === 0
-                            ? 'text-purple-500/40 cursor-default'
-                            : `${tone.pill} hover:scale-110 cursor-pointer`)
+                            ? 'px-2 py-0.5 text-[13px] font-bold text-purple-500/40 cursor-default'
+                            : flag
+                              ? 'px-2 py-0.5 text-[15px] font-extrabold bg-rose-500/25 text-rose-300 ring-1 ring-rose-400/50 num-alert hover:scale-110 cursor-pointer'
+                              : `px-2 py-0.5 text-[13px] font-bold ${tone.pill} hover:scale-110 cursor-pointer`)
                         }
                         title={br.length ? 'Click to view orders' : 'No orders'}
                       >

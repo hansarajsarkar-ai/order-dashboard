@@ -1193,9 +1193,9 @@ export default function BrandPerformanceDashboard() {
 
         {/* Vertical nav + content — sidebar keeps tabs in view, content swaps in place */}
         <div className="flex gap-6 items-start">
-          {/* Vertical sidebar nav */}
-          <aside className="w-40 shrink-0 sticky top-4 self-start z-20">
-            <nav className={`flex flex-col gap-1 p-2 rounded-xl ${t.isDark ? 'bg-slate-900/70 backdrop-blur-xl border border-white/10 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.6)]' : 'bg-white border border-slate-200 shadow-sm'}`}>
+          {/* Vertical sidebar nav — icon rail, labels reveal on hover */}
+          <aside className="w-16 shrink-0 sticky top-4 self-start z-30">
+            <nav className={`flex flex-col gap-1.5 p-2 rounded-2xl ${t.isDark ? 'bg-slate-900/70 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.7)]' : 'bg-white border border-slate-200 shadow-md'}`}>
               {([
                 { key: 'trends',     label: 'Chart & Trend',   icon: '∿' },
                 { key: 'dashboard',  label: 'Dashboard',       icon: '▤' },
@@ -1210,10 +1210,23 @@ export default function BrandPerformanceDashboard() {
                   <button
                     key={tab.key}
                     onClick={() => setBpTab(tab.key)}
-                    className={`relative w-full px-3 py-2 rounded-lg text-[13px] font-bold transition-all duration-300 flex items-center gap-2 text-left ${active ? t.tabActive : t.tabInactive}`}
+                    aria-label={tab.label}
+                    className={`group relative h-11 w-11 mx-auto rounded-xl flex items-center justify-center transition-all duration-300 ${active ? t.tabActive : t.tabInactive}`}
                   >
-                    <span className={`text-base leading-none ${active ? 'opacity-90' : 'opacity-60'}`}>{tab.icon}</span>
-                    {tab.label}
+                    {/* Active accent bar on the left edge */}
+                    {active && (
+                      <span className="absolute -left-2 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-gradient-to-b from-fuchsia-400 to-indigo-400 shadow-[0_0_10px_rgba(217,70,239,0.8)]" />
+                    )}
+                    <span className={`text-lg leading-none transition-transform duration-300 group-hover:scale-110 ${active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}>{tab.icon}</span>
+
+                    {/* Flyout label — slides in on hover */}
+                    <span
+                      className={`pointer-events-none absolute left-full ml-3 top-1/2 -translate-y-1/2 -translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 ease-out whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide z-50 ${t.isDark ? 'bg-slate-800 text-white border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.55)]' : 'bg-slate-900 text-white shadow-[0_8px_24px_rgba(0,0,0,0.25)]'}`}
+                    >
+                      {tab.label}
+                      {/* Arrow pointing back to the icon */}
+                      <span className={`absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 ${t.isDark ? 'bg-slate-800 border-l border-b border-white/10' : 'bg-slate-900'}`} />
+                    </span>
                   </button>
                 );
               })}

@@ -578,6 +578,16 @@ export default function BrandPerformanceDashboard() {
   const [trendsExtra, setTrendsExtra] = useState<TrendsExtra | null>(null);
   const [trendsExtraLoading, setTrendsExtraLoading] = useState(false);
 
+  // MOV Not Meet Cart Trend — DRAFT carts whose amount stayed below the seller's
+  // effectiveMinimumOrderValue, bucketed over time. Respects the brand filter.
+  interface MovTrendData {
+    data: Array<{ bucket: string; carts: number }>;
+    total: number;
+    granularity: 'day' | 'week' | 'month';
+  }
+  const [movTrendData, setMovTrendData] = useState<MovTrendData | null>(null);
+  const [movTrendLoading, setMovTrendLoading] = useState(false);
+
   // Price Set tab — flat catalog of seller × SKU × unit price × margin × MRP
   interface PriceRow {
     sellerId: string; sellerName: string | null; businessName: string | null; phone: string | null;
@@ -1007,12 +1017,34 @@ export default function BrandPerformanceDashboard() {
     }
   };
 
+  const fetchMovTrend = async () => {
+    try {
+      setMovTrendLoading(true);
+      const params = new URLSearchParams({ year: String(currentYear), granularity: trendGranularity });
+      const { startDate, endDate } = resolveRange();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+      const res = await fetch(`/api/brand-performance/mov-not-met-trend?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      captureQuery('movTrend', json);
+      setMovTrendData(json);
+    } catch (err) {
+      console.error('MOV-not-met trend fetch error:', err);
+      setMovTrendData(null);
+    } finally {
+      setMovTrendLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!authChecked || bpTab !== 'trends') return;
     fetchTrend();
     fetchMbs();          // status mix uses mbsData
     fetchTopSellers();   // top brands + top SKUs + pareto use topData
     fetchTrendsExtra();  // brand share area, DOW, cohort, KPI deltas
+    fetchMovTrend();     // DRAFT carts that never met the seller MOV
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands, trendGranularity]);
 
@@ -3117,6 +3149,48 @@ export default function BrandPerformanceDashboard() {
                         />
                         <Line type="monotone" dataKey={metricKey} stroke={metricColor} strokeWidth={2.5} dot={{ r: 4, fill: metricColor }} activeDot={{ r: 6 }} name={metricLabel}>
                           <LabelList dataKey={metricKey} position="top" offset={10} formatter={(v: unknown) => fmtMetricValue(Number(v))} style={{ fill: metricColor, fontSize: 11, fontWeight: 700 }} />
+                        </Line>
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              {/* MOV Not Meet Cart Trend — DRAFT carts below seller MOV, full width */}
+              <div className={t.sectionCard}>
+                <div className={t.sectionAccent} />
+                <div className={`px-6 py-2 flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
+                  <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>MOV Not Meet Cart Trend</h3>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
+                      {mbsBrands.size === 0
+                        ? 'all brands'
+                        : mbsBrands.size === 1
+                          ? Array.from(mbsBrands)[0]
+                          : `${mbsBrands.size} brands`}
+                      {movTrendData ? ` · ${movTrendData.total.toLocaleString('en-IN')} carts` : ''}
+                    </span>
+                    {queryBtn('movTrend', 'MOV Not Meet Cart Trend — DRAFT carts below seller MOV')}
+                  </div>
+                </div>
+                <div className="p-4" style={{ height: 360 }}>
+                  {movTrendLoading || !movTrendData ? (
+                    <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading trend…</div>
+                  ) : movTrendData.data.length === 0 ? (
+                    <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No data for this selection</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={movTrendData.data.map((p) => ({ ...p, bucketLabel: fmtBucket(p.bucket) }))} margin={{ top: 24, right: 20, left: 0, bottom: 0 }}>
+                        <CartesianGrid stroke={grid} strokeDasharray="3 3" />
+                        <XAxis dataKey="bucketLabel" stroke={ax} fontSize={11} tickMargin={6} />
+                        <YAxis stroke={ax} fontSize={11} tickFormatter={(v: number) => v.toLocaleString('en-IN')} width={55} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
+                          labelStyle={{ color: tipText, fontWeight: 700 }}
+                          formatter={(v: any) => [Number(v).toLocaleString('en-IN'), 'Carts below MOV']}
+                        />
+                        <Line type="monotone" dataKey="carts" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: '#f59e0b' }} activeDot={{ r: 6 }} name="Carts below MOV">
+                          <LabelList dataKey="carts" position="top" offset={10} formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: '#f59e0b', fontSize: 11, fontWeight: 700 }} />
                         </Line>
                       </LineChart>
                     </ResponsiveContainer>

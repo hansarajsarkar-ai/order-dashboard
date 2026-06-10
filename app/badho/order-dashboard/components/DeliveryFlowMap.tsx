@@ -53,6 +53,16 @@ const haversine = (a: { lat: number; lng: number }, b: { lat: number; lng: numbe
   return 2 * Math.asin(Math.sqrt(s));
 };
 
+// Offshore union territories sit far from the mainland where the base GeoJSON
+// draws no landmass, so a single low-volume dot is invisible in open sea. We
+// surface them in a dedicated inset instead. Andaman & Nicobar: lng ≥ 90 at low
+// latitude (lat ≤ 16 excludes Arunachal/NE which share that longitude band).
+// Lakshadweep: a small box off Kerala. Coordinate-based so a mis-geocoded
+// mainland row tagged "Andaman" stays on the mainland rather than the inset.
+const isIslandPoint = (p: { lat: number; lng: number }): boolean =>
+  (p.lng >= 90 && p.lat <= 16) ||
+  (p.lng >= 71 && p.lng <= 74.5 && p.lat >= 8 && p.lat <= 12.5);
+
 export default function DeliveryFlowMap({ origins, destinations, metric, brandLabel }: Props) {
   type GeoFeatureCollection = {
     type: 'FeatureCollection';
@@ -181,6 +191,16 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
   const totals = useMemo(
     () => destinations.reduce((a, d) => ({ count: a.count + d.count, amount: a.amount + d.amount }), { count: 0, amount: 0 }),
     [destinations]
+  );
+
+  // Offshore (Andaman & Nicobar / Lakshadweep) deliveries for the inset panel.
+  const islandDests = useMemo(
+    () => destinations.filter(isIslandPoint).sort((a, b) => (b[metric] || 0) - (a[metric] || 0)),
+    [destinations, metric]
+  );
+  const islandTotals = useMemo(
+    () => islandDests.reduce((a, d) => ({ count: a.count + d.count, amount: a.amount + d.amount }), { count: 0, amount: 0 }),
+    [islandDests]
   );
 
   if (!geo) {
@@ -479,6 +499,29 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
             <div className="text-sm font-bold text-white">{brandLabel}</div>
           </div>
         </div>
+        {/* Island inset — surfaces offshore (A&N / Lakshadweep) deliveries that
+            otherwise vanish as single dots in open sea with no landmass behind them. */}
+        {islandDests.length > 0 && (
+          <div className="absolute bottom-[70px] right-3 w-[158px] rounded-xl bg-black/55 backdrop-blur border border-cyan-400/30 shadow-xl overflow-hidden">
+            <div className="px-2.5 py-1.5 bg-cyan-400/10 border-b border-cyan-400/20 flex items-center justify-between">
+              <span className="text-[10px] font-bold text-cyan-200 tracking-wide">🏝️ A&amp;N · ISLANDS</span>
+              <span className="text-[10px] font-bold text-white tabular-nums">{islandTotals.count.toLocaleString('en-IN')}</span>
+            </div>
+            <ul className="max-h-[116px] overflow-y-auto divide-y divide-white/5">
+              {islandDests.slice(0, 6).map((d, i) => (
+                <li key={`isl-${d.state}-${d.city}-${i}`} className="px-2.5 py-1 flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-white/90 truncate">{d.city || '—'}</span>
+                  <span className="text-[10px] text-cyan-300 tabular-nums shrink-0">
+                    {metric === 'count' ? d.count.toLocaleString('en-IN') : formatAmount(d.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="px-2.5 py-1 bg-black/40 text-[9px] text-cyan-200/70 text-center border-t border-cyan-400/15">
+              off-coast · {formatAmount(islandTotals.amount)}
+            </div>
+          </div>
+        )}
         <div className="px-6 py-3 border-t border-white/10 bg-black/30 backdrop-blur flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px]">
           <span className="flex items-center gap-1.5 text-amber-200"><span className="inline-block w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]" /> Warehouse</span>
           <span className="flex items-center gap-1.5 text-amber-100"><span className="inline-block w-3 h-3 rounded-full shadow-[0_0_10px_#ffd24a]" style={{ background: 'radial-gradient(circle,#fff7e0,#ffd24a,#f97316)' }} /> Top city 👑</span>

@@ -122,9 +122,38 @@ async function _GET(req: NextRequest) {
       LIMIT ${DEST_LIMIT + 1};
     `;
 
-    const [originRows, destRows] = await Promise.all([
+    // --- Island destinations: offshore UTs (Andaman & Nicobar / Lakshadweep)
+    // ship 1–2 orders per city, so they rank below the top-120 cut and get
+    // truncated. Pull them unconditionally (no LIMIT) so the map's island inset
+    // always reflects them. Same filters as destSql — only the bbox narrows. ---
+    const iParams: (string | number)[] = [brand];
+    const iDate = buildDate(iParams);
+    const islandSql = `
+      SELECT
+        b."city"                                  AS city,
+        b."state"                                 AS state,
+        ROUND(AVG(b."lattitude"::numeric), 5)::text AS lat,
+        ROUND(AVG(b."longitude"::numeric), 5)::text AS lng,
+        COUNT(*)                                  AS count,
+        COALESCE(SUM(${GROSS}), 0)::text          AS amount
+      FROM "purchaseOrder"."purchaseOrder" po
+      JOIN "users"."buyer"  b ON b."id" = po."buyerId"
+      JOIN "users"."seller" s ON s."id" = po."sellerId"
+      WHERE ${baseFilters}
+        AND b."lattitude" IS NOT NULL AND b."longitude" IS NOT NULL
+        AND (
+          (b."longitude"::numeric >= 90 AND b."lattitude"::numeric <= 16)
+          OR (b."longitude"::numeric BETWEEN 71 AND 74.5 AND b."lattitude"::numeric BETWEEN 8 AND 12.5)
+        )
+        ${iDate}
+      GROUP BY b."city", b."state"
+      ORDER BY count DESC;
+    `;
+
+    const [originRows, destRows, islandRows] = await Promise.all([
       query<OriginRow>(originSql, oParams),
       query<DestRow>(destSql, dParams),
+      query<DestRow>(islandSql, iParams),
     ]);
 
     const truncated = destRows.length > DEST_LIMIT;
@@ -138,14 +167,21 @@ async function _GET(req: NextRequest) {
       count: parseInt(r.count),
       amount: parseFloat(r.amount),
     }));
-    const destinations = destRows.slice(0, DEST_LIMIT).map((r) => ({
+    const mapDest = (r: DestRow) => ({
       city: r.city,
       state: r.state,
       lat: parseFloat(r.lat),
       lng: parseFloat(r.lng),
       count: parseInt(r.count),
       amount: parseFloat(r.amount),
-    }));
+    });
+    const destinations = destRows.slice(0, DEST_LIMIT).map(mapDest);
+    // Graft in any island cities the top-120 cut dropped (dedupe by city+state).
+    const seenDest = new Set(destinations.map((d) => `${d.city}|${d.state}`));
+    for (const r of islandRows) {
+      const key = `${r.city}|${r.state}`;
+      if (!seenDest.has(key)) { destinations.push(mapDest(r)); seenDest.add(key); }
+    }
 
     const totalDelivered = destinations.reduce((a, r) => a + r.count, 0);
     const totalAmount = destinations.reduce((a, r) => a + r.amount, 0);

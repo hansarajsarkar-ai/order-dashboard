@@ -215,19 +215,23 @@ export default function OrdersPushed() {
     <div className="space-y-5">
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi label="Pushed Orders" value={kpis.count.toLocaleString('en-IN')} accent="from-fuchsia-500/30 to-purple-600/30" />
-        <Kpi label="Gross Amount" value={fmtINR(kpis.gross)} accent="from-indigo-500/30 to-blue-600/30" />
+        <Kpi label="Pushed Orders" value={kpis.count.toLocaleString('en-IN')} icon="📦" glow="bg-fuchsia-500/25" />
+        <Kpi label="Gross Amount" value={fmtINR(kpis.gross)} icon="💰" glow="bg-indigo-500/25" />
         <Kpi
           label="Total P&L"
           value={fmtINR(kpis.pnl)}
-          accent={kpis.pnl >= 0 ? 'from-emerald-500/30 to-teal-600/30' : 'from-rose-500/30 to-red-600/30'}
+          icon={kpis.pnl >= 0 ? '📈' : '📉'}
+          glow={kpis.pnl >= 0 ? 'bg-emerald-500/25' : 'bg-rose-500/25'}
           valueClass={kpis.pnl >= 0 ? 'text-emerald-300' : 'text-rose-300'}
+          trend={kpis.pnl >= 0 ? 'up' : 'down'}
         />
         <Kpi
           label="P&L %"
           value={kpis.pnlPct.toFixed(2) + '%'}
-          accent={kpis.pnlPct >= 0 ? 'from-emerald-500/30 to-teal-600/30' : 'from-rose-500/30 to-red-600/30'}
+          icon="🧮"
+          glow={kpis.pnlPct >= 0 ? 'bg-emerald-500/25' : 'bg-rose-500/25'}
           valueClass={kpis.pnlPct >= 0 ? 'text-emerald-300' : 'text-rose-300'}
+          trend={kpis.pnlPct >= 0 ? 'up' : 'down'}
         />
       </div>
 
@@ -243,11 +247,15 @@ export default function OrdersPushed() {
           return (
             <div
               key={dim.key}
-              className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-3.5"
+              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-4 transition-colors duration-300 hover:border-white/20"
             >
-              <div className="flex items-center justify-between mb-2.5">
-                <h3 className="text-[13px] font-bold text-white flex items-center gap-1.5">
-                  <span className="text-base">{dim.icon}</span>
+              {/* top hairline highlight — matches KPI cards */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[13px] font-bold text-white flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5 ring-1 ring-inset ring-white/10 text-[13px]">
+                    {dim.icon}
+                  </span>
                   {dim.title}
                 </h3>
                 {attention > 0 ? (
@@ -275,8 +283,8 @@ export default function OrdersPushed() {
                     >
                       <span className={'w-1.5 h-1.5 rounded-full shrink-0 ' + tone.dot} />
                       <span className="text-[12px] font-medium text-purple-100 w-16 shrink-0">{band.label}</span>
-                      <div className="flex-1 h-1 rounded-full bg-white/5 overflow-hidden">
-                        <div className={'h-full rounded-full ' + tone.bar} style={{ width: `${pct}%` }} />
+                      <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                        <div className={'h-full rounded-full transition-all duration-500 ' + tone.bar} style={{ width: `${pct}%` }} />
                       </div>
                       <button
                         onClick={() =>
@@ -308,10 +316,14 @@ export default function OrdersPushed() {
       </div>
 
       {/* Full Orders Pushed table */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-white/10 flex-wrap">
+      <div className="relative rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent z-20" />
+        <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-white/10 flex-wrap">
           <div className="flex items-center gap-3 flex-wrap">
-            <h3 className="text-sm font-bold text-white">Orders Pushed</h3>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <span className="h-4 w-1 rounded-full bg-gradient-to-b from-fuchsia-400 to-indigo-500" />
+              Orders Pushed
+            </h3>
             {/* Filters */}
             <div className="relative">
               <input
@@ -459,18 +471,36 @@ export default function OrdersPushed() {
 function Kpi({
   label,
   value,
-  accent,
+  icon,
+  glow,
   valueClass = 'text-white',
+  trend,
 }: {
   label: string;
   value: string;
-  accent: string;
+  icon: string;
+  glow: string;
   valueClass?: string;
+  trend?: 'up' | 'down';
 }) {
   return (
-    <div className={`rounded-2xl border border-white/10 bg-gradient-to-br ${accent} backdrop-blur-xl p-4`}>
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-purple-200/70">{label}</div>
-      <div className={`text-2xl font-bold mt-1 ${valueClass}`}>{value}</div>
+    <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]">
+      {/* corner accent glow */}
+      <div className={`pointer-events-none absolute -top-12 -right-10 h-32 w-32 rounded-full blur-2xl opacity-50 transition-opacity duration-300 group-hover:opacity-80 ${glow}`} />
+      {/* top hairline highlight */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      <div className="relative flex items-center justify-between">
+        <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-purple-200/60">{label}</span>
+        <span className="text-base opacity-70 transition-transform duration-300 group-hover:scale-110">{icon}</span>
+      </div>
+      <div className="relative mt-2.5 flex items-baseline gap-1.5">
+        <span className={`text-[27px] leading-none font-bold tracking-tight tabular-nums ${valueClass}`}>{value}</span>
+        {trend && (
+          <span className={`text-xs font-bold ${trend === 'up' ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {trend === 'up' ? '▲' : '▼'}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

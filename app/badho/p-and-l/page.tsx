@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import OrdersPushed from './components/OrdersPushed';
+import OrdersNotPushed from './components/OrdersNotPushed';
 
 type TabKey = 'orders-not-pushed' | 'orders-pushed';
 
@@ -59,16 +60,19 @@ export default function PnLDashboard() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <div className="text-purple-200 text-sm">Checking access…</div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950">
+        <div className="text-purple-200/80 text-sm animate-pulse">Checking access…</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8 relative overflow-hidden">
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
+    <div className="min-h-screen bg-[#0b0712] p-5 md:p-8 relative overflow-hidden">
+      {/* Ambient light field — soft, layered radial glows instead of hard blobs */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-950 via-[#140a24] to-slate-950" />
+      <div className="pointer-events-none absolute -top-32 left-[18%] w-[34rem] h-[34rem] bg-fuchsia-600/15 rounded-full blur-[140px] animate-pulse" />
+      <div className="pointer-events-none absolute -bottom-40 right-[14%] w-[38rem] h-[38rem] bg-indigo-600/15 rounded-full blur-[150px] animate-pulse animation-delay-2000" />
+      <div className="pointer-events-none absolute top-1/3 right-1/3 w-80 h-80 bg-violet-500/10 rounded-full blur-[120px]" />
 
       <div className="max-w-7xl mx-auto relative z-10">
         {/* Top bar — back to /badho + user chip + logout */}
@@ -99,13 +103,18 @@ export default function PnLDashboard() {
         </div>
 
         {/* Title */}
-        <div className="mb-6">
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-            P &amp; L
-          </h1>
-          <p className="text-purple-200 text-sm mt-1">
-            Profit &amp; loss overview — revenue, costs, margins, and net P&amp;L.
-          </p>
+        <div className="mb-6 flex items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-500/25 to-indigo-600/25 border border-white/10 ring-1 ring-inset ring-white/10 text-xl shadow-lg shadow-fuchsia-900/30">
+            📊
+          </div>
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">
+              P &amp; L
+            </h1>
+            <p className="text-purple-200/70 text-sm mt-0.5">
+              Profit &amp; loss overview — revenue, costs, margins, and net P&amp;L.
+            </p>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -131,10 +140,7 @@ export default function PnLDashboard() {
 
         {/* Tab content */}
         {activeTab === 'orders-not-pushed' ? (
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-12 text-center">
-            <h2 className="text-2xl font-bold text-white mb-2">Orders Not Pushed</h2>
-            <p className="text-purple-300">Orders that have not yet been pushed will appear here.</p>
-          </div>
+          <OrdersNotPushed />
         ) : (
           <OrdersPushed />
         )}

@@ -74,6 +74,29 @@ const TONE: Record<Tone, { dot: string; pill: string; bar: string; rowBg: string
   critical: { dot: 'bg-rose-400', pill: 'bg-rose-500/25 text-rose-200', bar: 'bg-rose-400/80', rowBg: 'bg-rose-500/[0.08]' },
 };
 
+// Exact column set + order for the Orders Not Pushed table. Anything the API
+// returns that isn't listed here is dropped from this tab's table/modal.
+const NOT_PUSHED_COLUMN_ORDER = [
+  'poNumber',
+  'MarkedpendingTime',
+  'ItemDiscount%',
+  'CouponApplied%',
+  'PaymentDiscount%',
+  'GrossAmount',
+  'ItemTotal',
+  'ItemDiscount',
+  'CoupanApplied',
+  'appliedWalletAmount',
+  'discountByBadho',
+  'appliedVolumeDiscountAmount',
+  'orderStatus',
+  'sellerphone',
+  'sellerbusinessname',
+  'buyerPhone',
+  'buyerBusinessName',
+];
+const NOT_PUSHED_ORDER_INDEX = new Map(NOT_PUSHED_COLUMN_ORDER.map((k, i) => [k, i]));
+
 function numOf(v: unknown): number {
   if (v === null || v === undefined || v === '') return 0;
   const n = Number(v);
@@ -170,8 +193,21 @@ export default function OrdersNotPushed() {
     return out;
   }, [rows, filterPo, filterSeller, sortKey, sortDir]);
 
+  // Restrict + reorder columns to the explicit Orders Not Pushed set; anything
+  // the query returns that isn't whitelisted is dropped from this tab.
+  const displayColumns = useMemo(
+    () =>
+      columns
+        .filter((c) => NOT_PUSHED_ORDER_INDEX.has(c.key))
+        .sort(
+          (a, b) =>
+            (NOT_PUSHED_ORDER_INDEX.get(a.key) ?? 0) - (NOT_PUSHED_ORDER_INDEX.get(b.key) ?? 0)
+        ),
+    [columns]
+  );
+
   // Max-loss heatmap is relative to the rows currently in view.
-  const maxLoss = useMemo(() => computeMaxLoss(displayRows, columns), [displayRows, columns]);
+  const maxLoss = useMemo(() => computeMaxLoss(displayRows, displayColumns), [displayRows, displayColumns]);
 
   const toggleSort = (key: string) => {
     if (sortKey === key) {
@@ -353,7 +389,7 @@ export default function OrdersNotPushed() {
             <table className="text-xs border-collapse">
               <thead className="sticky top-0 z-10">
                 <tr>
-                  {columns.map((c) => {
+                  {displayColumns.map((c) => {
                     const active = sortKey === c.key;
                     return (
                       <th
@@ -379,7 +415,7 @@ export default function OrdersNotPushed() {
               <tbody>
                 {displayRows.map((r, i) => (
                   <tr key={i} className={'transition-colors ' + rowToneClass(r)}>
-                    {columns.map((c) => {
+                    {displayColumns.map((c) => {
                       const v = r[c.key];
                       const num = isNumericCol(v, c.key);
                       const tone = cellToneClass(c, v);
@@ -428,7 +464,7 @@ export default function OrdersNotPushed() {
         <DetailsModal
           title={modal.title}
           subtitle={modal.subtitle}
-          columns={columns}
+          columns={displayColumns}
           rows={modal.rows}
           defaultSortKey={modal.sortKey}
           onClose={() => setModal(null)}

@@ -26,6 +26,8 @@ with x as (SELECT DISTINCT
         po."paymentInfo"->>'option' AS PaymentOption,
         s."phone" as sellerPhone,
         s."businessName" as sellerBusinessName,
+        b."phone" as "buyerPhone",
+        b."businessName" as "buyerBusinessName",
         -COALESCE(pop."UpiDiscountBySeller",0) as "UpiDiscountBySeller",
         pf."refundAmount",
         po."deliveryStatus" as "poDeliveryStatus",

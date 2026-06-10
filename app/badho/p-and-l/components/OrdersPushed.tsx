@@ -218,7 +218,7 @@ export default function OrdersPushed() {
         <Kpi label="Pushed Orders" value={kpis.count.toLocaleString('en-IN')} icon="📦" glow="bg-fuchsia-500/25" />
         <Kpi label="Gross Amount" value={fmtINR(kpis.gross)} icon="💰" glow="bg-indigo-500/25" />
         <Kpi
-          label="Total P&L"
+          label="Expected Total P&L"
           value={fmtINR(kpis.pnl)}
           icon={kpis.pnl >= 0 ? '📈' : '📉'}
           glow={kpis.pnl >= 0 ? 'bg-emerald-500/25' : 'bg-rose-500/25'}
@@ -226,7 +226,7 @@ export default function OrdersPushed() {
           trend={kpis.pnl >= 0 ? 'up' : 'down'}
         />
         <Kpi
-          label="P&L %"
+          label="Expected P&L %"
           value={kpis.pnlPct.toFixed(2) + '%'}
           icon="🧮"
           glow={kpis.pnlPct >= 0 ? 'bg-emerald-500/25' : 'bg-rose-500/25'}

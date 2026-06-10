@@ -18,8 +18,8 @@ const ORDERED: ColumnDef[] = [
   { key: 'poNumber', label: 'poNumber' },
   { key: 'MarkedpendingTime', label: 'markedPendingTime' },
   // P&L summary leads — the numbers that matter most, up front.
-  { key: 'p&l%', label: 'P&L %', percent: true, cellTone: (n) => (n >= 0 ? 'green' : 'red') },
-  { key: 'P&LAmount', label: 'P&L Amount', cellTone: (n) => (n >= 0 ? 'green' : 'red') },
+  { key: 'p&l%', label: 'Expected P&L %', percent: true, cellTone: (n) => (n >= 0 ? 'green' : 'red') },
+  { key: 'P&LAmount', label: 'Expected P&L Amount', cellTone: (n) => (n >= 0 ? 'green' : 'red') },
   { key: 'ExpectedDeliveryLoss%', label: 'Expected Delivery Loss %', percent: true, cellTone: (n) => (n <= 20 ? 'green' : 'red') },
   { key: 'GrossAmount', label: 'Gross Amount' },
   { key: 'ItemTotal', label: 'Item Total' },

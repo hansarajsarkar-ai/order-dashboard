@@ -119,7 +119,7 @@ with x as (SELECT DISTINCT
       AND b."isTest" = FALSE AND b."businessName" NOT ILIKE '%test%'
       AND po."isTest" = FALSE AND po."markedPendingTime" IS NOT NULL
       AND po."deliveryNetwork" = 'THIRD_PARTY' AND po."deliveryType" = 'INTERCITY'
-      AND po."isFalseOrder" = FALSE AND po."status" IN ('PENDING','INPROGRESS')
+      AND po."isFalseOrder" = FALSE AND po."status" IN ('PENDING','INPROGRESS','DISPATCHED')
       and dv."deliveryPartnerId" = 'DELHIVERY')
 
 

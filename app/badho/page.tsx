@@ -134,6 +134,14 @@ const DASHBOARDS: DashboardEntry[] = [
     status: 'live',
     href: 'https://badho-daas-dashboard.vercel.app/',
   },
+  {
+    slug: 'p-and-l',
+    title: 'P & L',
+    description:
+      'Profit & loss overview — revenue, costs, margins, and net P&L across sellers, brands, and time periods.',
+    icon: '📒',
+    status: 'coming-soon',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

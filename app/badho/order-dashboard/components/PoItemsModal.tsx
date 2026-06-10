@@ -298,7 +298,10 @@ export default function PoItemsModal({ poNumber, breakup: initialBreakup = null,
                             {it.skuLabel || <span className="text-slate-400 italic font-normal">Unnamed SKU</span>}
                           </div>
                           {it.brandLabel && (
-                            <div className="text-[10px] text-slate-400 truncate mt-0.5">{it.brandLabel}</div>
+                            <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 break-words">
+                              <span className="text-indigo-400 font-bold uppercase tracking-wide">Brand</span>
+                              <span className="text-indigo-700">{it.brandLabel}</span>
+                            </div>
                           )}
                         </td>
                         <td className="px-3 py-2.5 border-b border-slate-100">

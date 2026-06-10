@@ -63,6 +63,14 @@ const isIslandPoint = (p: { lat: number; lng: number }): boolean =>
   (p.lng >= 90 && p.lat <= 16) ||
   (p.lng >= 71 && p.lng <= 74.5 && p.lat >= 8 && p.lat <= 12.5);
 
+// Anything off the Indian mainland ships by air, not road: the offshore island
+// UTs (Andaman & Nicobar, Lakshadweep) and any destination outside India's
+// mainland bounding box. These lanes render a plane instead of a truck.
+const isOutsideIndia = (p: { lat: number; lng: number }): boolean =>
+  p.lat < 6 || p.lat > 38 || p.lng < 68 || p.lng > 98;
+const isAirRoute = (p: { lat: number; lng: number }): boolean =>
+  isIslandPoint(p) || isOutsideIndia(p);
+
 export default function DeliveryFlowMap({ origins, destinations, metric, brandLabel }: Props) {
   type GeoFeatureCollection = {
     type: 'FeatureCollection';
@@ -114,6 +122,7 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
       draw: number;       // one-time draw-in start
       rank: number;
       tier: Tier;
+      air: boolean;       // offshore/overseas → plane instead of truck
     }[] = [];
     destinations.forEach((dest, i) => {
       const dp = project(dest.lng, dest.lat);
@@ -131,10 +140,12 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
       const [x1, y1] = dp;
       const dx = x1 - x0, dy = y1 - y0;
       const dist = Math.hypot(dx, dy) || 1;
-      // perpendicular, biased upward → consistent "flight arc" bow
+      // perpendicular, biased upward → consistent "flight arc" bow.
+      // Air lanes (islands/overseas) bow higher so they read as flights.
+      const air = isAirRoute(dest);
       let px = -dy / dist, py = dx / dist;
       if (py > 0) { px = -px; py = -py; }
-      const bend = Math.min(dist * 0.28, 170);
+      const bend = Math.min(dist * (air ? 0.42 : 0.28), air ? 240 : 170);
       const cx = (x0 + x1) / 2 + px * bend;
       const cy = (y0 + y1) / 2 + py * bend;
       const val = dest[metric] || 0;
@@ -157,6 +168,7 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
         draw: 0,
         rank,
         tier,
+        air,
       });
     });
     // draw biggest on top; cascade the one-time reveal small → big (hero lands last)
@@ -332,6 +344,7 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
                 // delivery truck that drives the lane (faces travel direction)
                 const dir = r.x1 < r.x0 ? -1 : 1;
                 const ts = r.tier === 'hero' ? 0.95 : r.tier === 'hot' ? 0.82 : 0.58;
+                const ps = r.tier === 'hero' ? 1.05 : r.tier === 'hot' ? 0.92 : 0.72;
                 const body = r.tier === 'hero' ? '#ffd24a' : r.tier === 'hot' ? '#fb7185' : '#e0f2fe';
                 const cab = r.tier === 'hero' ? '#fff7e0' : r.tier === 'hot' ? '#ffe4f3' : '#ffffff';
                 return (
@@ -368,22 +381,44 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
                           <animateMotion dur={`${r.dur}s`} begin={`${r.delay + 0.1}s`} repeatCount="indefinite" path={r.d} />
                         </circle>
                       )}
-                      {/* delivery truck driving the lane */}
-                      <g>
-                        <animate attributeName="opacity" values="0;1;1;0" dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" />
+                      {/* vehicle driving the lane — plane for offshore/overseas, truck otherwise */}
+                      {r.air ? (
+                        // plane: auto-rotates to follow the arc's tangent so the nose
+                        // always points along the flight path (top-view jet, nose +x)
                         <g>
-                          <animateMotion dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" path={r.d} />
-                          <g transform={`scale(${dir * ts},${ts})`} filter={hero ? 'url(#heroGlow)' : undefined}>
-                            <rect x={-8} y={-3.2} width={7.6} height={6.4} rx={1} fill={body} stroke="#0a0418" strokeWidth={0.4} />
-                            <path d="M-0.4 -3.2 L2.6 -3.2 L4.6 -0.7 L4.6 3.2 L-0.4 3.2 Z" fill={cab} stroke="#0a0418" strokeWidth={0.4} />
-                            <rect x={0.5} y={-2.1} width={2.5} height={2} rx={0.3} fill="#0a0418" opacity={0.55} />
-                            <circle cx={-5.2} cy={3.5} r={1.5} fill="#0a0418" />
-                            <circle cx={2.2} cy={3.5} r={1.5} fill="#0a0418" />
-                            <circle cx={-5.2} cy={3.5} r={0.6} fill="#cbd5e1" />
-                            <circle cx={2.2} cy={3.5} r={0.6} fill="#cbd5e1" />
+                          <animate attributeName="opacity" values="0;1;1;0" dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" />
+                          <g>
+                            <animateMotion dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" rotate="auto" path={r.d} />
+                            <g transform={`scale(${ps})`} filter={hero ? 'url(#heroGlow)' : 'url(#glow)'}>
+                              <path
+                                d="M8 0 L1.5 -1.2 L-1 -5.5 L-2.4 -5.5 L-1.5 -1.2 L-5.5 -1.2 L-6.8 -3.6 L-7.8 -3.6 L-7 -1 L-8 0 L-7 1 L-7.8 3.6 L-6.8 3.6 L-5.5 1.2 L-1.5 1.2 L-2.4 5.5 L-1 5.5 L1.5 1.2 Z"
+                                fill={body}
+                                stroke="#0a0418"
+                                strokeWidth={0.4}
+                                strokeLinejoin="round"
+                              />
+                              {/* cockpit glint */}
+                              <circle cx={4} cy={0} r={1} fill={cab} opacity={0.9} />
+                            </g>
                           </g>
                         </g>
-                      </g>
+                      ) : (
+                        <g>
+                          <animate attributeName="opacity" values="0;1;1;0" dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" />
+                          <g>
+                            <animateMotion dur={`${r.dur}s`} begin={`${r.delay}s`} repeatCount="indefinite" path={r.d} />
+                            <g transform={`scale(${dir * ts},${ts})`} filter={hero ? 'url(#heroGlow)' : undefined}>
+                              <rect x={-8} y={-3.2} width={7.6} height={6.4} rx={1} fill={body} stroke="#0a0418" strokeWidth={0.4} />
+                              <path d="M-0.4 -3.2 L2.6 -3.2 L4.6 -0.7 L4.6 3.2 L-0.4 3.2 Z" fill={cab} stroke="#0a0418" strokeWidth={0.4} />
+                              <rect x={0.5} y={-2.1} width={2.5} height={2} rx={0.3} fill="#0a0418" opacity={0.55} />
+                              <circle cx={-5.2} cy={3.5} r={1.5} fill="#0a0418" />
+                              <circle cx={2.2} cy={3.5} r={1.5} fill="#0a0418" />
+                              <circle cx={-5.2} cy={3.5} r={0.6} fill="#cbd5e1" />
+                              <circle cx={2.2} cy={3.5} r={0.6} fill="#cbd5e1" />
+                            </g>
+                          </g>
+                        </g>
+                      )}
                     </g>
                   </g>
                 );
@@ -527,6 +562,7 @@ export default function DeliveryFlowMap({ origins, destinations, metric, brandLa
           <span className="flex items-center gap-1.5 text-amber-100"><span className="inline-block w-3 h-3 rounded-full shadow-[0_0_10px_#ffd24a]" style={{ background: 'radial-gradient(circle,#fff7e0,#ffd24a,#f97316)' }} /> Top city 👑</span>
           <span className="flex items-center gap-1.5 text-cyan-200"><span className="inline-block w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" /> Delivery city</span>
           <span className="flex items-center gap-1.5 text-fuchsia-200"><span className="inline-block w-6 h-[3px] rounded-full bg-gradient-to-r from-amber-300 via-fuchsia-400 to-cyan-400" /> Route — gold = highest volume</span>
+          <span className="flex items-center gap-1.5 text-cyan-100">✈️ Flown — islands / overseas</span>
         </div>
 
         {tip && (

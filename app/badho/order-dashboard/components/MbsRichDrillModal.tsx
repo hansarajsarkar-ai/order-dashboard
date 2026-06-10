@@ -2,6 +2,9 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import MultiSelectFilter from './MultiSelectFilter';
+import GroupByMenu, { type GroupDimension } from './GroupByMenu';
+import GroupByModal from './GroupByModal';
+import PoItemsModal, { type PriceBreakup } from './PoItemsModal';
 
 const MBS_PAGE_SIZE = 50;
 
@@ -15,6 +18,7 @@ export interface MbsOrderRow {
   orderStatus?: string;
   deliveryStatus?: string | null;
   amount: number;
+  poAmount?: number | null;
   itemTotal?: number | null;
   grossAmount?: number | null;
   orderMarginDiscount?: number | null;
@@ -40,7 +44,13 @@ export interface MbsOrderRow {
   sellerBusinessName: string | null;
   buyerAddress: string;
   buyerFullAddress?: string;
+  buyerAddressLine1?: string | null;
+  buyerLandmark?: string | null;
+  buyerPincode?: string | null;
+  buyerCity?: string | null;
+  buyerDistrict?: string | null;
   buyerState: string | null;
+  sellerAddress?: string;
   rejectReason?: string | null;
   rejectedBy?: string | null;
   reasonAddedByBadhoTeam?: string | null;
@@ -48,6 +58,24 @@ export interface MbsOrderRow {
   createdAt: string;
   statusMarkedTime?: string | null;
   statusDurationSec?: number | null;
+}
+
+// AWB rendered as a Delhivery forward-tracking link (matches order-dashboard).
+function awbLink(awb: string | null | undefined) {
+  return awb ? (
+    <a
+      href={`https://one.delhivery.com/shipments/forward/${encodeURIComponent(awb)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+      title="Track this shipment on Delhivery"
+    >
+      {awb}
+    </a>
+  ) : (
+    <span className="text-slate-400">—</span>
+  );
 }
 
 export function formatDateTime(s: string | null | undefined): string {
@@ -198,6 +226,9 @@ export default function MbsRichDrillModal({
   const [rejectReasonFilter, setRejectReasonFilter] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [page, setPage] = useState(1);
+  const [groupByDims, setGroupByDims] = useState<GroupDimension[]>([]);
+  // PO Items / Price Breakup sub-modal — opened from the "View Items" button.
+  const [poItems, setPoItems] = useState<{ poNumber: string; breakup: PriceBreakup } | null>(null);
 
   useEffect(() => {
     setSearch('');
@@ -208,6 +239,7 @@ export default function MbsRichDrillModal({
     setRejectReasonFilter(new Set());
     setSort(null);
     setPage(1);
+    setGroupByDims([]);
   }, [resetKey]);
 
   useEffect(() => { setPage(1); }, [search, pushedFilter, paymentFilter, courierFilter, deliveryFilter, rejectReasonFilter, sort]);
@@ -352,6 +384,7 @@ export default function MbsRichDrillModal({
   };
 
   return (
+    <>
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm"
       onClick={onClose}
@@ -367,6 +400,7 @@ export default function MbsRichDrillModal({
             <p className="text-slate-500 text-xs mt-0.5 truncate">{titleSub}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <GroupByMenu selected={groupByDims} onChange={setGroupByDims} align="right" />
             <button
               className="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 border border-purple-600 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_2px_8px_-2px_rgba(168,85,247,0.5)]"
               disabled={!filteredRows || filteredRows.length === 0}
@@ -521,6 +555,8 @@ export default function MbsRichDrillModal({
                   >
                     <span className="inline-flex items-center">PO Number{arrowFor('poNumber')}</span>
                   </th>
+                  <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">Items</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 px-2.5 py-2.5 text-left text-[11px] font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">View Ticket</th>
                   <SortTh k="status" label="Order Status" />
                   <SortTh k="itemTotal" label="Item Total" align="right" />
                   <SortTh k="grossAmount" label="Gross Amount" align="right" />
@@ -591,6 +627,55 @@ export default function MbsRichDrillModal({
                             </svg>
                           </a>
                         </div>
+                        {r.awbNumber && (
+                          <div className="text-[10px] text-slate-500 tabular-nums mt-0.5" title="AWB number">
+                            AWB: {awbLink(r.awbNumber)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setPoItems({
+                            poNumber: r.poNumber,
+                            breakup: {
+                              orderAmount: r.grossAmount != null ? Number(r.grossAmount) : (r.poAmount != null ? Number(r.poAmount) : null),
+                              itemTotalAmount: r.itemTotal != null ? Number(r.itemTotal) : null,
+                              itemDiscount: r.orderMarginDiscount != null ? Number(r.orderMarginDiscount) : null,
+                              couponAmount: r.CoupanAmount != null ? Number(r.CoupanAmount) : null,
+                              badhoDiscount: r.PaymentOptionDiscountByBadho != null ? Number(r.PaymentOptionDiscountByBadho) : null,
+                              appliedWalletAmount: r.appliedWalletAmount != null ? Number(r.appliedWalletAmount) : null,
+                              paidAmount: r.paidAmount != null ? Number(r.paidAmount) : null,
+                              sellerDiscount: r.discountBySeller != null ? Number(r.discountBySeller) : null,
+                              paymentOption: r.PaymentOption,
+                            },
+                          })}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[11px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"
+                          title="View items in this PO"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                            <line x1="12" y1="22.08" x2="12" y2="12" />
+                          </svg>
+                          View Items
+                        </button>
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap">
+                        <a
+                          href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(r.poNumber)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 text-[11px] font-bold border border-sky-300 hover:border-sky-400 transition-all"
+                          title={`Search Freshdesk tickets for PO ${r.poNumber}`}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <circle cx="11" cy="11" r="7" />
+                            <path d="m20 20-3.5-3.5" />
+                          </svg>
+                          View Ticket
+                        </a>
                       </td>
                       <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.orderStatus ?? r.status}</td>
                       <td className="px-2.5 py-2 text-right text-slate-900 tabular-nums whitespace-nowrap">{fmtAmt(r.itemTotal)}</td>
@@ -604,7 +689,7 @@ export default function MbsRichDrillModal({
                       <td className="px-2.5 py-2 whitespace-nowrap">{r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : <span className="text-slate-400">—</span>}</td>
                       <td className="px-2.5 py-2 text-right text-emerald-700 tabular-nums font-medium whitespace-nowrap">{fmtAmt(r.paidAmount)}</td>
                       <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.PaymentOption || <span className="text-slate-400">—</span>}</td>
-                      <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{r.awbNumber || <span className="text-slate-400">—</span>}</td>
+                      <td className="px-2.5 py-2 text-slate-700 tabular-nums whitespace-nowrap">{awbLink(r.awbNumber)}</td>
                       <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.courierName || <span className="text-slate-400">—</span>}</td>
                       <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentDate ? formatDateTime(r.paymentDate) : <span className="text-slate-400">—</span>}</td>
                       <td className="px-2.5 py-2 text-slate-700 whitespace-nowrap">{r.paymentEvent || <span className="text-slate-400">—</span>}</td>
@@ -625,6 +710,64 @@ export default function MbsRichDrillModal({
                   );
                 })}
               </tbody>
+              {filteredRows && filteredRows.length > 0 && (() => {
+                const tot = filteredRows.reduce((a, r) => {
+                  a.itemTotal += Number(r.itemTotal) || 0;
+                  a.gross     += Number(r.grossAmount) || 0;
+                  a.margin    += Number(r.orderMarginDiscount) || 0;
+                  a.coupon    += Number(r.CoupanAmount) || 0;
+                  a.wallet    += Number(r.appliedWalletAmount) || 0;
+                  a.seller    += Number(r.discountBySeller) || 0;
+                  a.badho     += Number(r.PaymentOptionDiscountByBadho) || 0;
+                  a.cod       += Number(r.codAmountToBeCollected) || 0;
+                  a.paid      += Number(r.paidAmount) || 0;
+                  a.refund    += Number(r.RefundAmount) || 0;
+                  return a;
+                }, { itemTotal: 0, gross: 0, margin: 0, coupon: 0, wallet: 0, seller: 0, badho: 0, cod: 0, paid: 0, refund: 0 });
+                const money = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+                const cell = 'sticky bottom-0 z-20 bg-purple-600 px-2.5 py-3 text-[12px] font-extrabold text-white whitespace-nowrap';
+                const numCell = `${cell} text-right tabular-nums`;
+                return (
+                  <tfoot>
+                    <tr className="shadow-[0_-2px_0_rgba(168,85,247,0.6)]">
+                      <td className={`${cell} left-0 z-30 min-w-[160px] max-w-[160px] w-[160px] uppercase tracking-wider`}>Total</td>
+                      <td className={`${cell} left-[160px] z-30 min-w-[120px] max-w-[120px] w-[120px]`}>{filteredRows.length.toLocaleString('en-IN')} orders</td>
+                      <td className={`${cell} left-[280px] z-30 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)]`} />
+                      <td className={cell} />{/* Items */}
+                      <td className={cell} />{/* View Ticket */}
+                      <td className={cell} />{/* Order Status */}
+                      <td className={numCell}>{money(tot.itemTotal)}</td>
+                      <td className={numCell}>{money(tot.gross)}</td>
+                      <td className={numCell}>{money(tot.margin)}</td>
+                      <td className={numCell}>{money(tot.coupon)}</td>
+                      <td className={numCell}>{money(tot.wallet)}</td>
+                      <td className={numCell}>{money(tot.seller)}</td>
+                      <td className={numCell}>{money(tot.badho)}</td>
+                      <td className={numCell}>{money(tot.cod)}</td>
+                      <td className={cell} />{/* Delivery Status */}
+                      <td className={numCell}>{money(tot.paid)}</td>
+                      <td className={cell} />{/* Payment Option */}
+                      <td className={cell} />{/* AWB */}
+                      <td className={cell} />{/* Courier */}
+                      <td className={cell} />{/* Payment Date */}
+                      <td className={cell} />{/* Payment Event */}
+                      <td className={cell} />{/* Buyer Business */}
+                      <td className={cell} />{/* Buyer Phone */}
+                      <td className={cell} />{/* Buyer Address */}
+                      <td className={cell} />{/* Seller Business */}
+                      <td className={cell} />{/* Seller Phone */}
+                      <td className={cell} />{/* Status Marked Time */}
+                      <td className={cell} />{/* Status Duration */}
+                      <td className={cell} />{/* Refund Initiated */}
+                      <td className={cell} />{/* Refund Completed */}
+                      <td className={numCell}>{money(tot.refund)}</td>
+                      <td className={cell} />{/* Reject Reason */}
+                      <td className={cell} />{/* Rejected By */}
+                      <td className={cell} />{/* Reason Added By Badho Team */}
+                    </tr>
+                  </tfoot>
+                );
+              })()}
             </table>
           )}
         </div>
@@ -656,5 +799,23 @@ export default function MbsRichDrillModal({
         )}
       </div>
     </div>
+
+    {/* Composite Group By aggregation over the current (filtered) rows */}
+    <GroupByModal
+      open={groupByDims.length > 0}
+      dimensions={groupByDims}
+      rows={filteredRows ?? []}
+      contextLabel={typeof titleMain === 'string' ? titleMain : undefined}
+      onClose={() => setGroupByDims([])}
+      onChangeDimensions={setGroupByDims}
+    />
+
+    {/* PO Items + Price Breakup, opened from a row's "View Items" button */}
+    <PoItemsModal
+      poNumber={poItems?.poNumber ?? null}
+      breakup={poItems?.breakup ?? null}
+      onClose={() => setPoItems(null)}
+    />
+    </>
   );
 }

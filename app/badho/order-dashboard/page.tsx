@@ -12467,26 +12467,46 @@ export default function OrderStatusDashboard() {
                     disabled={!filteredPivotDrillRows || filteredPivotDrillRows.length === 0}
                     onClick={() => {
                       if (!filteredPivotDrillRows) return;
-                      const isRejected = pivotDrillStatus === 'REJECTED';
+                      // Mirror every visible table column, left→right, so the CSV is a
+                      // 1:1 export of the on-screen drill table (minus the Items / View
+                      // Ticket action buttons, which carry no data).
+                      const buyerAddr = (r: OrderListRow) =>
+                        [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState]
+                          .filter((v) => v != null && String(v).trim() !== '')
+                          .join('_');
+                      // Flatten a latest-scan entry to one cell: "status · activity | location | date".
+                      const scanCell = (poNumber: string, i: number) => {
+                        const s = scansByPo[poNumber]?.[i];
+                        if (!s) return '';
+                        const sub = [s.status, s.activity].filter((v) => v && String(v).trim() !== '').join(' · ');
+                        return [sub, s.location?.trim() || '', s.date ? formatDateTime(s.date) : '']
+                          .filter((v) => v !== '').join(' | ');
+                      };
+                      const markedHeader = statusMarkedHeaderFor(filteredPivotDrillRows);
                       const headers = [
-                        'Pushed', 'PO Number', 'Order Status', 'Buyer Address', 'Item Total', 'Gross Amount', 'Item Discount', 'Paid Amount', 'Coupon Amount',
-                        'Seller Discount', 'Applied Wallet Amount', 'Payment Option',
-                        'AWB Number', 'Courier Name', 'COD Amount', 'Buyer Phone',
-                        'Payment Option Badho Discount', 'Payment Date', 'Payment Event',
-                        'Delivery Status', 'Buyer Business', 'Seller Phone', 'Seller Business',
-                        'Marked Pending', 'Refund Initiated', 'Refund Completed',
-                        ...(isRejected ? ['Reject Reason', 'Rejected By', 'Reason Added By Badho Team'] : []),
+                        'Marked Pending', 'Pushed', 'PO Number', 'AWB Number', 'Order Status',
+                        'Item Total', 'Gross Amount', 'Item Discount', 'Coupon Amount',
+                        'Applied Wallet Amount', 'Seller Discount', 'Payment Option Badho Discount',
+                        'COD Amount', 'Delivery Status', 'Paid Amount', 'Payment Option',
+                        'Courier Name', 'Payment Date', 'Payment Event',
+                        'Buyer Business', 'Buyer Phone', 'Buyer Address', 'Seller Business', 'Seller Phone',
+                        markedHeader, 'Status Duration',
+                        'Refund Initiated', 'Refund Completed', 'Refund Amount',
+                        'Reject Reason', 'Rejected By', 'Reason Added By Badho Team',
+                        'Latest Scan 1', 'Latest Scan 2', 'Latest Scan 3',
                       ];
                       const rows: CsvCell[][] = filteredPivotDrillRows.map((r) => [
-                        r.pushedStatus ?? 'Not Pushed', r.poNumber, r.orderStatus ?? r.status, r.buyerFullAddress ?? '',
-                        r.itemTotal ?? '', r.grossAmount ?? '', r.orderMarginDiscount ?? '', r.paidAmount ?? '', r.CoupanAmount ?? '',
-                        r.discountBySeller ?? '', r.appliedWalletAmount ?? '', r.PaymentOption ?? '',
-                        r.awbNumber ?? '', r.courierName ?? '', r.codAmountToBeCollected ?? '', r.buyerPhone ?? '',
-                        r.PaymentOptionDiscountByBadho ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
-                        r.deliveryStatus ?? '', r.buyerBusinessName ?? '', r.sellerPhone ?? '', r.sellerBusinessName ?? '',
                         r.MarkedpendingTime ?? r.markedPendingTime ?? '',
-                        r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '',
-                        ...(isRejected ? [r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? ''] : []),
+                        r.pushedStatus ?? 'Not Pushed', r.poNumber, r.awbNumber ?? '', r.orderStatus ?? r.status,
+                        r.itemTotal ?? '', r.grossAmount ?? '', r.orderMarginDiscount ?? '', r.CoupanAmount ?? '',
+                        r.appliedWalletAmount ?? '', r.discountBySeller ?? '', r.PaymentOptionDiscountByBadho ?? '',
+                        r.codAmountToBeCollected ?? '', r.deliveryStatus ?? '', r.paidAmount ?? '', r.PaymentOption ?? '',
+                        r.courierName ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
+                        r.buyerBusinessName ?? '', r.buyerPhone ?? '', buyerAddr(r), r.sellerBusinessName ?? '', r.sellerPhone ?? '',
+                        r.statusMarkedTime ?? '', formatDuration(r.statusDurationSec),
+                        r.RefundIntiatedTime ?? '', r.RefundCompletedTime ?? '', r.RefundAmount ?? '',
+                        r.rejectReason ?? '', r.rejectedBy ?? '', r.reasonAddedByBadhoTeam ?? '',
+                        scanCell(r.poNumber, 0), scanCell(r.poNumber, 1), scanCell(r.poNumber, 2),
                       ]);
                       const monthTag = pivotDrillMonth ? MONTH_NAMES[pivotDrillMonth - 1] : 'all';
                       const deliveryTag = pivotDrillDelivery === undefined ? 'all' : (pivotDrillDelivery ?? 'null');

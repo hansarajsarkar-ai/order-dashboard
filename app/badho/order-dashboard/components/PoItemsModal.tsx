@@ -293,8 +293,8 @@ export default function PoItemsModal({ poNumber, breakup: initialBreakup = null,
                         <td className={`px-3 py-2.5 text-[11px] tabular-nums border-b border-slate-100 font-semibold ${isTop ? 'text-amber-600' : 'text-slate-400'}`}>
                           {isTop ? '★' : idx + 1}
                         </td>
-                        <td className="pl-2 pr-3 py-2.5 border-b border-slate-100 max-w-0">
-                          <div className={`font-semibold truncate ${isTop ? 'text-amber-900' : 'text-slate-900'}`}>
+                        <td className="pl-2 pr-3 py-2.5 border-b border-slate-100">
+                          <div className={`font-semibold break-words ${isTop ? 'text-amber-900' : 'text-slate-900'}`} title={it.skuLabel || undefined}>
                             {it.skuLabel || <span className="text-slate-400 italic font-normal">Unnamed SKU</span>}
                           </div>
                           {it.brandLabel && (

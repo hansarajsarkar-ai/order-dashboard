@@ -9,6 +9,8 @@ import {
   isNumericCol,
   cellToneClass,
   rowToneClass,
+  computeMaxLoss,
+  heatBg,
 } from './columns';
 
 type Row = Record<string, unknown>;
@@ -98,6 +100,12 @@ export default function OrdersPushed() {
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ title: string; subtitle: string; rows: Row[] } | null>(null);
 
+  // Table filters + sort.
+  const [filterPo, setFilterPo] = useState('');
+  const [filterAwb, setFilterAwb] = useState('');
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -141,6 +149,46 @@ export default function OrdersPushed() {
       return { dim, bandRows };
     });
   }, [rows]);
+
+  // Filtered + sorted rows for the main table.
+  const displayRows = useMemo(() => {
+    const po = filterPo.trim().toLowerCase();
+    const awb = filterAwb.trim().toLowerCase();
+    let out = rows.filter((r) => {
+      if (po && !String(r['poNumber'] ?? '').toLowerCase().includes(po)) return false;
+      if (awb && !String(r['AWBNumber'] ?? '').toLowerCase().includes(awb)) return false;
+      return true;
+    });
+    if (sortKey) {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      out = [...out].sort((a, b) => {
+        const av = a[sortKey];
+        const bv = b[sortKey];
+        const aEmpty = av === null || av === undefined || av === '';
+        const bEmpty = bv === null || bv === undefined || bv === '';
+        if (aEmpty && bEmpty) return 0;
+        if (aEmpty) return 1; // empties last
+        if (bEmpty) return -1;
+        const an = Number(av);
+        const bn = Number(bv);
+        if (!isNaN(an) && !isNaN(bn)) return (an - bn) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    }
+    return out;
+  }, [rows, filterPo, filterAwb, sortKey, sortDir]);
+
+  // Max-loss heatmap is relative to the rows currently in view.
+  const maxLoss = useMemo(() => computeMaxLoss(displayRows, columns), [displayRows, columns]);
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   if (loading) {
     return (
@@ -260,49 +308,108 @@ export default function OrdersPushed() {
 
       {/* Full Orders Pushed table */}
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
-          <h3 className="text-sm font-bold text-white">Orders Pushed</h3>
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-white/10 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h3 className="text-sm font-bold text-white">Orders Pushed</h3>
+            {/* Filters */}
+            <div className="relative">
+              <input
+                value={filterPo}
+                onChange={(e) => setFilterPo(e.target.value)}
+                placeholder="Filter poNumber…"
+                className="w-40 pl-3 pr-7 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 text-white placeholder-purple-300/50 focus:border-fuchsia-400/50 focus:outline-none focus:ring-1 focus:ring-fuchsia-400/30"
+              />
+              {filterPo && (
+                <button
+                  onClick={() => setFilterPo('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-purple-300/70 hover:text-white text-xs px-1"
+                  title="Clear"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                value={filterAwb}
+                onChange={(e) => setFilterAwb(e.target.value)}
+                placeholder="Filter AWB number…"
+                className="w-44 pl-3 pr-7 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 text-white placeholder-purple-300/50 focus:border-fuchsia-400/50 focus:outline-none focus:ring-1 focus:ring-fuchsia-400/30"
+              />
+              {filterAwb && (
+                <button
+                  onClick={() => setFilterAwb('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-purple-300/70 hover:text-white text-xs px-1"
+                  title="Clear"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            {sortKey && (
+              <button
+                onClick={() => setSortKey(null)}
+                className="text-[11px] font-semibold text-purple-300/70 hover:text-white px-2 py-1 rounded-lg bg-white/5 border border-white/10"
+                title="Clear sort"
+              >
+                Clear sort ✕
+              </button>
+            )}
+          </div>
           <span className="text-[11px] font-semibold text-purple-300/70">
-            {rows.length.toLocaleString('en-IN')} rows
+            {displayRows.length.toLocaleString('en-IN')}
+            {displayRows.length !== rows.length ? ` / ${rows.length.toLocaleString('en-IN')}` : ''} rows
           </span>
         </div>
         <div className="overflow-auto max-h-[70vh]">
-          {rows.length === 0 ? (
-            <div className="p-12 text-center text-purple-300/70 text-sm">No pushed orders.</div>
+          {displayRows.length === 0 ? (
+            <div className="p-12 text-center text-purple-300/70 text-sm">
+              {rows.length === 0 ? 'No pushed orders.' : 'No rows match the current filters.'}
+            </div>
           ) : (
             <table className="text-xs border-collapse">
               <thead className="sticky top-0 z-10">
                 <tr>
-                  {columns.map((c) => (
-                    <th
-                      key={c.key}
-                      className="px-3 py-2 text-left font-semibold text-purple-200 bg-slate-900/95 border-b border-white/15 whitespace-nowrap"
-                    >
-                      {c.label}
-                    </th>
-                  ))}
+                  {columns.map((c) => {
+                    const active = sortKey === c.key;
+                    return (
+                      <th
+                        key={c.key}
+                        onClick={() => toggleSort(c.key)}
+                        className={
+                          'px-3 py-2 text-left font-semibold border-b border-white/15 whitespace-nowrap cursor-pointer select-none bg-slate-900/95 hover:bg-slate-800/95 ' +
+                          (active ? 'text-fuchsia-300' : 'text-purple-200')
+                        }
+                        title="Click to sort"
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {c.label}
+                          <span className={'text-[9px] ' + (active ? 'opacity-100' : 'opacity-30')}>
+                            {active ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+                          </span>
+                        </span>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
+                {displayRows.map((r, i) => (
                   <tr key={i} className={'transition-colors ' + rowToneClass(r)}>
                     {columns.map((c) => {
                       const v = r[c.key];
-                      const num = isNumericCol(v);
+                      const num = isNumericCol(v, c.key);
                       const tone = cellToneClass(c, v);
+                      const heat = heatBg(c, v, maxLoss);
                       if (c.key === 'poNumber') {
                         return (
                           <td
                             key={c.key}
-                            className="px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-right tabular-nums"
+                            className="px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-left"
                           >
                             <button
                               onClick={() =>
-                                openModal(
-                                  `PO #${formatValue(c, v)}`,
-                                  'Full order detail',
-                                  [r]
-                                )
+                                openModal(`PO #${formatValue(c, v)}`, 'Full order detail', [r])
                               }
                               className="font-bold text-fuchsia-300 hover:text-fuchsia-200 hover:underline cursor-pointer"
                               title="Click to view full order detail"
@@ -315,10 +422,11 @@ export default function OrdersPushed() {
                       return (
                         <td
                           key={c.key}
+                          style={heat ? { backgroundColor: heat } : undefined}
                           className={
                             'px-3 py-1.5 border-b border-white/5 whitespace-nowrap ' +
                             (num ? 'text-right tabular-nums ' : 'text-left ') +
-                            (tone || 'text-purple-100/90')
+                            (heat ? 'text-rose-50 font-semibold' : tone || 'text-purple-100/90')
                           }
                         >
                           {formatValue(c, v)}

@@ -83,9 +83,17 @@ function isNumericLike(v: unknown): boolean {
   return false;
 }
 
+// Identifier-ish columns shown verbatim as text — NO thousands separators.
+export const TEXT_KEYS = new Set(['poNumber', 'AWBNumber', 'sellerphone']);
+
+export function isTextKey(key: string): boolean {
+  return TEXT_KEYS.has(key);
+}
+
 export function formatValue(col: ColumnDef, v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
   if (col.key === 'MarkedpendingTime') return String(v).slice(0, 10);
+  if (TEXT_KEYS.has(col.key)) return String(v); // plain text, no commas
   if (typeof v === 'boolean') return v ? 'Yes' : 'No';
   if (isNumericLike(v)) {
     const n = Number(v);
@@ -97,8 +105,71 @@ export function formatValue(col: ColumnDef, v: unknown): string {
   return String(v);
 }
 
-export function isNumericCol(v: unknown): boolean {
+// For alignment: identifier text columns left-align even though numeric.
+export function isNumericCol(v: unknown, key?: string): boolean {
+  if (key && TEXT_KEYS.has(key)) return false;
   return isNumericLike(v);
+}
+
+// ── Max-loss heatmap ──────────────────────────────────────────────────
+// "Loss" depends on the column:
+//   • cost / discount columns  → larger value = more money lost
+//   • P&L Amount / P&L %        → more negative = more loss
+//   • threshold % columns       → only the "red" (bad) side counts as loss
+// We shade each loss cell red, deepest red on the worst value in that column,
+// so the eye lands straight on where margin is bleeding.
+const LOSS_HIGH = new Set([
+  'ItemDiscount',
+  'CoupanApplied',
+  'discountBySeller',
+  'discountByBadho',
+  'appliedWalletAmount',
+  'appliedVolumeDiscountAmount',
+  'deliveryCHargeWithWDC',
+  'OperationalCost',
+  'OperationalCost%',
+]);
+const LOSS_NEG = new Set(['P&LAmount', 'p&l%']);
+
+export function lossValue(col: ColumnDef, v: unknown): number {
+  if (!isNumericLike(v)) return 0;
+  const n = Number(v);
+  if (LOSS_NEG.has(col.key)) return n < 0 ? -n : 0;
+  if (col.cellTone) return col.cellTone(n) === 'red' ? Math.max(0, n) : 0;
+  if (LOSS_HIGH.has(col.key)) return Math.max(0, n);
+  return 0;
+}
+
+// Per-column worst loss across the given rows (relative to the current view).
+export function computeMaxLoss(
+  rows: Record<string, unknown>[],
+  columns: ColumnDef[]
+): Record<string, number> {
+  const m: Record<string, number> = {};
+  for (const c of columns) {
+    let mx = 0;
+    for (const r of rows) {
+      const l = lossValue(c, r[c.key]);
+      if (l > mx) mx = l;
+    }
+    m[c.key] = mx;
+  }
+  return m;
+}
+
+// Red background for a loss cell, scaled by how close it is to the column's max.
+export function heatBg(
+  col: ColumnDef,
+  v: unknown,
+  maxLoss: Record<string, number>
+): string | undefined {
+  const l = lossValue(col, v);
+  if (l <= 0) return undefined;
+  const mx = maxLoss[col.key] || 0;
+  if (mx <= 0) return undefined;
+  const frac = Math.min(1, l / mx);
+  const alpha = 0.1 + 0.5 * frac;
+  return `rgba(244,63,94,${alpha.toFixed(3)})`;
 }
 
 // Cell-level tone (green/red text) for the conditional % columns.

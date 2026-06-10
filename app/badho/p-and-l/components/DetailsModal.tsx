@@ -1,7 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
-import { ColumnDef, formatValue, isNumericCol, cellToneClass, rowToneClass } from './columns';
+import { useEffect, useMemo } from 'react';
+import {
+  ColumnDef,
+  formatValue,
+  isNumericCol,
+  cellToneClass,
+  rowToneClass,
+  computeMaxLoss,
+  heatBg,
+} from './columns';
 
 type Row = Record<string, unknown>;
 
@@ -14,6 +22,8 @@ interface Props {
 }
 
 export default function DetailsModal({ title, subtitle, columns, rows, onClose }: Props) {
+  const maxLoss = useMemo(() => computeMaxLoss(rows, columns), [rows, columns]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -96,15 +106,17 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose }
                   <tr key={i} className={'transition-colors ' + rowToneClass(r)}>
                     {columns.map((c) => {
                       const v = r[c.key];
-                      const num = isNumericCol(v);
+                      const num = isNumericCol(v, c.key);
                       const tone = cellToneClass(c, v);
+                      const heat = heatBg(c, v, maxLoss);
                       return (
                         <td
                           key={c.key}
+                          style={heat ? { backgroundColor: heat } : undefined}
                           className={
                             'px-3 py-1.5 border-b border-white/5 whitespace-nowrap ' +
                             (num ? 'text-right tabular-nums ' : 'text-left ') +
-                            (tone || 'text-purple-100/90')
+                            (heat ? 'text-rose-50 font-semibold' : tone || 'text-purple-100/90')
                           }
                         >
                           {formatValue(c, v)}

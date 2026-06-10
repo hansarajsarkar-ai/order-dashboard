@@ -11,6 +11,17 @@ export interface StateRow {
   amount: number;
 }
 
+export interface SellerPoint {
+  sellerId: string;
+  businessName: string | null;
+  city: string | null;
+  state: string | null;
+  lat: number;
+  lng: number;
+  count: number;
+  amount: number;
+}
+
 interface Props {
   data: StateRow[];
   metric: 'count' | 'amount';
@@ -19,6 +30,8 @@ interface Props {
   selectedState?: string | null;
   /** When true, side list shows all ranked states (scroll), with row click → onStateClick. */
   showAllStatesScrollable?: boolean;
+  /** When provided, overlay one pin per seller at their lat/long, sized by `metric`. */
+  sellerPoints?: SellerPoint[];
 }
 
 // Reconcile DB state names with the GeoJSON's ST_NM property.
@@ -114,13 +127,24 @@ const LABEL_OFFSETS: Record<string, [number, number]> = {
   'Dadra and Nagar Haveli and Daman and Diu': [-0.7, 0.2],
 };
 
-export default function IndiaStateMap({ data, metric, onStateClick, selectedState, showAllStatesScrollable }: Props) {
+export default function IndiaStateMap({ data, metric, onStateClick, selectedState, showAllStatesScrollable, sellerPoints }: Props) {
   type GeoFeatureCollection = {
     type: 'FeatureCollection';
     features: { type: 'Feature'; properties: FeatureProps; geometry: unknown }[];
   };
   const [geo, setGeo] = useState<GeoFeatureCollection | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; state: string; count: number; amount: number } | null>(null);
+  const [sellerTip, setSellerTip] = useState<{ x: number; y: number; seller: SellerPoint } | null>(null);
+
+  // Radius scale for seller pins: sqrt so area ~ value, clamped to a readable range.
+  const pinRadius = useMemo(() => {
+    const pts = sellerPoints ?? [];
+    const max = Math.max(...pts.map((p) => p[metric] || 0), 1);
+    return (v: number) => {
+      const r = Math.sqrt(Math.max(v, 0) / max) * 14;
+      return Math.max(3, Math.min(16, r));
+    };
+  }, [sellerPoints, metric]);
 
   useEffect(() => {
     fetch('/india-states.geojson')
@@ -304,6 +328,26 @@ export default function IndiaStateMap({ data, metric, onStateClick, selectedStat
               </>
             )}
           </Geographies>
+
+          {/* Seller operating-location pins — one per seller at their lat/long. */}
+          {sellerPoints?.map((p) => {
+            const r = pinRadius(p[metric] || 0);
+            return (
+              <Marker key={`seller-${p.sellerId}`} coordinates={[p.lng, p.lat]}>
+                <circle
+                  r={r}
+                  fill="rgba(253,224,71,0.55)"
+                  stroke="#fde047"
+                  strokeWidth={1}
+                  style={{ cursor: 'pointer', transition: 'r 150ms ease' }}
+                  onMouseMove={(e: React.MouseEvent) =>
+                    setSellerTip({ x: e.clientX, y: e.clientY, seller: p })
+                  }
+                  onMouseLeave={() => setSellerTip(null)}
+                />
+              </Marker>
+            );
+          })}
         </ComposableMap>
 
         {/* Legend */}
@@ -332,6 +376,29 @@ export default function IndiaStateMap({ data, metric, onStateClick, selectedStat
             <div className="tabular-nums">
               <span className="text-white/60">Revenue:</span>{' '}
               <span className="font-semibold text-purple-200">{formatAmount(tooltip.amount)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Seller pin tooltip */}
+        {sellerTip && (
+          <div
+            className="fixed z-[60] px-4 py-3 rounded-xl bg-slate-900/95 backdrop-blur border border-amber-300/40 text-white text-xs shadow-[0_0_30px_rgba(253,224,71,0.35)] pointer-events-none max-w-[260px]"
+            style={{ left: sellerTip.x + 14, top: sellerTip.y + 14 }}
+          >
+            <div className="font-bold text-amber-200 text-sm mb-1 truncate">
+              {sellerTip.seller.businessName || 'Unknown seller'}
+            </div>
+            <div className="text-white/60 mb-1.5">
+              {[sellerTip.seller.city, sellerTip.seller.state].filter(Boolean).join(', ') || '—'}
+            </div>
+            <div className="tabular-nums">
+              <span className="text-white/60">Orders:</span>{' '}
+              <span className="font-semibold">{sellerTip.seller.count.toLocaleString()}</span>
+            </div>
+            <div className="tabular-nums">
+              <span className="text-white/60">Revenue:</span>{' '}
+              <span className="font-semibold text-amber-200">{formatAmount(sellerTip.seller.amount)}</span>
             </div>
           </div>
         )}

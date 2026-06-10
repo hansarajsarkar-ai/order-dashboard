@@ -8,7 +8,7 @@ import {
   Line, Bar, Pie, Area, Cell, LabelList,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
-import IndiaStateMap, { type StateRow } from '../order-dashboard/components/IndiaStateMap';
+import IndiaStateMap, { type StateRow, type SellerPoint } from '../order-dashboard/components/IndiaStateMap';
 import MbsRichDrillModal, { type MbsOrderRow } from '../order-dashboard/components/MbsRichDrillModal';
 
 // ─── CSV utility ─────────────────────────────────────────────────────────
@@ -434,6 +434,10 @@ export default function BrandPerformanceDashboard() {
   const [mapLoading, setMapLoading] = useState(false);
   const [mapMetric, setMapMetric] = useState<'count' | 'amount'>('count');
   const [selectedMapState, setSelectedMapState] = useState<string | null>(null);
+  // Seller operating-location overlay (lat/long pins) for the map
+  const [showSellerPins, setShowSellerPins] = useState(false);
+  const [sellerLocData, setSellerLocData] = useState<SellerPoint[] | null>(null);
+  const [sellerLocLoading, setSellerLocLoading] = useState(false);
   interface CityRow { city: string | null; district: string | null; count: number; amount: number; buyers: number; }
   const [cityData, setCityData] = useState<{ data: CityRow[]; grand: { count: number; amount: number; buyers: number } } | null>(null);
   const [cityLoading, setCityLoading] = useState(false);
@@ -581,12 +585,15 @@ export default function BrandPerformanceDashboard() {
   // MOV Not Meet Cart Trend — DRAFT carts whose amount stayed below the seller's
   // effectiveMinimumOrderValue, bucketed over time. Respects the brand filter.
   interface MovTrendData {
-    data: Array<{ bucket: string; carts: number }>;
+    data: Array<{ bucket: string; carts: number; buyers: number }>;
     total: number;
+    totalCarts: number;
+    totalBuyers: number;
     granularity: 'day' | 'week' | 'month';
   }
   const [movTrendData, setMovTrendData] = useState<MovTrendData | null>(null);
   const [movTrendLoading, setMovTrendLoading] = useState(false);
+  const [movMetric, setMovMetric] = useState<'cart' | 'buyers'>('cart'); // default: Cart
 
   // Price Set tab — flat catalog of seller × SKU × unit price × margin × MRP
   interface PriceRow {
@@ -719,6 +726,35 @@ export default function BrandPerformanceDashboard() {
     fetchMap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, bpTab, range, customFrom, customTo, mbsBrands]);
+
+  const fetchSellerLocations = async () => {
+    try {
+      setSellerLocLoading(true);
+      const params = new URLSearchParams({ year: String(currentYear) });
+      const { startDate, endDate } = resolveRange();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
+      const res = await fetch(`/api/brand-performance/seller-locations?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      captureQuery('sellerLocs', json);
+      setSellerLocData(json.data);
+    } catch (err) {
+      console.error('Seller locations fetch error:', err);
+      setSellerLocData(null);
+    } finally {
+      setSellerLocLoading(false);
+    }
+  };
+
+  // Lazy-load seller pins the first time the overlay is switched on (or when
+  // filters change while it's already on). Avoids the extra query otherwise.
+  useEffect(() => {
+    if (!authChecked || bpTab !== 'dashboard' || !showSellerPins) return;
+    fetchSellerLocations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, bpTab, showSellerPins, range, customFrom, customTo, mbsBrands]);
 
   const fetchCity = async (stateName: string) => {
     try {
@@ -1154,30 +1190,37 @@ export default function BrandPerformanceDashboard() {
           <p className={t.subtitle}>How every brand stacks up — orders, GMV, and delivery quality across months.</p>
         </div>
 
-        {/* Sub-tab — sits directly beneath the title */}
-        <div className={`mb-6 ${t.tabWrap}`}>
-          {([
-            { key: 'trends',     label: 'Chart & Trend',   icon: '∿' },
-            { key: 'dashboard',  label: 'Dashboard',       icon: '▤' },
-            { key: 'details',    label: 'Pivot',           icon: '▥' },
-            { key: 'product',    label: 'Product wise',    icon: '◫' },
-            { key: 'topsellers', label: 'Brand × Product', icon: '★' },
-            { key: 'priceset',   label: 'Price Set',       icon: '₹' },
-            { key: 'alerts',     label: 'Alerts',          icon: '⚠' },
-          ] as const).map((tab) => {
-            const active = bpTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setBpTab(tab.key)}
-                className={`relative px-5 py-2 rounded-lg text-sm font-bold transition-all duration-300 inline-flex items-center gap-2 ${active ? t.tabActive : t.tabInactive}`}
-              >
-                <span className={`text-base leading-none ${active ? 'opacity-90' : 'opacity-60'}`}>{tab.icon}</span>
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Vertical nav + content — sidebar keeps tabs in view, content swaps in place */}
+        <div className="flex gap-6 items-start">
+          {/* Vertical sidebar nav */}
+          <aside className="w-52 shrink-0 sticky top-4 self-start z-20">
+            <nav className={`flex flex-col gap-1 p-2 rounded-xl ${t.isDark ? 'bg-slate-900/70 backdrop-blur-xl border border-white/10 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.6)]' : 'bg-white border border-slate-200 shadow-sm'}`}>
+              {([
+                { key: 'trends',     label: 'Chart & Trend',   icon: '∿' },
+                { key: 'dashboard',  label: 'Dashboard',       icon: '▤' },
+                { key: 'details',    label: 'Pivot',           icon: '▥' },
+                { key: 'product',    label: 'Product wise',    icon: '◫' },
+                { key: 'topsellers', label: 'Brand × Product', icon: '★' },
+                { key: 'priceset',   label: 'Price Set',       icon: '₹' },
+                { key: 'alerts',     label: 'Alerts',          icon: '⚠' },
+              ] as const).map((tab) => {
+                const active = bpTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setBpTab(tab.key)}
+                    className={`relative w-full px-4 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 flex items-center gap-2.5 text-left ${active ? t.tabActive : t.tabInactive}`}
+                  >
+                    <span className={`text-base leading-none ${active ? 'opacity-90' : 'opacity-60'}`}>{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          {/* Tab content — only the active tab renders here */}
+          <div className="flex-1 min-w-0">
 
         {/* KPI strip — Dashboard tab only */}
         {/* Monthly Breakdown by Order Status — Dashboard tab only */}
@@ -1666,7 +1709,23 @@ export default function BrandPerformanceDashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                  {queryBtn('map', 'Where they sell — state-wise')}
+                  {queryBtn(showSellerPins ? ['map', 'sellerLocs'] : 'map', 'Where they sell — state-wise')}
+                  {/* Seller hubs overlay toggle */}
+                  <button
+                    onClick={() => setShowSellerPins((v) => !v)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${
+                      showSellerPins
+                        ? (t.isDark ? 'bg-amber-400/20 text-amber-200 border-amber-300/40 shadow-sm' : 'bg-amber-100 text-amber-700 border-amber-300')
+                        : (t.isDark ? 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-white')
+                    }`}
+                    title="Plot each seller at their operating location (lat/long)"
+                  >
+                    <span className={`w-2 h-2 rounded-full ${showSellerPins ? 'bg-amber-300' : 'bg-amber-400/50'}`} />
+                    Seller hubs
+                    {showSellerPins && sellerLocData && (
+                      <span className="opacity-80">({sellerLocData.length})</span>
+                    )}
+                  </button>
                   <div className={`inline-flex gap-1 p-1 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
                     {(['count', 'amount'] as const).map((m) => {
                       const active = mapMetric === m;
@@ -1702,7 +1761,18 @@ export default function BrandPerformanceDashboard() {
                       showAllStatesScrollable
                       selectedState={selectedMapState}
                       onStateClick={(name) => { setSelectedMapState(name === selectedMapState ? null : name); setCitySearch(''); }}
+                      sellerPoints={showSellerPins ? (sellerLocData ?? undefined) : undefined}
                     />
+                  )}
+                  {showSellerPins && (
+                    <div className={`mt-3 flex items-center gap-2 text-[11px] ${t.isDark ? 'text-amber-200/80' : 'text-amber-700'}`}>
+                      <span className="inline-block w-3 h-3 rounded-full bg-amber-400/55 border border-amber-300" />
+                      {sellerLocLoading
+                        ? 'Loading seller locations…'
+                        : sellerLocData
+                          ? <>Each pin is a seller plotted at their operating location · sized by {mapMetric === 'count' ? 'order count' : 'GMV'} · {sellerLocData.length.toLocaleString('en-IN')} sellers with coordinates.</>
+                          : 'No seller coordinates available for this selection.'}
+                    </div>
                   )}
                 </div>
               </div>
@@ -3162,13 +3232,30 @@ export default function BrandPerformanceDashboard() {
                 <div className={`px-6 py-2 flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
                   <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>MOV Not Meet Cart Trend</h3>
                   <div className="flex items-center gap-2">
+                    <div className={`inline-flex gap-1 p-0.5 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
+                      {([
+                        { k: 'cart',   l: 'Cart' },
+                        { k: 'buyers', l: 'Buyer Count' },
+                      ] as const).map(({ k, l }) => {
+                        const active = movMetric === k;
+                        return (
+                          <button
+                            key={k}
+                            onClick={() => setMovMetric(k)}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${active ? (t.isDark ? 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white shadow-sm' : 'bg-purple-600 text-white shadow-sm') : (t.isDark ? 'text-purple-200 hover:bg-white/10' : 'text-slate-600 hover:bg-white')}`}
+                          >
+                            {l}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <span className={`text-[11px] ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>
                       {mbsBrands.size === 0
                         ? 'all brands'
                         : mbsBrands.size === 1
                           ? Array.from(mbsBrands)[0]
                           : `${mbsBrands.size} brands`}
-                      {movTrendData ? ` · ${movTrendData.total.toLocaleString('en-IN')} carts` : ''}
+                      {movTrendData ? ` · ${(movMetric === 'cart' ? movTrendData.totalCarts : movTrendData.totalBuyers).toLocaleString('en-IN')} ${movMetric === 'cart' ? 'carts' : 'buyers'}` : ''}
                     </span>
                     {queryBtn('movTrend', 'MOV Not Meet Cart Trend — DRAFT carts below seller MOV')}
                   </div>
@@ -3178,7 +3265,11 @@ export default function BrandPerformanceDashboard() {
                     <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>Loading trend…</div>
                   ) : movTrendData.data.length === 0 ? (
                     <div className={`h-full flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>No data for this selection</div>
-                  ) : (
+                  ) : (() => {
+                    const movKey   = movMetric === 'cart' ? 'carts' : 'buyers';
+                    const movColor = movMetric === 'cart' ? '#f59e0b' : '#38bdf8';
+                    const movName  = movMetric === 'cart' ? 'Carts below MOV' : 'Buyers who placed cart';
+                    return (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={movTrendData.data.map((p) => ({ ...p, bucketLabel: fmtBucket(p.bucket) }))} margin={{ top: 24, right: 20, left: 0, bottom: 0 }}>
                         <CartesianGrid stroke={grid} strokeDasharray="3 3" />
@@ -3187,14 +3278,15 @@ export default function BrandPerformanceDashboard() {
                         <Tooltip
                           contentStyle={{ background: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 8, color: tipText, fontSize: 12 }}
                           labelStyle={{ color: tipText, fontWeight: 700 }}
-                          formatter={(v: any) => [Number(v).toLocaleString('en-IN'), 'Carts below MOV']}
+                          formatter={(v: any) => [Number(v).toLocaleString('en-IN'), movName]}
                         />
-                        <Line type="monotone" dataKey="carts" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: '#f59e0b' }} activeDot={{ r: 6 }} name="Carts below MOV">
-                          <LabelList dataKey="carts" position="top" offset={10} formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: '#f59e0b', fontSize: 11, fontWeight: 700 }} />
+                        <Line key={movKey} type="monotone" dataKey={movKey} stroke={movColor} strokeWidth={2.5} dot={{ r: 4, fill: movColor }} activeDot={{ r: 6 }} name={movName} isAnimationActive={false}>
+                          <LabelList dataKey={movKey} position="top" offset={10} formatter={(v: unknown) => Number(v).toLocaleString('en-IN')} style={{ fill: movColor, fontSize: 11, fontWeight: 700 }} />
                         </Line>
                       </LineChart>
                     </ResponsiveContainer>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -4119,6 +4211,11 @@ export default function BrandPerformanceDashboard() {
         </div>
           );
         })()}
+
+          </div>
+          {/* /Tab content */}
+        </div>
+        {/* /Vertical nav + content */}
 
       </div>
 

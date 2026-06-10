@@ -52,6 +52,13 @@ async function _GET(req: NextRequest) {
     // the frontend sends startDate/endDate instead).
     whereDate += appendMonthsFilter(searchParams.get('months'), 'po."markedRejectedTime"', params);
 
+    // Optional "filter to selected seller(s)" — comma-separated sellerIds.
+    const sellerIds = searchParams.get('sellerIds');
+    if (sellerIds) {
+      params.push(sellerIds);
+      whereDate += ` AND po."sellerId"::text = ANY(string_to_array($${params.length}, ','))`;
+    }
+
     // Build bucket expressions per granularity
     let bucketSql = '';
     let bucketLabel = '';

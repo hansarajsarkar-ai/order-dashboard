@@ -13,6 +13,7 @@ import {
 import IndiaStateMap, { type StateRow } from './components/IndiaStateMap';
 import MultiSelectFilter from './components/MultiSelectFilter';
 import MonthMultiSelect from './components/MonthMultiSelect';
+import SellerMultiSelect, { type SellerOption } from './components/SellerMultiSelect';
 import IndiaDistrictMap, { type DistrictRow } from './components/IndiaDistrictMap';
 import RejectionReasonPivotTable from './components/RejectionReasonPivotTable';
 import CountdownCalendar from './components/CountdownCalendar';
@@ -1399,6 +1400,10 @@ export default function OrderStatusDashboard() {
   const [rtoTrendCustomTo, setRtoTrendCustomTo] = useState('');
   const [rtoTrendData, setRtoTrendData] = useState<RtoTrendPoint[] | null>(null);
   const [rtoTrendLoading, setRtoTrendLoading] = useState(false);
+  // Seller filter for the RTO trend chart (empty = all sellers).
+  const [rtoTrendSellerIds, setRtoTrendSellerIds] = useState<string[]>([]);
+  const [rtoSellerOptions, setRtoSellerOptions] = useState<SellerOption[]>([]);
+  const [rtoSellersLoading, setRtoSellersLoading] = useState(false);
   // Monthly RTO rate trend (cohort by markedPendingTime month)
   interface RtoRatePoint { month: number; label: string; rtoCount: number; deliveredCount: number; rtoRate: number; }
   const [rtoRateData, setRtoRateData] = useState<RtoRatePoint[] | null>(null);
@@ -2116,6 +2121,7 @@ export default function OrderStatusDashboard() {
         params.set('granularity', rtoTrendGranularity);
         if (rtoTrendMonths.length) params.set('months', rtoTrendMonths.join(','));
       }
+      if (rtoTrendSellerIds.length) params.set('sellerIds', rtoTrendSellerIds.join(','));
       const res = await fetch(`/api/order-rto-trend?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch RTO trend');
       const json = await res.json();
@@ -2133,7 +2139,32 @@ export default function OrderStatusDashboard() {
     if (activeTab !== 'rto') return;
     fetchRtoTrend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, rtoTrendGranularity, rtoTrendCustomFrom, rtoTrendCustomTo, rtoTrendMonths]);
+  }, [activeTab, rtoTrendGranularity, rtoTrendCustomFrom, rtoTrendCustomTo, rtoTrendMonths, rtoTrendSellerIds]);
+
+  // Load the seller options for the RTO trend filter once the RTO tab opens.
+  useEffect(() => {
+    if (activeTab !== 'rto' || rtoSellerOptions.length || rtoSellersLoading) return;
+    (async () => {
+      try {
+        setRtoSellersLoading(true);
+        const res = await fetch(`/api/order-rto-sellers?year=${currentYear}`);
+        if (!res.ok) throw new Error('Failed to fetch RTO sellers');
+        const json = await res.json();
+        setRtoSellerOptions(
+          (json.data || []).map((s: { sellerId: string; sellerName: string; count: number }) => ({
+            value: s.sellerId,
+            label: s.sellerName,
+            count: s.count,
+          }))
+        );
+      } catch (err) {
+        console.error('RTO sellers fetch error:', err);
+      } finally {
+        setRtoSellersLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const fetchRtoRate = async () => {
     try {
@@ -6404,6 +6435,12 @@ export default function OrderStatusDashboard() {
                 {rtoTrendGranularity !== 'custom' && (
                   <MonthMultiSelect selected={rtoTrendMonths} onChange={setRtoTrendMonths} year={currentYear} />
                 )}
+                <SellerMultiSelect
+                  selected={rtoTrendSellerIds}
+                  onChange={setRtoTrendSellerIds}
+                  options={rtoSellerOptions}
+                  loading={rtoSellersLoading}
+                />
                 </div>
               </div>
               {/* Custom date pickers row */}

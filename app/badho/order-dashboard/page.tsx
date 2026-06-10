@@ -1736,10 +1736,11 @@ export default function OrderStatusDashboard() {
     { key: 'DISPATCHED', color: '#818cf8', labelFill: '#fff' },
     { key: 'COMPLETED', color: '#84cc16', labelFill: '#fff' },
   ] as const;
-  // Default selection shows every status the API returns, including REJECTED &
-  // CANCELLED. Listed top→bottom so the legend reads COMPLETED-first.
+  // Default selection focuses on the in-flight statuses that flag anomalies:
+  // DISPATCHED, INPROGRESS, PENDING. The other statuses can be toggled on via
+  // the legend chips. Listed top→bottom so the legend reads COMPLETED-first.
   const [selectedAnomalyStatuses, setSelectedAnomalyStatuses] = useState<string[]>(
-    ['COMPLETED', 'DISPATCHED', 'INPROGRESS', 'REJECTED', 'CANCELLED', 'PENDING']
+    ['DISPATCHED', 'INPROGRESS', 'PENDING']
   );
   const toggleAnomalyStatus = (status: string) =>
     setSelectedAnomalyStatuses((prev) =>
@@ -10729,7 +10730,31 @@ export default function OrderStatusDashboard() {
               <p className="text-purple-300 text-sm mt-1">
                 Share of order statuses per day (100% stacked) — last 30 days
               </p>
-              <div className="mt-3">{queryBtn('anomalies', 'Order Anomalies')}</div>
+              <div className="mt-3 flex items-center gap-2">
+                {queryBtn('anomalies', 'Order Anomalies')}
+                <button
+                  type="button"
+                  disabled={!anomaliesData || anomaliesData.length === 0 || selectedAnomalyStatuses.length === 0}
+                  onClick={() => {
+                    if (!anomaliesData) return;
+                    // Stack-order columns (bottom→top) restricted to the selected statuses.
+                    const cols = ANOMALY_STATUS_META
+                      .map((s) => s.key)
+                      .filter((k) => selectedAnomalyStatuses.includes(k));
+                    const headers = ['Date', ...cols, 'Total'];
+                    const rows: CsvCell[][] = anomaliesData.map((row) => {
+                      const counts = cols.map((k) => Number(row[k] ?? 0));
+                      const total = counts.reduce((sum, n) => sum + n, 0);
+                      return [String(row.date), ...counts, total];
+                    });
+                    downloadCSV(`order-anomalies-${currentYear}.csv`, headers, rows);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border border-fuchsia-400/40 text-fuchsia-100 text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Download chart data (per-day counts for selected statuses) as CSV"
+                >
+                  ↓ CSV
+                </button>
+              </div>
             </div>
             {/* Legend = status multiselect. Click a chip to toggle that status in the chart.
                 Listed top→bottom (COMPLETED-first) — the reverse of the stack order. */}

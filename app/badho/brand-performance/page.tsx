@@ -1091,10 +1091,15 @@ export default function BrandPerformanceDashboard() {
   const fetchMovTrend = async () => {
     try {
       setMovTrendLoading(true);
-      const params = new URLSearchParams({ year: String(currentYear), granularity: trendGranularity });
-      const { startDate, endDate } = resolveRange();
-      if (startDate) params.append('startDate', startDate);
-      if (endDate)   params.append('endDate',   endDate);
+      // Always day-wise for the last 15 days, independent of the page-level
+      // granularity / date-range controls.
+      const fmt = (d: Date) => d.toISOString().slice(0, 10);
+      const end = new Date();
+      const start = new Date();
+      start.setDate(start.getDate() - 14); // inclusive 15-day window
+      const params = new URLSearchParams({ year: String(currentYear), granularity: 'day' });
+      params.append('startDate', fmt(start));
+      params.append('endDate',   fmt(end));
       if (mbsBrands.size > 0) params.append('brand', Array.from(mbsBrands).join(','));
       const res = await fetch(`/api/brand-performance/mov-not-met-trend?${params.toString()}`);
       if (!res.ok) throw new Error('failed');
@@ -3337,7 +3342,7 @@ export default function BrandPerformanceDashboard() {
               <div className={t.sectionCard}>
                 <div className={t.sectionAccent} />
                 <div className={`px-6 py-2 flex items-center justify-between gap-2 ${t.isDark ? 'bg-white/5 border-b border-white/10' : 'bg-slate-50 border-b border-slate-200'}`}>
-                  <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>MOV Not Meet Cart Trend</h3>
+                  <h3 className={`text-sm font-bold ${t.isDark ? 'text-white' : 'text-slate-900'}`}>MOV Not Meet Cart Trend <span className={`font-medium ${t.isDark ? 'text-purple-300/70' : 'text-slate-500'}`}>· last 15 days</span></h3>
                   <div className="flex items-center gap-2">
                     <div className={`inline-flex gap-1 p-0.5 rounded-lg ${t.isDark ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'}`}>
                       {([
@@ -3376,9 +3381,12 @@ export default function BrandPerformanceDashboard() {
                     const movKey   = movMetric === 'cart' ? 'carts' : 'buyers';
                     const movColor = movMetric === 'cart' ? '#f59e0b' : '#38bdf8';
                     const movName  = movMetric === 'cart' ? 'Carts below MOV' : 'Buyers who placed cart';
+                    // This chart is always last-15-days day-wise, so label by day
+                    // regardless of the page-level granularity control.
+                    const fmtDay = (s: string) => new Date(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
                     return (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={movTrendData.data.map((p) => ({ ...p, bucketLabel: fmtBucket(p.bucket) }))} margin={{ top: 24, right: 20, left: 0, bottom: 0 }}>
+                      <LineChart data={movTrendData.data.map((p) => ({ ...p, bucketLabel: fmtDay(p.bucket) }))} margin={{ top: 24, right: 20, left: 0, bottom: 0 }}>
                         <CartesianGrid stroke={grid} strokeDasharray="3 3" />
                         <XAxis dataKey="bucketLabel" stroke={ax} fontSize={11} tickMargin={6} />
                         <YAxis stroke={ax} fontSize={11} tickFormatter={(v: number) => v.toLocaleString('en-IN')} width={55} allowDecimals={false} />

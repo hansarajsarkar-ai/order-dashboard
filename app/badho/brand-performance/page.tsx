@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import IndiaStateMap, { type StateRow, type SellerPoint } from '../order-dashboard/components/IndiaStateMap';
 import MapErrorBoundary from '../order-dashboard/components/MapErrorBoundary';
+import DeliveryFlowMap, { type FlowOrigin, type FlowDest } from '../order-dashboard/components/DeliveryFlowMap';
 import MbsRichDrillModal, { type MbsOrderRow } from '../order-dashboard/components/MbsRichDrillModal';
 
 // ─── CSV utility ─────────────────────────────────────────────────────────
@@ -439,6 +440,9 @@ export default function BrandPerformanceDashboard() {
   const [showSellerPins, setShowSellerPins] = useState(false);
   const [sellerLocData, setSellerLocData] = useState<SellerPoint[] | null>(null);
   const [sellerLocLoading, setSellerLocLoading] = useState(false);
+  // Delivery-flow map (warehouse → delivery cities), shown when a brand is selected
+  const [flowData, setFlowData] = useState<{ origins: FlowOrigin[]; destinations: FlowDest[] } | null>(null);
+  const [flowLoading, setFlowLoading] = useState(false);
   interface CityRow { city: string | null; district: string | null; count: number; amount: number; buyers: number; }
   const [cityData, setCityData] = useState<{ data: CityRow[]; grand: { count: number; amount: number; buyers: number } } | null>(null);
   const [cityLoading, setCityLoading] = useState(false);
@@ -756,6 +760,36 @@ export default function BrandPerformanceDashboard() {
     fetchSellerLocations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, bpTab, showSellerPins, range, customFrom, customTo, mbsBrands]);
+
+  const fetchDeliveryFlows = async () => {
+    try {
+      setFlowLoading(true);
+      const params = new URLSearchParams({ year: String(currentYear) });
+      const { startDate, endDate } = resolveRange();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate)   params.append('endDate',   endDate);
+      params.append('brand', Array.from(mbsBrands).join(','));
+      const res = await fetch(`/api/brand-performance/delivery-flows?${params.toString()}`);
+      if (!res.ok) throw new Error('failed');
+      const json = await res.json();
+      captureQuery('flows', json);
+      setFlowData({ origins: json.origins ?? [], destinations: json.destinations ?? [] });
+    } catch (err) {
+      console.error('Delivery flows fetch error:', err);
+      setFlowData(null);
+    } finally {
+      setFlowLoading(false);
+    }
+  };
+
+  // The delivery-flow map only makes sense per-brand — fetch when ≥1 brand is
+  // selected, clear otherwise.
+  useEffect(() => {
+    if (!authChecked || bpTab !== 'dashboard') return;
+    if (mbsBrands.size === 0) { setFlowData(null); return; }
+    fetchDeliveryFlows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, bpTab, mbsBrands, range, customFrom, customTo]);
 
   const fetchCity = async (stateName: string) => {
     try {
@@ -1789,6 +1823,56 @@ export default function BrandPerformanceDashboard() {
                           ? <>Each pin is a seller plotted at their operating location · sized by {mapMetric === 'count' ? 'order count' : 'GMV'} · {sellerLocData.length.toLocaleString('en-IN')} sellers with coordinates.</>
                           : 'No seller coordinates available for this selection.'}
                     </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Delivery flow — animated warehouse → delivery-city routes for the selected brand */}
+              <div className={t.sectionCard}>
+                <div className={t.sectionAccent} />
+                <div className={t.sectionHeader}>
+                  <div>
+                    <h2 className={`${t.h2} text-lg`}>Delivery flow</h2>
+                    <p className={`${t.p} mt-1`}>
+                      Animated shipment routes from a brand’s warehouse to every city it delivered to.
+                      {mbsBrands.size === 0
+                        ? ' Select a brand above to play it.'
+                        : mbsBrands.size === 1
+                          ? <> Showing <span className={t.isDark ? 'text-amber-300 font-semibold' : 'text-amber-700 font-semibold'}>{Array.from(mbsBrands)[0]}</span>.</>
+                          : <> Showing <span className={t.isDark ? 'text-amber-300 font-semibold' : 'text-amber-700 font-semibold'}>{mbsBrands.size} brands</span>.</>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {mbsBrands.size > 0 && queryBtn('flows', 'Delivery flow — warehouse → cities')}
+                  </div>
+                </div>
+                <div className="p-4">
+                  {mbsBrands.size === 0 ? (
+                    <div className={`h-[420px] flex flex-col items-center justify-center gap-3 text-center ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                      <span className="text-4xl">🚚</span>
+                      <div className="text-sm font-semibold">Pick a brand to see its delivery network</div>
+                      <div className="text-xs max-w-sm opacity-80">Use the brand selector on the “Where they sell” card above. Routes animate from the brand’s warehouse to each delivery city, thicker where more orders landed.</div>
+                    </div>
+                  ) : flowLoading || !flowData ? (
+                    <div className={`h-[640px] flex items-center justify-center ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                      <div className="flex flex-col items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full border-2 ${t.isDark ? 'border-amber-500/30 border-t-amber-400' : 'border-amber-300 border-t-amber-600'} animate-spin`} />
+                        <span className="text-xs">Plotting delivery routes…</span>
+                      </div>
+                    </div>
+                  ) : flowData.origins.length === 0 || flowData.destinations.length === 0 ? (
+                    <div className={`h-[420px] flex items-center justify-center text-sm ${t.isDark ? 'text-purple-300' : 'text-slate-500'}`}>
+                      No warehouse coordinates or delivered orders for this selection.
+                    </div>
+                  ) : (
+                    <MapErrorBoundary label="Delivery flow">
+                      <DeliveryFlowMap
+                        origins={flowData.origins}
+                        destinations={flowData.destinations}
+                        metric={mapMetric}
+                        brandLabel={mbsBrands.size === 1 ? Array.from(mbsBrands)[0] : `${mbsBrands.size} brands`}
+                      />
+                    </MapErrorBoundary>
                   )}
                 </div>
               </div>

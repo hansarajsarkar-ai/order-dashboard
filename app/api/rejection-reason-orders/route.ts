@@ -36,6 +36,9 @@ interface OrderDetailRow {
   RefundCompletedTime: string | null;
   RefundAmount: string | null;
   codAmountToBeCollected: string | null;
+  volumetricWeight: string | null;
+  absoluteWeight: string | null;
+  chargeableWeight: string | null;
   rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
@@ -160,6 +163,10 @@ async function _GET(req: NextRequest) {
         pf."markedStatusCompletedTime"                                                        AS "RefundCompletedTime",
         pf."refundAmount"::text                                                               AS "RefundAmount",
         dv."codAmountToBeCollected",
+        -- Weights from latest intercity delivery metaDetails (dims in cm).
+        ROUND(((dv."metaDetails"->>'length')::numeric * (dv."metaDetails"->>'breadth')::numeric * (dv."metaDetails"->>'height')::numeric) / 5000.0, 3)::text AS "volumetricWeight",
+        (dv."metaDetails"->>'weight')::numeric::text AS "absoluteWeight",
+        ROUND(GREATEST(((dv."metaDetails"->>'length')::numeric * (dv."metaDetails"->>'breadth')::numeric * (dv."metaDetails"->>'height')::numeric) / 5000.0, (dv."metaDetails"->>'weight')::numeric), 3)::text AS "chargeableWeight",
         po."rejectReason",
         po."rejectedBy",
         po."reasonAddedByBadhoTeam",
@@ -198,7 +205,7 @@ async function _GET(req: NextRequest) {
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
       LEFT JOIN LATERAL (
-        SELECT di."id" AS "deliveryId", di."trackingInfo", di."status", di."codAmountToBeCollected"
+        SELECT di."id" AS "deliveryId", di."trackingInfo", di."status", di."codAmountToBeCollected", di."metaDetails"
         FROM "deliveries"."intercityDelivery" di
         WHERE di."purchaseOrderId" = po."id"
         ORDER BY di."created_at" DESC
@@ -236,6 +243,9 @@ async function _GET(req: NextRequest) {
       itemTotal: r.ItemTotal != null ? Number(r.ItemTotal) : null,
       grossAmount: r.GrossAmount != null ? Number(r.GrossAmount) : null,
       orderMarginDiscount: r.OrderMarginDiscount != null ? Number(r.OrderMarginDiscount) : null,
+      volumetricWeight: r.volumetricWeight != null ? Number(r.volumetricWeight) : null,
+      absoluteWeight: r.absoluteWeight != null ? Number(r.absoluteWeight) : null,
+      chargeableWeight: r.chargeableWeight != null ? Number(r.chargeableWeight) : null,
     }));
 
     return NextResponse.json({

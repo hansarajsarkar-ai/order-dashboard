@@ -45,6 +45,9 @@ interface OrderListRow {
   RefundCompletedTime?: string | null;
   RefundAmount?: number | null;
   codAmountToBeCollected?: number | null;
+  volumetricWeight?: number | null;
+  absoluteWeight?: number | null;
+  chargeableWeight?: number | null;
   pushedStatus?: string;
   MarkedpendingTime?: string | null;
   buyerPhone: string | null;
@@ -806,6 +809,9 @@ export default function OrderStatusDashboard() {
     paymentOption: string | null;
     awbNumber: string | null;
     courierName: string | null;
+    volumetricWeight: number | null;
+    absoluteWeight: number | null;
+    chargeableWeight: number | null;
     paymentDate: string | null;
     paymentEvent: string | null;
     buyerPhone: string | null;
@@ -1546,6 +1552,9 @@ export default function OrderStatusDashboard() {
     awbNumber: string | null;
     logisticName: string | null;
     codCollect: number;
+    volumetricWeight: number | null;
+    absoluteWeight: number | null;
+    chargeableWeight: number | null;
     buyerName: string | null;
     buyerBusinessName: string | null;
     buyerPhone: string | null;
@@ -3493,6 +3502,9 @@ export default function OrderStatusDashboard() {
       case 'courier': return r.courierName ?? '';
       case 'deliveryStatus': return r.deliveryStatus ?? '';
       case 'cod': return num(r.codAmountToBeCollected);
+      case 'volumetricWeight': return num(r.volumetricWeight);
+      case 'absoluteWeight': return num(r.absoluteWeight);
+      case 'chargeableWeight': return num(r.chargeableWeight);
       case 'buyerPhone': return r.buyerPhone ?? '';
       case 'buyerBusiness': return r.buyerBusinessName ?? '';
       case 'sellerPhone': return r.sellerPhone ?? '';
@@ -10065,6 +10077,9 @@ export default function OrderStatusDashboard() {
                           <th className="px-4 py-3 text-left font-semibold">Payment Option</th>
                           <th className="px-4 py-3 text-left font-semibold">AWB Number</th>
                           <th className="px-4 py-3 text-left font-semibold">Courier Name</th>
+                          <th className="px-4 py-3 text-right font-semibold text-sky-300">Volumetric Wt (kg)</th>
+                          <th className="px-4 py-3 text-right font-semibold text-sky-300">Absolute Wt (kg)</th>
+                          <th className="px-4 py-3 text-right font-semibold text-sky-300">Chargeable Wt (kg)</th>
                           <th className="px-4 py-3 text-left font-semibold">Buyer Business</th>
                           <th className="px-4 py-3 text-left font-semibold">Buyer Phone</th>
                           <th className="px-4 py-3 text-left font-semibold">Buyer Address</th>
@@ -10141,6 +10156,9 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{o.paymentOption ?? '—'}</td>
                             <td className="px-4 py-2.5 text-purple-100 text-[11px] tabular-nums whitespace-nowrap">{o.awbNumber ?? '—'}</td>
                             <td className="px-4 py-2.5 text-purple-100 text-[11px] whitespace-nowrap">{o.courierName ?? '—'}</td>
+                            <td className="px-4 py-2.5 text-right text-sky-300 text-[11px] tabular-nums whitespace-nowrap">{o.volumetricWeight != null ? o.volumetricWeight.toFixed(3) : '—'}</td>
+                            <td className="px-4 py-2.5 text-right text-sky-300 text-[11px] tabular-nums whitespace-nowrap">{o.absoluteWeight != null ? o.absoluteWeight.toFixed(3) : '—'}</td>
+                            <td className="px-4 py-2.5 text-right text-sky-200 font-semibold text-[11px] tabular-nums whitespace-nowrap">{o.chargeableWeight != null ? o.chargeableWeight.toFixed(3) : '—'}</td>
                             <td className="px-4 py-2.5 text-purple-100 max-w-[180px] truncate" title={o.buyerName ?? ''}>{o.buyerName ?? '—'}</td>
                             <td className="px-4 py-2.5 text-purple-100 text-[11px] tabular-nums whitespace-nowrap">{o.buyerPhone ?? '—'}</td>
                             <td className="px-4 py-2.5 text-purple-100/80 text-[11px] max-w-[260px] whitespace-normal">{o.buyerFullAddress ?? '—'}</td>
@@ -10159,7 +10177,7 @@ export default function OrderStatusDashboard() {
                           </tr>
                         ))}
                         {marginDayData.length === 0 && (
-                          <tr><td colSpan={36} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
+                          <tr><td colSpan={39} className="px-4 py-8 text-center text-purple-300/70">No orders for this day.</td></tr>
                         )}
                       </tbody>
                       {marginDayData.length > 0 && marginDayTotals && (
@@ -10178,7 +10196,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-4 py-3 text-right text-purple-200/80 tabular-nums">{fmtFull(marginDayTotals.deliveryChargeRs)}</td>
                             <td className="px-4 py-3 text-right text-sky-300 tabular-nums">{fmtFull(marginDayData.reduce((s, o) => s + (o.dbDeliveryChargeRs ?? 0), 0))}</td>
                             <td className="px-4 py-3 text-right text-rose-300 tabular-nums">{fmtFull(marginDayTotals.rtoChargeRs)}</td>
-                            <td colSpan={23}></td>
+                            <td colSpan={26}></td>
                           </tr>
                         </tfoot>
                       )}
@@ -12526,7 +12544,8 @@ export default function OrderStatusDashboard() {
                         'Marked Pending', 'Pushed', 'PO Number', 'AWB Number', 'Order Status',
                         'Item Total', 'Gross Amount', 'Item Discount', 'Coupon Amount',
                         'Applied Wallet Amount', 'Seller Discount', 'Payment Option Badho Discount',
-                        'COD Amount', 'Delivery Status', 'Paid Amount', 'Payment Option',
+                        'COD Amount', 'Volumetric Wt (kg)', 'Absolute Wt (kg)', 'Chargeable Wt (kg)',
+                        'Delivery Status', 'Paid Amount', 'Payment Option',
                         'Courier Name', 'Payment Date', 'Payment Event',
                         'Buyer Business', 'Buyer Phone', 'Buyer Address', 'Seller Business', 'Seller Phone',
                         markedHeader, 'Status Duration',
@@ -12539,7 +12558,8 @@ export default function OrderStatusDashboard() {
                         r.pushedStatus ?? 'Not Pushed', r.poNumber, r.awbNumber ?? '', r.orderStatus ?? r.status,
                         r.itemTotal ?? '', r.grossAmount ?? '', r.orderMarginDiscount ?? '', r.CoupanAmount ?? '',
                         r.appliedWalletAmount ?? '', r.discountBySeller ?? '', r.PaymentOptionDiscountByBadho ?? '',
-                        r.codAmountToBeCollected ?? '', r.deliveryStatus ?? '', r.paidAmount ?? '', r.PaymentOption ?? '',
+                        r.codAmountToBeCollected ?? '', r.volumetricWeight ?? '', r.absoluteWeight ?? '', r.chargeableWeight ?? '',
+                        r.deliveryStatus ?? '', r.paidAmount ?? '', r.PaymentOption ?? '',
                         r.courierName ?? '', r.paymentDate ?? '', r.paymentEvent ?? '',
                         r.buyerBusinessName ?? '', r.buyerPhone ?? '', buyerAddr(r), r.sellerBusinessName ?? '', r.sellerPhone ?? '',
                         r.statusMarkedTime ?? '', formatDuration(r.statusDurationSec),
@@ -12799,6 +12819,9 @@ export default function OrderStatusDashboard() {
                               <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
                               <SortTh k="badhoDiscount" label="Payment Option Badho Discount" align="right" />
                               <SortTh k="cod" label="COD Amount" align="right" />
+                              <SortTh k="volumetricWeight" label="Volumetric Wt (kg)" align="right" cls="text-sky-700 bg-sky-50/70" />
+                              <SortTh k="absoluteWeight" label="Absolute Wt (kg)" align="right" cls="text-sky-700 bg-sky-50/70" />
+                              <SortTh k="chargeableWeight" label="Chargeable Wt (kg)" align="right" cls="text-sky-700 bg-sky-50/70" />
                               <SortTh k="deliveryStatus" label="Delivery Status" />
                               <SortTh k="paidAmount" label="Paid Amount" align="right" />
                               <SortTh k="paymentOption" label="Payment Option" />
@@ -12918,6 +12941,9 @@ export default function OrderStatusDashboard() {
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-sky-700 tabular-nums whitespace-nowrap bg-sky-50/40">{r.volumetricWeight != null ? r.volumetricWeight.toFixed(3) : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-sky-700 tabular-nums whitespace-nowrap bg-sky-50/40">{r.absoluteWeight != null ? r.absoluteWeight.toFixed(3) : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-sky-800 font-semibold tabular-nums whitespace-nowrap bg-sky-50/40">{r.chargeableWeight != null ? r.chargeableWeight.toFixed(3) : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {r.deliveryStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatus}</span> : <span className="text-slate-400">—</span>}
                           </td>
@@ -13044,6 +13070,9 @@ export default function OrderStatusDashboard() {
                             <td className={num}>{money(t.seller)}</td>
                             <td className={num}>{money(t.badho)}</td>
                             <td className={num}>{money(t.cod)}</td>
+                            <td className={cell} />
+                            <td className={cell} />
+                            <td className={cell} />
                             <td className={cell} />
                             <td className={num}>{money(t.paid)}</td>
                             <td className={cell} />
@@ -13825,6 +13854,9 @@ export default function OrderStatusDashboard() {
                         case 'sellerDiscount': return num(r.discountBySeller);
                         case 'badhoDiscount': return num(r.PaymentOptionDiscountByBadho);
                         case 'cod': return num(r.codCollect);
+                        case 'volumetricWeight': return num(r.volumetricWeight);
+                        case 'absoluteWeight': return num(r.absoluteWeight);
+                        case 'chargeableWeight': return num(r.chargeableWeight);
                         case 'deliveryStatus': return r.shipmentStatus ?? '';
                         case 'paidAmount': return num(r.paidAmount);
                         case 'paymentOption': return r.paymentMode ?? '';
@@ -13928,6 +13960,9 @@ export default function OrderStatusDashboard() {
                           <SortTh k="sellerDiscount" label="Seller Discount" align="right" />
                           <SortTh k="badhoDiscount" label="Payment Option Badho Discount" align="right" />
                           <SortTh k="cod" label="COD Amount" align="right" />
+                          <SortTh k="volumetricWeight" label="Volumetric Wt (kg)" align="right" cls="text-sky-700 bg-sky-50/70" />
+                          <SortTh k="absoluteWeight" label="Absolute Wt (kg)" align="right" cls="text-sky-700 bg-sky-50/70" />
+                          <SortTh k="chargeableWeight" label="Chargeable Wt (kg)" align="right" cls="text-sky-700 bg-sky-50/70" />
                           <SortTh k="deliveryStatus" label="Delivery Status" />
                           <SortTh k="paidAmount" label="Paid Amount" align="right" />
                           <SortTh k="paymentOption" label="Payment Option" />
@@ -14029,6 +14064,9 @@ export default function OrderStatusDashboard() {
                               <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller ? fmtAmt(r.discountBySeller) : dash}</td>
                               <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho ? fmtAmt(r.PaymentOptionDiscountByBadho) : dash}</td>
                               <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codCollect ? fmtAmt(r.codCollect) : dash}</td>
+                              <td className="px-2.5 py-2 text-right text-sky-700 tabular-nums whitespace-nowrap bg-sky-50/40">{r.volumetricWeight != null ? r.volumetricWeight.toFixed(3) : dash}</td>
+                              <td className="px-2.5 py-2 text-right text-sky-700 tabular-nums whitespace-nowrap bg-sky-50/40">{r.absoluteWeight != null ? r.absoluteWeight.toFixed(3) : dash}</td>
+                              <td className="px-2.5 py-2 text-right text-sky-800 font-semibold tabular-nums whitespace-nowrap bg-sky-50/40">{r.chargeableWeight != null ? r.chargeableWeight.toFixed(3) : dash}</td>
                               <td className="px-2.5 py-2 whitespace-nowrap">
                                 {r.shipmentStatus ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.shipmentStatus}</span> : dash}
                               </td>

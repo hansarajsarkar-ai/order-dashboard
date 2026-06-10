@@ -24,6 +24,9 @@ interface Row {
   RefundCompletedTime: string | null;
   RefundAmount: string | null;
   codAmountToBeCollected: number | null;
+  volumetricWeight: string | null;
+  absoluteWeight: string | null;
+  chargeableWeight: string | null;
   pushedStatus: string;
   rejectReason: string | null;
   rejectedBy: string | null;
@@ -255,6 +258,11 @@ async function _GET(req: NextRequest) {
         pf."markedStatusCompletedTime" AS "RefundCompletedTime",
         pf."refundAmount"::text        AS "RefundAmount",
         dv."codAmountToBeCollected" AS "codAmountToBeCollected",
+        -- Weights from latest intercity delivery metaDetails (dims in cm).
+        -- Volumetric = L×B×H / 5000 (kg); chargeable = max(volumetric, absolute).
+        ROUND(((dv."metaDetails"->>'length')::numeric * (dv."metaDetails"->>'breadth')::numeric * (dv."metaDetails"->>'height')::numeric) / 5000.0, 3)::text AS "volumetricWeight",
+        (dv."metaDetails"->>'weight')::numeric::text AS "absoluteWeight",
+        ROUND(GREATEST(((dv."metaDetails"->>'length')::numeric * (dv."metaDetails"->>'breadth')::numeric * (dv."metaDetails"->>'height')::numeric) / 5000.0, (dv."metaDetails"->>'weight')::numeric), 3)::text AS "chargeableWeight",
         CASE WHEN dv."deliveryId" IS NOT NULL THEN 'Pushed' ELSE 'Not Pushed' END AS "pushedStatus",
         po."rejectReason",
         po."rejectedBy" AS "rejectedBy",
@@ -304,7 +312,8 @@ async function _GET(req: NextRequest) {
         SELECT di."id" AS "deliveryId",
                di."trackingInfo",
                di."status",
-               di."codAmountToBeCollected"
+               di."codAmountToBeCollected",
+               di."metaDetails"
         FROM "deliveries"."intercityDelivery" di
         WHERE di."purchaseOrderId" = po."id"
         ORDER BY di."created_at" DESC
@@ -362,6 +371,9 @@ async function _GET(req: NextRequest) {
       RefundCompletedTime: r.RefundCompletedTime,
       RefundAmount: r.RefundAmount != null ? parseFloat(String(r.RefundAmount)) : null,
       codAmountToBeCollected: r.codAmountToBeCollected,
+      volumetricWeight: r.volumetricWeight != null ? parseFloat(String(r.volumetricWeight)) : null,
+      absoluteWeight: r.absoluteWeight != null ? parseFloat(String(r.absoluteWeight)) : null,
+      chargeableWeight: r.chargeableWeight != null ? parseFloat(String(r.chargeableWeight)) : null,
       pushedStatus: r.pushedStatus,
       rejectReason: r.rejectReason,
       rejectedBy: r.rejectedBy,

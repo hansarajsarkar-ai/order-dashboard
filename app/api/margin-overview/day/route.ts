@@ -40,6 +40,9 @@ interface Row {
   paymentOption: string | null;
   awbNumber: string | null;
   courierName: string | null;
+  volumetricWeight: string | null;
+  absoluteWeight: string | null;
+  chargeableWeight: string | null;
   paymentDate: string | null;
   paymentEvent: string | null;
   buyerPhone: string | null;
@@ -95,7 +98,8 @@ export async function GET(req: NextRequest) {
         di."created_at",
         di."deliveryCharge",
         di."trackingInfo",
-        di."codAmountToBeCollected"
+        di."codAmountToBeCollected",
+        di."metaDetails"
       FROM "deliveries"."intercityDelivery" di
       WHERE ${deliveryFilter}
       ORDER BY di."purchaseOrderId", di."created_at" DESC, di."id" DESC
@@ -155,6 +159,10 @@ export async function GET(req: NextRequest) {
         po."paymentInfo"->>'option'                              AS payment_option,
         dv."trackingInfo"->>'awbNumber'                          AS awb_number,
         dv."trackingInfo"->>'courierName'                        AS courier_name,
+        -- Weights from latest intercity delivery metaDetails (dims in cm).
+        ROUND(((dv."metaDetails"->>'length')::numeric * (dv."metaDetails"->>'breadth')::numeric * (dv."metaDetails"->>'height')::numeric) / 5000.0, 3)::text AS volumetric_weight,
+        (dv."metaDetails"->>'weight')::numeric::text             AS absolute_weight,
+        ROUND(GREATEST(((dv."metaDetails"->>'length')::numeric * (dv."metaDetails"->>'breadth')::numeric * (dv."metaDetails"->>'height')::numeric) / 5000.0, (dv."metaDetails"->>'weight')::numeric), 3)::text AS chargeable_weight,
         pop."created_at"                                         AS payment_date,
         pop."event"                                              AS payment_event,
         b."phone"                                                AS buyer_phone,
@@ -252,6 +260,9 @@ export async function GET(req: NextRequest) {
       payment_option                                     AS "paymentOption",
       awb_number                                         AS "awbNumber",
       courier_name                                       AS "courierName",
+      volumetric_weight                                  AS "volumetricWeight",
+      absolute_weight                                    AS "absoluteWeight",
+      chargeable_weight                                  AS "chargeableWeight",
       payment_date                                       AS "paymentDate",
       payment_event                                      AS "paymentEvent",
       buyer_phone                                        AS "buyerPhone",
@@ -307,6 +318,9 @@ export async function GET(req: NextRequest) {
       paymentOption: r.paymentOption ?? null,
       awbNumber: r.awbNumber ?? null,
       courierName: r.courierName ?? null,
+      volumetricWeight: r.volumetricWeight != null ? Number(r.volumetricWeight) : null,
+      absoluteWeight: r.absoluteWeight != null ? Number(r.absoluteWeight) : null,
+      chargeableWeight: r.chargeableWeight != null ? Number(r.chargeableWeight) : null,
       paymentDate: r.paymentDate ?? null,
       paymentEvent: r.paymentEvent ?? null,
       buyerPhone: r.buyerPhone ?? null,

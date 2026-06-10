@@ -68,6 +68,9 @@ interface OrderDetail {
   RefundCompletedTime: string | null;
   RefundAmount: string | number | null;
   codAmountToBeCollected: string | number | null;
+  volumetricWeight: string | number | null;
+  absoluteWeight: string | number | null;
+  chargeableWeight: string | number | null;
   rejectReason: string | null;
   rejectedBy: string | null;
   reasonAddedByBadhoTeam: string | null;
@@ -311,6 +314,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
       case 'courier': return r.courierName ?? '';
       case 'deliveryStatus': return r.deliveryStatusDv ?? '';
       case 'cod': return num(r.codAmountToBeCollected);
+      case 'volumetricWeight': return num(r.volumetricWeight);
+      case 'absoluteWeight': return num(r.absoluteWeight);
+      case 'chargeableWeight': return num(r.chargeableWeight);
       case 'buyerPhone': return r.buyerPhone ?? '';
       case 'buyerBusiness': return r.buyerBusinessName ?? '';
       case 'sellerPhone': return r.sellerPhone ?? '';
@@ -932,7 +938,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                       'discountBySeller', 'PaymentOptionDiscountByBadho',
                       'appliedWalletAmount', 'PaymentOption',
                       'awbNumber', 'courierName',
-                      'codAmountToBeCollected', 'reason_category',
+                      'codAmountToBeCollected', 'Volumetric Wt (kg)', 'Absolute Wt (kg)', 'Chargeable Wt (kg)', 'reason_category',
                       'sellerPhone', 'sellerBusinessName',
                       'buyerBusinessName', 'buyerPhone', 'buyerAddress',
                       'paymentDate', 'paymentEvent',
@@ -947,7 +953,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                       r.discountBySeller, r.PaymentOptionDiscountByBadho,
                       r.appliedWalletAmount, r.PaymentOption,
                       r.awbNumber, r.courierName,
-                      r.codAmountToBeCollected, r.reason_category,
+                      r.codAmountToBeCollected, r.volumetricWeight, r.absoluteWeight, r.chargeableWeight, r.reason_category,
                       r.sellerPhone, r.sellerBusinessName,
                       r.buyerBusinessName, r.buyerPhone,
                       [r.buyerAddressLine1, r.buyerLandmark, r.buyerPincode, r.buyerCity, r.buyerDistrict, r.buyerState].filter((v) => v != null && String(v).trim() !== '').join('_'),
@@ -1124,6 +1130,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                             <SortTh k="sellerDiscount" label="Seller Discount" />
                             <SortTh k="badhoDiscount" label="Payment Option Badho Discount" />
                             <SortTh k="cod" label="COD Amount" />
+                            <SortTh k="volumetricWeight" label="Volumetric Wt (kg)" cls="text-sky-700 bg-sky-50/70" />
+                            <SortTh k="absoluteWeight" label="Absolute Wt (kg)" cls="text-sky-700 bg-sky-50/70" />
+                            <SortTh k="chargeableWeight" label="Chargeable Wt (kg)" cls="text-sky-700 bg-sky-50/70" />
                             <SortTh k="deliveryStatus" label="Delivery Status" />
                             <SortTh k="paidAmount" label="Paid Amount" />
                             <SortTh k="paymentOption" label="Payment Option" />
@@ -1251,6 +1260,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.discountBySeller != null && Number(r.discountBySeller) !== 0 ? `₹${Number(r.discountBySeller).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.PaymentOptionDiscountByBadho != null && Number(r.PaymentOptionDiscountByBadho) !== 0 ? `₹${Number(r.PaymentOptionDiscountByBadho).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 text-right text-amber-700 tabular-nums whitespace-nowrap">{r.codAmountToBeCollected != null && Number(r.codAmountToBeCollected) !== 0 ? `₹${Number(r.codAmountToBeCollected).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-sky-700 tabular-nums whitespace-nowrap bg-sky-50/40">{r.volumetricWeight != null ? Number(r.volumetricWeight).toFixed(3) : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-sky-700 tabular-nums whitespace-nowrap bg-sky-50/40">{r.absoluteWeight != null ? Number(r.absoluteWeight).toFixed(3) : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-2.5 py-2 text-right text-sky-800 font-semibold tabular-nums whitespace-nowrap bg-sky-50/40">{r.chargeableWeight != null ? Number(r.chargeableWeight).toFixed(3) : <span className="text-slate-400">—</span>}</td>
                           <td className="px-2.5 py-2 whitespace-nowrap">
                             {r.deliveryStatusDv ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{r.deliveryStatusDv}</span> : <span className="text-slate-400">—</span>}
                           </td>
@@ -1387,6 +1399,9 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                           <td className={num}>{money(t.seller)}</td>
                           <td className={num}>{money(t.badho)}</td>
                           <td className={num}>{money(t.cod)}</td>
+                          <td className={cell} />
+                          <td className={cell} />
+                          <td className={cell} />
                           <td className={cell} />
                           <td className={num}>{money(t.paid)}</td>
                           <td className={cell} />

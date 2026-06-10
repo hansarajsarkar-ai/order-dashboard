@@ -36,6 +36,9 @@ interface Row {
   awb_number: string | null;
   logistic_name: string | null;
   cod_collect: string | null;
+  volumetric_weight: string | null;
+  absolute_weight: string | null;
+  chargeable_weight: string | null;
   buyer_name: string | null;
   buyer_business_name: string | null;
   buyer_phone: string | null;
@@ -139,6 +142,11 @@ async function _GET(req: NextRequest) {
         di."trackingInfo"->>'awbNumber'                            AS awb_number,
         di."trackingInfo"->>'courierName'                          AS logistic_name,
         COALESCE(di."codAmountToBeCollected", 0)::text             AS cod_collect,
+        -- Weights from the latest intercity delivery's metaDetails (dims in cm).
+        -- Volumetric = L×B×H / 5000 (kg); chargeable = max(volumetric, absolute).
+        ROUND(((di."metaDetails"->>'length')::numeric * (di."metaDetails"->>'breadth')::numeric * (di."metaDetails"->>'height')::numeric) / 5000.0, 3)::text AS volumetric_weight,
+        (di."metaDetails"->>'weight')::numeric::text               AS absolute_weight,
+        ROUND(GREATEST(((di."metaDetails"->>'length')::numeric * (di."metaDetails"->>'breadth')::numeric * (di."metaDetails"->>'height')::numeric) / 5000.0, (di."metaDetails"->>'weight')::numeric), 3)::text AS chargeable_weight,
         b."name"                                                   AS buyer_name,
         b."businessName"                                           AS buyer_business_name,
         b."phone"                                                  AS buyer_phone,
@@ -347,6 +355,9 @@ async function _GET(req: NextRequest) {
       awbNumber: r.awb_number,
       logisticName: r.logistic_name,
       codCollect: parseFloat(r.cod_collect || '0'),
+      volumetricWeight: r.volumetric_weight != null ? parseFloat(r.volumetric_weight) : null,
+      absoluteWeight: r.absolute_weight != null ? parseFloat(r.absolute_weight) : null,
+      chargeableWeight: r.chargeable_weight != null ? parseFloat(r.chargeable_weight) : null,
       buyerName: r.buyer_name,
       buyerBusinessName: r.buyer_business_name,
       buyerPhone: r.buyer_phone,

@@ -17,6 +17,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import OrdersPushed from './components/OrdersPushed';
 
 type TabKey = 'orders-not-pushed' | 'orders-pushed';
 
@@ -129,19 +130,14 @@ export default function PnLDashboard() {
         </div>
 
         {/* Tab content */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-12 text-center">
-          {activeTab === 'orders-not-pushed' ? (
-            <>
-              <h2 className="text-2xl font-bold text-white mb-2">Orders Not Pushed</h2>
-              <p className="text-purple-300">Orders that have not yet been pushed will appear here.</p>
-            </>
-          ) : (
-            <>
-              <h2 className="text-2xl font-bold text-white mb-2">Orders Pushed</h2>
-              <p className="text-purple-300">Orders that have been pushed will appear here.</p>
-            </>
-          )}
-        </div>
+        {activeTab === 'orders-not-pushed' ? (
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-12 text-center">
+            <h2 className="text-2xl font-bold text-white mb-2">Orders Not Pushed</h2>
+            <p className="text-purple-300">Orders that have not yet been pushed will appear here.</p>
+          </div>
+        ) : (
+          <OrdersPushed />
+        )}
       </div>
 
       <style jsx>{`

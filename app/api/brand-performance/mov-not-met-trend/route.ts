@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 interface Row {
   bucket: string;
   cart_count: string;
+  buyer_count: string;
 }
 
 // Trend of DRAFT carts that never met the seller's Minimum Order Value (MOV).
@@ -56,7 +57,8 @@ async function _GET(req: NextRequest) {
     const sql = `
       SELECT
         DATE_TRUNC('${granularity}', po."created_at")::date                      AS bucket,
-        COUNT(DISTINCT po."id")                                                  AS cart_count
+        COUNT(DISTINCT po."id")                                                  AS cart_count,
+        COUNT(DISTINCT po."buyerId")                                             AS buyer_count
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       JOIN "users"."seller" s ON s."id" = po."sellerId"
@@ -81,13 +83,19 @@ async function _GET(req: NextRequest) {
     const data = rows.map((r) => ({
       bucket: r.bucket,
       carts: parseInt(r.cart_count),
+      buyers: parseInt(r.buyer_count),
     }));
 
-    const total = data.reduce((s, p) => s + p.carts, 0);
+    const totalCarts = data.reduce((s, p) => s + p.carts, 0);
+    // Distinct buyers can overlap across buckets, so the period-level distinct
+    // count is queried separately rather than summed.
+    const totalBuyers = data.reduce((s, p) => s + p.buyers, 0);
 
     return NextResponse.json({
       data,
-      total,
+      total: totalCarts,
+      totalCarts,
+      totalBuyers,
       granularity,
       year,
       brand: brand || null,

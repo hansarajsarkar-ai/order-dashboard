@@ -211,6 +211,24 @@ export default function OrdersPushed() {
     setModal({ title, subtitle, rows: modalRows, sortKey });
   };
 
+  // Export the currently filtered + sorted rows (what's on screen) as CSV.
+  const downloadCsv = () => {
+    if (displayRows.length === 0) return;
+    const esc = (v: unknown) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = columns.map((c) => esc(c.label)).join(',');
+    const body = displayRows.map((r) => columns.map((c) => esc(r[c.key])).join(',')).join('\n');
+    const blob = new Blob([header + '\n' + body], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `orders-pushed-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-5">
       {/* KPI strip */}
@@ -405,10 +423,20 @@ export default function OrdersPushed() {
               </button>
             )}
           </div>
-          <span className="text-[11px] font-semibold text-purple-300/70">
-            {displayRows.length.toLocaleString('en-IN')}
-            {displayRows.length !== rows.length ? ` / ${rows.length.toLocaleString('en-IN')}` : ''} rows
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-semibold text-purple-300/70">
+              {displayRows.length.toLocaleString('en-IN')}
+              {displayRows.length !== rows.length ? ` / ${rows.length.toLocaleString('en-IN')}` : ''} rows
+            </span>
+            <button
+              onClick={downloadCsv}
+              disabled={displayRows.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-200 border border-emerald-400/30 hover:from-emerald-500/30 hover:to-teal-500/30 hover:text-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Download the current rows as CSV"
+            >
+              ⬇ CSV
+            </button>
+          </div>
         </div>
         <div className="overflow-auto max-h-[70vh]">
           {displayRows.length === 0 ? (

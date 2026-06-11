@@ -890,13 +890,24 @@ export default function QpsSchemePage() {
 
   // When the dashboard data was last (successfully) loaded
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [employeeName, setEmployeeName] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const token = localStorage.getItem('authToken');
     if (!token) { router.replace('/login'); return; }
+    setEmployeeName(localStorage.getItem('employeeName') || '');
     setAuthChecked(true);
   }, [router]);
+
+  const handleLogout = async () => {
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('employeeId');
+    localStorage.removeItem('employeeName');
+    localStorage.removeItem('employeeEmail');
+    router.replace('/login');
+  };
 
   function loadOverview() {
     setLoading(true);
@@ -1039,6 +1050,20 @@ export default function QpsSchemePage() {
             QPS Dashboard
           </h1>
           <span className="ml-auto text-xs text-purple-300/60">Quantity Purchase Scheme · D2R Brand Sellers</span>
+          {employeeName && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                {employeeName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+              </div>
+              <span className="text-purple-100 font-medium">{employeeName}</span>
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/30 text-rose-200 text-sm font-medium transition-colors"
+          >
+            Logout
+          </button>
           <div className="flex flex-col items-end gap-1">
             <button
               onClick={refreshAll}

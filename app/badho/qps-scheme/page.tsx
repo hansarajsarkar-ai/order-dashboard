@@ -268,7 +268,7 @@ export default function QpsSchemePage() {
     }));
 
   const schemeRows = [...schemeTableData].sort(
-    (a, b) => new Date(b.month_date).getTime() - new Date(a.month_date).getTime()
+    (a, b) => new Date(a.month_date).getTime() - new Date(b.month_date).getTime()
   );
 
   const TABS: { key: Tab; label: string }[] = [
@@ -491,28 +491,63 @@ export default function QpsSchemePage() {
                   </thead>
                   <tbody>
                     {schemeRows.map((row, i) => {
+                      const prev = i > 0 ? schemeRows[i - 1] : null;
                       const total = Number(row.qualified_buyers) || 0;
                       const l1 = Number(row.level1) || 0;
                       const l2 = Number(row.level2) || 0;
                       const l3 = Number(row.level3) || 0;
                       const l4 = Number(row.level4) || 0;
                       const l5 = Number(row.level5) || 0;
+                      const dTotal = prev ? total - (Number(prev.qualified_buyers) || 0) : null;
+                      const dL1    = prev ? l1 - (Number(prev.level1) || 0) : null;
+                      const dL2    = prev ? l2 - (Number(prev.level2) || 0) : null;
+                      const dL3    = prev ? l3 - (Number(prev.level3) || 0) : null;
+                      const dL4    = prev ? l4 - (Number(prev.level4) || 0) : null;
+                      const dL5    = prev ? l5 - (Number(prev.level5) || 0) : null;
                       const convPct = Number(row.delivered_buyers)
                         ? ((total / Number(row.delivered_buyers)) * 100).toFixed(1) : '—';
                       const mayPlus = row.month_date >= '2026-05-01';
+
+                      const D = (d: number | null) => {
+                        if (d === null || d === 0) return null;
+                        return (
+                          <span className={`text-[10px] font-semibold ml-1 ${d > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {d > 0 ? `↑${d}` : `↓${Math.abs(d)}`}
+                          </span>
+                        );
+                      };
+
                       return (
-                        <tr key={row.month_date} className={`border-b border-white/5 hover:bg-white/5 transition-colors ${i === 0 ? 'bg-fuchsia-500/5' : ''}`}>
+                        <tr key={row.month_date} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="py-2.5 pr-4 text-white font-medium whitespace-nowrap">{row.month}</td>
                           <td className="py-2.5 pr-4 text-right text-purple-200">{fmt(row.delivered_buyers)}</td>
-                          <td className="py-2.5 pr-4 text-right">
+                          <td className="py-2.5 pr-4 text-right whitespace-nowrap">
                             <span className="text-white font-semibold">{fmt(total)}</span>
                             <span className="text-purple-400 text-xs ml-1">({convPct}%)</span>
+                            {D(dTotal)}
                           </td>
-                          <td className="py-2.5 pr-3 text-right">{l1 > 0 ? <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-200 text-xs font-semibold">{fmt(l1)}</span> : <span className="text-purple-400/40">—</span>}</td>
-                          <td className="py-2.5 pr-3 text-right">{l2 > 0 ? <span className="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-200 text-xs font-semibold">{fmt(l2)}</span> : <span className="text-purple-400/40">—</span>}</td>
-                          <td className="py-2.5 pr-3 text-right">{l3 > 0 ? <span className="px-2 py-0.5 rounded-md bg-fuchsia-500/20 text-fuchsia-200 text-xs font-semibold">{fmt(l3)}</span> : <span className="text-purple-400/40">—</span>}</td>
-                          <td className="py-2.5 pr-3 text-right">{!mayPlus ? <span className="text-purple-400/20 text-xs">N/A</span> : l4 > 0 ? <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-200 text-xs font-semibold">{fmt(l4)}</span> : <span className="text-purple-400/40">—</span>}</td>
-                          <td className="py-2.5 text-right">{!mayPlus ? <span className="text-purple-400/20 text-xs">N/A</span> : l5 > 0 ? <span className="px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-200 text-xs font-semibold">{fmt(l5)}</span> : <span className="text-purple-400/40">—</span>}</td>
+                          <td className="py-2.5 pr-3 text-right whitespace-nowrap">
+                            {l1 > 0 ? <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-200 text-xs font-semibold">{fmt(l1)}</span> : <span className="text-purple-400/40">—</span>}
+                            {D(dL1)}
+                          </td>
+                          <td className="py-2.5 pr-3 text-right whitespace-nowrap">
+                            {l2 > 0 ? <span className="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-200 text-xs font-semibold">{fmt(l2)}</span> : <span className="text-purple-400/40">—</span>}
+                            {D(dL2)}
+                          </td>
+                          <td className="py-2.5 pr-3 text-right whitespace-nowrap">
+                            {l3 > 0 ? <span className="px-2 py-0.5 rounded-md bg-fuchsia-500/20 text-fuchsia-200 text-xs font-semibold">{fmt(l3)}</span> : <span className="text-purple-400/40">—</span>}
+                            {D(dL3)}
+                          </td>
+                          <td className="py-2.5 pr-3 text-right whitespace-nowrap">
+                            {!mayPlus ? <span className="text-purple-400/20 text-xs">N/A</span>
+                              : l4 > 0 ? <><span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-200 text-xs font-semibold">{fmt(l4)}</span>{D(dL4)}</>
+                              : <span className="text-purple-400/40">—</span>}
+                          </td>
+                          <td className="py-2.5 text-right whitespace-nowrap">
+                            {!mayPlus ? <span className="text-purple-400/20 text-xs">N/A</span>
+                              : l5 > 0 ? <><span className="px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-200 text-xs font-semibold">{fmt(l5)}</span>{D(dL5)}</>
+                              : <span className="text-purple-400/40">—</span>}
+                          </td>
                         </tr>
                       );
                     })}

@@ -7,11 +7,14 @@ const EXCLUDED_SELLER = 'cb9e18f5-1ed7-4b24-8cdb-17f29efa4366';
 
 interface Row {
   month: string;
+  month_date: string;
   delivered_buyers: string;
   qualified_buyers: string;
   level1: string;
   level2: string;
   level3: string;
+  level4: string;
+  level5: string;
 }
 
 export async function GET() {
@@ -39,11 +42,13 @@ export async function GET() {
       SELECT
         TO_CHAR("month", 'Mon YYYY') AS month,
         "month" AS month_date,
-        COUNT(DISTINCT "buyerId")::text                                                                      AS delivered_buyers,
-        COUNT(DISTINCT CASE WHEN "totalAmount" >= 3000 THEN "buyerId" END)::text                            AS qualified_buyers,
-        COUNT(DISTINCT CASE WHEN "totalAmount" >= 3000 AND "totalAmount" < 5000  THEN "buyerId" END)::text  AS level1,
-        COUNT(DISTINCT CASE WHEN "totalAmount" >= 5000 AND "totalAmount" < 10000 THEN "buyerId" END)::text  AS level2,
-        COUNT(DISTINCT CASE WHEN "totalAmount" >= 10000 THEN "buyerId" END)::text                           AS level3
+        COUNT(DISTINCT "buyerId")::text                                                                       AS delivered_buyers,
+        COUNT(DISTINCT CASE WHEN "totalAmount" >= 3000 THEN "buyerId" END)::text                             AS qualified_buyers,
+        COUNT(DISTINCT CASE WHEN "totalAmount" >= 3000  AND "totalAmount" < 5000  THEN "buyerId" END)::text  AS level1,
+        COUNT(DISTINCT CASE WHEN "totalAmount" >= 5000  AND "totalAmount" < 10000 THEN "buyerId" END)::text  AS level2,
+        COUNT(DISTINCT CASE WHEN "totalAmount" >= 10000 AND "totalAmount" < 20000 THEN "buyerId" END)::text  AS level3,
+        COUNT(DISTINCT CASE WHEN "totalAmount" >= 20000 AND "totalAmount" < 30000 AND "month" >= '2026-05-01' THEN "buyerId" END)::text AS level4,
+        COUNT(DISTINCT CASE WHEN "totalAmount" >= 30000 AND "month" >= '2026-05-01' THEN "buyerId" END)::text AS level5
       FROM monthly
       GROUP BY "month"
       ORDER BY "month" DESC

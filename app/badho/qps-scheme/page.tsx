@@ -82,6 +82,7 @@ interface DetailRow {
   pct_delivered: string;
   due_amount: string;
   prev_mtd_amount: string;
+  is_new: string;
 }
 
 interface BuyerOrderRow {
@@ -1276,8 +1277,18 @@ export default function QpsSchemePage() {
                                 </button>
                               </div>
                             </td>
-                            <td className="py-2 px-3 text-white max-w-[160px] truncate" title={row.buyer_name}>
-                              {row.buyer_name || '—'}
+                            <td className="py-2 px-3 text-white max-w-[180px]">
+                              <div className="flex items-center gap-1.5">
+                                <span className="truncate" title={row.buyer_name}>{row.buyer_name || '—'}</span>
+                                {String(row.is_new) === '1' && (
+                                  <span
+                                    className="shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide bg-gradient-to-r from-emerald-400 to-teal-400 text-emerald-950 shadow-[0_0_10px_rgba(52,211,153,0.4)]"
+                                    title="Joined the platform this month"
+                                  >
+                                    New
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2 px-3 text-white max-w-[200px] truncate" title={row.buyer_business_name}>
                               {row.buyer_business_name}

@@ -38,6 +38,7 @@ interface Row {
   pct_delivered: string;
   due_amount: string;
   prev_mtd_amount: string;
+  is_new: string; // '1' if the buyer joined the platform during the selected month
 }
 
 async function _GET(req: NextRequest) {
@@ -147,6 +148,8 @@ async function _GET(req: NextRequest) {
         date_trunc('month', po."markedPendingTime")::date              AS monthly,
         ROUND(SUM(po."amount")::numeric, 2)                            AS qualified_amount,
         COALESCE(pm.prev_mtd_amount, 0)                                AS prev_mtd_amount,
+        (b."created_at" >= $2::date
+          AND b."created_at" < ($2::date + INTERVAL '1 month'))::int   AS is_new,
         CASE WHEN SUM(po."amount") >= 3000  THEN '100%'
              ELSE ROUND((SUM(po."amount") / 3000.0)  * 100, 1) || '%' END AS pct_level1,
         CASE WHEN SUM(po."amount") >= 5000  THEN '100%'
@@ -221,7 +224,7 @@ async function _GET(req: NextRequest) {
         AND s."id" != $1
         ${extraFilters}
       GROUP BY b."id", b."name", b."phone", b."businessName",
-               b."addressLine1", b."addressLine2", b."landmark",
+               b."addressLine1", b."addressLine2", b."landmark", b."created_at",
                monthly, md.placed_amount, md.delivered_amount, md.rto_amount,
                pm.prev_mtd_amount
       ORDER BY qualified_amount DESC

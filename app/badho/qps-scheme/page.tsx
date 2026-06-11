@@ -101,7 +101,7 @@ interface BuyerOrderRow {
   cod_collect: string;
 }
 
-type Tab = 'overview' | 'alerts' | 'detail';
+type Tab = 'overview' | 'alerts' | 'detail' | 'insights';
 type SqlQuery = { sql: string; params?: unknown[] };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -472,6 +472,323 @@ function ChartTooltip({
   );
 }
 
+// ── Insights tab ──────────────────────────────────────────────────────────────
+
+const GIFT_WORTH: Record<string, number> = {
+  'Airfryer/Mixer (Worth 3000)': 3000,
+  'CCTV/Iron (Worth 2000)': 2000,
+  'Speaker (Worth 1000)': 1000,
+  'Mini table fan (Worth 500)': 500,
+  'Vastu tortoise (Worth 300)': 300,
+};
+
+interface RtoTrendRow { month_date: string; placed: string; delivered: string; rto: string }
+interface RetentionRow { month_date: string; qualified: string; retained: string; new_buyers: string; reactivated: string }
+
+const monShort = (iso: string) =>
+  new Date(iso.substring(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+
+function InsightPill({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="inline-flex items-center px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600/30 to-purple-600/15 border border-fuchsia-400/30 shadow-[0_0_25px_rgba(217,70,239,0.25)]">
+      <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-fuchsia-200 via-purple-200 to-indigo-200 bg-clip-text text-transparent">{children}</span>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, tone }: { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: 'good' | 'bad' | 'neutral' }) {
+  const valueCls = tone === 'good' ? 'text-emerald-300' : tone === 'bad' ? 'text-rose-300' : 'text-white';
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 min-w-[140px]">
+      <div className="text-[11px] uppercase tracking-wide text-purple-300/60">{label}</div>
+      <div className={`text-2xl font-black ${valueCls}`}>{value}</div>
+      {sub && <div className="text-xs text-purple-300/55 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
+  const currentMonthIso = AVAILABLE_MONTHS[0]?.value ?? '2026-06-01';
+  const [rto, setRto] = React.useState<RtoTrendRow[]>([]);
+  const [retention, setRetention] = React.useState<RetentionRow[]>([]);
+  const [detail, setDetail] = React.useState<DetailRow[]>([]);
+  const [isMayPlus, setIsMayPlus] = React.useState(true);
+  const [monthLabel, setMonthLabel] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setLoading(true); setError(null);
+    Promise.all([
+      fetch('/api/qps-rto-trend').then((r) => r.json()),
+      fetch('/api/qps-retention').then((r) => r.json()),
+      fetch(`/api/qps-buyer-detail?month=${currentMonthIso}`).then((r) => r.json()),
+    ])
+      .then(([rtoRes, retRes, detRes]) => {
+        if (rtoRes.error) throw new Error(rtoRes.error);
+        if (retRes.error) throw new Error(retRes.error);
+        if (detRes.error) throw new Error(detRes.error);
+        setRto(rtoRes.data ?? []);
+        setRetention(retRes.data ?? []);
+        setDetail(detRes.data ?? []);
+        setIsMayPlus(detRes.is_may_plus ?? true);
+        setMonthLabel(detRes.month_label ?? '');
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [currentMonthIso]);
+
+  if (loading) return <div className="text-purple-300 text-sm text-center py-20 animate-pulse">Crunching insights…</div>;
+  if (error) return <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>;
+
+  // ── A. Delivery / RTO health ──────────────────────────────────────────────
+  const rtoRows = [...rto].sort((a, b) => a.month_date.localeCompare(b.month_date)).map((r) => {
+    const placed = Number(r.placed), delivered = Number(r.delivered), rtoAmt = Number(r.rto);
+    const resolved = delivered + rtoAmt;
+    return {
+      month: monShort(r.month_date), placed, delivered, rto: rtoAmt,
+      inTransit: Math.max(placed - delivered - rtoAmt, 0),
+      rtoRate: resolved > 0 ? +(rtoAmt / resolved * 100).toFixed(1) : 0,
+    };
+  });
+  const latestRto = rtoRows[rtoRows.length - 1];
+  const topRtoBuyers = [...detail]
+    .filter((d) => Number(d.rto_amount) > 0)
+    .sort((a, b) => Number(b.rto_amount) - Number(a.rto_amount))
+    .slice(0, 10)
+    .map((d) => {
+      const placed = Number(d.placed_amount), rtoAmt = Number(d.rto_amount);
+      return { d, placed, rto: rtoAmt, pct: placed > 0 ? +(rtoAmt / placed * 100).toFixed(0) : 0 };
+    });
+
+  // ── B. Requalification cohort ─────────────────────────────────────────────
+  const retRows = [...retention].sort((a, b) => a.month_date.localeCompare(b.month_date)).map((r, i, arr) => {
+    const qualified = Number(r.qualified), retained = Number(r.retained);
+    const prevQ = i > 0 ? Number(arr[i - 1].qualified) : 0;
+    return {
+      iso: r.month_date, month: monShort(r.month_date), qualified, retained,
+      newBuyers: Number(r.new_buyers), reactivated: Number(r.reactivated),
+      churned: Math.max(prevQ - retained, 0),
+      retentionPct: prevQ > 0 ? +(retained / prevQ * 100).toFixed(0) : null,
+    };
+  });
+  const latestRet = retRows[retRows.length - 1];
+
+  // ── C. Almost-there next-tier opportunity ─────────────────────────────────
+  const thresholds = isMayPlus ? [3000, 5000, 10000, 20000, 30000] : [3000, 5000, 10000];
+  const tierName: Record<number, string> = {
+    3000: 'L1 🐢', 5000: 'L2 🌀', 10000: 'L3 🔊', 20000: 'L4 📷', 30000: 'L5 🍳',
+  };
+  const almostThere = detail
+    .map((d) => {
+      const q = Number(d.qualified_amount);
+      const next = thresholds.find((t) => t > q);
+      if (!next) return null;
+      const pct = q / next;
+      if (pct < 0.85) return null;
+      return { d, q, next, gap: next - q, pct: +(pct * 100).toFixed(0) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a!.gap - b!.gap)
+    .slice(0, 15) as { d: DetailRow; q: number; next: number; gap: number; pct: number }[];
+
+  // ── D. Strategic ──────────────────────────────────────────────────────────
+  const byValue = [...detail].map((d) => Number(d.qualified_amount)).sort((a, b) => b - a);
+  const totalValue = byValue.reduce((s, v) => s + v, 0);
+  const shareOf = (n: number) => totalValue > 0 ? +(byValue.slice(0, n).reduce((s, v) => s + v, 0) / totalValue * 100).toFixed(0) : 0;
+  const newValue = detail.filter((d) => String(d.is_new) === '1').reduce((s, d) => s + Number(d.qualified_amount), 0);
+  const existingValue = totalValue - newValue;
+  const newSharePct = totalValue > 0 ? +(newValue / totalValue * 100).toFixed(0) : 0;
+
+  const geoMap: Record<string, { value: number; count: number }> = {};
+  for (const d of detail) {
+    const st = (d.buyer_state || 'Unknown').trim() || 'Unknown';
+    if (!geoMap[st]) geoMap[st] = { value: 0, count: 0 };
+    geoMap[st].value += Number(d.qualified_amount);
+    geoMap[st].count += 1;
+  }
+  const geoRows = Object.entries(geoMap).sort((a, b) => b[1].value - a[1].value).slice(0, 8);
+
+  const giftCost = detail.filter((d) => d.gift_won !== 'No Gift').reduce((s, d) => s + (GIFT_WORTH[d.gift_won] ?? 0), 0);
+  const deliveredGmv = detail.reduce((s, d) => s + Number(d.delivered_amount), 0);
+  const roiX = giftCost > 0 ? +(deliveredGmv / giftCost).toFixed(1) : 0;
+
+  const cohortColors = { Retained: '#34d399', Reactivated: '#fbbf24', 'New buyers': '#a78bfa' };
+
+  return (
+    <div className="space-y-10">
+      <div className="text-xs text-purple-300/55 -mb-4">Insights for <span className="text-fuchsia-300 font-semibold">{monthLabel}</span> · scheme since Mar 2026</div>
+
+      {/* A. RTO / Delivery health */}
+      <section className="space-y-4">
+        <div><InsightPill>Delivery &amp; RTO Health</InsightPill>
+          <div className="text-xs text-purple-300/70 mt-2">RTO (rejected/returned) eats margin. Rate shown is of <em>resolved</em> orders — delivered + returned.</div></div>
+        {latestRto && (
+          <div className="flex flex-wrap gap-3">
+            <KpiCard label={`RTO rate · ${latestRto.month}`} value={`${latestRto.rtoRate}%`} tone={latestRto.rtoRate >= 40 ? 'bad' : latestRto.rtoRate >= 20 ? 'neutral' : 'good'} sub="of resolved ₹" />
+            <KpiCard label="Delivered ₹" value={fmtAmt(latestRto.delivered)} tone="good" />
+            <KpiCard label="RTO ₹" value={fmtAmt(latestRto.rto)} tone="bad" />
+            <KpiCard label="In-transit ₹" value={fmtAmt(latestRto.inTransit)} sub="not yet resolved" />
+            <KpiCard label="Placed ₹" value={fmtAmt(latestRto.placed)} />
+          </div>
+        )}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="text-sm font-semibold text-purple-200 mb-3">RTO rate by month (% of resolved)</div>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={rtoRows} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+              <XAxis dataKey="month" tick={{ fill: '#c4b5fd', fontSize: 12 }} />
+              <YAxis tick={{ fill: '#c4b5fd', fontSize: 12 }} unit="%" />
+              <Tooltip content={<ChartTooltip />} />
+              <Line type="monotone" dataKey="rtoRate" name="RTO rate %" stroke="#fb7185" strokeWidth={3} dot={{ r: 4 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        {topRtoBuyers.length > 0 && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-white/10 text-sm font-semibold text-purple-200">Highest RTO buyers · {monthLabel}</div>
+            <table className="w-full text-xs">
+              <thead><tr className="text-purple-200/70 text-left border-b border-white/10">
+                <th className="py-2 px-4 font-medium">Buyer</th><th className="py-2 px-4 text-right font-medium">Placed ₹</th>
+                <th className="py-2 px-4 text-right font-medium text-rose-300/70">RTO ₹</th><th className="py-2 px-4 text-right font-medium">RTO %</th>
+              </tr></thead>
+              <tbody>
+                {topRtoBuyers.map(({ d, placed, rto, pct }) => (
+                  <tr key={d.buyer_id} className="border-b border-white/5 hover:bg-white/[0.04]">
+                    <td className="py-2 px-4 text-white">{d.buyer_business_name || d.buyer_name}<span className="text-purple-300/50"> · {d.buyer_phone}</span></td>
+                    <td className="py-2 px-4 text-right text-cyan-300">{fmtAmt(placed)}</td>
+                    <td className="py-2 px-4 text-right text-rose-300 font-semibold">{fmtAmt(rto)}</td>
+                    <td className={`py-2 px-4 text-right font-bold ${pct >= 50 ? 'text-rose-300' : pct >= 25 ? 'text-amber-300' : 'text-purple-200'}`}>{pct}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* B. Requalification cohort */}
+      <section className="space-y-4">
+        <div><InsightPill>Requalification &amp; Retention</InsightPill>
+          <div className="text-xs text-purple-300/70 mt-2">Of last month&apos;s qualifiers, how many came back. The truest health signal for a loyalty scheme.</div></div>
+        {latestRet && (
+          <div className="flex flex-wrap gap-3">
+            <KpiCard label={`Retention · ${latestRet.month}`} value={latestRet.retentionPct !== null ? `${latestRet.retentionPct}%` : '—'} tone={latestRet.retentionPct !== null ? (latestRet.retentionPct >= 40 ? 'good' : latestRet.retentionPct >= 20 ? 'neutral' : 'bad') : 'neutral'} sub="requalified vs prev month" />
+            <KpiCard label="Retained" value={fmt(latestRet.retained)} tone="good" />
+            <KpiCard label="Reactivated" value={fmt(latestRet.reactivated)} />
+            <KpiCard label="New" value={fmt(latestRet.newBuyers)} />
+            <KpiCard label="Churned" value={fmt(latestRet.churned)} tone="bad" sub="lost from prev month" />
+          </div>
+        )}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="text-sm font-semibold text-purple-200 mb-3">Qualifiers by cohort, per month</div>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={retRows} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+              <XAxis dataKey="month" tick={{ fill: '#c4b5fd', fontSize: 12 }} />
+              <YAxis tick={{ fill: '#c4b5fd', fontSize: 12 }} />
+              <Tooltip content={<ChartTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="retained" name="Retained" stackId="a" fill={cohortColors.Retained} radius={[0, 0, 0, 0]} />
+              <Bar dataKey="reactivated" name="Reactivated" stackId="a" fill={cohortColors.Reactivated} />
+              <Bar dataKey="newBuyers" name="New buyers" stackId="a" fill={cohortColors['New buyers']} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {retRows.map((r) => (
+              <button key={r.iso} onClick={() => onDrill({ title: `All Qualified — ${r.month}`, monthIso: r.iso, giftFilter: null })}
+                className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-xs text-purple-200 hover:bg-white/10 hover:text-white transition-colors">
+                {r.month}: <span className="text-white font-semibold">{fmt(r.qualified)}</span>{r.retentionPct !== null && <span className="text-purple-300/60"> · {r.retentionPct}% ret</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* C. Almost there */}
+      <section className="space-y-4">
+        <div><InsightPill>Next-Tier Opportunity</InsightPill>
+          <div className="text-xs text-purple-300/70 mt-2">Buyers ≥85% of the way to their next reward this month — a ready call-list to push before month-end.</div></div>
+        {almostThere.length === 0 ? (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-purple-300/60 text-sm">No buyers within striking distance of the next tier right now.</div>
+        ) : (
+          <div className="rounded-2xl border border-amber-400/20 bg-amber-500/[0.04] overflow-hidden">
+            <table className="w-full text-xs">
+              <thead><tr className="text-amber-200/70 text-left border-b border-amber-400/20">
+                <th className="py-2 px-4 font-medium">Buyer</th><th className="py-2 px-4 text-right font-medium">Now ₹</th>
+                <th className="py-2 px-4 text-center font-medium">Next tier</th><th className="py-2 px-4 text-right font-medium">Gap ₹</th><th className="py-2 px-4 text-right font-medium">Progress</th>
+              </tr></thead>
+              <tbody>
+                {almostThere.map(({ d, q, next, gap, pct }) => (
+                  <tr key={d.buyer_id} className="border-b border-white/5 hover:bg-white/[0.04]">
+                    <td className="py-2 px-4 text-white">{d.buyer_business_name || d.buyer_name}<span className="text-purple-300/50"> · {d.buyer_phone}</span>{String(d.is_new) === '1' && <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-400 text-emerald-950">New</span>}</td>
+                    <td className="py-2 px-4 text-right text-white font-semibold">{fmtAmt(q)}</td>
+                    <td className="py-2 px-4 text-center"><span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-200 font-semibold">{tierName[next]} · ₹{(next / 1000)}k</span></td>
+                    <td className="py-2 px-4 text-right text-amber-300 font-bold">{fmtAmt(gap)}</td>
+                    <td className="py-2 px-4 text-right text-emerald-300 font-semibold">{pct}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* D. Strategic */}
+      <section className="space-y-4">
+        <div><InsightPill>Concentration, Growth &amp; ROI</InsightPill></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Concentration */}
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-sm font-semibold text-purple-200 mb-3">Revenue concentration</div>
+            <div className="flex flex-wrap gap-3">
+              <KpiCard label="Top 10 buyers" value={`${shareOf(10)}%`} sub="of qualified ₹" tone={shareOf(10) >= 60 ? 'bad' : 'neutral'} />
+              <KpiCard label="Top 20 buyers" value={`${shareOf(20)}%`} sub="of qualified ₹" />
+              <KpiCard label="Total qualified ₹" value={fmtAmt(totalValue)} />
+            </div>
+            <div className="text-xs text-purple-300/55 mt-3">A high top-10 share means revenue rides on a few buyers — concentration risk.</div>
+          </div>
+          {/* New vs existing */}
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-sm font-semibold text-purple-200 mb-3">New vs existing value · {monthLabel}</div>
+            <div className="flex h-6 rounded-lg overflow-hidden border border-white/10 mb-3">
+              <div className="bg-emerald-500/70 flex items-center justify-center text-[11px] font-bold text-emerald-950" style={{ width: `${newSharePct}%` }}>{newSharePct >= 8 ? `${newSharePct}%` : ''}</div>
+              <div className="bg-fuchsia-500/50 flex items-center justify-center text-[11px] font-bold text-white" style={{ width: `${100 - newSharePct}%` }}>{100 - newSharePct >= 8 ? `${100 - newSharePct}%` : ''}</div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <KpiCard label="New-buyer ₹" value={fmtAmt(newValue)} tone="good" sub={`${newSharePct}% of value`} />
+              <KpiCard label="Existing ₹" value={fmtAmt(existingValue)} sub={`${100 - newSharePct}% of value`} />
+            </div>
+          </div>
+          {/* Geo */}
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-sm font-semibold text-purple-200 mb-3">Top regions by qualified ₹</div>
+            <ResponsiveContainer width="100%" height={Math.max(180, geoRows.length * 30)}>
+              <BarChart data={geoRows.map(([state, v]) => ({ state, value: v.value, count: v.count }))} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#c4b5fd', fontSize: 11 }} />
+                <YAxis type="category" dataKey="state" width={90} tick={{ fill: '#e9d5ff', fontSize: 11 }} />
+                <Tooltip content={<ChartTooltip />} />
+                <Bar dataKey="value" name="Qualified ₹" fill="#a78bfa" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {/* ROI */}
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-sm font-semibold text-purple-200 mb-3">Scheme ROI · {monthLabel}</div>
+            <div className="flex flex-wrap gap-3">
+              <KpiCard label="Gift cost" value={fmtAmt(giftCost)} sub={`${detail.filter((d) => d.gift_won !== 'No Gift').length} gifts`} />
+              <KpiCard label="Delivered GMV" value={fmtAmt(deliveredGmv)} tone="good" />
+              <KpiCard label="Return on gift" value={roiX > 0 ? `${roiX}×` : '—'} tone={roiX >= 10 ? 'good' : 'neutral'} sub="delivered ₹ per ₹ gift" />
+            </div>
+            <div className="text-xs text-purple-300/55 mt-3">How much delivered GMV each rupee of gift spend unlocked.</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function QpsSchemePage() {
@@ -669,6 +986,7 @@ export default function QpsSchemePage() {
   const TABS: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'detail', label: 'Qualified Detail' },
+    { key: 'insights', label: 'Insights' },
     { key: 'alerts', label: 'Alerts' },
   ];
 
@@ -764,7 +1082,7 @@ export default function QpsSchemePage() {
           </div>
         )}
 
-        {loading && tab !== 'detail' && (
+        {loading && tab !== 'detail' && tab !== 'insights' && (
           <div className="flex items-center justify-center py-24">
             <div className="text-purple-300 text-sm animate-pulse">Loading QPS data…</div>
           </div>
@@ -1619,6 +1937,11 @@ export default function QpsSchemePage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── INSIGHTS TAB ─────────────────────────────────────────────────── */}
+        {tab === 'insights' && (
+          <InsightsTab onDrill={setDrillConfig} />
         )}
       </div>
     </div>

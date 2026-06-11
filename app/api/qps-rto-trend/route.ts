@@ -27,6 +27,7 @@ async function _GET() {
         SUM(CASE WHEN po."status" = 'REJECTED'                 THEN po."amount" ELSE 0 END)::int AS rto
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."seller" s ON s."id" = po."sellerId"
+      JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       WHERE po."isTest"          = FALSE
         AND po."deliveryType"    = 'INTERCITY'
         AND po."deliveryNetwork" = 'THIRD_PARTY'
@@ -34,6 +35,8 @@ async function _GET() {
         AND s."isD2RBrandSeller" = TRUE
         AND s."isTest"           = FALSE
         AND s."businessName"     NOT ILIKE '%test%'
+        AND b."isTest"           = FALSE
+        AND b."businessName"     NOT ILIKE '%test%'
         AND s."id" != $1
       GROUP BY 1
       ORDER BY 1

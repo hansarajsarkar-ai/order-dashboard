@@ -185,11 +185,16 @@ async function _GET(req: NextRequest) {
           SUM(CASE WHEN po2."status" = 'COMPLETED'               THEN po2."amount" ELSE 0 END) AS delivered_amount,
           SUM(CASE WHEN po2."status" = 'REJECTED'                THEN po2."amount" ELSE 0 END) AS rto_amount
         FROM "purchaseOrder"."purchaseOrder" po2
+        JOIN "users"."seller" s2 ON s2."id" = po2."sellerId"
         WHERE po2."isTest"          = FALSE
           AND po2."deliveryType"    = 'INTERCITY'
           AND po2."deliveryNetwork" = 'THIRD_PARTY'
           AND po2."markedPendingTime" >= $2::date
           AND po2."markedPendingTime" <  ($2::date + INTERVAL '1 month')
+          AND s2."isD2RBrandSeller" = TRUE
+          AND s2."isTest"           = FALSE
+          AND s2."businessName"     NOT ILIKE '%test%'
+          AND s2."id" != $1
         GROUP BY po2."buyerId"
       ) md ON md."buyerId" = b."id"
       LEFT JOIN (

@@ -7,8 +7,12 @@ const EXCLUDED_SELLER = 'cb9e18f5-1ed7-4b24-8cdb-17f29efa4366';
 
 interface Row {
   buyer_id: string;
+  buyer_name: string;
   buyer_phone: string;
   buyer_business_name: string;
+  buyer_address_line1: string;
+  buyer_address_line2: string;
+  buyer_landmark: string;
   monthly: string;
   qualified_amount: string;
   pct_level1: string;
@@ -98,8 +102,12 @@ export async function GET(req: NextRequest) {
     const rows = await query<Row>(`
       SELECT
         b."id"                                                         AS buyer_id,
+        COALESCE(b."name", '')                                         AS buyer_name,
         b."phone"                                                      AS buyer_phone,
         b."businessName"                                               AS buyer_business_name,
+        COALESCE(b."addressLine1", '')                                 AS buyer_address_line1,
+        COALESCE(b."addressLine2", '')                                 AS buyer_address_line2,
+        COALESCE(b."landmark", '')                                     AS buyer_landmark,
         date_trunc('month', po."markedPendingTime")::date              AS monthly,
         ROUND(SUM(po."amount")::numeric, 2)                            AS qualified_amount,
         CASE WHEN SUM(po."amount") >= 3000  THEN '100%'
@@ -157,8 +165,9 @@ export async function GET(req: NextRequest) {
         AND po."markedPendingTime" <  ($2::date + INTERVAL '1 month')
         AND s."id" != $1
         ${extraFilters}
-      GROUP BY b."id", b."phone", b."businessName", monthly,
-               md.placed_amount, md.delivered_amount, md.rto_amount
+      GROUP BY b."id", b."name", b."phone", b."businessName",
+               b."addressLine1", b."addressLine2", b."landmark",
+               monthly, md.placed_amount, md.delivered_amount, md.rto_amount
       ORDER BY qualified_amount DESC
     `, params);
 

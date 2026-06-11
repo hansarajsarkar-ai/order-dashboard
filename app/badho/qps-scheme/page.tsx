@@ -51,8 +51,12 @@ interface GiftRow {
 
 interface DetailRow {
   buyer_id: string;
+  buyer_name: string;
   buyer_phone: string;
   buyer_business_name: string;
+  buyer_address_line1: string;
+  buyer_address_line2: string;
+  buyer_landmark: string;
   monthly: string;
   qualified_amount: string;
   pct_level1: string;
@@ -719,8 +723,9 @@ export default function QpsSchemePage() {
                     <thead>
                       <tr className="text-purple-300/80 bg-white/[0.03] text-left border-b border-white/10">
                         <th className="py-2.5 px-3 font-medium whitespace-nowrap">#</th>
-                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">Phone</th>
+                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">Name</th>
                         <th className="py-2.5 px-3 font-medium whitespace-nowrap">Business Name</th>
+                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">Phone</th>
                         <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Qualified ₹</th>
                         <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">% L1<br/><span className="font-normal opacity-60">₹3k</span></th>
                         <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">% L2<br/><span className="font-normal opacity-60">₹5k</span></th>
@@ -738,6 +743,8 @@ export default function QpsSchemePage() {
                         <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">RTO ₹</th>
                         <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">% Delivered</th>
                         <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Due ₹</th>
+                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">Address</th>
+                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">Landmark</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -748,10 +755,13 @@ export default function QpsSchemePage() {
                         return (
                           <tr key={row.buyer_id} className={`border-b border-white/5 hover:bg-white/[0.06] transition-colors ${rowBg}`}>
                             <td className="py-2 px-3 text-purple-400/60">{i + 1}</td>
-                            <td className="py-2 px-3 text-purple-100 font-mono whitespace-nowrap">{row.buyer_phone}</td>
+                            <td className="py-2 px-3 text-white max-w-[160px] truncate" title={row.buyer_name}>
+                              {row.buyer_name || '—'}
+                            </td>
                             <td className="py-2 px-3 text-white max-w-[200px] truncate" title={row.buyer_business_name}>
                               {row.buyer_business_name}
                             </td>
+                            <td className="py-2 px-3 text-purple-100 font-mono whitespace-nowrap">{row.buyer_phone}</td>
                             <td className="py-2 px-3 text-right font-semibold text-white whitespace-nowrap">
                               {fmtAmt(row.qualified_amount)}
                             </td>
@@ -796,6 +806,14 @@ export default function QpsSchemePage() {
                             </td>
                             <td className={`py-2 px-3 text-right whitespace-nowrap ${Number(row.due_amount) > 0 ? 'text-amber-300' : 'text-purple-400/40'}`}>
                               {fmtAmt(row.due_amount)}
+                            </td>
+                            <td className="py-2 px-3 text-purple-200/80 max-w-[200px] truncate whitespace-nowrap"
+                                title={[row.buyer_address_line1, row.buyer_address_line2].filter(Boolean).join(', ')}>
+                              {[row.buyer_address_line1, row.buyer_address_line2].filter(Boolean).join(', ') || '—'}
+                            </td>
+                            <td className="py-2 px-3 text-purple-200/80 max-w-[150px] truncate whitespace-nowrap"
+                                title={row.buyer_landmark}>
+                              {row.buyer_landmark || '—'}
                             </td>
                           </tr>
                         );

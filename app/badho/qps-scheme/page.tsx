@@ -858,7 +858,7 @@ export default function QpsSchemePage() {
                 <div>
                   <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Monthly Scheme Breakdown</div>
                   <div className="text-xs text-purple-300/70 mt-0.5">
-                    L1 ≥₹3k · L2 ≥₹5k · L3 ≥₹10k · L4 ≥₹20k (May+) · L5 ≥₹30k (May+) · year-to-date
+                    Counts = distinct buyers · L1 ≥₹3k · L2 ≥₹5k · L3 ≥₹10k · L4 ≥₹20k (May+) · L5 ≥₹30k (May+) · year-to-date
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -873,8 +873,8 @@ export default function QpsSchemePage() {
                   <thead>
                     <tr className="text-left text-white text-sm font-bold bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50 border-b-2 border-fuchsia-400/40">
                       <th className="py-2.5 pr-4 font-bold whitespace-nowrap">Month</th>
-                      <th className="py-2 pr-4 font-medium text-right whitespace-nowrap">Delivered</th>
-                      <th className="py-2 pr-4 font-medium text-right whitespace-nowrap">Qualified</th>
+                      <th className="py-2 pr-4 font-medium text-right whitespace-nowrap">Delivered Buyers</th>
+                      <th className="py-2 pr-4 font-medium text-right whitespace-nowrap">Qualified Buyers</th>
                       <th className="py-2 pr-3 font-medium text-right whitespace-nowrap"><span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />L1 🐢</span></th>
                       <th className="py-2 pr-3 font-medium text-right whitespace-nowrap"><span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400 inline-block" />L2 🌀</span></th>
                       <th className="py-2 pr-3 font-medium text-right whitespace-nowrap"><span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-fuchsia-400 inline-block" />L3 🔊</span></th>

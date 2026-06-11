@@ -705,8 +705,10 @@ export default function QpsSchemePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
                 <div className="mb-4 flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Monthly Qualified Buyers</div>
-                    <div className="text-xs text-purple-300/70 mt-0.5">Buyers who spent ≥ ₹3,000 in the month · year-to-date</div>
+                    <div className="inline-flex items-center px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600/30 to-purple-600/15 border border-fuchsia-400/30 shadow-[0_0_25px_rgba(217,70,239,0.25)]">
+                      <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-fuchsia-200 via-purple-200 to-indigo-200 bg-clip-text text-transparent">Monthly Qualified Buyers</span>
+                    </div>
+                    <div className="text-xs text-purple-300/70 mt-2">Buyers who spent ≥ ₹3,000 in the month · year-to-date</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {queryBtn('trend', 'Monthly Qualified Buyers')}
@@ -800,8 +802,10 @@ export default function QpsSchemePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
                 <div className="mb-4 flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">New vs Returning Qualified Buyers</div>
-                    <div className="text-xs text-purple-300/70 mt-0.5">New = first-ever qualifying month · year-to-date</div>
+                    <div className="inline-flex items-center px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600/30 to-purple-600/15 border border-fuchsia-400/30 shadow-[0_0_25px_rgba(217,70,239,0.25)]">
+                      <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-fuchsia-200 via-purple-200 to-indigo-200 bg-clip-text text-transparent">New vs Returning Qualified Buyers</span>
+                    </div>
+                    <div className="text-xs text-purple-300/70 mt-2">New = first-ever qualifying month · year-to-date</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {queryBtn('newVsOld', 'New vs Returning Qualified Buyers')}
@@ -857,8 +861,10 @@ export default function QpsSchemePage() {
             <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5 overflow-x-auto">
               <div className="mb-4 flex items-start justify-between gap-2">
                 <div>
-                  <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Monthly Scheme Breakdown</div>
-                  <div className="text-xs text-purple-300/70 mt-0.5">
+                  <div className="inline-flex items-center px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600/30 to-purple-600/15 border border-fuchsia-400/30 shadow-[0_0_25px_rgba(217,70,239,0.25)]">
+                    <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-fuchsia-200 via-purple-200 to-indigo-200 bg-clip-text text-transparent">Monthly Scheme Breakdown</span>
+                  </div>
+                  <div className="text-xs text-purple-300/70 mt-2">
                     Counts = distinct buyers · L1 ≥₹3k · L2 ≥₹5k · L3 ≥₹10k · L4 ≥₹20k (May+) · L5 ≥₹30k (May+) · year-to-date
                   </div>
                 </div>
@@ -1097,6 +1103,13 @@ export default function QpsSchemePage() {
         {/* ── DETAIL TAB ───────────────────────────────────────────────────── */}
         {tab === 'detail' && (
           <div className="space-y-4">
+            {/* Section title */}
+            <div>
+              <div className="inline-flex items-center px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600/30 to-purple-600/15 border border-fuchsia-400/30 shadow-[0_0_25px_rgba(217,70,239,0.25)]">
+                <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-fuchsia-200 via-purple-200 to-indigo-200 bg-clip-text text-transparent">Qualified Buyer Detail</span>
+              </div>
+              <div className="text-xs text-purple-300/70 mt-2">Buyer-level qualification, gift won, and orders for the selected month</div>
+            </div>
             {/* Controls */}
             <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-4">
               <div className="flex items-end gap-3 flex-wrap">

@@ -64,7 +64,7 @@ async function _GET(req: NextRequest) {
   let extraFilters = '';
   if (date1) { extraFilters += ` AND po."markedPendingTime" >= $${p}::date`; params.push(date1); p++; }
   if (date2) { extraFilters += ` AND po."markedPendingTime" < ($${p}::date + INTERVAL '1 day')`; params.push(date2); p++; }
-  if (phone) { extraFilters += ` AND b."phone" = $${p}`; params.push(phone); p++; }
+  if (phone) { extraFilters += ` AND b."phone" ILIKE $${p}`; params.push(`%${phone}%`); p++; }
 
   // Previous-month "month-till-date" window for the per-buyer comparison.
   // If the selected month is the current calendar month, compare the same

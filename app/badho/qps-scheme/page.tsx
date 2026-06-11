@@ -1528,7 +1528,7 @@ export default function QpsSchemePage() {
                     value={phoneFilter}
                     onChange={(e) => setPhoneFilter(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') loadDetail(); }}
-                    placeholder="e.g. 9876543210"
+                    placeholder="e.g. 9534 (partial ok)"
                     className="px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white placeholder-purple-300/40 focus:outline-none focus:border-fuchsia-400/50 w-[160px]"
                   />
                 </div>

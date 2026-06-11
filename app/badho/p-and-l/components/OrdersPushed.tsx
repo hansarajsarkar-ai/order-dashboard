@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import DetailsModal from './DetailsModal';
 import {
   ColumnDef,
@@ -14,6 +15,14 @@ import {
 } from './columns';
 
 type Row = Record<string, unknown>;
+
+// Toggle a value in a Set immutably (for the multi-select filters).
+function toggleInSet(set: Set<string>, v: string): Set<string> {
+  const next = new Set(set);
+  if (next.has(v)) next.delete(v);
+  else next.add(v);
+  return next;
+}
 
 type Tone = 'good' | 'warn' | 'bad' | 'critical';
 
@@ -112,6 +121,9 @@ export default function OrdersPushed() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   // Multi-select Order Status filter (top of page). Empty set = show all.
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  // Multi-select Buyer / Seller filters (table toolbar). Empty set = show all.
+  const [buyerFilter, setBuyerFilter] = useState<Set<string>>(new Set());
+  const [sellerFilter, setSellerFilter] = useState<Set<string>>(new Set());
 
   const toggleStatus = (s: string) =>
     setStatusFilter((prev) => {
@@ -150,6 +162,24 @@ export default function OrdersPushed() {
       if (v !== null && v !== undefined && v !== '') s.add(String(v));
     }
     return [...s].sort();
+  }, [rows]);
+
+  // Distinct buyer / seller business names for the toolbar multi-select filters.
+  const buyerOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) {
+      const v = r['buyerBusinessName'];
+      if (v !== null && v !== undefined && String(v).trim() !== '') s.add(String(v));
+    }
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+  const sellerOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) {
+      const v = r['sellerbusinessname'];
+      if (v !== null && v !== undefined && String(v).trim() !== '') s.add(String(v));
+    }
+    return [...s].sort((a, b) => a.localeCompare(b));
   }, [rows]);
 
   // Base rows after the status filter — feeds the KPIs, cards, officer and table.
@@ -209,6 +239,8 @@ export default function OrdersPushed() {
     let out = statusFiltered.filter((r) => {
       if (po && !String(r['poNumber'] ?? '').toLowerCase().includes(po)) return false;
       if (awb && !String(r['AWBNumber'] ?? '').toLowerCase().includes(awb)) return false;
+      if (buyerFilter.size && !buyerFilter.has(String(r['buyerBusinessName'] ?? ''))) return false;
+      if (sellerFilter.size && !sellerFilter.has(String(r['sellerbusinessname'] ?? ''))) return false;
       return true;
     });
     if (sortKey) {
@@ -228,7 +260,7 @@ export default function OrdersPushed() {
       });
     }
     return out;
-  }, [statusFiltered, filterPo, filterAwb, sortKey, sortDir]);
+  }, [statusFiltered, filterPo, filterAwb, buyerFilter, sellerFilter, sortKey, sortDir]);
 
   // Max-loss heatmap is relative to the rows currently in view.
   const maxLoss = useMemo(() => computeMaxLoss(displayRows, columns), [displayRows, columns]);
@@ -618,6 +650,31 @@ export default function OrdersPushed() {
                 </button>
               )}
             </div>
+            {/* Multi-select filters — Buyer, Seller, Order Status (single or many) */}
+            <MultiSelectFilter
+              label="Buyer"
+              icon="🛍️"
+              options={buyerOptions}
+              selected={buyerFilter}
+              onToggle={(v) => setBuyerFilter((p) => toggleInSet(p, v))}
+              onClear={() => setBuyerFilter(new Set())}
+            />
+            <MultiSelectFilter
+              label="Seller"
+              icon="🏭"
+              options={sellerOptions}
+              selected={sellerFilter}
+              onToggle={(v) => setSellerFilter((p) => toggleInSet(p, v))}
+              onClear={() => setSellerFilter(new Set())}
+            />
+            <MultiSelectFilter
+              label="Order Status"
+              icon="🏷️"
+              options={statusOptions}
+              selected={statusFilter}
+              onToggle={(v) => setStatusFilter((p) => toggleInSet(p, v))}
+              onClear={() => setStatusFilter(new Set())}
+            />
             {sortKey && (
               <button
                 onClick={() => setSortKey(null)}
@@ -834,5 +891,148 @@ function Kpi({
         )}
       </div>
     </div>
+  );
+}
+
+// Searchable multi-select dropdown filter (single or many values). Empty = all.
+function MultiSelectFilter({
+  label,
+  icon,
+  options,
+  selected,
+  onToggle,
+  onClear,
+}: {
+  label: string;
+  icon?: string;
+  options: string[];
+  selected: Set<string>;
+  onToggle: (v: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  // Keep the portal panel pinned under the trigger button (the toolbar lives
+  // inside an overflow-hidden + backdrop-blur card, so a normal absolute panel
+  // would be clipped — we portal it to <body> and position with fixed coords).
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (r) setPos({ left: r.left, top: r.bottom + 4 });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return s ? options.filter((o) => o.toLowerCase().includes(s)) : options;
+  }, [options, q]);
+
+  const count = selected.size;
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={() => setOpen((o) => !o)}
+        className={
+          'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ' +
+          (count > 0
+            ? 'bg-fuchsia-500/20 border-fuchsia-400/50 text-fuchsia-100'
+            : 'bg-white/5 border-white/10 text-purple-200 hover:border-white/25')
+        }
+        title={`Filter by ${label.toLowerCase()} (single or multiple)`}
+      >
+        {icon && <span className="text-sm leading-none">{icon}</span>}
+        <span className="font-semibold">{label}</span>
+        {count > 0 ? (
+          <span className="px-1.5 rounded-full bg-fuchsia-500/40 text-white text-[10px] font-bold tabular-nums">{count}</span>
+        ) : (
+          <span className="text-purple-300/50">All</span>
+        )}
+        <span className="text-[8px] opacity-60">▼</span>
+      </button>
+      {open && pos &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{ position: 'fixed', left: pos.left, top: pos.top }}
+            className="z-[100] w-64 max-h-80 flex flex-col rounded-xl border border-white/15 bg-slate-900 shadow-2xl shadow-black/60"
+          >
+            <div className="p-2 border-b border-white/10">
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={`Search ${label.toLowerCase()}…`}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 text-white placeholder-purple-300/50 focus:border-fuchsia-400/50 focus:outline-none focus:ring-1 focus:ring-fuchsia-400/30"
+              />
+            </div>
+            <div className="overflow-auto flex-1 p-1">
+              {filtered.length === 0 ? (
+                <div className="px-2 py-4 text-center text-[11px] text-purple-300/60">No matches</div>
+              ) : (
+                filtered.map((o) => {
+                  const on = selected.has(o);
+                  return (
+                    <button
+                      key={o}
+                      onClick={() => onToggle(o)}
+                      className={
+                        'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[12px] transition-colors ' +
+                        (on ? 'bg-fuchsia-500/15 text-white' : 'text-purple-100 hover:bg-white/5')
+                      }
+                    >
+                      <span
+                        className={
+                          'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border text-[9px] leading-none ' +
+                          (on ? 'bg-fuchsia-500 border-fuchsia-400 text-white' : 'border-white/30')
+                        }
+                      >
+                        {on ? '✓' : ''}
+                      </span>
+                      <span className="truncate" title={o}>{o}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-2 p-2 border-t border-white/10">
+              <span className="text-[10px] text-purple-300/60 tabular-nums">
+                {count} selected · {options.length} total
+              </span>
+              <button
+                onClick={onClear}
+                disabled={count === 0}
+                className="text-[11px] font-semibold text-rose-200 hover:text-rose-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Clear
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 }

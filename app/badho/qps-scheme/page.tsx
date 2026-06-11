@@ -256,7 +256,12 @@ function DrillModal({ config, onClose }: { config: DrillConfig; onClose: () => v
                         {isBL ? '…' : isExp ? '▼' : '▶'}
                       </button>
                       <div className="flex-1 min-w-0">
-                        <div className="text-white font-semibold text-sm truncate">{b.buyer_business_name}</div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="text-white font-semibold text-sm truncate">{b.buyer_business_name}</div>
+                          {String(b.is_new) === '1' && (
+                            <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wide bg-gradient-to-r from-emerald-400 to-teal-400 text-emerald-950 shadow-[0_0_8px_rgba(52,211,153,0.4)]" title="Joined the platform this month">New</span>
+                          )}
+                        </div>
                         <div className="text-purple-300/60 text-xs">{b.buyer_name || '—'} · {b.buyer_phone}</div>
                       </div>
                       <span className={`px-2 py-0.5 rounded text-xs font-semibold shrink-0 ${giftCellClass(b.gift_won)}`}>{GIFT_ICON[b.gift_won] ? `${GIFT_ICON[b.gift_won]} ` : ''}{b.gift_won}</span>
@@ -270,6 +275,20 @@ function DrillModal({ config, onClose }: { config: DrillConfig; onClose: () => v
                       <span className="text-purple-300/60">Delivered: <span className="text-emerald-300 font-semibold">{fmtAmt(b.delivered_amount)}</span></span>
                       <span className="text-purple-300/60">RTO: <span className="text-rose-300 font-semibold">{fmtAmt(b.rto_amount)}</span></span>
                       <span className="text-purple-300/60">Due: <span className="text-amber-300 font-semibold">{fmtAmt(b.due_amount)}</span></span>
+                      {(() => {
+                        const prev = Number(b.prev_mtd_amount);
+                        const cur = Number(b.qualified_amount);
+                        const delta = cur - prev;
+                        const cls = delta > 0 ? 'text-emerald-300' : delta < 0 ? 'text-rose-300' : 'text-purple-300/50';
+                        const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '–';
+                        return (
+                          <span className="text-purple-300/60">
+                            vs last month (MTD):{' '}
+                            <span className={`font-semibold ${cls}`}>{arrow} {delta > 0 ? '+' : ''}{fmtAmt(Math.abs(delta))}</span>
+                            <span className="text-purple-300/45"> (prev {fmtAmt(prev)})</span>
+                          </span>
+                        );
+                      })()}
                     </div>
                     </div>
                     {isExp && (
@@ -499,6 +518,12 @@ export default function QpsSchemePage() {
   // Pagination for detail table
   const [detailPage, setDetailPage] = useState(1);
   const [detailPageSize, setDetailPageSize] = useState(50);
+
+  // Level filter for detail table ('all' | 'Level 1' … 'Level 5')
+  const [levelFilter, setLevelFilter] = useState<string>('all');
+  const filteredDetailRows = levelFilter === 'all'
+    ? detailRows
+    : detailRows.filter((r) => r.reward_level === levelFilter);
 
   // Buyer order expand state
   const [expandedBuyerId, setExpandedBuyerId] = useState<string | null>(null);
@@ -1175,6 +1200,23 @@ export default function QpsSchemePage() {
                   />
                 </div>
 
+                {/* Level filter */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-purple-300/70 font-medium">Level</label>
+                  <select
+                    value={levelFilter}
+                    onChange={(e) => { setLevelFilter(e.target.value); setDetailPage(1); }}
+                    className="px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white focus:outline-none focus:border-fuchsia-400/50 min-w-[110px]"
+                  >
+                    <option value="all" className="bg-slate-900">All levels</option>
+                    <option value="Level 1" className="bg-slate-900">L1 · ₹3k</option>
+                    <option value="Level 2" className="bg-slate-900">L2 · ₹5k</option>
+                    <option value="Level 3" className="bg-slate-900">L3 · ₹10k</option>
+                    {isMayPlus && <option value="Level 4" className="bg-slate-900">L4 · ₹20k</option>}
+                    {isMayPlus && <option value="Level 5" className="bg-slate-900">L5 · ₹30k</option>}
+                  </select>
+                </div>
+
                 {/* Rows per page */}
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-purple-300/70 font-medium">Rows / page</label>
@@ -1212,6 +1254,34 @@ export default function QpsSchemePage() {
               </div>
             )}
 
+            {!detailLoading && detailRows.length > 0 && levelFilter !== 'all' && (() => {
+              const rows = filteredDetailRows;
+              const sum = (k: keyof DetailRow) => rows.reduce((s, r) => s + Number(r[k] || 0), 0);
+              const totalQ = sum('qualified_amount');
+              const totalPrev = sum('prev_mtd_amount');
+              const delta = totalQ - totalPrev;
+              const newCount = rows.filter((r) => String(r.is_new) === '1').length;
+              const dcls = delta > 0 ? 'text-emerald-300' : delta < 0 ? 'text-rose-300' : 'text-purple-300/60';
+              const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '–';
+              const kpi = (label: string, node: React.ReactNode) => (
+                <div className="flex flex-col">
+                  <span className="text-[11px] uppercase tracking-wide text-purple-300/60">{label}</span>
+                  <span className="text-lg font-black text-white">{node}</span>
+                </div>
+              );
+              return (
+                <div className="rounded-2xl border border-fuchsia-400/25 bg-gradient-to-r from-fuchsia-600/15 to-purple-600/10 p-4 flex flex-wrap items-center gap-x-10 gap-y-3 shadow-[0_0_25px_rgba(217,70,239,0.15)]">
+                  <div className="text-base font-black tracking-tight bg-gradient-to-r from-fuchsia-200 to-indigo-200 bg-clip-text text-transparent">{levelFilter} summary</div>
+                  {kpi('Buyers', fmt(rows.length))}
+                  {kpi('New buyers', <span className="text-emerald-300">{fmt(newCount)}</span>)}
+                  {kpi('Total Qualified ₹', fmtAmt(totalQ))}
+                  {kpi('vs last month (MTD)', <span className={dcls}>{arrow} {delta > 0 ? '+' : ''}{fmtAmt(Math.abs(delta))}</span>)}
+                  {kpi('Total Placed ₹', fmtAmt(sum('placed_amount')))}
+                  {kpi('Total Delivered ₹', fmtAmt(sum('delivered_amount')))}
+                </div>
+              );
+            })()}
+
             {detailLoading && (
               <div className="flex items-center justify-center py-16">
                 <div className="text-purple-300 text-sm animate-pulse">Fetching buyer detail…</div>
@@ -1229,11 +1299,14 @@ export default function QpsSchemePage() {
                 {/* Summary strip */}
                 <div className="px-5 py-3 border-b border-white/10 flex items-center gap-6 flex-wrap text-xs text-purple-300/80">
                   <span>
-                    <span className="text-white font-semibold">{detailRows.filter(r => r.gift_won !== 'No Gift').length}</span> qualified (gift won)
+                    <span className="text-white font-semibold">{filteredDetailRows.filter(r => r.gift_won !== 'No Gift').length}</span> qualified (gift won)
                   </span>
                   <span>
-                    <span className="text-white font-semibold">{detailRows.filter(r => r.gift_won === 'No Gift').length}</span> not qualified
+                    <span className="text-white font-semibold">{filteredDetailRows.filter(r => r.gift_won === 'No Gift').length}</span> not qualified
                   </span>
+                  {levelFilter !== 'all' && (
+                    <span className="px-2 py-0.5 rounded-md bg-fuchsia-500/20 text-fuchsia-200 font-semibold">Filtered: {levelFilter}</span>
+                  )}
                   <span className="ml-auto flex items-center gap-3">
                     <span>
                       Scheme Details — <span className="text-fuchsia-300 font-semibold">{detailMonthLabel}</span>
@@ -1241,7 +1314,7 @@ export default function QpsSchemePage() {
                       {isMayPlus && <span className="ml-2 text-emerald-300/70">(L1–L5 · May onwards)</span>}
                     </span>
                     {queryBtn('detail', `Qualified Detail — ${detailMonthLabel}`)}
-                    <button onClick={() => downloadCsv(detailRows as unknown as Record<string, unknown>[], `qps-detail-${selectedMonth}.csv`)} className={CSV_BTN_CLASS}>⬇ CSV</button>
+                    <button onClick={() => downloadCsv(filteredDetailRows as unknown as Record<string, unknown>[], `qps-detail-${selectedMonth}${levelFilter !== 'all' ? `-${levelFilter.replace(' ', '')}` : ''}.csv`)} className={CSV_BTN_CLASS}>⬇ CSV</button>
                   </span>
                 </div>
 
@@ -1280,7 +1353,7 @@ export default function QpsSchemePage() {
                     <tbody>
                       {(() => {
                         const pageStart = (detailPage - 1) * detailPageSize;
-                        const pagedRows = detailRows.slice(pageStart, pageStart + detailPageSize);
+                        const pagedRows = filteredDetailRows.slice(pageStart, pageStart + detailPageSize);
                         return pagedRows.map((row, idx) => {
                         const i = pageStart + idx;
                         const qualified = row.gift_won !== 'No Gift';
@@ -1483,13 +1556,13 @@ export default function QpsSchemePage() {
                   </table>
                 </div>
                 {/* Pagination footer */}
-                {detailRows.length > detailPageSize && (() => {
-                  const totalPages = Math.ceil(detailRows.length / detailPageSize);
+                {filteredDetailRows.length > detailPageSize && (() => {
+                  const totalPages = Math.ceil(filteredDetailRows.length / detailPageSize);
                   const pageStart = (detailPage - 1) * detailPageSize;
                   return (
                     <div className="px-5 py-3 border-t border-white/10 bg-white/[0.02] flex items-center justify-between flex-wrap gap-3 text-xs">
                       <div className="text-purple-200/80">
-                        Showing <span className="text-white font-bold">{Math.min(pageStart + 1, detailRows.length)}</span>–<span className="text-white font-bold">{Math.min(pageStart + detailPageSize, detailRows.length)}</span> of <span className="text-white font-bold">{detailRows.length}</span> buyers
+                        Showing <span className="text-white font-bold">{Math.min(pageStart + 1, filteredDetailRows.length)}</span>–<span className="text-white font-bold">{Math.min(pageStart + detailPageSize, filteredDetailRows.length)}</span> of <span className="text-white font-bold">{filteredDetailRows.length}</span> buyers
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="text-purple-300/70">Rows:</label>

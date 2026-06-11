@@ -136,6 +136,164 @@ function QueryModal({ title, queries, onClose }: { title: string; queries: SqlQu
   );
 }
 
+// ── DrillModal ────────────────────────────────────────────────────────────────
+
+interface DrillConfig {
+  title: string;
+  monthIso: string;
+  giftFilter?: string | null; // null = all qualified; string = specific gift name; undefined = no filter
+}
+
+function DrillModal({ config, onClose }: { config: DrillConfig; onClose: () => void }) {
+  const [buyers, setBuyers] = React.useState<DetailRow[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [expandedBuyer, setExpandedBuyer] = React.useState<string | null>(null);
+  const [brandMap, setBrandMap] = React.useState<Record<string, BuyerOrderRow[]>>({});
+  const [brandLoading, setBrandLoading] = React.useState<string | null>(null);
+  const [brandErrors, setBrandErrors] = React.useState<Record<string, string>>({});
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  React.useEffect(() => {
+    setLoading(true); setError(null);
+    const iso = config.monthIso.substring(0, 10);
+    fetch(`/api/qps-buyer-detail?month=${iso}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) throw new Error(d.error);
+        let rows: DetailRow[] = d.data ?? [];
+        if (config.giftFilter === null) rows = rows.filter((r) => r.gift_won !== 'No Gift');
+        else if (typeof config.giftFilter === 'string') rows = rows.filter((r) => r.gift_won === config.giftFilter);
+        setBuyers(rows);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [config.monthIso, config.giftFilter]);
+
+  function toggleBrand(buyerId: string) {
+    if (expandedBuyer === buyerId) { setExpandedBuyer(null); return; }
+    setExpandedBuyer(buyerId);
+    if (brandMap[buyerId] !== undefined) return;
+    setBrandLoading(buyerId);
+    const iso = config.monthIso.substring(0, 10);
+    fetch(`/api/qps-buyer-orders?buyerId=${buyerId}&month=${iso}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) { setBrandErrors((p) => ({ ...p, [buyerId]: d.error })); setBrandMap((p) => ({ ...p, [buyerId]: [] })); }
+        else setBrandMap((p) => ({ ...p, [buyerId]: d.data ?? [] }));
+      })
+      .catch((e) => { setBrandErrors((p) => ({ ...p, [buyerId]: e.message })); setBrandMap((p) => ({ ...p, [buyerId]: [] })); })
+      .finally(() => setBrandLoading(null));
+  }
+
+  function getBrandBreakdown(buyerId: string) {
+    const orders = brandMap[buyerId] ?? [];
+    const map: Record<string, { delivered: number; rto: number; other: number; total: number }> = {};
+    for (const o of orders) {
+      if (!map[o.seller_name]) map[o.seller_name] = { delivered: 0, rto: 0, other: 0, total: 0 };
+      const amt = Number(o.amount) || 0;
+      map[o.seller_name].total += amt;
+      if (o.status === 'COMPLETED' || o.status === 'DELIVERED') map[o.seller_name].delivered += amt;
+      else if (o.status === 'REJECTED') map[o.seller_name].rto += amt;
+      else map[o.seller_name].other += amt;
+    }
+    return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-4xl max-h-[85vh] overflow-y-auto bg-slate-950 border border-white/15 rounded-2xl shadow-[0_0_60px_rgba(168,85,247,0.3)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-slate-950 z-10">
+          <div>
+            <p className="text-purple-300 text-[11px] uppercase tracking-wider font-semibold">Buyer Drill-down</p>
+            <h3 className="text-white font-bold text-lg">{config.title}</h3>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2">×</button>
+        </div>
+        <div className="p-6">
+          {loading && <div className="text-purple-300 text-sm text-center py-8 animate-pulse">Loading buyers…</div>}
+          {error && <div className="text-rose-300 text-sm text-center py-4">{error}</div>}
+          {!loading && !error && buyers.length === 0 && <div className="text-purple-300/60 text-sm text-center py-8">No buyers found</div>}
+          {!loading && buyers.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs text-purple-300/60 mb-3">{buyers.length} buyer{buyers.length !== 1 ? 's' : ''}</div>
+              {buyers.map((b, i) => {
+                const isExp = expandedBuyer === b.buyer_id;
+                const isBL = brandLoading === b.buyer_id;
+                const brands = getBrandBreakdown(b.buyer_id);
+                return (
+                  <div key={b.buyer_id} className="rounded-xl border border-white/8 bg-white/[0.03] overflow-hidden">
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <span className="text-purple-400/40 text-xs w-5 text-right shrink-0">{i + 1}</span>
+                      <button onClick={() => toggleBrand(b.buyer_id)} className={`w-5 h-5 rounded flex items-center justify-center text-[10px] shrink-0 transition-colors ${isExp ? 'bg-fuchsia-500/30 text-fuchsia-300' : 'bg-white/8 text-purple-400 hover:bg-white/15 hover:text-white'}`}>
+                        {isBL ? '…' : isExp ? '▼' : '▶'}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-semibold text-sm truncate">{b.buyer_business_name}</div>
+                        <div className="text-purple-300/60 text-xs">{b.buyer_name || '—'} · {b.buyer_phone}</div>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold shrink-0 ${giftCellClass(b.gift_won)}`}>{GIFT_ICON[b.gift_won] ? `${GIFT_ICON[b.gift_won]} ` : ''}{b.gift_won}</span>
+                      <div className="text-right shrink-0">
+                        <div className="text-white font-bold text-sm">{fmtAmt(b.qualified_amount)}</div>
+                        <div className="text-purple-300/60 text-xs">{b.reward_level}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 px-12 pb-2 text-xs flex-wrap">
+                      <span className="text-purple-300/60">Placed: <span className="text-cyan-300 font-semibold">{fmtAmt(b.placed_amount)}</span></span>
+                      <span className="text-purple-300/60">Delivered: <span className="text-emerald-300 font-semibold">{fmtAmt(b.delivered_amount)}</span></span>
+                      <span className="text-purple-300/60">RTO: <span className="text-rose-300 font-semibold">{fmtAmt(b.rto_amount)}</span></span>
+                      <span className="text-purple-300/60">Due: <span className="text-amber-300 font-semibold">{fmtAmt(b.due_amount)}</span></span>
+                    </div>
+                    {isExp && (
+                      <div className="border-t border-white/8 px-12 py-3 bg-purple-900/20">
+                        {isBL ? (
+                          <div className="text-purple-300/60 text-xs animate-pulse">Loading brand breakdown…</div>
+                        ) : brandErrors[b.buyer_id] ? (
+                          <div className="text-rose-300 text-xs">Error: {brandErrors[b.buyer_id]}</div>
+                        ) : brands.length === 0 ? (
+                          <div className="text-purple-300/60 text-xs">No brand orders found</div>
+                        ) : (
+                          <table className="w-full text-xs border-collapse">
+                            <thead>
+                              <tr className="text-purple-300/60 border-b border-white/8 text-left">
+                                <th className="py-1.5 pr-4 font-medium">Brand / Seller</th>
+                                <th className="py-1.5 pr-4 text-right font-medium">Total ₹</th>
+                                <th className="py-1.5 pr-4 text-right font-medium text-emerald-300/70">Delivered ₹</th>
+                                <th className="py-1.5 pr-4 text-right font-medium text-rose-300/70">RTO ₹</th>
+                                <th className="py-1.5 text-right font-medium text-amber-300/70">In-Transit ₹</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {brands.map(([name, data]) => (
+                                <tr key={name} className="border-b border-white/5 hover:bg-white/5">
+                                  <td className="py-1.5 pr-4 text-white font-medium">{name}</td>
+                                  <td className="py-1.5 pr-4 text-right text-white font-bold">{fmtAmt(data.total)}</td>
+                                  <td className="py-1.5 pr-4 text-right text-emerald-300">{data.delivered > 0 ? fmtAmt(data.delivered) : <span className="text-purple-400/30">—</span>}</td>
+                                  <td className="py-1.5 pr-4 text-right text-rose-300">{data.rto > 0 ? fmtAmt(data.rto) : <span className="text-purple-400/30">—</span>}</td>
+                                  <td className="py-1.5 text-right text-amber-300">{data.other > 0 ? fmtAmt(data.other) : <span className="text-purple-400/30">—</span>}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
 function toCsv(rows: Record<string, unknown>[]): string {
@@ -321,6 +479,10 @@ export default function QpsSchemePage() {
   const [expandedBuyerId, setExpandedBuyerId] = useState<string | null>(null);
   const [buyerOrdersMap, setBuyerOrdersMap] = useState<Record<string, BuyerOrderRow[]>>({});
   const [buyerOrdersLoading, setBuyerOrdersLoading] = useState<string | null>(null);
+  const [buyerOrdersErrors, setBuyerOrdersErrors] = useState<Record<string, string>>({});
+
+  // Drill modal state
+  const [drillConfig, setDrillConfig] = useState<DrillConfig | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -360,6 +522,7 @@ export default function QpsSchemePage() {
     setDetailError(null);
     setExpandedBuyerId(null);
     setBuyerOrdersMap({});
+    setBuyerOrdersErrors({});
     const qs = new URLSearchParams({ month });
     if (date1) qs.set('date1', date1);
     if (date2) qs.set('date2', date2);
@@ -380,11 +543,22 @@ export default function QpsSchemePage() {
   function toggleBuyerOrders(buyerId: string) {
     if (expandedBuyerId === buyerId) { setExpandedBuyerId(null); return; }
     setExpandedBuyerId(buyerId);
-    if (buyerOrdersMap[buyerId]) return;
+    if (buyerOrdersMap[buyerId] !== undefined) return;
     setBuyerOrdersLoading(buyerId);
     fetch(`/api/qps-buyer-orders?buyerId=${buyerId}&month=${selectedMonth}`)
       .then((r) => r.json())
-      .then((d) => setBuyerOrdersMap((prev) => ({ ...prev, [buyerId]: d.data ?? [] })))
+      .then((d) => {
+        if (d.error) {
+          setBuyerOrdersErrors((prev) => ({ ...prev, [buyerId]: d.error }));
+          setBuyerOrdersMap((prev) => ({ ...prev, [buyerId]: [] }));
+        } else {
+          setBuyerOrdersMap((prev) => ({ ...prev, [buyerId]: d.data ?? [] }));
+        }
+      })
+      .catch((e) => {
+        setBuyerOrdersErrors((prev) => ({ ...prev, [buyerId]: e.message }));
+        setBuyerOrdersMap((prev) => ({ ...prev, [buyerId]: [] }));
+      })
       .finally(() => setBuyerOrdersLoading(null));
   }
 
@@ -398,7 +572,7 @@ export default function QpsSchemePage() {
 
   const trendChart = [...trendData]
     .sort((a, b) => new Date(a.month_date).getTime() - new Date(b.month_date).getTime())
-    .map((r) => ({ month: r.month, 'Qualified Buyers': Number(r.qualified_buyers) }));
+    .map((r) => ({ month: r.month, month_date: r.month_date, 'Qualified Buyers': Number(r.qualified_buyers) }));
 
   const newVsOldChart = [...newVsOldData]
     .sort((a, b) => new Date(a.month_date).getTime() - new Date(b.month_date).getTime())
@@ -496,7 +670,8 @@ export default function QpsSchemePage() {
                   <div className="text-purple-300/60 text-sm text-center py-12">No data</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={260}>
-                    <LineChart data={trendChart} margin={{ top: 22, right: 12, left: 0, bottom: 0 }}>
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    <LineChart data={trendChart} margin={{ top: 22, right: 12, left: 0, bottom: 0 }} style={{ cursor: 'pointer' }} onClick={(data: any) => { const p = data?.activePayload?.[0]?.payload; if (p?.month_date) setDrillConfig({ title: `Qualified Buyers — ${p.month}`, monthIso: p.month_date, giftFilter: null }); }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                       <XAxis dataKey="month" tick={{ fill: '#c4b5fd', fontSize: 11 }} />
                       <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} width={40} />
@@ -684,30 +859,30 @@ export default function QpsSchemePage() {
                           <td className="py-2.5 pr-4 text-white font-medium whitespace-nowrap">{row.month}</td>
                           <td className="py-2.5 pr-4 text-right text-purple-200">{fmt(row.delivered_buyers)}</td>
                           <td className="py-2.5 pr-4 text-right whitespace-nowrap">
-                            <span className="text-white font-semibold">{fmt(total)}</span>
+                            <button onClick={() => setDrillConfig({ title: `All Qualified — ${row.month}`, monthIso: row.month_date, giftFilter: null })} className="text-white font-semibold hover:text-fuchsia-300 transition-colors">{fmt(total)}</button>
                             <span className="text-purple-400 text-xs ml-1">({convPct}%)</span>
                             {D(dTotal)}
                           </td>
                           <td className="py-2.5 pr-3 text-right whitespace-nowrap">
-                            {l1 > 0 ? <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-200 text-xs font-semibold">{fmt(l1)}</span> : <span className="text-purple-400/40">—</span>}
+                            {l1 > 0 ? <><button onClick={() => setDrillConfig({ title: `L1 🐢 Buyers — ${row.month}`, monthIso: row.month_date, giftFilter: 'Vastu tortoise (Worth 300)' })} className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-200 text-xs font-semibold hover:bg-amber-500/40 transition-colors">{fmt(l1)}</button></> : <span className="text-purple-400/40">—</span>}
                             {D(dL1)}
                           </td>
                           <td className="py-2.5 pr-3 text-right whitespace-nowrap">
-                            {l2 > 0 ? <span className="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-200 text-xs font-semibold">{fmt(l2)}</span> : <span className="text-purple-400/40">—</span>}
+                            {l2 > 0 ? <><button onClick={() => setDrillConfig({ title: `L2 🌀 Buyers — ${row.month}`, monthIso: row.month_date, giftFilter: 'Mini table fan (Worth 500)' })} className="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-200 text-xs font-semibold hover:bg-sky-500/40 transition-colors">{fmt(l2)}</button></> : <span className="text-purple-400/40">—</span>}
                             {D(dL2)}
                           </td>
                           <td className="py-2.5 pr-3 text-right whitespace-nowrap">
-                            {l3 > 0 ? <span className="px-2 py-0.5 rounded-md bg-fuchsia-500/20 text-fuchsia-200 text-xs font-semibold">{fmt(l3)}</span> : <span className="text-purple-400/40">—</span>}
+                            {l3 > 0 ? <><button onClick={() => setDrillConfig({ title: `L3 🔊 Buyers — ${row.month}`, monthIso: row.month_date, giftFilter: 'Speaker (Worth 1000)' })} className="px-2 py-0.5 rounded-md bg-fuchsia-500/20 text-fuchsia-200 text-xs font-semibold hover:bg-fuchsia-500/40 transition-colors">{fmt(l3)}</button></> : <span className="text-purple-400/40">—</span>}
                             {D(dL3)}
                           </td>
                           <td className="py-2.5 pr-3 text-right whitespace-nowrap">
                             {!mayPlus ? <span className="text-purple-400/20 text-xs">N/A</span>
-                              : l4 > 0 ? <><span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-200 text-xs font-semibold">{fmt(l4)}</span>{D(dL4)}</>
+                              : l4 > 0 ? <><button onClick={() => setDrillConfig({ title: `L4 📷 Buyers — ${row.month}`, monthIso: row.month_date, giftFilter: 'CCTV/Iron (Worth 2000)' })} className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-200 text-xs font-semibold hover:bg-rose-500/40 transition-colors">{fmt(l4)}</button>{D(dL4)}</>
                               : <span className="text-purple-400/40">—</span>}
                           </td>
                           <td className="py-2.5 text-right whitespace-nowrap">
                             {!mayPlus ? <span className="text-purple-400/20 text-xs">N/A</span>
-                              : l5 > 0 ? <><span className="px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-200 text-xs font-semibold">{fmt(l5)}</span>{D(dL5)}</>
+                              : l5 > 0 ? <><button onClick={() => setDrillConfig({ title: `L5 🍳 Buyers — ${row.month}`, monthIso: row.month_date, giftFilter: 'Airfryer/Mixer (Worth 3000)' })} className="px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-200 text-xs font-semibold hover:bg-orange-500/40 transition-colors">{fmt(l5)}</button>{D(dL5)}</>
                               : <span className="text-purple-400/40">—</span>}
                           </td>
                         </tr>
@@ -745,16 +920,23 @@ export default function QpsSchemePage() {
             return { gift_name: n, buyer_count: count };
           }) : [];
 
-          const GiftCard = ({ g, dim }: { g: { gift_name: string; buyer_count: number }; dim?: boolean }) => (
+          const GiftCard = ({ g, dim, onCountClick }: { g: { gift_name: string; buyer_count: number }; dim?: boolean; onCountClick?: () => void }) => (
             <div className={`rounded-2xl border p-5 flex flex-col gap-3 ${dim ? 'border-white/5 bg-white/[0.02] opacity-70' : 'border-white/10 bg-white/[0.04]'}`}>
               <div className="text-4xl">{GIFT_ICON[g.gift_name] ?? '🎁'}</div>
               <div>
-                <div className="text-sm font-bold text-white leading-snug">{g.gift_name}</div>
-                <div className="text-xs text-purple-300/70 mt-0.5">{GIFT_LEVEL[g.gift_name]}</div>
+                <div className="text-base font-extrabold text-white leading-snug">{g.gift_name}</div>
+                <div className="text-sm text-purple-300/80 mt-1 font-semibold">{GIFT_LEVEL[g.gift_name]}</div>
               </div>
               <div className="mt-auto">
-                <div className="text-3xl font-bold bg-gradient-to-r from-fuchsia-400 to-purple-400 bg-clip-text text-transparent">{fmt(g.buyer_count)}</div>
-                <div className="text-xs text-purple-300/70">{g.buyer_count === 1 ? 'buyer' : 'buyers'} qualified</div>
+                <button
+                  onClick={onCountClick}
+                  disabled={!onCountClick || g.buyer_count === 0}
+                  title={onCountClick && g.buyer_count > 0 ? 'Click to see buyers' : undefined}
+                  className={`text-4xl font-black bg-gradient-to-r from-fuchsia-400 to-purple-400 bg-clip-text text-transparent block leading-none ${onCountClick && g.buyer_count > 0 ? 'hover:from-fuchsia-200 hover:to-pink-300 cursor-pointer transition-all' : 'cursor-default'}`}
+                >
+                  {fmt(g.buyer_count)}
+                </button>
+                <div className="text-sm text-purple-300/70 font-medium mt-1">{g.buyer_count === 1 ? 'buyer' : 'buyers'} qualified</div>
               </div>
             </div>
           );
@@ -778,7 +960,11 @@ export default function QpsSchemePage() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     {giftData.map((g) => (
-                      <GiftCard key={g.gift_name} g={{ gift_name: g.gift_name, buyer_count: Number(g.buyer_count) }} />
+                      <GiftCard
+                        key={g.gift_name}
+                        g={{ gift_name: g.gift_name, buyer_count: Number(g.buyer_count) }}
+                        onCountClick={() => setDrillConfig({ title: `${GIFT_ICON[g.gift_name] ?? '🎁'} ${g.gift_name} — Current Month`, monthIso: AVAILABLE_MONTHS[0]?.value ?? '2026-06-01', giftFilter: g.gift_name })}
+                      />
                     ))}
                   </div>
                 )}
@@ -808,7 +994,12 @@ export default function QpsSchemePage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     {prevGifts.map((g) => (
-                      <GiftCard key={g.gift_name} g={g} dim />
+                      <GiftCard
+                        key={g.gift_name}
+                        g={g}
+                        dim
+                        onCountClick={g.buyer_count > 0 ? () => setDrillConfig({ title: `${GIFT_ICON[g.gift_name] ?? '🎁'} ${g.gift_name} — ${prevRow!.month}`, monthIso: prevRow!.month_date.substring(0, 10), giftFilter: g.gift_name }) : undefined}
+                      />
                     ))}
                   </div>
                   <div className="mt-4 flex items-center gap-3">
@@ -1052,8 +1243,10 @@ export default function QpsSchemePage() {
                           {isExpanded && (
                             <tr className="bg-purple-900/30">
                               <td colSpan={99} className="px-6 py-3">
-                                {isLoadingOrders || (!orders.length && !buyerOrdersMap[row.buyer_id]) ? (
-                                  <div className="text-purple-300/60 text-xs py-2">Loading orders…</div>
+                                {isLoadingOrders || buyerOrdersMap[row.buyer_id] === undefined ? (
+                                  <div className="text-purple-300/60 text-xs py-2 animate-pulse">Loading orders…</div>
+                                ) : buyerOrdersErrors[row.buyer_id] ? (
+                                  <div className="text-rose-300 text-xs py-2">Error: {buyerOrdersErrors[row.buyer_id]}</div>
                                 ) : orders.length === 0 ? (
                                   <div className="text-purple-300/60 text-xs py-2">No orders found for this month</div>
                                 ) : (
@@ -1113,6 +1306,9 @@ export default function QpsSchemePage() {
         queries={queryModalState.queries}
         onClose={() => setQueryModalState(null)}
       />
+    )}
+    {drillConfig && (
+      <DrillModal config={drillConfig} onClose={() => setDrillConfig(null)} />
     )}
     </>
   );

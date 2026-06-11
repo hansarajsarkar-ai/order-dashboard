@@ -519,11 +519,15 @@ export default function QpsSchemePage() {
   const [detailPage, setDetailPage] = useState(1);
   const [detailPageSize, setDetailPageSize] = useState(50);
 
-  // Level filter for detail table ('all' | 'Level 1' … 'Level 5')
-  const [levelFilter, setLevelFilter] = useState<string>('all');
-  const filteredDetailRows = levelFilter === 'all'
+  // Level filter for detail table — multi-select toggle ([] = all levels)
+  const [levelFilters, setLevelFilters] = useState<string[]>([]);
+  const toggleLevel = (lvl: string) => {
+    setLevelFilters((prev) => (prev.includes(lvl) ? prev.filter((l) => l !== lvl) : [...prev, lvl]));
+    setDetailPage(1);
+  };
+  const filteredDetailRows = levelFilters.length === 0
     ? detailRows
-    : detailRows.filter((r) => r.reward_level === levelFilter);
+    : detailRows.filter((r) => levelFilters.includes(r.reward_level));
 
   // Buyer order expand state
   const [expandedBuyerId, setExpandedBuyerId] = useState<string | null>(null);
@@ -534,6 +538,9 @@ export default function QpsSchemePage() {
   // Drill modal state
   const [drillConfig, setDrillConfig] = useState<DrillConfig | null>(null);
   const [photoBuyer, setPhotoBuyer] = useState<DetailRow | null>(null);
+
+  // When the dashboard data was last (successfully) loaded
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -561,6 +568,7 @@ export default function QpsSchemePage() {
         setNewVsOldData(nvo.data ?? []);
         setSchemeTableData(scheme.data ?? []);
         setGiftData(gifts.data ?? []);
+        setLastUpdated(new Date());
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -681,18 +689,25 @@ export default function QpsSchemePage() {
             QPS Dashboard
           </h1>
           <span className="ml-auto text-xs text-purple-300/60">Quantity Purchase Scheme · D2R Brand Sellers</span>
-          <button
-            onClick={refreshAll}
-            disabled={loading || detailLoading}
-            title="Refresh dashboard data"
-            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors shadow-[0_0_20px_rgba(217,70,239,0.3)]"
-          >
-            <svg viewBox="0 0 24 24" className={`h-4 w-4 ${loading || detailLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-              <path d="M21 3v6h-6" />
-            </svg>
-            Refresh
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={refreshAll}
+              disabled={loading || detailLoading}
+              title="Refresh dashboard data"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors shadow-[0_0_20px_rgba(217,70,239,0.3)]"
+            >
+              <svg viewBox="0 0 24 24" className={`h-4 w-4 ${loading || detailLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                <path d="M21 3v6h-6" />
+              </svg>
+              Refresh
+            </button>
+            <span className="text-[11px] text-purple-300/50">
+              {lastUpdated
+                ? `Last updated ${lastUpdated.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}`
+                : 'Loading…'}
+            </span>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -1200,21 +1215,45 @@ export default function QpsSchemePage() {
                   />
                 </div>
 
-                {/* Level filter */}
+                {/* Level filter — multi-select toggles */}
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-purple-300/70 font-medium">Level</label>
-                  <select
-                    value={levelFilter}
-                    onChange={(e) => { setLevelFilter(e.target.value); setDetailPage(1); }}
-                    className="px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white focus:outline-none focus:border-fuchsia-400/50 min-w-[110px]"
-                  >
-                    <option value="all" className="bg-slate-900">All levels</option>
-                    <option value="Level 1" className="bg-slate-900">L1 · ₹3k</option>
-                    <option value="Level 2" className="bg-slate-900">L2 · ₹5k</option>
-                    <option value="Level 3" className="bg-slate-900">L3 · ₹10k</option>
-                    {isMayPlus && <option value="Level 4" className="bg-slate-900">L4 · ₹20k</option>}
-                    {isMayPlus && <option value="Level 5" className="bg-slate-900">L5 · ₹30k</option>}
-                  </select>
+                  <label className="text-xs text-purple-300/70 font-medium">Levels {levelFilters.length > 0 && <span className="text-purple-300/50">(tap to toggle)</span>}</label>
+                  <div className="flex items-center gap-1.5">
+                    {[
+                      { lvl: 'Level 1', label: 'L1', show: true },
+                      { lvl: 'Level 2', label: 'L2', show: true },
+                      { lvl: 'Level 3', label: 'L3', show: true },
+                      { lvl: 'Level 4', label: 'L4', show: isMayPlus },
+                      { lvl: 'Level 5', label: 'L5', show: isMayPlus },
+                    ].filter((x) => x.show).map(({ lvl, label }) => {
+                      const on = levelFilters.includes(lvl);
+                      return (
+                        <button
+                          key={lvl}
+                          type="button"
+                          onClick={() => toggleLevel(lvl)}
+                          className={`px-3 py-2 rounded-lg text-sm font-bold transition-all border ${
+                            on
+                              ? 'bg-fuchsia-600 text-white border-fuchsia-400/60 shadow-[0_0_14px_rgba(217,70,239,0.4)]'
+                              : 'bg-white/5 text-purple-200 border-white/15 hover:bg-white/10 hover:text-white'
+                          }`}
+                          title={on ? `Hide ${label}` : `Show ${label}`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                    {levelFilters.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setLevelFilters([]); setDetailPage(1); }}
+                        className="px-2.5 py-2 rounded-lg text-xs font-semibold text-purple-300 hover:text-white hover:bg-white/10 transition-colors"
+                        title="Clear level filters"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Rows per page */}
@@ -1254,8 +1293,9 @@ export default function QpsSchemePage() {
               </div>
             )}
 
-            {!detailLoading && detailRows.length > 0 && levelFilter !== 'all' && (() => {
+            {!detailLoading && detailRows.length > 0 && levelFilters.length > 0 && (() => {
               const rows = filteredDetailRows;
+              const levelsLabel = levelFilters.map((l) => l.replace('Level ', 'L')).sort().join(', ');
               const sum = (k: keyof DetailRow) => rows.reduce((s, r) => s + Number(r[k] || 0), 0);
               const totalQ = sum('qualified_amount');
               const totalPrev = sum('prev_mtd_amount');
@@ -1271,7 +1311,7 @@ export default function QpsSchemePage() {
               );
               return (
                 <div className="rounded-2xl border border-fuchsia-400/25 bg-gradient-to-r from-fuchsia-600/15 to-purple-600/10 p-4 flex flex-wrap items-center gap-x-10 gap-y-3 shadow-[0_0_25px_rgba(217,70,239,0.15)]">
-                  <div className="text-base font-black tracking-tight bg-gradient-to-r from-fuchsia-200 to-indigo-200 bg-clip-text text-transparent">{levelFilter} summary</div>
+                  <div className="text-base font-black tracking-tight bg-gradient-to-r from-fuchsia-200 to-indigo-200 bg-clip-text text-transparent">{levelsLabel} summary</div>
                   {kpi('Buyers', fmt(rows.length))}
                   {kpi('New buyers', <span className="text-emerald-300">{fmt(newCount)}</span>)}
                   {kpi('Total Qualified ₹', fmtAmt(totalQ))}
@@ -1304,8 +1344,8 @@ export default function QpsSchemePage() {
                   <span>
                     <span className="text-white font-semibold">{filteredDetailRows.filter(r => r.gift_won === 'No Gift').length}</span> not qualified
                   </span>
-                  {levelFilter !== 'all' && (
-                    <span className="px-2 py-0.5 rounded-md bg-fuchsia-500/20 text-fuchsia-200 font-semibold">Filtered: {levelFilter}</span>
+                  {levelFilters.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-md bg-fuchsia-500/20 text-fuchsia-200 font-semibold">Filtered: {levelFilters.map((l) => l.replace('Level ', 'L')).sort().join(', ')}</span>
                   )}
                   <span className="ml-auto flex items-center gap-3">
                     <span>
@@ -1314,7 +1354,7 @@ export default function QpsSchemePage() {
                       {isMayPlus && <span className="ml-2 text-emerald-300/70">(L1–L5 · May onwards)</span>}
                     </span>
                     {queryBtn('detail', `Qualified Detail — ${detailMonthLabel}`)}
-                    <button onClick={() => downloadCsv(filteredDetailRows as unknown as Record<string, unknown>[], `qps-detail-${selectedMonth}${levelFilter !== 'all' ? `-${levelFilter.replace(' ', '')}` : ''}.csv`)} className={CSV_BTN_CLASS}>⬇ CSV</button>
+                    <button onClick={() => downloadCsv(filteredDetailRows as unknown as Record<string, unknown>[], `qps-detail-${selectedMonth}${levelFilters.length > 0 ? `-${levelFilters.map((l) => l.replace('Level ', 'L')).sort().join('')}` : ''}.csv`)} className={CSV_BTN_CLASS}>⬇ CSV</button>
                   </span>
                 </div>
 

@@ -260,10 +260,10 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
   // ── Frozen left columns ────────────────────────────────────────────────
   // Approve + Act + the first two data columns (poNumber, markedPendingTime by
   // default) stay pinned while the many financial columns scroll horizontally.
-  const APPROVE_W = 104;
-  const ACT_W = 72;
+  const APPROVE_W = 82;
+  const ACT_W = 68;
   const FROZEN_ORDERED = 2; // how many leading ordered columns to pin
-  const ORD_W = [96, 116]; // pinned ordered-column widths, left → right
+  const ORD_W = [80, 92]; // pinned ordered-column widths, left → right
   const orderedLeft = (idx: number) =>
     APPROVE_W + ACT_W + ORD_W.slice(0, idx).reduce((a, b) => a + b, 0);
   // A crisp divider + drop-shadow on the right edge of the frozen block so the
@@ -365,7 +365,7 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
               {rows.length === 0 ? 'No orders in this slab.' : 'No rows match the current search.'}
             </div>
           ) : (
-            <table className="text-[11px] border-collapse leading-tight">
+            <table className="text-[11px] border-separate border-spacing-0 leading-tight">
               <thead className="sticky top-0 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                 <tr>
                   {/* Frozen: Approve column — select-all checkbox */}

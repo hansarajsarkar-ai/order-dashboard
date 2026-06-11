@@ -657,7 +657,7 @@ export default function OrdersPushed() {
               {rows.length === 0 ? 'No pushed orders.' : 'No rows match the current filters.'}
             </div>
           ) : (
-            <table className="text-xs border-collapse">
+            <table className="text-xs border-separate border-spacing-0">
               <thead className="sticky top-0 z-10">
                 <tr>
                   <th

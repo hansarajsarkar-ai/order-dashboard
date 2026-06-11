@@ -1035,7 +1035,7 @@ export default function QpsSchemePage() {
 
   return (
     <>
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-3 sm:p-6 relative overflow-hidden">
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '2s' }} />
 
@@ -1095,7 +1095,7 @@ export default function QpsSchemePage() {
         {(() => {
         const alertCount = giftData.reduce((s, g) => s + Number(g.buyer_count), 0);
         return (
-        <div className="flex gap-1 mb-6 p-1 rounded-xl bg-white/5 border border-white/10 w-fit">
+        <div className="flex gap-1 mb-6 p-1 rounded-xl bg-white/5 border border-white/10 w-fit max-w-full overflow-x-auto">
           {TABS.map((t) => {
             const active = tab === t.key;
             if (t.key === 'alerts') {

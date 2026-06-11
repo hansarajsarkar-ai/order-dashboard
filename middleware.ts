@@ -7,8 +7,16 @@ import { SESSION_COOKIE_NAME, verifySession } from '@/lib/session';
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
-  // Always allow the login page and the auth endpoints.
-  if (pathname === '/login' || pathname.startsWith('/api/auth/')) {
+  // Always allow the login page, auth endpoints, and PWA/static assets
+  // (manifest, service worker, icons, and any file with an extension).
+  if (
+    pathname === '/login' ||
+    pathname.startsWith('/api/auth/') ||
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/sw.js' ||
+    pathname.startsWith('/icons/') ||
+    /\.[a-z0-9]+$/i.test(pathname)
+  ) {
     return NextResponse.next();
   }
 

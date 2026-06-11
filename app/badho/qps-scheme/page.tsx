@@ -85,6 +85,81 @@ interface BuyerOrderRow {
 }
 
 type Tab = 'overview' | 'alerts' | 'detail';
+type SqlQuery = { sql: string; params?: unknown[] };
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const QUERY_BTN_CLASS =
+  'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap bg-white/8 hover:bg-fuchsia-500/25 border border-white/10 hover:border-fuchsia-400/40 text-purple-300 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed';
+
+const CSV_BTN_CLASS =
+  'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-400/40 text-emerald-300 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed';
+
+// ── QueryModal ────────────────────────────────────────────────────────────────
+
+function QueryModal({ title, queries, onClose }: { title: string; queries: SqlQuery[]; onClose: () => void }) {
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-4xl max-h-[85vh] overflow-y-auto bg-slate-950 border border-white/15 rounded-2xl shadow-[0_0_60px_rgba(168,85,247,0.3)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-slate-950 z-10">
+          <div>
+            <p className="text-purple-300 text-[11px] uppercase tracking-wider font-semibold">SQL Query</p>
+            <h3 className="text-white font-bold text-lg">{title}</h3>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2">×</button>
+        </div>
+        <div className="p-6 space-y-5">
+          {queries.length === 0 ? (
+            <p className="text-purple-300 text-sm">Query unavailable — load this section first, then reopen.</p>
+          ) : queries.map((q, i) => (
+            <div key={i}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-purple-300 text-xs uppercase tracking-wider font-semibold">
+                  {queries.length > 1 ? `Query #${i + 1}` : 'Query'}
+                </p>
+                <button onClick={() => navigator.clipboard?.writeText(q.sql)} className="px-3 py-1 rounded-lg text-[11px] font-semibold text-purple-200 border border-white/10 bg-white/5 hover:bg-white/10 transition-all">Copy</button>
+              </div>
+              <pre className="text-[11px] leading-relaxed text-emerald-200/90 font-mono whitespace-pre-wrap overflow-x-auto bg-black/40 rounded-xl p-4 border border-white/10">{q.sql}</pre>
+              {q.params && q.params.length > 0 && (
+                <p className="text-purple-300/70 text-[11px] mt-2 font-mono break-all">params: [{q.params.map((p) => JSON.stringify(p)).join(', ')}]</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── CSV helpers ───────────────────────────────────────────────────────────────
+
+function toCsv(rows: Record<string, unknown>[]): string {
+  if (!rows.length) return '';
+  const keys = Object.keys(rows[0]);
+  const esc = (v: unknown) => {
+    const s = v == null ? '' : String(v);
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [keys.join(','), ...rows.map((r) => keys.map((k) => esc(r[k])).join(','))].join('\n');
+}
+
+function downloadCsv(rows: Record<string, unknown>[], filename: string) {
+  const csv = toCsv(rows);
+  const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -225,6 +300,23 @@ export default function QpsSchemePage() {
   const [detailMonthLabel, setDetailMonthLabel] = useState('');
   const [isMayPlus, setIsMayPlus] = useState(false);
 
+  // Query modal state
+  const [sectionQueries, setSectionQueries] = useState<Record<string, SqlQuery[]>>({});
+  const [queryModalState, setQueryModalState] = useState<{ title: string; queries: SqlQuery[] } | null>(null);
+  const captureQuery = (key: string, json: unknown) => {
+    const q = (json as { __queries?: SqlQuery[] })?.__queries;
+    if (Array.isArray(q) && q.length) setSectionQueries((prev) => ({ ...prev, [key]: q }));
+  };
+  const queryBtn = (key: string, title: string) => {
+    const queries = sectionQueries[key];
+    const has = !!queries?.length;
+    return (
+      <button type="button" disabled={!has} title={has ? 'Show SQL' : 'Load data first'} onClick={() => has && setQueryModalState({ title, queries })} className={QUERY_BTN_CLASS}>
+        🔍 SQL
+      </button>
+    );
+  };
+
   // Buyer order expand state
   const [expandedBuyerId, setExpandedBuyerId] = useState<string | null>(null);
   const [buyerOrdersMap, setBuyerOrdersMap] = useState<Record<string, BuyerOrderRow[]>>({});
@@ -249,6 +341,10 @@ export default function QpsSchemePage() {
     ])
       .then(([trend, nvo, scheme, gifts]) => {
         if (trend.error) throw new Error(trend.error);
+        captureQuery('trend', trend);
+        captureQuery('newVsOld', nvo);
+        captureQuery('schemeTable', scheme);
+        captureQuery('gifts', gifts);
         setTrendData(trend.data ?? []);
         setNewVsOldData(nvo.data ?? []);
         setSchemeTableData(scheme.data ?? []);
@@ -272,6 +368,7 @@ export default function QpsSchemePage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.error) throw new Error(d.error);
+        captureQuery('detail', d);
         setDetailRows(d.data ?? []);
         setDetailMonthLabel(d.month_label ?? '');
         setIsMayPlus(d.is_may_plus ?? false);
@@ -322,6 +419,7 @@ export default function QpsSchemePage() {
   ];
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6 relative overflow-hidden">
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '2s' }} />
@@ -379,12 +477,20 @@ export default function QpsSchemePage() {
                     <div className="text-sm font-semibold text-white">Monthly Qualified Buyers</div>
                     <div className="text-xs text-purple-300/70 mt-0.5">Buyers who spent ≥ ₹3,000 in the month · year-to-date</div>
                   </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {queryBtn('trend', 'Monthly Qualified Buyers')}
+                    <button
+                      disabled={!trendData.length}
+                      onClick={() => downloadCsv(trendData as unknown as Record<string, unknown>[], `qps-trend-${selectedMonth}.csv`)}
+                      className={CSV_BTN_CLASS}
+                    >⬇ CSV</button>
                   <button
                     onClick={() => setTrendExpanded((e) => !e)}
-                    className="shrink-0 px-4 py-2 rounded-xl bg-fuchsia-500/25 border border-fuchsia-400/50 text-sm font-bold text-fuchsia-200 hover:bg-fuchsia-500/40 hover:text-white transition-all shadow-[0_0_12px_rgba(217,70,239,0.25)]"
+                    className="px-4 py-2 rounded-xl bg-fuchsia-500/25 border border-fuchsia-400/50 text-sm font-bold text-fuchsia-200 hover:bg-fuchsia-500/40 hover:text-white transition-all shadow-[0_0_12px_rgba(217,70,239,0.25)]"
                   >
                     {trendExpanded ? '▲ Collapse' : '▼ Level Breakdown'}
                   </button>
+                  </div>
                 </div>
                 {trendChart.length === 0 ? (
                   <div className="text-purple-300/60 text-sm text-center py-12">No data</div>
@@ -460,9 +566,15 @@ export default function QpsSchemePage() {
 
               {/* New vs Old */}
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
-                <div className="mb-4">
+                <div className="mb-4 flex items-start justify-between gap-2">
+                  <div>
                   <div className="text-sm font-semibold text-white">New vs Returning Qualified Buyers</div>
                   <div className="text-xs text-purple-300/70 mt-0.5">New = first-ever qualifying month · year-to-date</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {queryBtn('newVsOld', 'New vs Returning Qualified Buyers')}
+                    <button disabled={!newVsOldData.length} onClick={() => downloadCsv(newVsOldData as unknown as Record<string, unknown>[], 'qps-new-vs-returning.csv')} className={CSV_BTN_CLASS}>⬇ CSV</button>
+                  </div>
                 </div>
                 {newVsOldChart.length === 0 ? (
                   <div className="text-purple-300/60 text-sm text-center py-12">No data</div>
@@ -511,10 +623,16 @@ export default function QpsSchemePage() {
 
             {/* Scheme table */}
             <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5 overflow-x-auto">
-              <div className="mb-4">
-                <div className="text-sm font-semibold text-white">Monthly Scheme Breakdown</div>
-                <div className="text-xs text-purple-300/70 mt-0.5">
-                  L1 ≥₹3k · L2 ≥₹5k · L3 ≥₹10k · L4 ≥₹20k (May+) · L5 ≥₹30k (May+) · year-to-date
+              <div className="mb-4 flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-white">Monthly Scheme Breakdown</div>
+                  <div className="text-xs text-purple-300/70 mt-0.5">
+                    L1 ≥₹3k · L2 ≥₹5k · L3 ≥₹10k · L4 ≥₹20k (May+) · L5 ≥₹30k (May+) · year-to-date
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {queryBtn('schemeTable', 'Monthly Scheme Breakdown')}
+                  <button disabled={!schemeRows.length} onClick={() => downloadCsv(schemeRows as unknown as Record<string, unknown>[], 'qps-scheme-breakdown.csv')} className={CSV_BTN_CLASS}>⬇ CSV</button>
                 </div>
               </div>
               {schemeRows.length === 0 ? (
@@ -645,9 +763,15 @@ export default function QpsSchemePage() {
             <div className="space-y-6">
               {/* Current month */}
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
-                <div className="mb-6">
-                  <div className="text-sm font-semibold text-white">Current Month — Gift Winners</div>
-                  <div className="text-xs text-purple-300/70 mt-0.5">Buyers already qualified for a gift this month (DELIVERED / COMPLETED)</div>
+                <div className="mb-6 flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-white">Current Month — Gift Winners</div>
+                    <div className="text-xs text-purple-300/70 mt-0.5">Buyers already qualified for a gift this month (DELIVERED / COMPLETED)</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {queryBtn('gifts', 'Current Month Gift Winners')}
+                    <button disabled={!giftData.length} onClick={() => downloadCsv(giftData as unknown as Record<string, unknown>[], 'qps-gifts-current-month.csv')} className={CSV_BTN_CLASS}>⬇ CSV</button>
+                  </div>
                 </div>
                 {giftData.length === 0 ? (
                   <div className="text-purple-300/60 text-sm text-center py-12">No data</div>
@@ -802,10 +926,14 @@ export default function QpsSchemePage() {
                   <span>
                     <span className="text-white font-semibold">{detailRows.filter(r => r.gift_won === 'No Gift').length}</span> not qualified
                   </span>
-                  <span className="ml-auto">
-                    Scheme Details — <span className="text-fuchsia-300 font-semibold">{detailMonthLabel}</span>
-                    {!isMayPlus && <span className="ml-2 text-amber-300/70">(L1–L3 only · Mar–Apr scheme)</span>}
-                    {isMayPlus && <span className="ml-2 text-emerald-300/70">(L1–L5 · May onwards)</span>}
+                  <span className="ml-auto flex items-center gap-3">
+                    <span>
+                      Scheme Details — <span className="text-fuchsia-300 font-semibold">{detailMonthLabel}</span>
+                      {!isMayPlus && <span className="ml-2 text-amber-300/70">(L1–L3 only · Mar–Apr scheme)</span>}
+                      {isMayPlus && <span className="ml-2 text-emerald-300/70">(L1–L5 · May onwards)</span>}
+                    </span>
+                    {queryBtn('detail', `Qualified Detail — ${detailMonthLabel}`)}
+                    <button onClick={() => downloadCsv(detailRows as unknown as Record<string, unknown>[], `qps-detail-${selectedMonth}.csv`)} className={CSV_BTN_CLASS}>⬇ CSV</button>
                   </span>
                 </div>
 
@@ -978,5 +1106,14 @@ export default function QpsSchemePage() {
         )}
       </div>
     </div>
+
+    {queryModalState && (
+      <QueryModal
+        title={queryModalState.title}
+        queries={queryModalState.queries}
+        onClose={() => setQueryModalState(null)}
+      />
+    )}
+    </>
   );
 }

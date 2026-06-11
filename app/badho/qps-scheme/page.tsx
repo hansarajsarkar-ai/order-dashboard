@@ -545,6 +545,16 @@ export default function QpsSchemePage() {
       .finally(() => setDetailLoading(false));
   }
 
+  // Auto-load buyer detail whenever the Detail tab is open and any filter
+  // changes (month / date range / phone) — debounced so typing a phone number
+  // doesn't fire a request per keystroke. Replaces the manual "Load Data" click.
+  useEffect(() => {
+    if (tab !== 'detail') return;
+    const t = setTimeout(() => loadDetail(), 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, selectedMonth, date1, date2, phoneFilter]);
+
   function toggleBuyerOrders(buyerId: string) {
     if (expandedBuyerId === buyerId) { setExpandedBuyerId(null); return; }
     setExpandedBuyerId(buyerId);
@@ -1036,7 +1046,7 @@ export default function QpsSchemePage() {
                   <label className="text-xs text-purple-300/70 font-medium">Month</label>
                   <select
                     value={selectedMonth}
-                    onChange={(e) => { setSelectedMonth(e.target.value); loadDetail(e.target.value); }}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
                     className="px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white focus:outline-none focus:border-fuchsia-400/50 min-w-[130px]"
                   >
                     {AVAILABLE_MONTHS.map((m) => (
@@ -1110,7 +1120,7 @@ export default function QpsSchemePage() {
 
             {!detailLoading && detailRows.length === 0 && !detailError && (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-12 text-center text-purple-300/60 text-sm">
-                Select a month and click <span className="text-fuchsia-300 font-semibold">Load Data</span> to view buyer-level details.
+                No buyer-level details for the selected filters.
               </div>
             )}
 

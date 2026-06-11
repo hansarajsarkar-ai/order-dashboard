@@ -181,9 +181,9 @@ async function _GET(req: NextRequest) {
       LEFT JOIN (
         SELECT
           po2."buyerId",
-          SUM(CASE WHEN po2."status" NOT IN ('DRAFT','CANCELLED') THEN po2."amount" ELSE 0 END) AS placed_amount,
-          SUM(CASE WHEN po2."status" = 'COMPLETED'               THEN po2."amount" ELSE 0 END) AS delivered_amount,
-          SUM(CASE WHEN po2."status" = 'REJECTED'                THEN po2."amount" ELSE 0 END) AS rto_amount
+          SUM(CASE WHEN po2."status" NOT IN ('DRAFT','CANCELLED')      THEN po2."amount" ELSE 0 END) AS placed_amount,
+          SUM(CASE WHEN po2."status" IN ('COMPLETED','DELIVERED')      THEN po2."amount" ELSE 0 END) AS delivered_amount,
+          SUM(CASE WHEN po2."deliveryStatus" = 'RTO'                   THEN po2."amount" ELSE 0 END) AS rto_amount
         FROM "purchaseOrder"."purchaseOrder" po2
         JOIN "users"."seller" s2 ON s2."id" = po2."sellerId"
         WHERE po2."isTest"          = FALSE

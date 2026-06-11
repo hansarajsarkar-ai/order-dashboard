@@ -482,7 +482,7 @@ const GIFT_WORTH: Record<string, number> = {
   'Vastu tortoise (Worth 300)': 300,
 };
 
-interface RtoTrendRow { month_date: string; placed: string; delivered: string; rto: string }
+interface RtoTrendRow { month_date: string; placed: string; delivered: string; delivered_cnt: string; rto: string; rto_cnt: string }
 interface RetentionRow { month_date: string; qualified: string; retained: string; new_buyers: string; reactivated: string }
 
 const monShort = (iso: string) =>
@@ -542,13 +542,17 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
   if (error) return <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>;
 
   // ── A. Delivery / RTO health ──────────────────────────────────────────────
+  // RTO = deliveryStatus 'RTO' (actual return-to-origin). RTO % is of resolved
+  // orders: amount % = rto / (delivered + rto); count % = rtoCnt / (delivCnt + rtoCnt).
   const rtoRows = [...rto].sort((a, b) => a.month_date.localeCompare(b.month_date)).map((r) => {
     const placed = Number(r.placed), delivered = Number(r.delivered), rtoAmt = Number(r.rto);
-    const resolved = delivered + rtoAmt;
+    const deliveredCnt = Number(r.delivered_cnt), rtoCnt = Number(r.rto_cnt);
+    const resolvedAmt = delivered + rtoAmt, resolvedCnt = deliveredCnt + rtoCnt;
     return {
-      month: monShort(r.month_date), placed, delivered, rto: rtoAmt,
+      month: monShort(r.month_date), placed, delivered, deliveredCnt, rto: rtoAmt, rtoCnt,
       inTransit: Math.max(placed - delivered - rtoAmt, 0),
-      rtoRate: resolved > 0 ? +(rtoAmt / resolved * 100).toFixed(1) : 0,
+      rtoAmtPct: resolvedAmt > 0 ? +(rtoAmt / resolvedAmt * 100).toFixed(2) : 0,
+      rtoCntPct: resolvedCnt > 0 ? +(rtoCnt / resolvedCnt * 100).toFixed(2) : 0,
     };
   });
   const latestRto = rtoRows[rtoRows.length - 1];
@@ -622,54 +626,55 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
       {/* A. RTO / Delivery health */}
       <section className="space-y-4">
         <div><InsightPill>Delivery &amp; RTO Health</InsightPill>
-          <div className="text-xs text-purple-300/70 mt-2">RTO (rejected/returned) eats margin. Rate shown is of <em>resolved</em> orders — delivered + returned.</div></div>
+          <div className="text-xs text-purple-300/70 mt-2">RTO = orders returned to origin (deliveryStatus &lsquo;RTO&rsquo;), by order-placed month. % is of <em>resolved</em> orders — delivered + RTO. Recent months keep rising as in-transit orders settle.</div></div>
         {latestRto && (
           <div className="flex flex-wrap gap-3">
-            <KpiCard label={`RTO rate · ${latestRto.month}`} value={`${latestRto.rtoRate}%`} tone={latestRto.rtoRate >= 40 ? 'bad' : latestRto.rtoRate >= 20 ? 'neutral' : 'good'} sub="of resolved ₹" />
-            <KpiCard label="Delivered ₹" value={fmtAmt(latestRto.delivered)} tone="good" />
+            <KpiCard label={`RTO count · ${latestRto.month}`} value={fmt(latestRto.rtoCnt)} tone="bad" />
             <KpiCard label="RTO ₹" value={fmtAmt(latestRto.rto)} tone="bad" />
-            <KpiCard label="In-transit ₹" value={fmtAmt(latestRto.inTransit)} sub="not yet resolved" />
-            <KpiCard label="Placed ₹" value={fmtAmt(latestRto.placed)} />
+            <KpiCard label="RTO count %" value={`${latestRto.rtoCntPct}%`} tone={latestRto.rtoCntPct >= 30 ? 'bad' : latestRto.rtoCntPct >= 15 ? 'neutral' : 'good'} sub="of resolved" />
+            <KpiCard label="RTO amount %" value={`${latestRto.rtoAmtPct}%`} tone={latestRto.rtoAmtPct >= 30 ? 'bad' : latestRto.rtoAmtPct >= 15 ? 'neutral' : 'good'} sub="of resolved ₹" />
+            <KpiCard label="Delivered ₹" value={fmtAmt(latestRto.delivered)} tone="good" />
           </div>
         )}
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="text-sm font-semibold text-purple-200 mb-3">RTO rate by month (% of resolved)</div>
+          <div className="text-sm font-semibold text-purple-200 mb-3">RTO amount % by month (of resolved)</div>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={rtoRows} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
               <XAxis dataKey="month" tick={{ fill: '#c4b5fd', fontSize: 12 }} />
               <YAxis tick={{ fill: '#c4b5fd', fontSize: 12 }} unit="%" />
               <Tooltip content={<ChartTooltip />} />
-              <Line type="monotone" dataKey="rtoRate" name="RTO rate %" stroke="#fb7185" strokeWidth={3} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="rtoAmtPct" name="RTO amount %" stroke="#fb7185" strokeWidth={3} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="rtoCntPct" name="RTO count %" stroke="#fbbf24" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
         {/* Month-wise RTO breakdown */}
         <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-white/10 text-sm font-semibold text-purple-200">Month-wise delivery breakdown</div>
+          <div className="px-4 py-2.5 border-b border-white/10 text-sm font-semibold text-purple-200">Month-wise RTO breakdown</div>
           <table className="w-full text-xs">
             <thead><tr className="text-purple-200/70 text-left border-b border-white/10">
               <th className="py-2 px-4 font-medium">Month</th>
-              <th className="py-2 px-4 text-right font-medium">Placed ₹</th>
               <th className="py-2 px-4 text-right font-medium text-emerald-300/70">Delivered ₹</th>
+              <th className="py-2 px-4 text-right font-medium text-rose-300/70">RTO count</th>
               <th className="py-2 px-4 text-right font-medium text-rose-300/70">RTO ₹</th>
-              <th className="py-2 px-4 text-right font-medium text-amber-300/70">In-transit ₹</th>
-              <th className="py-2 px-4 text-right font-medium">RTO rate</th>
+              <th className="py-2 px-4 text-right font-medium">RTO count %</th>
+              <th className="py-2 px-4 text-right font-medium">RTO amount %</th>
             </tr></thead>
             <tbody>
               {[...rtoRows].reverse().map((r) => (
                 <tr key={r.month} className="border-b border-white/5 hover:bg-white/[0.04]">
                   <td className="py-2 px-4 text-white font-semibold">{r.month}</td>
-                  <td className="py-2 px-4 text-right text-cyan-300">{fmtAmt(r.placed)}</td>
                   <td className="py-2 px-4 text-right text-emerald-300">{fmtAmt(r.delivered)}</td>
+                  <td className="py-2 px-4 text-right text-rose-300">{fmt(r.rtoCnt)}</td>
                   <td className="py-2 px-4 text-right text-rose-300 font-semibold">{fmtAmt(r.rto)}</td>
-                  <td className="py-2 px-4 text-right text-amber-300/90">{fmtAmt(r.inTransit)}</td>
-                  <td className={`py-2 px-4 text-right font-bold ${r.rtoRate >= 40 ? 'text-rose-300' : r.rtoRate >= 20 ? 'text-amber-300' : 'text-emerald-300'}`}>{r.rtoRate}%</td>
+                  <td className={`py-2 px-4 text-right font-bold ${r.rtoCntPct >= 30 ? 'text-rose-300' : r.rtoCntPct >= 15 ? 'text-amber-300' : 'text-emerald-300'}`}>{r.rtoCntPct}%</td>
+                  <td className={`py-2 px-4 text-right font-bold ${r.rtoAmtPct >= 30 ? 'text-rose-300' : r.rtoAmtPct >= 15 ? 'text-amber-300' : 'text-emerald-300'}`}>{r.rtoAmtPct}%</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="px-4 py-2 text-[11px] text-purple-300/50 border-t border-white/10">RTO rate = RTO ₹ ÷ (Delivered + RTO). In-transit isn&apos;t resolved yet, so recent months still have a large in-transit pool.</div>
+          <div className="px-4 py-2 text-[11px] text-purple-300/50 border-t border-white/10">RTO amount % = RTO ₹ ÷ (Delivered + RTO). Orders still in transit aren&apos;t counted yet, so recent months keep climbing as they settle.</div>
         </div>
         {topRtoBuyers.length > 0 && (
           <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">

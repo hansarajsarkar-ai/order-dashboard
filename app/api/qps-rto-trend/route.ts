@@ -10,21 +10,27 @@ interface Row {
   month_date: string;
   placed: number;
   delivered: number;
+  delivered_cnt: number;
   rto: number;
+  rto_cnt: number;
 }
 
 // Monthly delivery health across the scheme (D2R brand sellers, INTERCITY /
-// THIRD_PARTY). placed = all non-draft/cancelled; delivered = COMPLETED;
-// rto = REJECTED. The UI derives RTO-rate-of-resolved = rto / (delivered + rto)
-// and the in-transit remainder = placed - delivered - rto.
+// THIRD_PARTY), bucketed by order-placed month (markedPendingTime).
+// RTO is the dedicated deliveryStatus = 'RTO' flag (an actual return-to-origin),
+// NOT status = 'REJECTED' (which also covers auto/seller rejections).
+// delivered = COMPLETED/DELIVERED. The UI derives:
+//   RTO amount % = rto / (delivered + rto), RTO count % = rto_cnt / (delivered_cnt + rto_cnt).
 async function _GET() {
   try {
     const rows = await cached('qps-rto-trend', 120_000, () => query<Row>(`
       SELECT
         to_char(date_trunc('month', po."markedPendingTime"), 'YYYY-MM-DD') AS month_date,
-        SUM(CASE WHEN po."status" NOT IN ('DRAFT','CANCELLED') THEN po."amount" ELSE 0 END)::int AS placed,
-        SUM(CASE WHEN po."status" = 'COMPLETED'                THEN po."amount" ELSE 0 END)::int AS delivered,
-        SUM(CASE WHEN po."status" = 'REJECTED'                 THEN po."amount" ELSE 0 END)::int AS rto
+        SUM(CASE WHEN po."status" NOT IN ('DRAFT','CANCELLED')   THEN po."amount" ELSE 0 END)::int AS placed,
+        SUM(CASE WHEN po."status" IN ('COMPLETED','DELIVERED')   THEN po."amount" ELSE 0 END)::int AS delivered,
+        COUNT(*) FILTER (WHERE po."status" IN ('COMPLETED','DELIVERED'))::int                AS delivered_cnt,
+        SUM(CASE WHEN po."deliveryStatus" = 'RTO'                THEN po."amount" ELSE 0 END)::int AS rto,
+        COUNT(*) FILTER (WHERE po."deliveryStatus" = 'RTO')::int                             AS rto_cnt
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."seller" s ON s."id" = po."sellerId"
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"

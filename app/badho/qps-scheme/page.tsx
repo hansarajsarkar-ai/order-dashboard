@@ -255,19 +255,19 @@ export default function QpsSchemePage() {
   }
 
   const trendChart = [...trendData]
-    .sort((a, b) => a.month_date.localeCompare(b.month_date))
+    .sort((a, b) => new Date(a.month_date).getTime() - new Date(b.month_date).getTime())
     .map((r) => ({ month: r.month, 'Qualified Buyers': Number(r.qualified_buyers) }));
 
   const newVsOldChart = [...newVsOldData]
-    .sort((a, b) => a.month_date.localeCompare(b.month_date))
+    .sort((a, b) => new Date(a.month_date).getTime() - new Date(b.month_date).getTime())
     .map((r) => ({
       month: r.month,
       'New Buyers': Number(r.new_qualified),
       'Returning Buyers': Number(r.old_qualified),
     }));
 
-  const schemeRows = [...schemeTableData].sort((a, b) =>
-    b.month_date.localeCompare(a.month_date)
+  const schemeRows = [...schemeTableData].sort(
+    (a, b) => new Date(b.month_date).getTime() - new Date(a.month_date).getTime()
   );
 
   const TABS: { key: Tab; label: string }[] = [

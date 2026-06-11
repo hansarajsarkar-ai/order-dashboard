@@ -101,17 +101,33 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
   // PO Items / Price Breakup sub-modal — opened from a row's "View Items" button.
   const [poItems, setPoItems] = useState<{ poNumber: string; breakup: PriceBreakup } | null>(null);
 
-  // Approve state — the purchaseOrderId currently being approved, plus a map of
-  // freshly-approved ids → the stored "true | <email> | <ts>" value so the row
-  // flips to "✓ Approved" without a refetch.
-  const [approvingId, setApprovingId] = useState<string | null>(null);
+  // Approve state — a map of freshly-approved ids → the stored
+  // "true | <email> | <ts>" value (so the row flips to "✓ Approved" without a
+  // refetch), plus the multi-select set and the in-flight flag.
   const [approvedMap, setApprovedMap] = useState<Record<string, string>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
 
-  const approveOne = async (row: Row) => {
-    const id = String(row['purchaseOrderId'] ?? '').trim();
-    if (!id || approvingId) return;
-    if (!window.confirm('Confirm you want to approve')) return;
-    setApprovingId(id);
+  // A row is approved if it came back approved or we just approved it this session.
+  const isRowApproved = (r: Row, id: string) => {
+    const v = approvedMap[id] ?? r['isApproved'];
+    return v !== null && v !== undefined && v !== '';
+  };
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // Approve every selected PO in one request (no confirmation). The route
+  // accepts the whole id array and stamps them all with the same value.
+  const approveSelected = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || bulkApproving) return;
+    setBulkApproving(true);
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
       const res = await fetch('/api/p-and-l/orders-pushed/approve', {
@@ -120,16 +136,21 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ purchaseOrderIds: [id] }),
+        body: JSON.stringify({ purchaseOrderIds: ids }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-      if ((json.approved ?? 0) < 1) throw new Error('Order not approvable (status may have changed).');
-      setApprovedMap((m) => ({ ...m, [id]: json.value }));
+      if ((json.approved ?? 0) < 1) throw new Error('No orders approved (status may have changed).');
+      setApprovedMap((m) => {
+        const next = { ...m };
+        for (const id of ids) next[id] = json.value;
+        return next;
+      });
+      setSelectedIds(new Set());
     } catch (e) {
       window.alert(`Approve failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
-      setApprovingId(null);
+      setBulkApproving(false);
     }
   };
 
@@ -245,6 +266,24 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
   const ORD_W = [96, 116]; // pinned ordered-column widths, left → right
   const orderedLeft = (idx: number) =>
     APPROVE_W + ACT_W + ORD_W.slice(0, idx).reduce((a, b) => a + b, 0);
+  // A crisp divider + drop-shadow on the right edge of the frozen block so the
+  // scrolling columns visibly tuck UNDER it (no see-through on horizontal scroll).
+  const FREEZE_EDGE = {
+    boxShadow: 'inset -1px 0 0 0 #cbd5e1, 6px 0 8px -4px rgba(15,23,42,0.18)',
+  };
+
+  // Rows the user can still approve (not already approved) — drives select-all.
+  const selectableIds = sortedRows
+    .map((r) => String(r['purchaseOrderId'] ?? '').trim())
+    .filter((id, idx) => id !== '' && !isRowApproved(sortedRows[idx], id));
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
+  const toggleAll = () =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) selectableIds.forEach((id) => next.delete(id));
+      else selectableIds.forEach((id) => next.add(id));
+      return next;
+    });
 
   return (
     <>
@@ -296,6 +335,14 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
               )}
             </div>
             <button
+              onClick={approveSelected}
+              disabled={bulkApproving || selectedIds.size === 0}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 border border-emerald-600 text-white transition-colors shadow-[0_2px_8px_-2px_rgba(16,185,129,0.5)] disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Approve all selected orders (sets isApproved with your email + timestamp)"
+            >
+              {bulkApproving ? '⏳ Approving…' : `✓ Approve selected (${selectedIds.size})`}
+            </button>
+            <button
               onClick={downloadCsv}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-500 hover:bg-purple-600 border border-purple-600 text-white transition-colors shadow-[0_2px_8px_-2px_rgba(168,85,247,0.5)]"
             >
@@ -321,16 +368,25 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
             <table className="text-[11px] border-collapse leading-tight">
               <thead className="sticky top-0 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                 <tr>
-                  {/* Frozen: Approve action column */}
+                  {/* Frozen: Approve column — select-all checkbox */}
                   <th
-                    style={{ left: 0, width: APPROVE_W, minWidth: APPROVE_W, zIndex: 20 }}
+                    style={{ left: 0, width: APPROVE_W, minWidth: APPROVE_W, zIndex: 30 }}
                     className="sticky top-0 px-2 py-1 text-center align-bottom font-bold uppercase tracking-wide text-[10px] text-slate-700 bg-slate-100 border-b border-r border-slate-200 whitespace-nowrap"
                   >
-                    Approve
+                    <label className="flex items-center justify-center gap-1 cursor-pointer" title="Select all approvable orders">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        disabled={selectableIds.length === 0}
+                        className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      Approve
+                    </label>
                   </th>
                   {/* Frozen: action column (View Items + Freshdesk ticket) */}
                   <th
-                    style={{ left: APPROVE_W, width: ACT_W, minWidth: ACT_W, zIndex: 20 }}
+                    style={{ left: APPROVE_W, width: ACT_W, minWidth: ACT_W, zIndex: 30 }}
                     className="sticky top-0 px-2 py-1 text-left align-bottom font-bold uppercase tracking-wide text-[10px] text-slate-700 bg-slate-100 border-b border-r border-slate-200 whitespace-nowrap"
                   >
                     Act.
@@ -339,13 +395,14 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
                     const active = sort?.key === c.key;
                     const wrap = WRAP_KEYS.has(c.key);
                     const frozen = ci < FROZEN_ORDERED;
+                    const lastFrozen = frozen && ci === FROZEN_ORDERED - 1;
                     return (
                       <th
                         key={c.key}
                         onDragOver={(e) => { e.preventDefault(); if (dragOverKey !== c.key) setDragOverKey(c.key); }}
                         onDragLeave={() => setDragOverKey((k) => (k === c.key ? null : k))}
                         onDrop={(e) => { e.preventDefault(); handleDrop(c.key); }}
-                        style={frozen ? { left: orderedLeft(ci), width: ORD_W[ci], minWidth: ORD_W[ci], maxWidth: ORD_W[ci], zIndex: 20 } : undefined}
+                        style={frozen ? { left: orderedLeft(ci), width: ORD_W[ci], minWidth: ORD_W[ci], maxWidth: ORD_W[ci], zIndex: 30, ...(lastFrozen ? FREEZE_EDGE : {}) } : undefined}
                         className={
                           'px-2 py-1 text-left align-bottom font-bold uppercase tracking-wide text-[10px] border-b border-slate-200 bg-slate-100 ' +
                           (frozen ? 'sticky top-0 border-r border-slate-200 ' : (wrap ? 'min-w-[90px] max-w-[140px] ' : 'min-w-[78px] max-w-[120px] ')) +
@@ -386,13 +443,13 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
                   const rid = String(r['purchaseOrderId'] ?? '').trim();
                   const approvedVal = approvedMap[rid] ?? (r['isApproved'] as unknown);
                   const isApproved = approvedVal !== null && approvedVal !== undefined && approvedVal !== '';
-                  const isApprovingRow = approvingId === rid;
+                  const selected = selectedIds.has(rid);
                   return (
                     <tr key={i} className={'border-b border-slate-100 transition-colors ' + rowTone}>
-                      {/* Frozen: Approve */}
+                      {/* Frozen: Approve — per-row select checkbox / approved badge */}
                       <td
-                        style={{ left: 0, width: APPROVE_W, minWidth: APPROVE_W, zIndex: 1 }}
-                        className={'sticky px-2 py-1 border-b border-r border-slate-100 text-center ' + rowTone}
+                        style={{ left: 0, width: APPROVE_W, minWidth: APPROVE_W, zIndex: 2 }}
+                        className={'sticky px-2 py-1 border-b border-r border-slate-200 text-center ' + rowTone}
                       >
                         {isApproved ? (
                           <span
@@ -402,21 +459,20 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
                             ✓ Approved
                           </span>
                         ) : (
-                          <button
-                            type="button"
-                            disabled={isApprovingRow || !!approvingId || !rid}
-                            onClick={() => approveOne(r)}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500 hover:bg-purple-600 text-white border border-purple-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                            title="Approve this PO (sets isApproved with your email + timestamp)"
-                          >
-                            {isApprovingRow ? '⏳…' : '✓ Approve'}
-                          </button>
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            disabled={!rid}
+                            onChange={() => toggleSelect(rid)}
+                            className="w-4 h-4 accent-emerald-600 cursor-pointer disabled:cursor-not-allowed"
+                            title="Select this PO for bulk approve"
+                          />
                         )}
                       </td>
                       {/* Frozen: Actions — compact icon buttons */}
                       <td
-                        style={{ left: APPROVE_W, width: ACT_W, minWidth: ACT_W, zIndex: 1 }}
-                        className={'sticky px-2 py-1 border-b border-r border-slate-100 whitespace-nowrap ' + rowTone}
+                        style={{ left: APPROVE_W, width: ACT_W, minWidth: ACT_W, zIndex: 2 }}
+                        className={'sticky px-2 py-1 border-b border-r border-slate-200 whitespace-nowrap ' + rowTone}
                       >
                         <div className="flex items-center gap-1">
                           <button
@@ -454,10 +510,11 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
                       {orderedCols.map((c, ci) => {
                         const v = r[c.key];
                         const frozen = ci < FROZEN_ORDERED;
+                        const lastFrozen = frozen && ci === FROZEN_ORDERED - 1;
                         const frozenStyle = frozen
-                          ? { left: orderedLeft(ci), width: ORD_W[ci], minWidth: ORD_W[ci], maxWidth: ORD_W[ci], zIndex: 1 }
+                          ? { left: orderedLeft(ci), width: ORD_W[ci], minWidth: ORD_W[ci], maxWidth: ORD_W[ci], zIndex: 2, ...(lastFrozen ? FREEZE_EDGE : {}) }
                           : undefined;
-                        const frozenCls = frozen ? 'sticky border-r border-slate-100 ' + rowTone + ' ' : '';
+                        const frozenCls = frozen ? 'sticky border-r border-slate-200 ' + rowTone + ' ' : '';
                         // poNumber → D2R support detail link.
                         if (c.key === 'poNumber') {
                           return (

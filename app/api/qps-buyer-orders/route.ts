@@ -34,10 +34,20 @@ async function _GET(req: NextRequest) {
         ROUND(po."amount"::numeric, 2)          AS amount,
         s."businessName"                        AS seller_name,
         s."phone"                               AS seller_phone,
-        COALESCE(po."awbNumber", '')            AS awb_number,
-        COALESCE(po."courierName", '')          AS courier_name
+        COALESCE(d."trackingInfo"->>'awbNumber', '')   AS awb_number,
+        COALESCE(d."trackingInfo"->>'courierName', '') AS courier_name
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."seller" s ON s."id" = po."sellerId"
+      -- AWB / courier live in the latest intercity delivery's trackingInfo JSON,
+      -- not on the purchase order itself.
+      LEFT JOIN LATERAL (
+        SELECT di."trackingInfo"
+        FROM "deliveries"."intercityDelivery" di
+        WHERE di."purchaseOrderId" = po."id"
+          AND di."isTest" = FALSE
+        ORDER BY di."created_at" DESC
+        LIMIT 1
+      ) d ON TRUE
       WHERE po."buyerId"           = $1
         AND po."isTest"            = FALSE
         AND po."deliveryType"      = 'INTERCITY'

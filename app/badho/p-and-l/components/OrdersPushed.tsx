@@ -117,13 +117,15 @@ export default function OrdersPushed() {
   // Table filters + sort.
   const [filterPo, setFilterPo] = useState('');
   const [filterAwb, setFilterAwb] = useState('');
+  const [filterPhone, setFilterPhone] = useState(''); // matches buyer OR seller phone
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   // Multi-select Order Status filter (top of page). Empty set = show all.
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
-  // Multi-select Buyer / Seller filters (table toolbar). Empty set = show all.
+  // Multi-select Buyer / Seller / Pending-date filters (table toolbar). Empty = all.
   const [buyerFilter, setBuyerFilter] = useState<Set<string>>(new Set());
   const [sellerFilter, setSellerFilter] = useState<Set<string>>(new Set());
+  const [markedFilter, setMarkedFilter] = useState<Set<string>>(new Set());
 
   const toggleStatus = (s: string) =>
     setStatusFilter((prev) => {
@@ -181,6 +183,14 @@ export default function OrdersPushed() {
     }
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [rows]);
+  const markedOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) {
+      const v = r['MarkedpendingTime'];
+      if (v !== null && v !== undefined && String(v).trim() !== '') s.add(String(v));
+    }
+    return [...s].sort((a, b) => b.localeCompare(a)); // newest date first
+  }, [rows]);
 
   // Base rows after the status filter — feeds the KPIs, cards, officer and table.
   const statusFiltered = useMemo(() => {
@@ -236,11 +246,19 @@ export default function OrdersPushed() {
   const displayRows = useMemo(() => {
     const po = filterPo.trim().toLowerCase();
     const awb = filterAwb.trim().toLowerCase();
+    const phone = filterPhone.trim().toLowerCase();
     let out = statusFiltered.filter((r) => {
       if (po && !String(r['poNumber'] ?? '').toLowerCase().includes(po)) return false;
       if (awb && !String(r['AWBNumber'] ?? '').toLowerCase().includes(awb)) return false;
+      if (
+        phone &&
+        !String(r['buyerPhone'] ?? '').toLowerCase().includes(phone) &&
+        !String(r['sellerphone'] ?? '').toLowerCase().includes(phone)
+      )
+        return false;
       if (buyerFilter.size && !buyerFilter.has(String(r['buyerBusinessName'] ?? ''))) return false;
       if (sellerFilter.size && !sellerFilter.has(String(r['sellerbusinessname'] ?? ''))) return false;
+      if (markedFilter.size && !markedFilter.has(String(r['MarkedpendingTime'] ?? ''))) return false;
       return true;
     });
     if (sortKey) {
@@ -260,7 +278,7 @@ export default function OrdersPushed() {
       });
     }
     return out;
-  }, [statusFiltered, filterPo, filterAwb, buyerFilter, sellerFilter, sortKey, sortDir]);
+  }, [statusFiltered, filterPo, filterAwb, filterPhone, buyerFilter, sellerFilter, markedFilter, sortKey, sortDir]);
 
   // Max-loss heatmap is relative to the rows currently in view.
   const maxLoss = useMemo(() => computeMaxLoss(displayRows, columns), [displayRows, columns]);
@@ -650,7 +668,24 @@ export default function OrdersPushed() {
                 </button>
               )}
             </div>
-            {/* Multi-select filters — Buyer, Seller, Order Status (single or many) */}
+            <div className="relative">
+              <input
+                value={filterPhone}
+                onChange={(e) => setFilterPhone(e.target.value)}
+                placeholder="Filter buyer/seller phone…"
+                className="w-48 pl-3 pr-7 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 text-white placeholder-purple-300/50 focus:border-fuchsia-400/50 focus:outline-none focus:ring-1 focus:ring-fuchsia-400/30"
+              />
+              {filterPhone && (
+                <button
+                  onClick={() => setFilterPhone('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-purple-300/70 hover:text-white text-xs px-1"
+                  title="Clear"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            {/* Multi-select filters — Buyer, Seller, Pending Date, Order Status (single or many) */}
             <MultiSelectFilter
               label="Buyer"
               icon="🛍️"
@@ -667,6 +702,16 @@ export default function OrdersPushed() {
               onToggle={(v) => setSellerFilter((p) => toggleInSet(p, v))}
               onClear={() => setSellerFilter(new Set())}
             />
+            {markedOptions.length > 1 && (
+              <MultiSelectFilter
+                label="Pending Date"
+                icon="📅"
+                options={markedOptions}
+                selected={markedFilter}
+                onToggle={(v) => setMarkedFilter((p) => toggleInSet(p, v))}
+                onClear={() => setMarkedFilter(new Set())}
+              />
+            )}
             <MultiSelectFilter
               label="Order Status"
               icon="🏷️"

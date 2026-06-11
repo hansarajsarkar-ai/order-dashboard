@@ -32,6 +32,7 @@ type SortState = { key: string; dir: 'asc' | 'desc' };
 const FILTER_DEFS: { key: string; label: string; icon: string }[] = [
   { key: 'buyerBusinessName', label: 'Buyer', icon: '🛍️' },
   { key: 'sellerbusinessname', label: 'Seller', icon: '🏭' },
+  { key: 'MarkedpendingTime', label: 'Pending Date', icon: '📅' },
   { key: 'orderStatus', label: 'Order Status', icon: '🏷️' },
   { key: 'deliverystatus', label: 'Delivery Status', icon: '🚚' },
   { key: 'paymentoption', label: 'Payment', icon: '💳' },
@@ -378,7 +379,7 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search PO, AWB, buyer, seller…"
+                placeholder="Search PO, AWB, phone, buyer, seller…"
                 className="w-56 pl-3 pr-7 py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400"
               />
               {search && (

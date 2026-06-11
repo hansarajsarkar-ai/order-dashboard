@@ -89,7 +89,13 @@ async function runSql<T>(sql: string, readOnly: boolean): Promise<T[]> {
   }
   const [header, ...rows] = json.result as string[][];
   if (!header) return [];
-  return rows.map((r) => Object.fromEntries(header.map((c, i) => [c, r[i]]))) as T[];
+  // run_sql returns every cell as text and encodes a SQL NULL as the literal
+  // string "NULL" (indistinguishable from a real 'NULL' string, which is
+  // vanishingly rare in this data). Map it back to a real null so callers and
+  // the UI (e.g. <img src>, .filter(Boolean)) see absent values correctly.
+  return rows.map((r) =>
+    Object.fromEntries(header.map((c, i) => [c, r[i] === 'NULL' ? null : r[i]]))
+  ) as T[];
 }
 
 export async function query<T = Record<string, unknown>>(

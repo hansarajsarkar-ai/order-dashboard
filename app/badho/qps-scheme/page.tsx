@@ -186,6 +186,7 @@ export default function QpsSchemePage() {
   const [giftData, setGiftData] = useState<GiftRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [trendExpanded, setTrendExpanded] = useState(false);
 
   // Detail tab state
   const defaultMonth = AVAILABLE_MONTHS[0]?.value ?? '2026-06-01';
@@ -329,23 +330,87 @@ export default function QpsSchemePage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Trend */}
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
-                <div className="mb-4">
-                  <div className="text-sm font-semibold text-white">Monthly Qualified Buyers</div>
-                  <div className="text-xs text-purple-300/70 mt-0.5">Buyers who spent ≥ ₹3,000 in the month · year-to-date</div>
+                <div className="mb-4 flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-white">Monthly Qualified Buyers</div>
+                    <div className="text-xs text-purple-300/70 mt-0.5">Buyers who spent ≥ ₹3,000 in the month · year-to-date</div>
+                  </div>
+                  <button
+                    onClick={() => setTrendExpanded((e) => !e)}
+                    className="shrink-0 px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-purple-300 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    {trendExpanded ? '▲ Collapse' : '▼ Level Breakdown'}
+                  </button>
                 </div>
                 {trendChart.length === 0 ? (
                   <div className="text-purple-300/60 text-sm text-center py-12">No data</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={260}>
-                    <LineChart data={trendChart} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+                    <LineChart data={trendChart} margin={{ top: 22, right: 12, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                       <XAxis dataKey="month" tick={{ fill: '#c4b5fd', fontSize: 11 }} />
                       <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} width={40} />
                       <Tooltip content={<ChartTooltip />} />
                       <Line type="monotone" dataKey="Qualified Buyers" stroke="#e879f9" strokeWidth={2.5}
-                        dot={{ fill: '#e879f9', r: 4 }} activeDot={{ r: 6 }} />
+                        dot={{ fill: '#e879f9', r: 4 }} activeDot={{ r: 6 }}>
+                        <LabelList dataKey="Qualified Buyers" content={(props: any) => {
+                          const v = Number(props.value);
+                          if (!v) return <g />;
+                          return (
+                            <text x={Number(props.x)} y={Number(props.y) - 10}
+                              textAnchor="middle" fill="#f0abfc" fontSize={11} fontWeight="bold">{v}</text>
+                          );
+                        }} />
+                      </Line>
                     </LineChart>
                   </ResponsiveContainer>
+                )}
+
+                {/* Level breakdown table */}
+                {trendExpanded && schemeTableData.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-white/10 overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="text-purple-300/60 border-b border-white/10 text-right">
+                          <th className="py-1.5 pr-3 text-left font-medium">Month</th>
+                          <th className="py-1.5 pr-3 font-medium">Total</th>
+                          <th className="py-1.5 pr-3 font-medium text-amber-300/80">🐢 L1</th>
+                          <th className="py-1.5 pr-3 font-medium text-sky-300/80">🌀 L2</th>
+                          <th className="py-1.5 pr-3 font-medium text-fuchsia-300/80">🔊 L3</th>
+                          <th className="py-1.5 pr-3 font-medium text-rose-300/80">📷 L4</th>
+                          <th className="py-1.5 font-medium text-orange-300/80">🍳 L5</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...schemeTableData]
+                          .sort((a, b) => new Date(a.month_date).getTime() - new Date(b.month_date).getTime())
+                          .map((row) => {
+                            const mayPlus = row.month_date >= '2026-05-01';
+                            const l1 = Number(row.level1), l2 = Number(row.level2), l3 = Number(row.level3);
+                            const l4 = Number(row.level4), l5 = Number(row.level5);
+                            return (
+                              <tr key={row.month_date} className="border-b border-white/5 hover:bg-white/5 text-right">
+                                <td className="py-1.5 pr-3 text-left text-white font-medium">{row.month}</td>
+                                <td className="py-1.5 pr-3 text-fuchsia-300 font-bold">{fmt(row.qualified_buyers)}</td>
+                                <td className="py-1.5 pr-3 text-amber-200">{l1 > 0 ? fmt(l1) : <span className="text-white/20">—</span>}</td>
+                                <td className="py-1.5 pr-3 text-sky-200">{l2 > 0 ? fmt(l2) : <span className="text-white/20">—</span>}</td>
+                                <td className="py-1.5 pr-3 text-fuchsia-200">{l3 > 0 ? fmt(l3) : <span className="text-white/20">—</span>}</td>
+                                <td className="py-1.5 pr-3">
+                                  {!mayPlus ? <span className="text-white/15">N/A</span>
+                                    : l4 > 0 ? <span className="text-rose-200">{fmt(l4)}</span>
+                                    : <span className="text-white/20">—</span>}
+                                </td>
+                                <td className="py-1.5">
+                                  {!mayPlus ? <span className="text-white/15">N/A</span>
+                                    : l5 > 0 ? <span className="text-orange-200">{fmt(l5)}</span>
+                                    : <span className="text-white/20">—</span>}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
 

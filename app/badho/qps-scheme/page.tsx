@@ -81,6 +81,7 @@ interface DetailRow {
   rto_amount: string;
   pct_delivered: string;
   due_amount: string;
+  prev_mtd_amount: string;
 }
 
 interface BuyerOrderRow {
@@ -1222,6 +1223,7 @@ export default function QpsSchemePage() {
                         <th className="py-3 px-3 whitespace-nowrap">Business Name</th>
                         <th className="py-3 px-3 whitespace-nowrap">Phone</th>
                         <th className="py-3 px-3 text-right whitespace-nowrap">Qualified ₹</th>
+                        <th className="py-3 px-3 text-right whitespace-nowrap">vs Last Month<br/><span className="font-normal text-purple-300 text-xs">MTD order value</span></th>
                         <th className="py-3 px-3 text-center whitespace-nowrap">% L1<br/><span className="font-normal text-purple-300 text-xs">₹3k</span></th>
                         <th className="py-3 px-3 text-center whitespace-nowrap">% L2<br/><span className="font-normal text-purple-300 text-xs">₹5k</span></th>
                         <th className="py-3 px-3 text-center whitespace-nowrap">% L3<br/><span className="font-normal text-purple-300 text-xs">₹10k</span></th>
@@ -1283,6 +1285,23 @@ export default function QpsSchemePage() {
                             <td className="py-2 px-3 text-purple-100 font-mono whitespace-nowrap">{row.buyer_phone}</td>
                             <td className="py-2 px-3 text-right font-semibold text-white whitespace-nowrap">
                               {fmtAmt(row.qualified_amount)}
+                            </td>
+                            <td className="py-2 px-3 text-right whitespace-nowrap">
+                              {(() => {
+                                const prev = Number(row.prev_mtd_amount);
+                                const cur = Number(row.qualified_amount);
+                                const delta = cur - prev;
+                                const cls = delta > 0 ? 'text-emerald-300' : delta < 0 ? 'text-rose-300' : 'text-purple-300/50';
+                                const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '–';
+                                return (
+                                  <div className="flex flex-col items-end leading-tight">
+                                    <span className={`font-bold ${cls}`}>
+                                      {arrow} {delta > 0 ? '+' : ''}{fmtAmt(Math.abs(delta))}
+                                    </span>
+                                    <span className="text-purple-300/55 text-[11px]">prev {fmtAmt(prev)}</span>
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className={`py-2 px-3 text-center rounded-sm whitespace-nowrap ${pctBarClass(row.pct_level1)}`}>
                               {row.pct_level1}

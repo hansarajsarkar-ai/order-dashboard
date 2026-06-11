@@ -37,6 +37,7 @@ interface Row {
   rto_amount: string;
   pct_delivered: string;
   due_amount: string;
+  prev_mtd_amount: string;
 }
 
 async function _GET(req: NextRequest) {
@@ -63,6 +64,21 @@ async function _GET(req: NextRequest) {
   if (date1) { extraFilters += ` AND po."markedPendingTime" >= $${p}::date`; params.push(date1); p++; }
   if (date2) { extraFilters += ` AND po."markedPendingTime" < ($${p}::date + INTERVAL '1 day')`; params.push(date2); p++; }
   if (phone) { extraFilters += ` AND b."phone" = $${p}`; params.push(phone); p++; }
+
+  // Previous-month "month-till-date" window for the per-buyer comparison.
+  // If the selected month is the current calendar month, compare the same
+  // day-of-month range (e.g. Jun 1–11 vs May 1–11); otherwise compare the
+  // full selected month against the full previous month.
+  const nowDate = new Date();
+  const selDate = new Date(month + 'T00:00:00');
+  const isCurrentMonth =
+    nowDate.getFullYear() === selDate.getFullYear() && nowDate.getMonth() === selDate.getMonth();
+  const daysInSelMonth = new Date(selDate.getFullYear(), selDate.getMonth() + 1, 0).getDate();
+  const cutoffDay = isCurrentMonth ? nowDate.getDate() : daysInSelMonth;
+  const prevStartDate = new Date(selDate.getFullYear(), selDate.getMonth() - 1, 1);
+  const prevStartStr = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}-01`;
+  const prevIdx = p; params.push(prevStartStr); p++;
+  const cutIdx = p; params.push(cutoffDay); p++;
 
   const rewardLevel = isMayOrLater
     ? `CASE
@@ -130,6 +146,7 @@ async function _GET(req: NextRequest) {
         b."assets"->'outsideShopPhotoFromDistance'->>'Location'        AS outside_shop,
         date_trunc('month', po."markedPendingTime")::date              AS monthly,
         ROUND(SUM(po."amount")::numeric, 2)                            AS qualified_amount,
+        COALESCE(pm.prev_mtd_amount, 0)                                AS prev_mtd_amount,
         CASE WHEN SUM(po."amount") >= 3000  THEN '100%'
              ELSE ROUND((SUM(po."amount") / 3000.0)  * 100, 1) || '%' END AS pct_level1,
         CASE WHEN SUM(po."amount") >= 5000  THEN '100%'
@@ -172,6 +189,24 @@ async function _GET(req: NextRequest) {
           AND po2."markedPendingTime" <  ($2::date + INTERVAL '1 month')
         GROUP BY po2."buyerId"
       ) md ON md."buyerId" = b."id"
+      LEFT JOIN (
+        SELECT
+          po3."buyerId",
+          ROUND(SUM(po3."amount")::numeric, 2) AS prev_mtd_amount
+        FROM "purchaseOrder"."purchaseOrder" po3
+        JOIN "users"."seller" s3 ON s3."id" = po3."sellerId"
+        WHERE po3."status" IN ('DELIVERED', 'COMPLETED')
+          AND s3."isD2RBrandSeller" = TRUE
+          AND s3."isTest"           = FALSE
+          AND s3."businessName"     NOT ILIKE '%test%'
+          AND po3."isTest"          = FALSE
+          AND po3."deliveryType"    = 'INTERCITY'
+          AND po3."deliveryNetwork" = 'THIRD_PARTY'
+          AND po3."markedPendingTime" >= $${prevIdx}::date
+          AND po3."markedPendingTime" <  ($${prevIdx}::date + ($${cutIdx} || ' days')::interval)
+          AND s3."id" != $1
+        GROUP BY po3."buyerId"
+      ) pm ON pm."buyerId" = b."id"
       WHERE po."status" IN ('DELIVERED', 'COMPLETED')
         AND s."isD2RBrandSeller" = TRUE
         AND s."isTest"           = FALSE
@@ -187,7 +222,8 @@ async function _GET(req: NextRequest) {
         ${extraFilters}
       GROUP BY b."id", b."name", b."phone", b."businessName",
                b."addressLine1", b."addressLine2", b."landmark",
-               monthly, md.placed_amount, md.delivered_amount, md.rto_amount
+               monthly, md.placed_amount, md.delivered_amount, md.rto_amount,
+               pm.prev_mtd_amount
       ORDER BY qualified_amount DESC
     `, params);
 

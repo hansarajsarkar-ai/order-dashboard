@@ -142,6 +142,14 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '📒',
     status: 'live',
   },
+  {
+    slug: 'qps-scheme',
+    title: 'QPS Dashboard',
+    description:
+      'Quantity Purchase Scheme — monthly qualified buyer trend, new vs returning breakdown, level-wise gift winners (Tortoise / Fan / Speaker), and current-month alert counts.',
+    icon: '🎁',
+    status: 'live',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

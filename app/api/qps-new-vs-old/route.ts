@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query, withQueryCapture } from '@/lib/db';
+import { cached } from '@/lib/memoCache';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,7 @@ interface Row {
 
 async function _GET() {
   try {
-    const rows = await query<Row>(`
+    const rows = await cached('qps-new-vs-old', 120_000, () => query<Row>(`
       WITH base AS (
         SELECT
           b."id" AS "buyerId",
@@ -65,7 +66,7 @@ async function _GET() {
       LEFT JOIN first_order fo ON fo."buyerId" = base."buyerId"
       GROUP BY base."month"
       ORDER BY base."month" DESC
-    `, [EXCLUDED_SELLER]);
+    `, [EXCLUDED_SELLER]));
 
     return NextResponse.json({ data: rows });
   } catch (err) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query, withQueryCapture } from '@/lib/db';
+import { cached } from '@/lib/memoCache';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,7 @@ interface Row {
 
 async function _GET() {
   try {
-    const rows = await query<Row>(`
+    const rows = await cached('qps-trend', 120_000, () => query<Row>(`
       WITH monthly AS (
         SELECT
           b."id" AS "buyerId",
@@ -39,7 +40,7 @@ async function _GET() {
       FROM monthly
       GROUP BY "month"
       ORDER BY "month" ASC
-    `, [EXCLUDED_SELLER]);
+    `, [EXCLUDED_SELLER]));
 
     return NextResponse.json({ data: rows });
   } catch (err) {

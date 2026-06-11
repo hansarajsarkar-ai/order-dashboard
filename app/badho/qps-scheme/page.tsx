@@ -1238,12 +1238,16 @@ export default function QpsSchemePage() {
                         const orders = buyerOrdersMap[row.buyer_id] ?? [];
                         return (
                           <React.Fragment key={row.buyer_id}>
-                          <tr className={`border-b border-white/5 hover:bg-white/[0.06] transition-colors ${rowBg}`}>
+                          <tr
+                            onClick={() => toggleBuyerOrders(row.buyer_id)}
+                            className={`border-b border-white/5 hover:bg-white/[0.06] transition-colors cursor-pointer ${rowBg}`}
+                            title={isExpanded ? 'Click to collapse orders' : 'Click to view orders'}
+                          >
                             <td className="py-2 px-2 whitespace-nowrap">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-purple-400/50 text-xs w-4 text-right">{i + 1}</span>
                                 <button
-                                  onClick={() => toggleBuyerOrders(row.buyer_id)}
+                                  onClick={(e) => { e.stopPropagation(); toggleBuyerOrders(row.buyer_id); }}
                                   className={`w-5 h-5 rounded flex items-center justify-center text-[10px] transition-colors ${isExpanded ? 'bg-fuchsia-500/30 text-fuchsia-300' : 'bg-white/8 text-purple-400 hover:bg-white/15 hover:text-white'}`}
                                   title={isExpanded ? 'Collapse orders' : 'View orders'}
                                 >
@@ -1314,7 +1318,7 @@ export default function QpsSchemePage() {
                                 const imgs = [row.profile_pic, row.shop_board_photo, row.selfie_with_shop_board, row.inside_shop_products, row.shop_front, row.outside_shop].filter(Boolean) as string[];
                                 if (imgs.length === 0) return <span className="text-purple-400/30 text-xs">—</span>;
                                 return (
-                                  <button onClick={() => setPhotoBuyer(row)} title="View buyer photos" className="relative inline-block">
+                                  <button onClick={(e) => { e.stopPropagation(); setPhotoBuyer(row); }} title="View buyer photos" className="relative inline-block">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src={imgs[0]} alt="" loading="lazy" className="w-9 h-9 rounded-md object-cover border border-white/15 hover:border-fuchsia-400/70 transition" />
                                     <span className="absolute -top-1.5 -right-1.5 bg-fuchsia-600 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">{imgs.length}</span>

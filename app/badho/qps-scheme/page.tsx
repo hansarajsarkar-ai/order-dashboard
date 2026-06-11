@@ -982,9 +982,9 @@ export default function QpsSchemePage() {
             return (
             <div className={`rounded-2xl border p-5 flex flex-col gap-3 ${dim ? 'border-white/5 bg-white/[0.02] opacity-70' : 'border-white/10 bg-white/[0.04]'}`}>
               <div className="text-4xl">{GIFT_ICON[g.gift_name] ?? '🎁'}</div>
-              <div>
-                <div className="text-base font-extrabold text-white leading-snug">{g.gift_name}</div>
-                <div className="text-sm text-purple-300/80 mt-1 font-semibold">{GIFT_LEVEL[g.gift_name]}</div>
+              <div className="rounded-xl px-3 py-2 bg-gradient-to-r from-fuchsia-500/20 to-purple-500/10 border border-fuchsia-400/25 shadow-[0_0_15px_rgba(217,70,239,0.15)]">
+                <div className="text-lg font-black text-white leading-snug tracking-tight">{g.gift_name}</div>
+                <div className="text-sm text-fuchsia-200/90 mt-1 font-semibold">{GIFT_LEVEL[g.gift_name]}</div>
               </div>
               <div className="mt-auto">
                 <button
@@ -1015,8 +1015,10 @@ export default function QpsSchemePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
                 <div className="mb-6 flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Current Month — Gift Winners</div>
-                    <div className="text-xs text-purple-300/70 mt-0.5">Buyers already qualified for a gift this month (DELIVERED / COMPLETED)</div>
+                    <div className="inline-flex items-center px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600/30 to-purple-600/15 border border-fuchsia-400/30 shadow-[0_0_25px_rgba(217,70,239,0.25)]">
+                      <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-fuchsia-200 via-purple-200 to-indigo-200 bg-clip-text text-transparent">Current Month — Gift Winners</span>
+                    </div>
+                    <div className="text-xs text-purple-300/70 mt-2">Buyers already qualified for a gift this month (DELIVERED / COMPLETED)</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {queryBtn('gifts', 'Current Month Gift Winners')}
@@ -1061,8 +1063,10 @@ export default function QpsSchemePage() {
               {prevRow && (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                   <div className="mb-6">
-                    <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-purple-300 via-indigo-300 to-blue-300 bg-clip-text text-transparent">Previous Month ({prevRow.month}) — Gift Winners</div>
-                    <div className="text-xs text-purple-300/70 mt-0.5">Final tally for {prevRow.month}</div>
+                    <div className="inline-flex items-center px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600/25 to-blue-600/15 border border-indigo-400/30 shadow-[0_0_25px_rgba(129,140,248,0.2)]">
+                      <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-purple-200 via-indigo-200 to-blue-200 bg-clip-text text-transparent">Previous Month ({prevRow.month}) — Gift Winners</span>
+                    </div>
+                    <div className="text-xs text-purple-300/70 mt-2">Final tally for {prevRow.month}</div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     {prevGifts.map((g) => (

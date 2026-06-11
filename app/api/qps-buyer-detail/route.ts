@@ -13,6 +13,12 @@ interface Row {
   buyer_address_line1: string;
   buyer_address_line2: string;
   buyer_landmark: string;
+  profile_pic: string | null;
+  shop_board_photo: string | null;
+  selfie_with_shop_board: string | null;
+  inside_shop_products: string | null;
+  shop_front: string | null;
+  outside_shop: string | null;
   monthly: string;
   qualified_amount: string;
   pct_level1: string;
@@ -108,6 +114,12 @@ async function _GET(req: NextRequest) {
         COALESCE(b."addressLine1", '')                                 AS buyer_address_line1,
         COALESCE(b."addressLine2", '')                                 AS buyer_address_line2,
         COALESCE(b."landmark", '')                                     AS buyer_landmark,
+        b."assets"->'profilePicObj'->>'Location'                       AS profile_pic,
+        b."assets"->'shopBoardPhoto'->>'Location'                      AS shop_board_photo,
+        b."assets"->'selfieWithShopBoardPhoto'->>'Location'            AS selfie_with_shop_board,
+        b."assets"->'insideShopPhotoOfProducts'->>'Location'           AS inside_shop_products,
+        b."assets"->'shopFrontPhotoFromDistance'->>'Location'          AS shop_front,
+        b."assets"->'outsideShopPhotoFromDistance'->>'Location'        AS outside_shop,
         date_trunc('month', po."markedPendingTime")::date              AS monthly,
         ROUND(SUM(po."amount")::numeric, 2)                            AS qualified_amount,
         CASE WHEN SUM(po."amount") >= 3000  THEN '100%'

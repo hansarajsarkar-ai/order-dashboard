@@ -57,6 +57,12 @@ interface DetailRow {
   buyer_address_line1: string;
   buyer_address_line2: string;
   buyer_landmark: string;
+  profile_pic: string | null;
+  shop_board_photo: string | null;
+  selfie_with_shop_board: string | null;
+  inside_shop_products: string | null;
+  shop_front: string | null;
+  outside_shop: string | null;
   monthly: string;
   qualified_amount: string;
   pct_level1: string;
@@ -492,6 +498,7 @@ export default function QpsSchemePage() {
 
   // Drill modal state
   const [drillConfig, setDrillConfig] = useState<DrillConfig | null>(null);
+  const [photoBuyer, setPhotoBuyer] = useState<DetailRow | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1214,6 +1221,7 @@ export default function QpsSchemePage() {
                         <th className="py-3 px-3 text-right whitespace-nowrap">Due ₹</th>
                         <th className="py-3 px-3 whitespace-nowrap text-fuchsia-200 border-l border-fuchsia-400/40">Address</th>
                         <th className="py-3 px-3 whitespace-nowrap text-fuchsia-200">Landmark</th>
+                        <th className="py-3 px-3 whitespace-nowrap text-fuchsia-200 text-center">Photos</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1300,6 +1308,19 @@ export default function QpsSchemePage() {
                             </td>
                             <td className="py-2 px-3 text-purple-200/80 min-w-[150px]">
                               {row.buyer_landmark || '—'}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              {(() => {
+                                const imgs = [row.profile_pic, row.shop_board_photo, row.selfie_with_shop_board, row.inside_shop_products, row.shop_front, row.outside_shop].filter(Boolean) as string[];
+                                if (imgs.length === 0) return <span className="text-purple-400/30 text-xs">—</span>;
+                                return (
+                                  <button onClick={() => setPhotoBuyer(row)} title="View buyer photos" className="relative inline-block">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={imgs[0]} alt="" loading="lazy" className="w-9 h-9 rounded-md object-cover border border-white/15 hover:border-fuchsia-400/70 transition" />
+                                    <span className="absolute -top-1.5 -right-1.5 bg-fuchsia-600 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">{imgs.length}</span>
+                                  </button>
+                                );
+                              })()}
                             </td>
                           </tr>
                           {isExpanded && (
@@ -1402,6 +1423,45 @@ export default function QpsSchemePage() {
     {drillConfig && (
       <DrillModal config={drillConfig} onClose={() => setDrillConfig(null)} />
     )}
+    {photoBuyer && (() => {
+      const shots: [string, string | null][] = [
+        ['Profile', photoBuyer.profile_pic],
+        ['Shop Board', photoBuyer.shop_board_photo],
+        ['Selfie w/ Board', photoBuyer.selfie_with_shop_board],
+        ['Inside Shop', photoBuyer.inside_shop_products],
+        ['Shop Front', photoBuyer.shop_front],
+        ['Outside Shop', photoBuyer.outside_shop],
+      ];
+      const present = shots.filter(([, u]) => u);
+      return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setPhotoBuyer(null)}>
+          <div className="rounded-2xl border border-white/10 bg-slate-900 w-full max-w-4xl max-h-[88vh] flex flex-col overflow-hidden text-left" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-3 flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50">
+              <div>
+                <div className="text-white font-semibold text-sm">{photoBuyer.buyer_business_name || photoBuyer.buyer_name} — Photos</div>
+                <div className="text-xs text-purple-300/60 mt-0.5">{photoBuyer.buyer_name} · {photoBuyer.buyer_phone}</div>
+              </div>
+              <button onClick={() => setPhotoBuyer(null)} className="text-sm text-white/55 hover:text-white">Close ✕</button>
+            </div>
+            <div className="overflow-auto p-5">
+              {present.length === 0 ? (
+                <div className="text-center text-purple-300/50 text-sm py-10">No photos on record for this buyer.</div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {present.map(([label, url]) => (
+                    <a key={label} href={url!} target="_blank" rel="noopener noreferrer" className="block group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url!} alt={label} loading="lazy" className="w-full h-40 object-cover rounded-lg border border-white/10 group-hover:border-fuchsia-400/60 transition" />
+                      <div className="text-xs text-purple-200/80 mt-1.5 text-center">{label}</div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    })()}
     </>
   );
 }

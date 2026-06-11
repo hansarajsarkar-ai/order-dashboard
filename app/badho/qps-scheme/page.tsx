@@ -85,7 +85,7 @@ const fmtAmt = (n: number | string) => {
 };
 
 function getAvailableMonths(): { value: string; label: string }[] {
-  const start = new Date(2026, 3, 1); // April 2026 — scheme start
+  const start = new Date(2026, 2, 1); // March 2026 — scheme start
   const now = new Date();
   const end = new Date(now.getFullYear(), now.getMonth(), 1);
   const months: { value: string; label: string }[] = [];
@@ -712,7 +712,7 @@ export default function QpsSchemePage() {
                   </span>
                   <span className="ml-auto">
                     Scheme Details — <span className="text-fuchsia-300 font-semibold">{detailMonthLabel}</span>
-                    {!isMayPlus && <span className="ml-2 text-amber-300/70">(L1–L3 only · April scheme)</span>}
+                    {!isMayPlus && <span className="ml-2 text-amber-300/70">(L1–L3 only · Mar–Apr scheme)</span>}
                     {isMayPlus && <span className="ml-2 text-emerald-300/70">(L1–L5 · May onwards)</span>}
                   </span>
                 </div>

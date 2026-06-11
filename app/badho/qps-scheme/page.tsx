@@ -366,24 +366,47 @@ export default function QpsSchemePage() {
                       <Tooltip content={<ChartTooltip />} />
                       <Legend wrapperStyle={{ fontSize: 12, color: '#c4b5fd' }} />
                       <Bar dataKey="New Buyers" stackId="a" fill="#a855f7" radius={[0, 0, 4, 4]}>
-                        <LabelList dataKey="New Buyers" position="center"
-                          style={{ fill: 'white', fontSize: 10, fontWeight: 'bold' }}
-                          formatter={(v: number) => (v > 0 ? v : '')} />
+                        <LabelList
+                          dataKey="New Buyers"
+                          content={(props: Record<string, unknown>) => {
+                            const x = Number(props.x), y = Number(props.y);
+                            const w = Number(props.width), h = Number(props.height);
+                            const v = Number(props.value);
+                            if (!v || h < 14) return null;
+                            return (
+                              <text x={x + w / 2} y={y + h / 2 + 4} textAnchor="middle"
+                                fill="white" fontSize={10} fontWeight="bold">{v}</text>
+                            );
+                          }}
+                        />
                       </Bar>
                       <Bar dataKey="Returning Buyers" stackId="a" fill="#22d3ee" radius={[4, 4, 0, 0]}>
-                        <LabelList dataKey="Returning Buyers" position="center"
-                          style={{ fill: 'white', fontSize: 10, fontWeight: 'bold' }}
-                          formatter={(v: number) => (v > 0 ? v : '')} />
-                        <LabelList dataKey="Returning Buyers"
+                        {/* count inside segment */}
+                        <LabelList
+                          dataKey="Returning Buyers"
                           content={(props: Record<string, unknown>) => {
-                            const x = Number(props.x), y = Number(props.y), width = Number(props.width);
+                            const x = Number(props.x), y = Number(props.y);
+                            const w = Number(props.width), h = Number(props.height);
+                            const v = Number(props.value);
+                            if (!v || h < 14) return null;
+                            return (
+                              <text x={x + w / 2} y={y + h / 2 + 4} textAnchor="middle"
+                                fill="white" fontSize={10} fontWeight="bold">{v}</text>
+                            );
+                          }}
+                        />
+                        {/* total above the full bar */}
+                        <LabelList
+                          dataKey="Returning Buyers"
+                          content={(props: Record<string, unknown>) => {
+                            const x = Number(props.x), y = Number(props.y), w = Number(props.width);
                             const idx = props.index as number;
                             const entry = newVsOldChart[idx];
                             if (!entry) return null;
                             const total = (entry['New Buyers'] || 0) + (entry['Returning Buyers'] || 0);
                             if (!total) return null;
                             return (
-                              <text x={x + width / 2} y={y - 5} textAnchor="middle"
+                              <text x={x + w / 2} y={y - 5} textAnchor="middle"
                                 fill="#f0abfc" fontSize={11} fontWeight="bold">{total}</text>
                             );
                           }}

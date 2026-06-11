@@ -26,6 +26,7 @@ export const ALLOWED_EMAILS: ReadonlySet<string> = new Set([
   'muskan.pandey@badho.in',
   'sushmita.singh@badho.in',
   'rishi@badho.in',
+  'amit.sharma@badho.in',
 ]);
 
 export function isAllowedEmail(email: string | null | undefined): boolean {

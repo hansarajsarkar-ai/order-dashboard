@@ -341,7 +341,7 @@ export default function QpsSchemePage() {
                   </div>
                   <button
                     onClick={() => setTrendExpanded((e) => !e)}
-                    className="shrink-0 px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-purple-300 hover:text-white hover:bg-white/10 transition-colors"
+                    className="shrink-0 px-4 py-2 rounded-xl bg-fuchsia-500/25 border border-fuchsia-400/50 text-sm font-bold text-fuchsia-200 hover:bg-fuchsia-500/40 hover:text-white transition-all shadow-[0_0_12px_rgba(217,70,239,0.25)]"
                   >
                     {trendExpanded ? '▲ Collapse' : '▼ Level Breakdown'}
                   </button>
@@ -563,53 +563,105 @@ export default function QpsSchemePage() {
         )}
 
         {/* ── ALERTS ───────────────────────────────────────────────────────── */}
-        {!loading && tab === 'alerts' && (
-          <div className="space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
-              <div className="mb-6">
-                <div className="text-sm font-semibold text-white">Current Month — Gift Winners</div>
-                <div className="text-xs text-purple-300/70 mt-0.5">Buyers already qualified for a gift this month (DELIVERED / COMPLETED)</div>
+        {!loading && tab === 'alerts' && (() => {
+          const GIFT_ORDER = [
+            'Airfryer/Mixer (Worth 3000)',
+            'CCTV/Iron (Worth 2000)',
+            'Speaker (Worth 1000)',
+            'Mini table fan (Worth 500)',
+            'Vastu tortoise (Worth 300)',
+          ];
+          // Previous month derived from already-loaded schemeTableData (sorted ascending)
+          const prevRow = schemeRows.length >= 2 ? schemeRows[schemeRows.length - 2] : null;
+          const prevMayPlus = prevRow ? prevRow.month_date >= '2026-05-01' : false;
+          const prevGifts = prevRow ? GIFT_ORDER.filter(n => {
+            if ((n === 'Airfryer/Mixer (Worth 3000)' || n === 'CCTV/Iron (Worth 2000)') && !prevMayPlus) return false;
+            return true;
+          }).map(n => {
+            let count = 0;
+            if (n === 'Airfryer/Mixer (Worth 3000)') count = Number(prevRow.level5) || 0;
+            else if (n === 'CCTV/Iron (Worth 2000)')  count = Number(prevRow.level4) || 0;
+            else if (n === 'Speaker (Worth 1000)')     count = Number(prevRow.level3) || 0;
+            else if (n === 'Mini table fan (Worth 500)') count = Number(prevRow.level2) || 0;
+            else if (n === 'Vastu tortoise (Worth 300)') count = Number(prevRow.level1) || 0;
+            return { gift_name: n, buyer_count: count };
+          }) : [];
+
+          const GiftCard = ({ g, dim }: { g: { gift_name: string; buyer_count: number }; dim?: boolean }) => (
+            <div className={`rounded-2xl border p-5 flex flex-col gap-3 ${dim ? 'border-white/5 bg-white/[0.02] opacity-70' : 'border-white/10 bg-white/[0.04]'}`}>
+              <div className="text-4xl">{GIFT_ICON[g.gift_name] ?? '🎁'}</div>
+              <div>
+                <div className="text-sm font-bold text-white leading-snug">{g.gift_name}</div>
+                <div className="text-xs text-purple-300/70 mt-0.5">{GIFT_LEVEL[g.gift_name]}</div>
               </div>
-              {giftData.length === 0 ? (
-                <div className="text-purple-300/60 text-sm text-center py-12">No data</div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                  {giftData.map((g) => {
-                    const count = Number(g.buyer_count);
-                    return (
-                      <div key={g.gift_name} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 flex flex-col gap-3">
-                        <div className="text-4xl">{GIFT_ICON[g.gift_name] ?? '🎁'}</div>
-                        <div>
-                          <div className="text-sm font-bold text-white leading-snug">{g.gift_name}</div>
-                          <div className="text-xs text-purple-300/70 mt-0.5">{GIFT_LEVEL[g.gift_name]}</div>
-                        </div>
-                        <div className="mt-auto">
-                          <div className="text-3xl font-bold bg-gradient-to-r from-fuchsia-400 to-purple-400 bg-clip-text text-transparent">{fmt(count)}</div>
-                          <div className="text-xs text-purple-300/70">{count === 1 ? 'buyer' : 'buyers'} qualified</div>
-                        </div>
-                      </div>
-                    );
-                  })}
+              <div className="mt-auto">
+                <div className="text-3xl font-bold bg-gradient-to-r from-fuchsia-400 to-purple-400 bg-clip-text text-transparent">{fmt(g.buyer_count)}</div>
+                <div className="text-xs text-purple-300/70">{g.buyer_count === 1 ? 'buyer' : 'buyers'} qualified</div>
+              </div>
+            </div>
+          );
+
+          return (
+            <div className="space-y-6">
+              {/* Current month */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
+                <div className="mb-6">
+                  <div className="text-sm font-semibold text-white">Current Month — Gift Winners</div>
+                  <div className="text-xs text-purple-300/70 mt-0.5">Buyers already qualified for a gift this month (DELIVERED / COMPLETED)</div>
+                </div>
+                {giftData.length === 0 ? (
+                  <div className="text-purple-300/60 text-sm text-center py-12">No data</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {giftData.map((g) => (
+                      <GiftCard key={g.gift_name} g={{ gift_name: g.gift_name, buyer_count: Number(g.buyer_count) }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+              {giftData.length > 0 && (
+                <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/5 p-4 flex items-center gap-4 flex-wrap">
+                  <span className="text-2xl">🏆</span>
+                  <div>
+                    <div className="text-white font-semibold text-sm">
+                      Total qualified this month:{' '}
+                      <span className="text-fuchsia-300 text-lg font-bold">
+                        {fmt(giftData.reduce((s, g) => s + Number(g.buyer_count), 0))}
+                      </span>{' '}
+                      buyers
+                    </div>
+                    <div className="text-xs text-purple-300/70 mt-0.5">Each buyer counted once in their highest qualifying tier</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Previous month */}
+              {prevRow && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
+                  <div className="mb-6">
+                    <div className="text-sm font-semibold text-white">Previous Month ({prevRow.month}) — Gift Winners</div>
+                    <div className="text-xs text-purple-300/70 mt-0.5">Final tally for {prevRow.month}</div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {prevGifts.map((g) => (
+                      <GiftCard key={g.gift_name} g={g} dim />
+                    ))}
+                  </div>
+                  <div className="mt-4 flex items-center gap-3">
+                    <span className="text-lg">🏅</span>
+                    <div className="text-purple-200/80 text-sm">
+                      Total qualified in {prevRow.month}:{' '}
+                      <span className="text-fuchsia-300 font-bold">
+                        {fmt(prevGifts.reduce((s, g) => s + g.buyer_count, 0))}
+                      </span>{' '}
+                      buyers
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-            {giftData.length > 0 && (
-              <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/5 p-4 flex items-center gap-4 flex-wrap">
-                <span className="text-2xl">🏆</span>
-                <div>
-                  <div className="text-white font-semibold text-sm">
-                    Total qualified this month:{' '}
-                    <span className="text-fuchsia-300 text-lg font-bold">
-                      {fmt(giftData.reduce((s, g) => s + Number(g.buyer_count), 0))}
-                    </span>{' '}
-                    buyers
-                  </div>
-                  <div className="text-xs text-purple-300/70 mt-0.5">Each buyer counted once in their highest qualifying tier</div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── DETAIL TAB ───────────────────────────────────────────────────── */}
         {tab === 'detail' && (

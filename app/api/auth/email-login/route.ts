@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { isAllowedEmail } from '@/lib/allowlist';
 import jwt from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,13 @@ export async function POST(req: NextRequest) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(normalizedEmail)) {
       return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
+    }
+
+    if (!isAllowedEmail(normalizedEmail)) {
+      return NextResponse.json(
+        { error: 'This email is not authorized to access this dashboard.' },
+        { status: 403 }
+      );
     }
 
     const rows = await query<EmployeeRow>(

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { query } from './db';
+import { isAllowedEmail } from './allowlist';
 
 // Same secret + payload shape as /api/auth/email-login. The login flow
 // signs { id (= employeeId), email, name, role } with this secret and a
@@ -49,6 +50,9 @@ export function requireAuth(req: NextRequest): AuthClaims {
 // reassigned after the token was minted. Returns the row or throws
 // AuthError(403) if no active employee matches.
 export async function resolveActiveEmployee(email: string): Promise<{ employeeId: string; email: string; name: string | null }> {
+  if (!isAllowedEmail(email)) {
+    throw new AuthError(`Employee ${email} is not authorized`, 403);
+  }
   const rows = await query<{ employeeId: string; email: string; name: string | null; isActive: boolean | null }>(
     `SELECT "employeeId", "email", "name", "isActive"
        FROM "employeeBase"."employee"

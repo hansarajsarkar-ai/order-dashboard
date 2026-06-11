@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
 import { query } from '@/lib/db';
+import { isAllowedEmail } from '@/lib/allowlist';
 import jwt from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,13 @@ export async function POST(_req: NextRequest) {
       return NextResponse.json(
         { error: 'Your Google account has no email address Clerk can read.' },
         { status: 400 }
+      );
+    }
+
+    if (!isAllowedEmail(primaryEmail)) {
+      return NextResponse.json(
+        { error: `${primaryEmail} is not authorized to access this dashboard.` },
+        { status: 403 }
       );
     }
 

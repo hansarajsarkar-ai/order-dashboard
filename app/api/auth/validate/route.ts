@@ -1,21 +1,14 @@
 import { NextResponse, NextRequest } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { SESSION_COOKIE_NAME, verifySession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
-
-// Session validity check called by AuthGuard. Valid = the token verifies
-// against the shared secret (issued by /api/auth/login). No external identity
-// provider — this copy uses a single shared password.
+// Session validity check called by AuthGuard. Reads the httpOnly session
+// cookie (sent automatically same-origin) and verifies it.
 export async function GET(req: NextRequest) {
-  const header = req.headers.get('authorization') || '';
-  const match = /^Bearer\s+(.+)$/i.exec(header);
-  if (!match) return NextResponse.json({ ok: false, error: 'No token' }, { status: 401 });
-  try {
-    jwt.verify(match[1], JWT_SECRET);
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'Invalid or expired token' }, { status: 401 });
-  }
+  const cookie = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const session = await verifySession(cookie);
+  if (session) return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: false, error: 'Not authenticated' }, { status: 401 });
 }

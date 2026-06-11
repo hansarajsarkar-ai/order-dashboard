@@ -1,38 +1,85 @@
 import { NextResponse, NextRequest } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { query } from '@/lib/db';
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+  signSession,
+  normalizePhone,
+  normalizeEmail,
+} from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
+// Allowed only for active Support employees (same constraint as the Badho DaaS
+// dashboard). Login by phone OR email — whichever is entered.
+const ALLOWED_ROLE = 'Support';
 
-// Simple shared-password login for this self-hosted copy. POST { password }.
-// On match it mints the same internal JWT shape the rest of the app expects
-// (id/email/method) so AuthGuard + any Bearer-token route keep working.
+interface EmployeeRow {
+  employeeId: string;
+  name: string | null;
+}
+
 export async function POST(req: NextRequest) {
-  const expected = process.env.DASHBOARD_PASSWORD;
-  if (!expected) {
-    return NextResponse.json({ error: 'DASHBOARD_PASSWORD is not configured on the server.' }, { status: 500 });
-  }
-  let password = '';
+  let identifier = '';
   try {
     const body = await req.json();
-    password = typeof body?.password === 'string' ? body.password : '';
+    identifier = typeof body?.identifier === 'string' ? body.identifier : '';
   } catch {
-    /* empty / invalid body */
+    /* invalid body */
   }
-  if (password !== expected) {
-    return NextResponse.json({ error: 'Incorrect password.' }, { status: 401 });
+  identifier = identifier.trim();
+  if (!identifier) {
+    return NextResponse.json({ error: 'Enter your phone number or email.' }, { status: 400 });
   }
-  const token = jwt.sign(
-    { id: 'dashboard', email: 'dashboard@local', name: 'Dashboard', role: 'admin', method: 'password' },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-  return NextResponse.json({
-    token,
-    employeeId: 'dashboard',
-    employeeName: 'Dashboard',
-    email: 'dashboard@local',
-    role: 'admin',
+
+  // Decide phone vs email and build the matching lookup.
+  const email = identifier.includes('@') ? normalizeEmail(identifier) : null;
+  const phone = email ? null : normalizePhone(identifier);
+  if (!email && !phone) {
+    return NextResponse.json({ error: 'Enter a valid 10-digit phone number or email.' }, { status: 400 });
+  }
+
+  let employee: EmployeeRow | undefined;
+  try {
+    const rows = email
+      ? await query<EmployeeRow>(
+          `SELECT "employeeId", "name" FROM "employeeBase"."employee"
+           WHERE "isActive" = TRUE AND "role" = $1 AND LOWER("email") = $2 LIMIT 1`,
+          [ALLOWED_ROLE, email]
+        )
+      : await query<EmployeeRow>(
+          `SELECT "employeeId", "name" FROM "employeeBase"."employee"
+           WHERE "isActive" = TRUE AND "role" = $1 AND "phoneNumber" = $2 LIMIT 1`,
+          [ALLOWED_ROLE, phone]
+        );
+    employee = rows[0];
+  } catch (e) {
+    console.error('Employee lookup failed:', e);
+    return NextResponse.json({ error: 'Login is temporarily unavailable. Please try again.' }, { status: 500 });
+  }
+
+  if (!employee) {
+    return NextResponse.json(
+      { error: 'Not authorized. This dashboard is limited to active Support team members.' },
+      { status: 401 }
+    );
+  }
+
+  const via = email ?? phone ?? '';
+  const token = await signSession(employee.employeeId, employee.name ?? undefined, via);
+
+  const res = NextResponse.json({
+    ok: true,
+    employeeId: employee.employeeId,
+    employeeName: employee.name || via,
   });
+  res.cookies.set(SESSION_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  });
+  return res;
 }

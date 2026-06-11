@@ -1,20 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
-  const [password, setPassword] = useState('');
+  const params = useSearchParams();
+  const next = params.get('next') || '/badho';
+  const [identifier, setIdentifier] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // If already logged in, bounce to dashboard
   useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('authToken')) {
-      router.replace('/badho');
+      router.replace(next.startsWith('/') ? next : '/badho');
     }
-  }, [router]);
+  }, [router, next]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,18 +25,19 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ identifier }),
       });
       const data = await res.json();
-      if (!res.ok) {
+      if (!res.ok || !data.ok) {
         setError(data.error || 'Login failed');
         return;
       }
-      localStorage.setItem('authToken', data.token);
-      localStorage.setItem('employeeId', data.employeeId);
-      localStorage.setItem('employeeName', data.employeeName);
-      localStorage.setItem('employeeEmail', data.email);
-      router.replace('/badho');
+      // The httpOnly cookie is the real session; this flag keeps the existing
+      // client-side page guards happy.
+      localStorage.setItem('authToken', '1');
+      localStorage.setItem('employeeId', data.employeeId || '');
+      localStorage.setItem('employeeName', data.employeeName || '');
+      router.replace(next.startsWith('/') && !next.startsWith('//') ? next : '/badho');
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -54,21 +56,22 @@ export default function LoginPage() {
             <span className="text-2xl">📊</span>
           </div>
           <h1 className="text-2xl font-bold text-white">Order Dashboard</h1>
-          <p className="text-purple-200 text-sm mt-1">Enter the dashboard password</p>
+          <p className="text-purple-200 text-sm mt-1">Sign in with your Badho phone number or email</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            type="text"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder="Phone number or email"
             autoFocus
+            autoComplete="username"
             className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/15 text-white placeholder-purple-300/50 focus:outline-none focus:border-fuchsia-400/60 focus:ring-2 focus:ring-fuchsia-400/30 transition-all"
           />
           <button
             type="submit"
-            disabled={loading || !password}
+            disabled={loading || !identifier.trim()}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(217,70,239,0.3)]"
           >
             {loading ? 'Signing in…' : 'Sign in'}
@@ -82,9 +85,17 @@ export default function LoginPage() {
         )}
 
         <p className="text-center text-xs text-white/40 mt-6">
-          Access is restricted to authorized users only.
+          Access is limited to active Support team members.
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

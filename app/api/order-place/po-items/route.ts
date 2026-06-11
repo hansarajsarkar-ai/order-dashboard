@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPool, query } from '@/lib/db';
+import { getPool, query, type DbClient } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -353,7 +353,7 @@ export async function DELETE(req: NextRequest) {
 /* ──────────────────────────────────────────────────────────────────────
  * Helpers
  * ────────────────────────────────────────────────────────────────────── */
-async function fetchPoForMutation(client: import('pg').PoolClient, poNumber: string) {
+async function fetchPoForMutation(client: DbClient, poNumber: string) {
   const r = await client.query<{ poId: string; sellerId: string; buyerId: string; status: string }>(`
     SELECT "id"::text AS "poId", "sellerId"::text AS "sellerId", "buyerId"::text AS "buyerId", "status"
     FROM "purchaseOrder"."purchaseOrder"
@@ -364,7 +364,7 @@ async function fetchPoForMutation(client: import('pg').PoolClient, poNumber: str
   return r.rows[0];
 }
 
-async function syncPoTotals(client: import('pg').PoolClient, poId: string) {
+async function syncPoTotals(client: DbClient, poId: string) {
   // PO has its own `handlePurchaseOrderAmount` trigger that may also derive
   // the amount; this UPDATE is defensive so the PO row shows the right
   // total immediately on refresh even if the trigger chain skips a beat.

@@ -1,13 +1,15 @@
-import { Pool } from 'pg';
 import { AsyncLocalStorage } from 'async_hooks';
 import { NextResponse } from 'next/server';
 
-let pool: Pool | null = null;
+// ---------------------------------------------------------------------------
+// Data access via HASURA (run_sql), not a direct Postgres connection.
+// This copy reaches the same database through Hasura's admin API, so it only
+// needs HASURA_GRAPHQL_ENDPOINT + HASURA_ADMIN_SECRET (no DATABASE_URL / pg).
+// The query()/queryNoNestloop() signatures are unchanged, so every caller works
+// as-is — parameterised SQL is inlined safely before being sent to run_sql.
+// ---------------------------------------------------------------------------
 
 // --- Per-request SQL capture (powers the dashboard's "View Query" panels) ---
-// Each API route is wrapped with withQueryCapture(), which opens an async context
-// store. Every query()/queryNoNestloop() call run inside that context records its
-// SQL + params, and the wrapper injects them into the JSON response as `__queries`.
 export type CapturedQuery = { sql: string; params?: unknown[] };
 const queryStore = new AsyncLocalStorage<CapturedQuery[]>();
 
@@ -15,9 +17,6 @@ function recordQuery(sql: string, params?: unknown[]): void {
   queryStore.getStore()?.push({ sql: sql.trim(), params });
 }
 
-// Wraps a route handler so all SQL it runs is captured and appended to the
-// response body as `__queries` (only for JSON object responses that ran ≥1 query).
-// Headers (incl. Cache-Control) and status are preserved.
 export function withQueryCapture<A extends unknown[]>(
   handler: (...args: A) => Promise<Response>
 ): (...args: A) => Promise<Response> {
@@ -44,25 +43,53 @@ export function withQueryCapture<A extends unknown[]>(
   };
 }
 
-export function getPool(): Pool {
-  if (!pool) {
-    if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL env var not set');
-    }
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 30000,
-      application_name: 'coupon-dashboard',
-    });
+// --- Safe parameter inlining (run_sql has no bind params) -------------------
+function sqlLiteral(v: unknown): string {
+  if (v === null || v === undefined) return 'NULL';
+  if (typeof v === 'number') return Number.isFinite(v) ? String(v) : 'NULL';
+  if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+  if (v instanceof Date) return `'${v.toISOString()}'`;
+  // string & everything else → standard SQL string literal (double the quotes)
+  return `'${String(v).replace(/'/g, "''")}'`;
+}
 
-    pool.on('error', (err) => {
-      console.error('Unexpected error on idle client', err);
-      pool = null;
-    });
+function inlineParams(sql: string, params?: unknown[]): string {
+  if (!params || params.length === 0) return sql;
+  // Replace $N tokens with escaped literals ($10 before $1 is handled by \d+).
+  return sql.replace(/\$(\d+)/g, (_m, n: string) => sqlLiteral(params[Number(n) - 1]));
+}
+
+// --- run_sql transport ------------------------------------------------------
+function hasuraBase(): string {
+  const ep = process.env.HASURA_GRAPHQL_ENDPOINT;
+  if (!ep) throw new Error('HASURA_GRAPHQL_ENDPOINT env var not set');
+  return ep.replace(/\/v1\/graphql\/?$/, '');
+}
+
+async function runSql<T>(sql: string, readOnly: boolean): Promise<T[]> {
+  const secret = process.env.HASURA_ADMIN_SECRET;
+  if (!secret) throw new Error('HASURA_ADMIN_SECRET env var not set');
+  const res = await fetch(`${hasuraBase()}/v2/query`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-hasura-admin-secret': secret },
+    body: JSON.stringify({
+      type: 'run_sql',
+      args: { source: 'default', sql, read_only: readOnly, cascade: false },
+    }),
+    cache: 'no-store',
+  });
+  let json: { result?: unknown[][]; error?: string; internal?: { error?: { message?: string } } };
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(`Hasura run_sql returned non-JSON (${res.status})`);
   }
-  return pool;
+  if (!res.ok || json.error || !json.result) {
+    throw new Error(json.error || json.internal?.error?.message || `Hasura run_sql failed (${res.status})`);
+  }
+  const [header, ...rows] = json.result as string[][];
+  if (!header) return [];
+  return rows.map((r) => Object.fromEntries(header.map((c, i) => [c, r[i]]))) as T[];
 }
 
 export async function query<T = Record<string, unknown>>(
@@ -71,40 +98,69 @@ export async function query<T = Record<string, unknown>>(
 ): Promise<T[]> {
   recordQuery(sql, params);
   try {
-    const client = await getPool().connect();
-    try {
-      const result = await client.query(sql, params);
-      return result.rows as T[];
-    } finally {
-      client.release();
-    }
+    return await runSql<T>(inlineParams(sql, params), true);
   } catch (err) {
     console.error('Query error:', err);
     throw err;
   }
 }
 
-// Like query(), but disables nested-loop joins for this statement only (via a
-// transaction-scoped SET LOCAL). Use for the calling-team order joins, where a
-// rows=1 estimate on materialized CTEs otherwise makes Postgres nested-loop two
-// large sets over a date range — fine for a single day, catastrophic for 30.
+// Like query(), but disables nested-loop joins for this statement (heavy
+// multi-day calling-team joins). Sent as a session SET in the same run_sql
+// batch so the following SELECT is planned with nestloops off.
 export async function queryNoNestloop<T = Record<string, unknown>>(
   sql: string,
   params?: unknown[]
 ): Promise<T[]> {
   recordQuery(sql, params);
-  const client = await getPool().connect();
   try {
-    await client.query('BEGIN');
-    await client.query('SET LOCAL enable_nestloop = off');
-    const result = await client.query(sql, params);
-    await client.query('COMMIT');
-    return result.rows as T[];
+    const batched = `SET enable_nestloop = off;\n${inlineParams(sql, params)}`;
+    return await runSql<T>(batched, false);
   } catch (err) {
-    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
     console.error('Query error:', err);
     throw err;
-  } finally {
-    client.release();
   }
+}
+
+// ---------------------------------------------------------------------------
+// getPool() compatibility shim for the transactional WRITE routes
+// (order-place / cancel / reject / approve). The original code used a real
+// pg Pool + client with BEGIN/COMMIT/ROLLBACK. Hasura run_sql is stateless per
+// HTTP call, so a server-side transaction can't span multiple client.query()
+// calls. This shim proxies each statement to run_sql and treats the
+// transaction-control keywords as no-ops. Statements still execute, but they
+// are NOT atomic — a mid-sequence failure leaves earlier writes committed.
+// The read-only analytics dashboards (QPS/badho) don't use this path.
+// ---------------------------------------------------------------------------
+type PgResult<T> = { rows: T[]; rowCount: number };
+
+// Structural type for the shim client, used by callers that previously
+// imported pg's PoolClient for their helper signatures.
+export type DbClient = {
+  query: <T = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<PgResult<T>>;
+  release?: () => void;
+};
+
+const TX_CONTROL = /^\s*(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION)\s*;?\s*$/i;
+
+async function clientQuery<T>(sql: string, params?: unknown[]): Promise<PgResult<T>> {
+  if (TX_CONTROL.test(sql)) {
+    // No persistent session over run_sql — transaction control is a no-op.
+    return { rows: [], rowCount: 0 };
+  }
+  recordQuery(sql, params);
+  const rows = await runSql<T>(inlineParams(sql, params), false);
+  return { rows, rowCount: rows.length };
+}
+
+export function getPool() {
+  return {
+    query: <T = Record<string, unknown>>(sql: string, params?: unknown[]) =>
+      clientQuery<T>(sql, params),
+    connect: async () => ({
+      query: <T = Record<string, unknown>>(sql: string, params?: unknown[]) =>
+        clientQuery<T>(sql, params),
+      release: () => {},
+    }),
+  };
 }

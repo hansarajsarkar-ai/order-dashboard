@@ -33,7 +33,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useClerk } from '@clerk/nextjs';
 
 interface DashboardEntry {
   slug: string;
@@ -156,7 +155,6 @@ const DASHBOARDS: DashboardEntry[] = [
 
 export default function BadhoIndex() {
   const router = useRouter();
-  const { signOut } = useClerk();
   const [authChecked, setAuthChecked] = useState(false);
   const [employeeName, setEmployeeName] = useState('');
   const [search, setSearch] = useState('');
@@ -175,11 +173,6 @@ export default function BadhoIndex() {
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-    } catch {}
-    // End the Clerk (Google SSO) session too, otherwise /login would
-    // silently exchange it for a fresh internal JWT on the next visit.
-    try {
-      await signOut();
     } catch {}
     localStorage.removeItem('authToken');
     localStorage.removeItem('employeeId');

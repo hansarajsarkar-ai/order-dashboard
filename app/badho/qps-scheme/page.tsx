@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -71,6 +71,17 @@ interface DetailRow {
   rto_amount: string;
   pct_delivered: string;
   due_amount: string;
+}
+
+interface BuyerOrderRow {
+  po_number: string;
+  marked_pending_time: string;
+  status: string;
+  amount: string;
+  seller_name: string;
+  seller_phone: string;
+  awb_number: string;
+  courier_name: string;
 }
 
 type Tab = 'overview' | 'alerts' | 'detail';
@@ -145,6 +156,16 @@ function pctBarClass(pct: string) {
   return 'text-purple-300/60';
 }
 
+function orderStatusClass(status: string) {
+  if (status === 'COMPLETED' || status === 'DELIVERED') return 'bg-emerald-500/20 text-emerald-300';
+  if (status === 'REJECTED') return 'bg-rose-500/20 text-rose-300';
+  if (status === 'CANCELLED') return 'bg-red-500/15 text-red-300';
+  if (status === 'DISPATCHED') return 'bg-blue-500/20 text-blue-300';
+  if (status === 'IN_PROGRESS') return 'bg-sky-500/15 text-sky-300';
+  if (status === 'PENDING') return 'bg-amber-500/15 text-amber-300';
+  return 'bg-white/5 text-purple-300';
+}
+
 // ── Custom chart tooltip ──────────────────────────────────────────────────────
 
 function ChartTooltip({
@@ -204,6 +225,11 @@ export default function QpsSchemePage() {
   const [detailMonthLabel, setDetailMonthLabel] = useState('');
   const [isMayPlus, setIsMayPlus] = useState(false);
 
+  // Buyer order expand state
+  const [expandedBuyerId, setExpandedBuyerId] = useState<string | null>(null);
+  const [buyerOrdersMap, setBuyerOrdersMap] = useState<Record<string, BuyerOrderRow[]>>({});
+  const [buyerOrdersLoading, setBuyerOrdersLoading] = useState<string | null>(null);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const token = localStorage.getItem('authToken');
@@ -232,10 +258,13 @@ export default function QpsSchemePage() {
       .finally(() => setLoading(false));
   }, [authChecked]);
 
-  function loadDetail() {
+  function loadDetail(overrideMonth?: string) {
+    const month = overrideMonth ?? selectedMonth;
     setDetailLoading(true);
     setDetailError(null);
-    const qs = new URLSearchParams({ month: selectedMonth });
+    setExpandedBuyerId(null);
+    setBuyerOrdersMap({});
+    const qs = new URLSearchParams({ month });
     if (date1) qs.set('date1', date1);
     if (date2) qs.set('date2', date2);
     if (phoneFilter) qs.set('phone', phoneFilter);
@@ -249,6 +278,17 @@ export default function QpsSchemePage() {
       })
       .catch((e) => setDetailError(e.message))
       .finally(() => setDetailLoading(false));
+  }
+
+  function toggleBuyerOrders(buyerId: string) {
+    if (expandedBuyerId === buyerId) { setExpandedBuyerId(null); return; }
+    setExpandedBuyerId(buyerId);
+    if (buyerOrdersMap[buyerId]) return;
+    setBuyerOrdersLoading(buyerId);
+    fetch(`/api/qps-buyer-orders?buyerId=${buyerId}&month=${selectedMonth}`)
+      .then((r) => r.json())
+      .then((d) => setBuyerOrdersMap((prev) => ({ ...prev, [buyerId]: d.data ?? [] })))
+      .finally(() => setBuyerOrdersLoading(null));
   }
 
   if (!authChecked) {
@@ -277,8 +317,8 @@ export default function QpsSchemePage() {
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
-    { key: 'alerts', label: 'Alerts' },
     { key: 'detail', label: 'Qualified Detail' },
+    { key: 'alerts', label: 'Alerts' },
   ];
 
   return (
@@ -674,7 +714,7 @@ export default function QpsSchemePage() {
                   <label className="text-xs text-purple-300/70 font-medium">Month</label>
                   <select
                     value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    onChange={(e) => { setSelectedMonth(e.target.value); loadDetail(e.target.value); }}
                     className="px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white focus:outline-none focus:border-fuchsia-400/50 min-w-[130px]"
                   >
                     {AVAILABLE_MONTHS.map((m) => (
@@ -719,7 +759,7 @@ export default function QpsSchemePage() {
 
                 {/* Load button */}
                 <button
-                  onClick={loadDetail}
+                  onClick={() => loadDetail()}
                   disabled={detailLoading}
                   className="px-5 py-2 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-50 text-white text-sm font-semibold transition-colors shadow-[0_0_20px_rgba(217,70,239,0.3)]"
                 >
@@ -774,7 +814,7 @@ export default function QpsSchemePage() {
                   <table className="w-full text-xs border-collapse">
                     <thead>
                       <tr className="text-white text-sm font-bold text-left bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50 border-b-2 border-fuchsia-400/40 sticky top-0">
-                        <th className="py-3 px-3 whitespace-nowrap">#</th>
+                        <th className="py-3 px-3 whitespace-nowrap"># Orders</th>
                         <th className="py-3 px-3 whitespace-nowrap">Name</th>
                         <th className="py-3 px-3 whitespace-nowrap">Business Name</th>
                         <th className="py-3 px-3 whitespace-nowrap">Phone</th>
@@ -804,9 +844,24 @@ export default function QpsSchemePage() {
                         const qualified = row.gift_won !== 'No Gift';
                         const rowBg = qualified ? '' : 'bg-red-500/[0.04]';
                         const placedNum = Number(row.placed_amount);
+                        const isExpanded = expandedBuyerId === row.buyer_id;
+                        const isLoadingOrders = buyerOrdersLoading === row.buyer_id;
+                        const orders = buyerOrdersMap[row.buyer_id] ?? [];
                         return (
-                          <tr key={row.buyer_id} className={`border-b border-white/5 hover:bg-white/[0.06] transition-colors ${rowBg}`}>
-                            <td className="py-2 px-3 text-purple-400/60">{i + 1}</td>
+                          <React.Fragment key={row.buyer_id}>
+                          <tr className={`border-b border-white/5 hover:bg-white/[0.06] transition-colors ${rowBg}`}>
+                            <td className="py-2 px-2 whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-purple-400/50 text-xs w-4 text-right">{i + 1}</span>
+                                <button
+                                  onClick={() => toggleBuyerOrders(row.buyer_id)}
+                                  className={`w-5 h-5 rounded flex items-center justify-center text-[10px] transition-colors ${isExpanded ? 'bg-fuchsia-500/30 text-fuchsia-300' : 'bg-white/8 text-purple-400 hover:bg-white/15 hover:text-white'}`}
+                                  title={isExpanded ? 'Collapse orders' : 'View orders'}
+                                >
+                                  {isLoadingOrders ? '…' : isExpanded ? '▼' : '▶'}
+                                </button>
+                              </div>
+                            </td>
                             <td className="py-2 px-3 text-white max-w-[160px] truncate" title={row.buyer_name}>
                               {row.buyer_name || '—'}
                             </td>
@@ -841,7 +896,7 @@ export default function QpsSchemePage() {
                             </td>
                             <td className="py-2 px-3 text-center whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${giftCellClass(row.gift_won)}`}>
-                                {row.gift_won}
+                                {GIFT_ICON[row.gift_won] ? `${GIFT_ICON[row.gift_won]} ` : ''}{row.gift_won}
                               </span>
                             </td>
                             <td className={`py-2 px-3 text-right whitespace-nowrap ${placedNum > 0 ? 'text-cyan-300 font-semibold' : 'text-purple-400/40'}`}>
@@ -866,6 +921,52 @@ export default function QpsSchemePage() {
                               {row.buyer_landmark || '—'}
                             </td>
                           </tr>
+                          {isExpanded && (
+                            <tr className="bg-purple-900/30">
+                              <td colSpan={99} className="px-6 py-3">
+                                {isLoadingOrders || (!orders.length && !buyerOrdersMap[row.buyer_id]) ? (
+                                  <div className="text-purple-300/60 text-xs py-2">Loading orders…</div>
+                                ) : orders.length === 0 ? (
+                                  <div className="text-purple-300/60 text-xs py-2">No orders found for this month</div>
+                                ) : (
+                                  <div className="overflow-x-auto">
+                                    <div className="text-xs text-purple-300/60 mb-2 font-medium">Orders in {detailMonthLabel} — {orders.length} order{orders.length !== 1 ? 's' : ''}</div>
+                                    <table className="w-full text-xs border-collapse">
+                                      <thead>
+                                        <tr className="text-purple-300/70 border-b border-white/10 text-left">
+                                          <th className="py-1.5 pr-4 font-medium whitespace-nowrap">PO #</th>
+                                          <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Date</th>
+                                          <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Seller</th>
+                                          <th className="py-1.5 pr-4 font-medium text-right whitespace-nowrap">Amount</th>
+                                          <th className="py-1.5 pr-4 font-medium text-center whitespace-nowrap">Status</th>
+                                          <th className="py-1.5 pr-4 font-medium whitespace-nowrap">AWB</th>
+                                          <th className="py-1.5 font-medium whitespace-nowrap">Courier</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {orders.map((o) => (
+                                          <tr key={o.po_number} className="border-b border-white/5 hover:bg-white/5">
+                                            <td className="py-1.5 pr-4 font-mono text-purple-200">{o.po_number}</td>
+                                            <td className="py-1.5 pr-4 text-purple-300 whitespace-nowrap">
+                                              {o.marked_pending_time ? new Date(o.marked_pending_time).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                                            </td>
+                                            <td className="py-1.5 pr-4 text-white max-w-[200px] truncate" title={o.seller_name}>{o.seller_name}</td>
+                                            <td className="py-1.5 pr-4 text-right font-semibold text-white whitespace-nowrap">{fmtAmt(o.amount)}</td>
+                                            <td className="py-1.5 pr-4 text-center">
+                                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderStatusClass(o.status)}`}>{o.status}</span>
+                                            </td>
+                                            <td className="py-1.5 pr-4 text-purple-300/70 font-mono">{o.awb_number || '—'}</td>
+                                            <td className="py-1.5 text-purple-300/70">{o.courier_name || '—'}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>

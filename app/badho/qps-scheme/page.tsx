@@ -57,6 +57,10 @@ interface DetailRow {
   buyer_address_line1: string;
   buyer_address_line2: string;
   buyer_landmark: string;
+  buyer_city: string;
+  buyer_district: string;
+  buyer_state: string;
+  buyer_pincode: string;
   profile_pic: string | null;
   shop_board_photo: string | null;
   selfie_with_shop_board: string | null;
@@ -1313,8 +1317,11 @@ export default function QpsSchemePage() {
                             <td className={`py-2 px-3 text-right whitespace-nowrap ${Number(row.due_amount) > 0 ? 'text-amber-300' : 'text-purple-400/40'}`}>
                               {fmtAmt(row.due_amount)}
                             </td>
-                            <td className="py-2 px-3 text-purple-200/80 min-w-[200px] border-l border-fuchsia-400/20">
-                              {[row.buyer_address_line1, row.buyer_address_line2].filter(Boolean).join(', ') || '—'}
+                            <td className="py-2 px-3 text-purple-200/80 min-w-[220px] max-w-[320px] border-l border-fuchsia-400/20">
+                              {(() => {
+                                const parts = [row.buyer_address_line1, row.buyer_address_line2, row.buyer_city, row.buyer_district, row.buyer_state, row.buyer_pincode].map(s => (s || '').trim()).filter(Boolean);
+                                return parts.length ? parts.join(', ') + ', India' : '—';
+                              })()}
                             </td>
                             <td className="py-2 px-3 text-purple-200/80 min-w-[150px]">
                               {row.buyer_landmark || '—'}

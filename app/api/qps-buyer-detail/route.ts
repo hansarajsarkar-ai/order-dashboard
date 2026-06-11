@@ -13,6 +13,10 @@ interface Row {
   buyer_address_line1: string;
   buyer_address_line2: string;
   buyer_landmark: string;
+  buyer_city: string;
+  buyer_district: string;
+  buyer_state: string;
+  buyer_pincode: string;
   profile_pic: string | null;
   shop_board_photo: string | null;
   selfie_with_shop_board: string | null;
@@ -114,6 +118,10 @@ async function _GET(req: NextRequest) {
         COALESCE(b."addressLine1", '')                                 AS buyer_address_line1,
         COALESCE(b."addressLine2", '')                                 AS buyer_address_line2,
         COALESCE(b."landmark", '')                                     AS buyer_landmark,
+        COALESCE(b."city", '')                                         AS buyer_city,
+        COALESCE(b."district", '')                                     AS buyer_district,
+        COALESCE(b."state", '')                                        AS buyer_state,
+        COALESCE(b."pincode", '')                                      AS buyer_pincode,
         b."assets"->'profilePicObj'->>'Location'                       AS profile_pic,
         b."assets"->'shopBoardPhoto'->>'Location'                      AS shop_board_photo,
         b."assets"->'selfieWithShopBoardPhoto'->>'Location'            AS selfie_with_shop_board,

@@ -470,8 +470,6 @@ export default function QpsSchemePage() {
   // Detail tab state
   const defaultMonth = AVAILABLE_MONTHS[0]?.value ?? '2026-06-01';
   const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
-  const [date1, setDate1] = useState('');
-  const [date2, setDate2] = useState('');
   const [phoneFilter, setPhoneFilter] = useState('');
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -561,8 +559,6 @@ export default function QpsSchemePage() {
     setBuyerOrdersMap({});
     setBuyerOrdersErrors({});
     const qs = new URLSearchParams({ month });
-    if (date1) qs.set('date1', date1);
-    if (date2) qs.set('date2', date2);
     if (phoneFilter) qs.set('phone', phoneFilter);
     fetch(`/api/qps-buyer-detail?${qs}`)
       .then((r) => r.json())
@@ -578,15 +574,16 @@ export default function QpsSchemePage() {
       .finally(() => setDetailLoading(false));
   }
 
-  // Auto-load buyer detail whenever the Detail tab is open and any filter
-  // changes (month / date range / phone) — debounced so typing a phone number
-  // doesn't fire a request per keystroke. Replaces the manual "Load Data" click.
+  // Auto-load buyer detail whenever the Detail tab is open and a filter
+  // changes (month / phone) — debounced so typing a phone number doesn't fire
+  // a request per keystroke. The "Apply Filter" button and Enter key apply
+  // immediately without waiting for the debounce.
   useEffect(() => {
     if (tab !== 'detail') return;
     const t = setTimeout(() => loadDetail(), 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, selectedMonth, date1, date2, phoneFilter]);
+  }, [tab, selectedMonth, phoneFilter]);
 
   function toggleBuyerOrders(buyerId: string) {
     if (expandedBuyerId === buyerId) { setExpandedBuyerId(null); return; }
@@ -1115,26 +1112,6 @@ export default function QpsSchemePage() {
                   </select>
                 </div>
 
-                {/* Date range */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-purple-300/70 font-medium">From Date</label>
-                  <input
-                    type="date"
-                    value={date1}
-                    onChange={(e) => setDate1(e.target.value)}
-                    className="px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white focus:outline-none focus:border-fuchsia-400/50 [color-scheme:dark]"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-purple-300/70 font-medium">To Date</label>
-                  <input
-                    type="date"
-                    value={date2}
-                    onChange={(e) => setDate2(e.target.value)}
-                    className="px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white focus:outline-none focus:border-fuchsia-400/50 [color-scheme:dark]"
-                  />
-                </div>
-
                 {/* Phone */}
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-purple-300/70 font-medium">Buyer Phone</label>
@@ -1142,18 +1119,33 @@ export default function QpsSchemePage() {
                     type="text"
                     value={phoneFilter}
                     onChange={(e) => setPhoneFilter(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') loadDetail(); }}
                     placeholder="e.g. 9876543210"
                     className="px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white placeholder-purple-300/40 focus:outline-none focus:border-fuchsia-400/50 w-[160px]"
                   />
                 </div>
 
-                {/* Load button */}
+                {/* Rows per page */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-purple-300/70 font-medium">Rows / page</label>
+                  <select
+                    value={detailPageSize}
+                    onChange={(e) => { setDetailPageSize(Number(e.target.value)); setDetailPage(1); }}
+                    className="px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white focus:outline-none focus:border-fuchsia-400/50 min-w-[90px]"
+                  >
+                    {[25, 50, 75, 100].map((n) => (
+                      <option key={n} value={n} className="bg-slate-900">{n}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Apply button */}
                 <button
                   onClick={() => loadDetail()}
                   disabled={detailLoading}
                   className="px-5 py-2 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-50 text-white text-sm font-semibold transition-colors shadow-[0_0_20px_rgba(217,70,239,0.3)]"
                 >
-                  {detailLoading ? 'Loading…' : 'Load Data'}
+                  {detailLoading ? 'Loading…' : 'Apply Filter'}
                 </button>
 
                 {detailRows.length > 0 && (
@@ -1424,7 +1416,7 @@ export default function QpsSchemePage() {
                       <div className="flex items-center gap-2">
                         <label className="text-purple-300/70">Rows:</label>
                         <select value={detailPageSize} onChange={(e) => { setDetailPageSize(Number(e.target.value)); setDetailPage(1); }} className="bg-white/10 border border-white/15 text-white text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-fuchsia-400/40">
-                          {[25, 50, 100, 200].map((n) => <option key={n} value={n} className="bg-slate-900">{n}</option>)}
+                          {[25, 50, 75, 100].map((n) => <option key={n} value={n} className="bg-slate-900">{n}</option>)}
                         </select>
                         <button disabled={detailPage <= 1} onClick={() => setDetailPage((p) => Math.max(1, p - 1))} className="px-2 py-1 rounded bg-white/5 border border-white/10 text-purple-200 disabled:opacity-30 hover:bg-white/10">‹ Prev</button>
                         <span className="text-purple-200 tabular-nums">Page <span className="text-white font-bold">{detailPage}</span> / {totalPages}</span>

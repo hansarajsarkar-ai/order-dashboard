@@ -100,6 +100,10 @@ export default function OrdersPushed() {
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ title: string; subtitle: string; rows: Row[]; sortKey?: string } | null>(null);
 
+  // Bulk-approve state.
+  const [approving, setApproving] = useState(false);
+  const [approveMsg, setApproveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   // Table filters + sort.
   const [filterPo, setFilterPo] = useState('');
   const [filterAwb, setFilterAwb] = useState('');
@@ -274,6 +278,52 @@ export default function OrdersPushed() {
     a.download = `orders-pushed-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Approve EVERY PO in the dashboard query (ignores the on-screen filters) —
+  // stamps purchaseOrder.isApproved with "true | <you> | <timestamp>" server-side.
+  const approveAll = async () => {
+    const ids = Array.from(
+      new Set(rows.map((r) => String(r['purchaseOrderId'] ?? '').trim()).filter(Boolean))
+    );
+    if (ids.length === 0) return;
+    const who = (typeof window !== 'undefined' && localStorage.getItem('employeeName')) || 'you';
+    if (
+      !window.confirm(
+        `Approve all ${ids.length} pushed orders as ${who}?\n\n` +
+          `This sets isApproved = true (with your name + timestamp) on every order in this dashboard.`
+      )
+    )
+      return;
+    setApproving(true);
+    setApproveMsg(null);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+      const res = await fetch('/api/p-and-l/orders-pushed/approve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ purchaseOrderIds: ids }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      // Reflect the new isApproved value locally so the table/CSV update without a refetch.
+      setRows((prev) =>
+        prev.map((r) =>
+          ids.includes(String(r['purchaseOrderId'] ?? '').trim()) ? { ...r, isApproved: json.value } : r
+        )
+      );
+      setApproveMsg({
+        ok: true,
+        text: `✓ Approved ${json.approved.toLocaleString('en-IN')} order${json.approved === 1 ? '' : 's'} as ${json.approver}.`,
+      });
+    } catch (e) {
+      setApproveMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setApproving(false);
+    }
   };
 
   return (
@@ -553,11 +603,31 @@ export default function OrdersPushed() {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {approveMsg && (
+              <span
+                className={
+                  'text-[11px] font-semibold px-2 py-1 rounded-lg border ' +
+                  (approveMsg.ok
+                    ? 'text-emerald-200 bg-emerald-500/10 border-emerald-400/30'
+                    : 'text-rose-200 bg-rose-500/10 border-rose-400/30')
+                }
+              >
+                {approveMsg.text}
+              </span>
+            )}
             <span className="text-[11px] font-semibold text-purple-300/70">
               {displayRows.length.toLocaleString('en-IN')}
               {displayRows.length !== rows.length ? ` / ${rows.length.toLocaleString('en-IN')}` : ''} rows
             </span>
+            <button
+              onClick={approveAll}
+              disabled={approving || rows.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-gradient-to-r from-fuchsia-500/25 to-violet-500/25 text-fuchsia-100 border border-fuchsia-400/40 hover:from-fuchsia-500/40 hover:to-violet-500/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title={`Approve all ${rows.length.toLocaleString('en-IN')} pushed orders (sets isApproved with your name + timestamp)`}
+            >
+              {approving ? '⏳ Approving…' : `✓ Approve all (${rows.length.toLocaleString('en-IN')})`}
+            </button>
             <button
               onClick={downloadCsv}
               disabled={displayRows.length === 0}

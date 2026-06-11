@@ -239,9 +239,14 @@ function DrillModal({ config, onClose }: { config: DrillConfig; onClose: () => v
                 const brands = getBrandBreakdown(b.buyer_id);
                 return (
                   <div key={b.buyer_id} className="rounded-xl border border-white/8 bg-white/[0.03] overflow-hidden">
+                    <div
+                      onClick={() => toggleBrand(b.buyer_id)}
+                      className="cursor-pointer hover:bg-white/[0.03] transition-colors"
+                      title={isExp ? 'Click to collapse' : 'Click to view brand breakdown'}
+                    >
                     <div className="flex items-center gap-3 px-4 py-3">
                       <span className="text-purple-400/40 text-xs w-5 text-right shrink-0">{i + 1}</span>
-                      <button onClick={() => toggleBrand(b.buyer_id)} className={`w-5 h-5 rounded flex items-center justify-center text-[10px] shrink-0 transition-colors ${isExp ? 'bg-fuchsia-500/30 text-fuchsia-300' : 'bg-white/8 text-purple-400 hover:bg-white/15 hover:text-white'}`}>
+                      <button onClick={(e) => { e.stopPropagation(); toggleBrand(b.buyer_id); }} className={`w-5 h-5 rounded flex items-center justify-center text-[10px] shrink-0 transition-colors ${isExp ? 'bg-fuchsia-500/30 text-fuchsia-300' : 'bg-white/8 text-purple-400 hover:bg-white/15 hover:text-white'}`}>
                         {isBL ? '…' : isExp ? '▼' : '▶'}
                       </button>
                       <div className="flex-1 min-w-0">
@@ -259,6 +264,7 @@ function DrillModal({ config, onClose }: { config: DrillConfig; onClose: () => v
                       <span className="text-purple-300/60">Delivered: <span className="text-emerald-300 font-semibold">{fmtAmt(b.delivered_amount)}</span></span>
                       <span className="text-purple-300/60">RTO: <span className="text-rose-300 font-semibold">{fmtAmt(b.rto_amount)}</span></span>
                       <span className="text-purple-300/60">Due: <span className="text-amber-300 font-semibold">{fmtAmt(b.due_amount)}</span></span>
+                    </div>
                     </div>
                     {isExp && (
                       <div className="border-t border-white/8 px-12 py-3 bg-purple-900/20">

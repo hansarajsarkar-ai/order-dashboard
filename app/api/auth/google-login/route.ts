@@ -85,6 +85,9 @@ export async function POST(_req: NextRequest) {
         email: employee.email,
         name: employee.name,
         role: employee.role,
+        // AuthGuard rejects tokens without this claim, which is what forces
+        // sessions minted before Google SSO (email-login era) to re-login.
+        method: 'google',
       },
       JWT_SECRET,
       { expiresIn: '7d' }

@@ -963,7 +963,9 @@ export default function QpsSchemePage() {
             return { gift_name: n, buyer_count: count };
           }) : [];
 
-          const GiftCard = ({ g, dim, onCountClick }: { g: { gift_name: string; buyer_count: number }; dim?: boolean; onCountClick?: () => void }) => (
+          const GiftCard = ({ g, dim, onCountClick, prevCount, prevLabel }: { g: { gift_name: string; buyer_count: number }; dim?: boolean; onCountClick?: () => void; prevCount?: number; prevLabel?: string }) => {
+            const delta = prevCount !== undefined ? g.buyer_count - prevCount : null;
+            return (
             <div className={`rounded-2xl border p-5 flex flex-col gap-3 ${dim ? 'border-white/5 bg-white/[0.02] opacity-70' : 'border-white/10 bg-white/[0.04]'}`}>
               <div className="text-4xl">{GIFT_ICON[g.gift_name] ?? '🎁'}</div>
               <div>
@@ -980,9 +982,18 @@ export default function QpsSchemePage() {
                   {fmt(g.buyer_count)}
                 </button>
                 <div className="text-sm text-purple-300/70 font-medium mt-1">{g.buyer_count === 1 ? 'buyer' : 'buyers'} qualified</div>
+                {delta !== null && (
+                  <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-1.5 text-xs">
+                    <span className={`font-bold ${delta > 0 ? 'text-emerald-300' : delta < 0 ? 'text-rose-300' : 'text-purple-300/50'}`}>
+                      {delta > 0 ? '▲' : delta < 0 ? '▼' : '–'} {delta > 0 ? '+' : ''}{fmt(delta)}
+                    </span>
+                    <span className="text-purple-300/55">vs {prevLabel} ({fmt(prevCount!)})</span>
+                  </div>
+                )}
               </div>
             </div>
-          );
+            );
+          };
 
           return (
             <div className="space-y-6">
@@ -1008,6 +1019,8 @@ export default function QpsSchemePage() {
                       <GiftCard
                         key={g.gift_name}
                         g={{ gift_name: g.gift_name, buyer_count: Number(g.buyer_count) }}
+                        prevCount={prevRow ? (prevGifts.find((p) => p.gift_name === g.gift_name)?.buyer_count ?? 0) : undefined}
+                        prevLabel={prevRow?.month}
                         onCountClick={() => setDrillConfig({ title: `${GIFT_ICON[g.gift_name] ?? '🎁'} ${g.gift_name} — Current Month`, monthIso: AVAILABLE_MONTHS[0]?.value ?? '2026-06-01', giftFilter: g.gift_name })}
                       />
                     ))}

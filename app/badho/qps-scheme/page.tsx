@@ -260,7 +260,7 @@ function DrillModal({ config, onClose }: { config: DrillConfig; onClose: () => v
                         ) : (
                           <table className="w-full text-xs border-collapse">
                             <thead>
-                              <tr className="text-purple-300/60 border-b border-white/8 text-left">
+                              <tr className="text-white font-bold bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50 border-b-2 border-fuchsia-400/40 text-left">
                                 <th className="py-1.5 pr-4 font-medium">Brand / Seller</th>
                                 <th className="py-1.5 pr-4 text-right font-medium">Total ₹</th>
                                 <th className="py-1.5 pr-4 text-right font-medium text-emerald-300/70">Delivered ₹</th>
@@ -653,7 +653,7 @@ export default function QpsSchemePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
                 <div className="mb-4 flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-base font-extrabold bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Monthly Qualified Buyers</div>
+                    <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Monthly Qualified Buyers</div>
                     <div className="text-xs text-purple-300/70 mt-0.5">Buyers who spent ≥ ₹3,000 in the month · year-to-date</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -701,7 +701,7 @@ export default function QpsSchemePage() {
                   <div className="mt-4 pt-4 border-t border-white/10 overflow-x-auto">
                     <table className="w-full text-xs border-collapse">
                       <thead>
-                        <tr className="text-purple-300/60 border-b border-white/10 text-right">
+                        <tr className="text-white text-sm font-bold bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50 border-b-2 border-fuchsia-400/40 text-right">
                           <th className="py-1.5 pr-3 text-left font-medium">Month</th>
                           <th className="py-1.5 pr-3 font-medium">Total</th>
                           <th className="py-1.5 pr-3 font-medium text-amber-300/80">🐢 L1</th>
@@ -748,7 +748,7 @@ export default function QpsSchemePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
                 <div className="mb-4 flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-base font-extrabold bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">New vs Returning Qualified Buyers</div>
+                    <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">New vs Returning Qualified Buyers</div>
                     <div className="text-xs text-purple-300/70 mt-0.5">New = first-ever qualifying month · year-to-date</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -805,7 +805,7 @@ export default function QpsSchemePage() {
             <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5 overflow-x-auto">
               <div className="mb-4 flex items-start justify-between gap-2">
                 <div>
-                  <div className="text-base font-extrabold bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Monthly Scheme Breakdown</div>
+                  <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Monthly Scheme Breakdown</div>
                   <div className="text-xs text-purple-300/70 mt-0.5">
                     L1 ≥₹3k · L2 ≥₹5k · L3 ≥₹10k · L4 ≥₹20k (May+) · L5 ≥₹30k (May+) · year-to-date
                   </div>
@@ -820,8 +820,8 @@ export default function QpsSchemePage() {
               ) : (
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="text-left text-purple-300 text-xs border-b border-white/10">
-                      <th className="py-2 pr-4 font-medium whitespace-nowrap">Month</th>
+                    <tr className="text-left text-white text-sm font-bold bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50 border-b-2 border-fuchsia-400/40">
+                      <th className="py-2.5 pr-4 font-bold whitespace-nowrap">Month</th>
                       <th className="py-2 pr-4 font-medium text-right whitespace-nowrap">Delivered</th>
                       <th className="py-2 pr-4 font-medium text-right whitespace-nowrap">Qualified</th>
                       <th className="py-2 pr-3 font-medium text-right whitespace-nowrap"><span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />L1 🐢</span></th>
@@ -952,7 +952,7 @@ export default function QpsSchemePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
                 <div className="mb-6 flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-base font-extrabold bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Current Month — Gift Winners</div>
+                    <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Current Month — Gift Winners</div>
                     <div className="text-xs text-purple-300/70 mt-0.5">Buyers already qualified for a gift this month (DELIVERED / COMPLETED)</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -964,7 +964,9 @@ export default function QpsSchemePage() {
                   <div className="text-purple-300/60 text-sm text-center py-12">No data</div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    {[...giftData].reverse().map((g) => (
+                    {[...giftData]
+                      .sort((a, b) => GIFT_ORDER.indexOf(a.gift_name) - GIFT_ORDER.indexOf(b.gift_name))
+                      .map((g) => (
                       <GiftCard
                         key={g.gift_name}
                         g={{ gift_name: g.gift_name, buyer_count: Number(g.buyer_count) }}
@@ -994,7 +996,7 @@ export default function QpsSchemePage() {
               {prevRow && (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                   <div className="mb-6">
-                    <div className="text-base font-extrabold bg-gradient-to-r from-purple-300 via-indigo-300 to-blue-300 bg-clip-text text-transparent">Previous Month ({prevRow.month}) — Gift Winners</div>
+                    <div className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-purple-300 via-indigo-300 to-blue-300 bg-clip-text text-transparent">Previous Month ({prevRow.month}) — Gift Winners</div>
                     <div className="text-xs text-purple-300/70 mt-0.5">Final tally for {prevRow.month}</div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -1263,7 +1265,7 @@ export default function QpsSchemePage() {
                                     <div className="text-xs text-purple-300/60 mb-2 font-medium">Orders in {detailMonthLabel} — {orders.length} order{orders.length !== 1 ? 's' : ''}</div>
                                     <table className="w-full text-xs border-collapse">
                                       <thead>
-                                        <tr className="text-purple-300/70 border-b border-white/10 text-left">
+                                        <tr className="text-white font-bold bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50 border-b-2 border-fuchsia-400/40 text-left">
                                           <th className="py-1.5 pr-4 font-medium whitespace-nowrap">PO #</th>
                                           <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Date</th>
                                           <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Seller</th>

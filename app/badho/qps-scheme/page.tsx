@@ -671,21 +671,52 @@ export default function QpsSchemePage() {
         </div>
 
         {/* Tabs */}
+        {(() => {
+        const alertCount = giftData.reduce((s, g) => s + Number(g.buyer_count), 0);
+        return (
         <div className="flex gap-1 mb-6 p-1 rounded-xl bg-white/5 border border-white/10 w-fit">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-5 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                tab === t.key
-                  ? 'bg-fuchsia-600 text-white shadow-[0_0_20px_rgba(217,70,239,0.4)]'
-                  : 'text-purple-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            if (t.key === 'alerts') {
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`flex items-center gap-2 px-5 py-1.5 rounded-lg text-sm font-bold transition-all border ${
+                    active
+                      ? 'bg-rose-600/90 text-white border-rose-400/60 shadow-[0_0_22px_rgba(244,63,94,0.55)]'
+                      : 'bg-rose-500/10 text-rose-200 border-rose-400/30 shadow-[0_0_14px_rgba(244,63,94,0.25)] hover:bg-rose-500/20 hover:text-white'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                  </svg>
+                  {t.label}
+                  {alertCount > 0 && (
+                    <span className="ml-0.5 min-w-[22px] px-1.5 py-0.5 rounded-full text-[11px] font-extrabold leading-none flex items-center justify-center bg-rose-500 text-white shadow-[0_0_10px_rgba(244,63,94,0.6)]">
+                      {alertCount}
+                    </span>
+                  )}
+                </button>
+              );
+            }
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`px-5 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                  active
+                    ? 'bg-fuchsia-600 text-white shadow-[0_0_20px_rgba(217,70,239,0.4)]'
+                    : 'text-purple-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
         </div>
+        );
+        })()}
 
         {error && (
           <div className="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">

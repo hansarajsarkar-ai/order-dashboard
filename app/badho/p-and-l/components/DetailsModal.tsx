@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ColumnDef,
   formatValue,
@@ -24,6 +25,26 @@ interface Props {
 }
 
 type SortState = { key: string; dir: 'asc' | 'desc' };
+
+// Categorical dimensions offered as multi-select filters (single or many).
+// A filter only renders when its column has >1 distinct value, so single-value
+// columns (e.g. Courier when everything is Delhivery) never add clutter.
+const FILTER_DEFS: { key: string; label: string; icon: string }[] = [
+  { key: 'buyerBusinessName', label: 'Buyer', icon: '🛍️' },
+  { key: 'sellerbusinessname', label: 'Seller', icon: '🏭' },
+  { key: 'orderStatus', label: 'Order Status', icon: '🏷️' },
+  { key: 'deliverystatus', label: 'Delivery Status', icon: '🚚' },
+  { key: 'paymentoption', label: 'Payment', icon: '💳' },
+];
+
+function toggleInSet(set: Set<string>, v: string): Set<string> {
+  const next = new Set(set);
+  if (next.has(v)) next.delete(v);
+  else next.add(v);
+  return next;
+}
+
+const EMPTY_SET: Set<string> = new Set();
 
 // Long free-text columns that should wrap instead of forcing horizontal scroll.
 const WRAP_KEYS = new Set(['buyerBusinessName', 'sellerbusinessname']);
@@ -93,6 +114,8 @@ function awbLink(awb: unknown) {
 
 export default function DetailsModal({ title, subtitle, columns, rows, onClose, defaultSortKey }: Props) {
   const [search, setSearch] = useState('');
+  // Multi-select filters (single or many) keyed by column key. Empty set = all.
+  const [filters, setFilters] = useState<Record<string, Set<string>>>({});
   const [sort, setSort] = useState<SortState | null>(defaultSortKey ? { key: defaultSortKey, dir: 'desc' } : null);
   // User-controlled column order (drag to reorder). Keyed by column key.
   const [order, setOrder] = useState<string[]>(() => columns.map((c) => c.key));
@@ -165,8 +188,31 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
   // Reset search + sort whenever a different slab opens this modal.
   useEffect(() => {
     setSearch('');
+    setFilters({});
     setSort(defaultSortKey ? { key: defaultSortKey, dir: 'desc' } : null);
   }, [defaultSortKey, rows]);
+
+  // Distinct values per filterable column (only those with >1 value are shown).
+  const filterOptions = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    for (const def of FILTER_DEFS) {
+      const s = new Set<string>();
+      for (const r of rows) {
+        const v = r[def.key];
+        if (v !== null && v !== undefined && String(v).trim() !== '') s.add(String(v));
+      }
+      m[def.key] = [...s].sort((a, b) => a.localeCompare(b));
+    }
+    return m;
+  }, [rows]);
+
+  const activeFilterDefs = FILTER_DEFS.filter((d) => (filterOptions[d.key]?.length ?? 0) > 1);
+  const activeFilterCount = activeFilterDefs.reduce((n, d) => n + (filters[d.key]?.size ?? 0), 0);
+  const toggleFilter = (key: string, v: string) =>
+    setFilters((prev) => ({ ...prev, [key]: toggleInSet(prev[key] ?? new Set(), v) }));
+  const clearFilter = (key: string) =>
+    setFilters((prev) => ({ ...prev, [key]: new Set() }));
+  const clearAllFilters = () => setFilters({});
 
   const orderedCols = useMemo(() => {
     const map = new Map(columns.map((c) => [c.key, c]));
@@ -178,16 +224,27 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      String(r['poNumber'] ?? '').toLowerCase().includes(q) ||
-      String(r['AWBNumber'] ?? '').toLowerCase().includes(q) ||
-      String(r['buyerPhone'] ?? '').toLowerCase().includes(q) ||
-      String(r['buyerBusinessName'] ?? '').toLowerCase().includes(q) ||
-      String(r['sellerphone'] ?? '').toLowerCase().includes(q) ||
-      String(r['sellerbusinessname'] ?? '').toLowerCase().includes(q)
-    );
-  }, [rows, search]);
+    // Only the filter columns that actually have a selection.
+    const active = FILTER_DEFS
+      .map((d) => [d.key, filters[d.key]] as const)
+      .filter(([, s]) => s && s.size > 0) as [string, Set<string>][];
+    return rows.filter((r) => {
+      for (const [key, set] of active) {
+        if (!set.has(String(r[key] ?? ''))) return false;
+      }
+      if (q) {
+        const hit =
+          String(r['poNumber'] ?? '').toLowerCase().includes(q) ||
+          String(r['AWBNumber'] ?? '').toLowerCase().includes(q) ||
+          String(r['buyerPhone'] ?? '').toLowerCase().includes(q) ||
+          String(r['buyerBusinessName'] ?? '').toLowerCase().includes(q) ||
+          String(r['sellerphone'] ?? '').toLowerCase().includes(q) ||
+          String(r['sellerbusinessname'] ?? '').toLowerCase().includes(q);
+        if (!hit) return false;
+      }
+      return true;
+    });
+  }, [rows, search, filters]);
 
   const sortedRows = useMemo(() => {
     if (!sort) return filteredRows;
@@ -358,11 +415,38 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
           </div>
         </div>
 
+        {/* Filter bar — multi-select (single or many) to cut cognitive load.
+            Only dimensions with >1 distinct value appear. */}
+        {activeFilterDefs.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap px-4 py-2 border-b border-slate-200 bg-slate-50/70">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mr-0.5">Filters</span>
+            {activeFilterDefs.map((d) => (
+              <LightMultiSelect
+                key={d.key}
+                label={d.label}
+                icon={d.icon}
+                options={filterOptions[d.key]}
+                selected={filters[d.key] ?? EMPTY_SET}
+                onToggle={(v) => toggleFilter(d.key, v)}
+                onClear={() => clearFilter(d.key)}
+              />
+            ))}
+            {activeFilterCount > 0 && (
+              <button
+                onClick={clearAllFilters}
+                className="ml-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-rose-600 border border-rose-300 bg-rose-50 hover:bg-rose-100 transition-colors"
+              >
+                Clear all ({activeFilterCount})
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Body */}
         <div className="overflow-auto flex-1">
           {filteredRows.length === 0 ? (
             <div className="p-12 text-center text-slate-500 text-sm">
-              {rows.length === 0 ? 'No orders in this slab.' : 'No rows match the current search.'}
+              {rows.length === 0 ? 'No orders in this slab.' : 'No rows match the current search / filters.'}
             </div>
           ) : (
             <table className="text-[11px] border-separate border-spacing-0 leading-tight">
@@ -580,6 +664,147 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
       breakup={poItems?.breakup ?? null}
       onClose={() => setPoItems(null)}
     />
+    </>
+  );
+}
+
+// Light-themed searchable multi-select (single or many). Portalled to <body>
+// so the modal's overflow can't clip it; positioned under the trigger button.
+function LightMultiSelect({
+  label,
+  icon,
+  options,
+  selected,
+  onToggle,
+  onClear,
+}: {
+  label: string;
+  icon?: string;
+  options: string[];
+  selected: Set<string>;
+  onToggle: (v: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (r) setPos({ left: r.left, top: r.bottom + 4 });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return s ? options.filter((o) => o.toLowerCase().includes(s)) : options;
+  }, [options, q]);
+
+  const count = selected.size;
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={() => setOpen((o) => !o)}
+        className={
+          'inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-colors ' +
+          (count > 0
+            ? 'bg-purple-100 border-purple-400 text-purple-800'
+            : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400 hover:text-slate-900')
+        }
+        title={`Filter by ${label.toLowerCase()} (single or multiple)`}
+      >
+        {icon && <span className="text-sm leading-none">{icon}</span>}
+        <span className="font-semibold">{label}</span>
+        {count > 0 ? (
+          <span className="px-1.5 rounded-full bg-purple-500 text-white text-[10px] font-bold tabular-nums">{count}</span>
+        ) : (
+          <span className="text-slate-400">All</span>
+        )}
+        <span className="text-[8px] opacity-60">▼</span>
+      </button>
+      {open && pos &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{ position: 'fixed', left: pos.left, top: pos.top }}
+            className="z-[100] w-64 max-h-80 flex flex-col rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-400/40"
+          >
+            <div className="p-2 border-b border-slate-100">
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={`Search ${label.toLowerCase()}…`}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400"
+              />
+            </div>
+            <div className="overflow-auto flex-1 p-1">
+              {filtered.length === 0 ? (
+                <div className="px-2 py-4 text-center text-[11px] text-slate-400">No matches</div>
+              ) : (
+                filtered.map((o) => {
+                  const on = selected.has(o);
+                  return (
+                    <button
+                      key={o}
+                      onClick={() => onToggle(o)}
+                      className={
+                        'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[12px] transition-colors ' +
+                        (on ? 'bg-purple-50 text-purple-900' : 'text-slate-700 hover:bg-slate-50')
+                      }
+                    >
+                      <span
+                        className={
+                          'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border text-[9px] leading-none ' +
+                          (on ? 'bg-purple-500 border-purple-500 text-white' : 'border-slate-300')
+                        }
+                      >
+                        {on ? '✓' : ''}
+                      </span>
+                      <span className="truncate" title={o}>{o}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-2 p-2 border-t border-slate-100">
+              <span className="text-[10px] text-slate-400 tabular-nums">
+                {count} selected · {options.length} total
+              </span>
+              <button
+                onClick={onClear}
+                disabled={count === 0}
+                className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Clear
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }

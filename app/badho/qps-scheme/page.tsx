@@ -495,11 +495,10 @@ export default function QpsSchemePage() {
     setAuthChecked(true);
   }, [router]);
 
-  useEffect(() => {
-    if (!authChecked) return;
+  function loadOverview() {
     setLoading(true);
     setError(null);
-    Promise.all([
+    return Promise.all([
       fetch('/api/qps-trend').then((r) => r.json()),
       fetch('/api/qps-new-vs-old').then((r) => r.json()),
       fetch('/api/qps-scheme-table').then((r) => r.json()),
@@ -518,6 +517,18 @@ export default function QpsSchemePage() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  }
+
+  // Refresh the whole dashboard: overview data + the detail tab if it's open.
+  function refreshAll() {
+    loadOverview();
+    if (tab === 'detail') loadDetail();
+  }
+
+  useEffect(() => {
+    if (!authChecked) return;
+    loadOverview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked]);
 
   function loadDetail(overrideMonth?: string) {
@@ -624,6 +635,18 @@ export default function QpsSchemePage() {
             QPS Dashboard
           </h1>
           <span className="ml-auto text-xs text-purple-300/60">Quantity Purchase Scheme · D2R Brand Sellers</span>
+          <button
+            onClick={refreshAll}
+            disabled={loading || detailLoading}
+            title="Refresh dashboard data"
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors shadow-[0_0_20px_rgba(217,70,239,0.3)]"
+          >
+            <svg viewBox="0 0 24 24" className={`h-4 w-4 ${loading || detailLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+            Refresh
+          </button>
         </div>
 
         {/* Tabs */}

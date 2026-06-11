@@ -6,10 +6,10 @@ export const dynamic = 'force-dynamic';
 
 // Bulk-approve the "Orders Pushed" P&L feed.
 //
-// The dashboard sends every purchaseOrderId currently in its query and we
-// stamp purchaseOrder.isApproved (a free-text column, NULL on every row until
-// now) with "true | <approver name> | <ISO timestamp>" so the flag also records
-// WHO approved and WHEN. The approver name comes from the verified JWT →
+// The dashboard sends the purchaseOrderId(s) to approve and we stamp
+// purchaseOrder.isApproved (a free-text column, NULL on every row until now)
+// with "true | <approver email> | <ISO timestamp>" so the flag also records
+// WHO approved and WHEN. The approver email comes from the verified JWT →
 // employeeBase.employee lookup, never from the client body, so it can't be spoofed.
 //
 // Safety note (purchaseOrder has ~30 triggers): an isApproved-only UPDATE is
@@ -21,12 +21,13 @@ export const dynamic = 'force-dynamic';
 const APPROVABLE_STATUSES = ['PENDING', 'INPROGRESS', 'DISPATCHED'];
 
 export async function POST(req: NextRequest) {
-  // Auth first — the approver name is derived here, authoritatively.
+  // Auth first — the approver email is derived here, authoritatively (the email
+  // used to open the dashboard, looked back up against employeeBase.employee).
   let approver: string;
   try {
     const claims = requireAuth(req);
     const emp = await resolveActiveEmployee(claims.email);
-    approver = emp.name?.trim() || claims.name?.trim() || emp.email;
+    approver = emp.email;
   } catch (e) {
     if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });

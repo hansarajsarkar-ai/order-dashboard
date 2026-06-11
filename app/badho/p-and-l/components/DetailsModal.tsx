@@ -101,6 +101,38 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
   // PO Items / Price Breakup sub-modal — opened from a row's "View Items" button.
   const [poItems, setPoItems] = useState<{ poNumber: string; breakup: PriceBreakup } | null>(null);
 
+  // Approve state — the purchaseOrderId currently being approved, plus a map of
+  // freshly-approved ids → the stored "true | <email> | <ts>" value so the row
+  // flips to "✓ Approved" without a refetch.
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [approvedMap, setApprovedMap] = useState<Record<string, string>>({});
+
+  const approveOne = async (row: Row) => {
+    const id = String(row['purchaseOrderId'] ?? '').trim();
+    if (!id || approvingId) return;
+    if (!window.confirm('Confirm you want to approve')) return;
+    setApprovingId(id);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+      const res = await fetch('/api/p-and-l/orders-pushed/approve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ purchaseOrderIds: [id] }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      if ((json.approved ?? 0) < 1) throw new Error('Order not approvable (status may have changed).');
+      setApprovedMap((m) => ({ ...m, [id]: json.value }));
+    } catch (e) {
+      window.alert(`Approve failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
   // Re-seed the order only when the underlying column set actually changes
   // (a fresh data fetch) — a user's manual arrangement survives slab switches.
   const colKeySig = columns.map((c) => c.key).join('|');
@@ -204,6 +236,16 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
     URL.revokeObjectURL(url);
   };
 
+  // ── Frozen left columns ────────────────────────────────────────────────
+  // Approve + Act + the first two data columns (poNumber, markedPendingTime by
+  // default) stay pinned while the many financial columns scroll horizontally.
+  const APPROVE_W = 104;
+  const ACT_W = 72;
+  const FROZEN_ORDERED = 2; // how many leading ordered columns to pin
+  const ORD_W = [96, 116]; // pinned ordered-column widths, left → right
+  const orderedLeft = (idx: number) =>
+    APPROVE_W + ACT_W + ORD_W.slice(0, idx).reduce((a, b) => a + b, 0);
+
   return (
     <>
     <div
@@ -279,22 +321,34 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
             <table className="text-[11px] border-collapse leading-tight">
               <thead className="sticky top-0 z-10 shadow-[0_2px_0_rgba(168,85,247,0.4)]">
                 <tr>
-                  {/* Fixed action column (View Items + Freshdesk ticket) */}
-                  <th className="px-2 py-1 text-left align-bottom font-bold uppercase tracking-wide text-[10px] text-slate-700 bg-slate-100 border-b border-slate-200 whitespace-nowrap">
+                  {/* Frozen: Approve action column */}
+                  <th
+                    style={{ left: 0, width: APPROVE_W, minWidth: APPROVE_W, zIndex: 20 }}
+                    className="sticky top-0 px-2 py-1 text-center align-bottom font-bold uppercase tracking-wide text-[10px] text-slate-700 bg-slate-100 border-b border-r border-slate-200 whitespace-nowrap"
+                  >
+                    Approve
+                  </th>
+                  {/* Frozen: action column (View Items + Freshdesk ticket) */}
+                  <th
+                    style={{ left: APPROVE_W, width: ACT_W, minWidth: ACT_W, zIndex: 20 }}
+                    className="sticky top-0 px-2 py-1 text-left align-bottom font-bold uppercase tracking-wide text-[10px] text-slate-700 bg-slate-100 border-b border-r border-slate-200 whitespace-nowrap"
+                  >
                     Act.
                   </th>
-                  {orderedCols.map((c) => {
+                  {orderedCols.map((c, ci) => {
                     const active = sort?.key === c.key;
                     const wrap = WRAP_KEYS.has(c.key);
+                    const frozen = ci < FROZEN_ORDERED;
                     return (
                       <th
                         key={c.key}
                         onDragOver={(e) => { e.preventDefault(); if (dragOverKey !== c.key) setDragOverKey(c.key); }}
                         onDragLeave={() => setDragOverKey((k) => (k === c.key ? null : k))}
                         onDrop={(e) => { e.preventDefault(); handleDrop(c.key); }}
+                        style={frozen ? { left: orderedLeft(ci), width: ORD_W[ci], minWidth: ORD_W[ci], maxWidth: ORD_W[ci], zIndex: 20 } : undefined}
                         className={
                           'px-2 py-1 text-left align-bottom font-bold uppercase tracking-wide text-[10px] border-b border-slate-200 bg-slate-100 ' +
-                          (wrap ? 'min-w-[90px] max-w-[140px] ' : 'min-w-[78px] max-w-[120px] ') +
+                          (frozen ? 'sticky top-0 border-r border-slate-200 ' : (wrap ? 'min-w-[90px] max-w-[140px] ' : 'min-w-[78px] max-w-[120px] ')) +
                           (dragOverKey === c.key ? 'border-l-2 border-l-purple-500 ' : '') +
                           (active ? 'text-purple-700' : 'text-slate-700')
                         }
@@ -328,10 +382,42 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
               <tbody>
                 {sortedRows.map((r, i) => {
                   const po = String(r['poNumber'] ?? '');
+                  const rowTone = lightRowTone(r, i);
+                  const rid = String(r['purchaseOrderId'] ?? '').trim();
+                  const approvedVal = approvedMap[rid] ?? (r['isApproved'] as unknown);
+                  const isApproved = approvedVal !== null && approvedVal !== undefined && approvedVal !== '';
+                  const isApprovingRow = approvingId === rid;
                   return (
-                    <tr key={i} className={'border-b border-slate-100 transition-colors ' + lightRowTone(r, i)}>
-                      {/* Actions — compact icon buttons */}
-                      <td className="px-2 py-1 border-b border-slate-100 whitespace-nowrap">
+                    <tr key={i} className={'border-b border-slate-100 transition-colors ' + rowTone}>
+                      {/* Frozen: Approve */}
+                      <td
+                        style={{ left: 0, width: APPROVE_W, minWidth: APPROVE_W, zIndex: 1 }}
+                        className={'sticky px-2 py-1 border-b border-r border-slate-100 text-center ' + rowTone}
+                      >
+                        {isApproved ? (
+                          <span
+                            title={String(approvedVal)}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-300"
+                          >
+                            ✓ Approved
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isApprovingRow || !!approvingId || !rid}
+                            onClick={() => approveOne(r)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500 hover:bg-purple-600 text-white border border-purple-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            title="Approve this PO (sets isApproved with your email + timestamp)"
+                          >
+                            {isApprovingRow ? '⏳…' : '✓ Approve'}
+                          </button>
+                        )}
+                      </td>
+                      {/* Frozen: Actions — compact icon buttons */}
+                      <td
+                        style={{ left: APPROVE_W, width: ACT_W, minWidth: ACT_W, zIndex: 1 }}
+                        className={'sticky px-2 py-1 border-b border-r border-slate-100 whitespace-nowrap ' + rowTone}
+                      >
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
@@ -365,12 +451,17 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
                           )}
                         </div>
                       </td>
-                      {orderedCols.map((c) => {
+                      {orderedCols.map((c, ci) => {
                         const v = r[c.key];
+                        const frozen = ci < FROZEN_ORDERED;
+                        const frozenStyle = frozen
+                          ? { left: orderedLeft(ci), width: ORD_W[ci], minWidth: ORD_W[ci], maxWidth: ORD_W[ci], zIndex: 1 }
+                          : undefined;
+                        const frozenCls = frozen ? 'sticky border-r border-slate-100 ' + rowTone + ' ' : '';
                         // poNumber → D2R support detail link.
                         if (c.key === 'poNumber') {
                           return (
-                            <td key={c.key} className="px-2 py-1 border-b border-slate-100 whitespace-nowrap text-left">
+                            <td key={c.key} style={frozenStyle} className={'px-2 py-1 border-b border-slate-100 whitespace-nowrap text-left ' + frozenCls}>
                               {po ? (
                                 <a
                                   href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(po)}`}
@@ -391,7 +482,7 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
                         // AWB → Delhivery tracking link.
                         if (c.key === 'AWBNumber') {
                           return (
-                            <td key={c.key} className="px-2 py-1 border-b border-slate-100 whitespace-nowrap text-left tabular-nums">
+                            <td key={c.key} style={frozenStyle} className={'px-2 py-1 border-b border-slate-100 whitespace-nowrap text-left tabular-nums ' + frozenCls}>
                               {awbLink(v)}
                             </td>
                           );
@@ -403,9 +494,10 @@ export default function DetailsModal({ title, subtitle, columns, rows, onClose, 
                         return (
                           <td
                             key={c.key}
-                            style={heat ? { backgroundColor: heat } : undefined}
+                            style={{ ...(heat ? { backgroundColor: heat } : {}), ...(frozenStyle || {}) }}
                             className={
                               'px-2 py-1 border-b border-slate-100 ' +
+                              (frozen ? 'sticky border-r border-slate-100 ' + rowTone + ' ' : '') +
                               (wrap ? 'whitespace-normal break-words max-w-[140px] ' : 'whitespace-nowrap ') +
                               (isNum ? 'text-right tabular-nums ' : 'text-left ') +
                               (heat ? 'text-rose-900 font-bold' : tone || 'text-slate-700')

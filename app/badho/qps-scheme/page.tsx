@@ -75,13 +75,18 @@ interface DetailRow {
 
 interface BuyerOrderRow {
   po_number: string;
-  marked_pending_time: string;
+  order_datetime: string;
+  itl_datetime: string;
   status: string;
   amount: string;
+  coupon_value: string;
+  payment_mode: string | null;
   seller_name: string;
   seller_phone: string;
+  shipment_status: string;
   awb_number: string;
   courier_name: string;
+  cod_collect: string;
 }
 
 type Tab = 'overview' | 'alerts' | 'detail';
@@ -1300,10 +1305,15 @@ export default function QpsSchemePage() {
                                       <thead>
                                         <tr className="text-white font-bold bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50 border-b-2 border-fuchsia-400/40 text-left">
                                           <th className="py-1.5 pr-4 font-medium whitespace-nowrap">PO #</th>
-                                          <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Date</th>
-                                          <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Seller</th>
+                                          <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Order Date</th>
+                                          <th className="py-1.5 pr-4 font-medium whitespace-nowrap">ITL Date</th>
+                                          <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Brand</th>
                                           <th className="py-1.5 pr-4 font-medium text-right whitespace-nowrap">Amount</th>
-                                          <th className="py-1.5 pr-4 font-medium text-center whitespace-nowrap">Status</th>
+                                          <th className="py-1.5 pr-4 font-medium text-right whitespace-nowrap">Coupon</th>
+                                          <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Payment</th>
+                                          <th className="py-1.5 pr-4 font-medium text-center whitespace-nowrap">PO Status</th>
+                                          <th className="py-1.5 pr-4 font-medium text-center whitespace-nowrap">Shipment</th>
+                                          <th className="py-1.5 pr-4 font-medium text-right whitespace-nowrap">COD</th>
                                           <th className="py-1.5 pr-4 font-medium whitespace-nowrap">AWB</th>
                                           <th className="py-1.5 font-medium whitespace-nowrap">Courier</th>
                                         </tr>
@@ -1311,17 +1321,20 @@ export default function QpsSchemePage() {
                                       <tbody>
                                         {orders.map((o) => (
                                           <tr key={o.po_number} className="border-b border-white/5 hover:bg-white/5">
-                                            <td className="py-1.5 pr-4 font-mono text-purple-200">{o.po_number}</td>
-                                            <td className="py-1.5 pr-4 text-purple-300 whitespace-nowrap">
-                                              {o.marked_pending_time ? new Date(o.marked_pending_time).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
-                                            </td>
+                                            <td className="py-1.5 pr-4 font-mono text-purple-200 whitespace-nowrap">{o.po_number}</td>
+                                            <td className="py-1.5 pr-4 text-purple-300 whitespace-nowrap">{o.order_datetime || '—'}</td>
+                                            <td className="py-1.5 pr-4 text-purple-300 whitespace-nowrap">{o.itl_datetime || '—'}</td>
                                             <td className="py-1.5 pr-4 text-white max-w-[200px] truncate" title={o.seller_name}>{o.seller_name}</td>
                                             <td className="py-1.5 pr-4 text-right font-semibold text-white whitespace-nowrap">{fmtAmt(o.amount)}</td>
+                                            <td className="py-1.5 pr-4 text-right text-amber-200/90 whitespace-nowrap">{Number(o.coupon_value) > 0 ? fmtAmt(o.coupon_value) : '—'}</td>
+                                            <td className="py-1.5 pr-4 text-purple-200/90 whitespace-nowrap">{o.payment_mode || '—'}</td>
                                             <td className="py-1.5 pr-4 text-center">
                                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderStatusClass(o.status)}`}>{o.status}</span>
                                             </td>
-                                            <td className="py-1.5 pr-4 text-purple-300/70 font-mono">{o.awb_number || '—'}</td>
-                                            <td className="py-1.5 text-purple-300/70">{o.courier_name || '—'}</td>
+                                            <td className="py-1.5 pr-4 text-center text-purple-200/90 whitespace-nowrap">{o.shipment_status || '—'}</td>
+                                            <td className="py-1.5 pr-4 text-right text-emerald-200/80 whitespace-nowrap">{Number(o.cod_collect) > 0 ? fmtAmt(o.cod_collect) : '—'}</td>
+                                            <td className="py-1.5 pr-4 text-purple-300/70 font-mono whitespace-nowrap">{o.awb_number || '—'}</td>
+                                            <td className="py-1.5 text-purple-300/70 whitespace-nowrap">{o.courier_name || '—'}</td>
                                           </tr>
                                         ))}
                                       </tbody>

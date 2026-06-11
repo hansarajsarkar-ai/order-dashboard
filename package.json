@@ -10,6 +10,7 @@
     "mcp:start": "tsx lib/mcp-server.ts"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.39.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/pg": "^8.20.0",
     "d3-scale": "^4.0.2",

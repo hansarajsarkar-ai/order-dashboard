@@ -1,13 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { clerkMiddleware } from '@clerk/nextjs/server';
 
-// JWT verification can't run in Edge Runtime (jsonwebtoken needs node).
-// Middleware here only routes the request — the dashboard page itself
-// performs the real auth check on mount (client-side, against localStorage).
-// API routes are accessible so the dashboard can call them once the page
-// has confirmed the user is logged in.
-export function middleware(_req: NextRequest) {
-  return NextResponse.next();
-}
+// clerkMiddleware only attaches the Clerk session to the request context —
+// it does NOT protect any route. Pages keep their existing client-side
+// localStorage gate, and API routes keep verifying the internal Bearer JWT
+// (lib/auth.ts). Clerk is used solely to prove "who is this Google user"
+// during login; /api/auth/google-login reads that session via auth() and
+// exchanges it for the internal JWT.
+export default clerkMiddleware();
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],

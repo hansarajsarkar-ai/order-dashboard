@@ -617,7 +617,7 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
 
   return (
     <div className="space-y-10">
-      <div className="text-xs text-purple-300/55 -mb-4">Insights for <span className="text-fuchsia-300 font-semibold">{monthLabel}</span> · scheme since Mar 2026</div>
+      <div className="text-xs text-purple-300/55">Insights for <span className="text-fuchsia-300 font-semibold">{monthLabel}</span> · scheme since Mar 2026</div>
 
       {/* A. RTO / Delivery health */}
       <section className="space-y-4">
@@ -643,6 +643,33 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
               <Line type="monotone" dataKey="rtoRate" name="RTO rate %" stroke="#fb7185" strokeWidth={3} dot={{ r: 4 }} />
             </LineChart>
           </ResponsiveContainer>
+        </div>
+        {/* Month-wise RTO breakdown */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-white/10 text-sm font-semibold text-purple-200">Month-wise delivery breakdown</div>
+          <table className="w-full text-xs">
+            <thead><tr className="text-purple-200/70 text-left border-b border-white/10">
+              <th className="py-2 px-4 font-medium">Month</th>
+              <th className="py-2 px-4 text-right font-medium">Placed ₹</th>
+              <th className="py-2 px-4 text-right font-medium text-emerald-300/70">Delivered ₹</th>
+              <th className="py-2 px-4 text-right font-medium text-rose-300/70">RTO ₹</th>
+              <th className="py-2 px-4 text-right font-medium text-amber-300/70">In-transit ₹</th>
+              <th className="py-2 px-4 text-right font-medium">RTO rate</th>
+            </tr></thead>
+            <tbody>
+              {[...rtoRows].reverse().map((r) => (
+                <tr key={r.month} className="border-b border-white/5 hover:bg-white/[0.04]">
+                  <td className="py-2 px-4 text-white font-semibold">{r.month}</td>
+                  <td className="py-2 px-4 text-right text-cyan-300">{fmtAmt(r.placed)}</td>
+                  <td className="py-2 px-4 text-right text-emerald-300">{fmtAmt(r.delivered)}</td>
+                  <td className="py-2 px-4 text-right text-rose-300 font-semibold">{fmtAmt(r.rto)}</td>
+                  <td className="py-2 px-4 text-right text-amber-300/90">{fmtAmt(r.inTransit)}</td>
+                  <td className={`py-2 px-4 text-right font-bold ${r.rtoRate >= 40 ? 'text-rose-300' : r.rtoRate >= 20 ? 'text-amber-300' : 'text-emerald-300'}`}>{r.rtoRate}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="px-4 py-2 text-[11px] text-purple-300/50 border-t border-white/10">RTO rate = RTO ₹ ÷ (Delivered + RTO). In-transit isn&apos;t resolved yet, so recent months still have a large in-transit pool.</div>
         </div>
         {topRtoBuyers.length > 0 && (
           <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">

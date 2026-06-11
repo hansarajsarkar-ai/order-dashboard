@@ -721,30 +721,30 @@ export default function QpsSchemePage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs border-collapse">
                     <thead>
-                      <tr className="text-purple-300/80 bg-white/[0.03] text-left border-b border-white/10">
-                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">#</th>
-                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">Name</th>
-                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">Business Name</th>
-                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">Phone</th>
-                        <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Qualified ₹</th>
-                        <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">% L1<br/><span className="font-normal opacity-60">₹3k</span></th>
-                        <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">% L2<br/><span className="font-normal opacity-60">₹5k</span></th>
-                        <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">% L3<br/><span className="font-normal opacity-60">₹10k</span></th>
+                      <tr className="text-white text-sm font-bold text-left bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50 border-b-2 border-fuchsia-400/40 sticky top-0">
+                        <th className="py-3 px-3 whitespace-nowrap">#</th>
+                        <th className="py-3 px-3 whitespace-nowrap">Name</th>
+                        <th className="py-3 px-3 whitespace-nowrap">Business Name</th>
+                        <th className="py-3 px-3 whitespace-nowrap">Phone</th>
+                        <th className="py-3 px-3 text-right whitespace-nowrap">Qualified ₹</th>
+                        <th className="py-3 px-3 text-center whitespace-nowrap">% L1<br/><span className="font-normal text-purple-300 text-xs">₹3k</span></th>
+                        <th className="py-3 px-3 text-center whitespace-nowrap">% L2<br/><span className="font-normal text-purple-300 text-xs">₹5k</span></th>
+                        <th className="py-3 px-3 text-center whitespace-nowrap">% L3<br/><span className="font-normal text-purple-300 text-xs">₹10k</span></th>
                         {isMayPlus && (
                           <>
-                            <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">% L4<br/><span className="font-normal opacity-60">₹20k</span></th>
-                            <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">% L5<br/><span className="font-normal opacity-60">₹30k</span></th>
+                            <th className="py-3 px-3 text-center whitespace-nowrap">% L4<br/><span className="font-normal text-purple-300 text-xs">₹20k</span></th>
+                            <th className="py-3 px-3 text-center whitespace-nowrap">% L5<br/><span className="font-normal text-purple-300 text-xs">₹30k</span></th>
                           </>
                         )}
-                        <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">Reward Level</th>
-                        <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">Gift Won</th>
-                        <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Placed ₹<br/><span className="font-normal opacity-60">{detailMonthLabel}</span></th>
-                        <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Delivered ₹</th>
-                        <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">RTO ₹</th>
-                        <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">% Delivered</th>
-                        <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Due ₹</th>
-                        <th className="py-2.5 px-3 text-sm font-bold whitespace-nowrap bg-fuchsia-500/20 text-fuchsia-200 border-l border-fuchsia-400/30">Address</th>
-                        <th className="py-2.5 px-3 text-sm font-bold whitespace-nowrap bg-fuchsia-500/20 text-fuchsia-200">Landmark</th>
+                        <th className="py-3 px-3 text-center whitespace-nowrap">Reward Level</th>
+                        <th className="py-3 px-3 text-center whitespace-nowrap">Gift Won</th>
+                        <th className="py-3 px-3 text-right whitespace-nowrap">Placed ₹<br/><span className="font-normal text-purple-300 text-xs">{detailMonthLabel}</span></th>
+                        <th className="py-3 px-3 text-right whitespace-nowrap">Delivered ₹</th>
+                        <th className="py-3 px-3 text-right whitespace-nowrap">RTO ₹</th>
+                        <th className="py-3 px-3 text-center whitespace-nowrap">% Delivered</th>
+                        <th className="py-3 px-3 text-right whitespace-nowrap">Due ₹</th>
+                        <th className="py-3 px-3 whitespace-nowrap text-fuchsia-200 border-l border-fuchsia-400/40">Address</th>
+                        <th className="py-3 px-3 whitespace-nowrap text-fuchsia-200">Landmark</th>
                       </tr>
                     </thead>
                     <tbody>

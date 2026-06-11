@@ -100,8 +100,10 @@ export default function OrdersPushed() {
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ title: string; subtitle: string; rows: Row[]; sortKey?: string } | null>(null);
 
-  // Per-row approve state — the purchaseOrderId currently being approved.
-  const [approvingId, setApprovingId] = useState<string | null>(null);
+  // Approve state — multi-select set + in-flight flag. Approved rows are
+  // reflected straight into `rows` (isApproved) so they flip to the badge.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   // Table filters + sort.
   const [filterPo, setFilterPo] = useState('');
@@ -279,16 +281,25 @@ export default function OrdersPushed() {
     URL.revokeObjectURL(url);
   };
 
-  // Approve a SINGLE selected PO — stamps purchaseOrder.isApproved with
-  // "true | <you> | <timestamp>" server-side for just that order.
-  const approveOne = async (row: Row) => {
-    const id = String(row['purchaseOrderId'] ?? '').trim();
-    if (!id || approvingId) return;
-    const po = String(row['poNumber'] ?? id);
-    const who = (typeof window !== 'undefined' && localStorage.getItem('employeeName')) || 'you';
-    if (!window.confirm(`Approve PO ${po} as ${who}?\n\nThis sets isApproved = true (with your name + timestamp) on this order.`))
-      return;
-    setApprovingId(id);
+  const isRowApproved = (r: Row) => {
+    const v = r['isApproved'];
+    return v !== null && v !== undefined && v !== '';
+  };
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // Approve every selected PO in ONE request (no confirmation). The update runs
+  // only for the exact purchaseOrderIds the user ticked.
+  const approveSelected = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || bulkApproving) return;
+    setBulkApproving(true);
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
       const res = await fetch('/api/p-and-l/orders-pushed/approve', {
@@ -297,21 +308,48 @@ export default function OrdersPushed() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ purchaseOrderIds: [id] }),
+        body: JSON.stringify({ purchaseOrderIds: ids }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-      if ((json.approved ?? 0) < 1) throw new Error('Order not approvable (status may have changed).');
-      // Reflect the new isApproved value locally so the row/CSV update without a refetch.
+      if ((json.approved ?? 0) < 1) throw new Error('No orders approved (status may have changed).');
+      const idSet = new Set(ids);
+      // Reflect isApproved locally so approved rows flip to the badge + CSV updates.
       setRows((prev) =>
-        prev.map((r) => (String(r['purchaseOrderId'] ?? '').trim() === id ? { ...r, isApproved: json.value } : r))
+        prev.map((r) => (idSet.has(String(r['purchaseOrderId'] ?? '').trim()) ? { ...r, isApproved: json.value } : r))
       );
+      setSelectedIds(new Set());
     } catch (e) {
-      window.alert(`Approve failed for PO ${po}: ${e instanceof Error ? e.message : String(e)}`);
+      window.alert(`Approve failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
-      setApprovingId(null);
+      setBulkApproving(false);
     }
   };
+
+  // Rows the user can still approve (drives the select-all checkbox).
+  const selectableIds = displayRows
+    .map((r) => String(r['purchaseOrderId'] ?? '').trim())
+    .filter((id, idx) => id !== '' && !isRowApproved(displayRows[idx]));
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
+  const toggleAll = () =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) selectableIds.forEach((id) => next.delete(id));
+      else selectableIds.forEach((id) => next.add(id));
+      return next;
+    });
+
+  // Frozen left columns: Approve + the first two data columns (poNumber,
+  // markedPendingTime). Fixed widths so we can pin them with cumulative offsets.
+  const APPROVE_W = 92;
+  const FROZEN_COLS = 2; // leading `columns` entries to pin alongside Approve
+  const COL_W = [104, 132];
+  const colLeft = (idx: number) => APPROVE_W + COL_W.slice(0, idx).reduce((a, b) => a + b, 0);
+  const FREEZE_EDGE = {
+    boxShadow: 'inset -1px 0 0 0 rgba(255,255,255,0.14), 6px 0 9px -5px rgba(0,0,0,0.6)',
+  };
+  // Opaque base so scrolling columns can't be seen under the frozen block.
+  const FROZEN_BG = '#0d0a17';
 
   return (
     <div className="space-y-5">
@@ -596,6 +634,14 @@ export default function OrdersPushed() {
               {displayRows.length !== rows.length ? ` / ${rows.length.toLocaleString('en-IN')}` : ''} rows
             </span>
             <button
+              onClick={approveSelected}
+              disabled={bulkApproving || selectedIds.size === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-gradient-to-r from-fuchsia-500/30 to-violet-500/30 text-fuchsia-100 border border-fuchsia-400/40 hover:from-fuchsia-500/45 hover:to-violet-500/45 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Approve all selected orders (sets isApproved with your email + timestamp)"
+            >
+              {bulkApproving ? '⏳ Approving…' : `✓ Approve selected (${selectedIds.size})`}
+            </button>
+            <button
               onClick={downloadCsv}
               disabled={displayRows.length === 0}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-200 border border-emerald-400/30 hover:from-emerald-500/30 hover:to-teal-500/30 hover:text-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
@@ -614,17 +660,33 @@ export default function OrdersPushed() {
             <table className="text-xs border-collapse">
               <thead className="sticky top-0 z-10">
                 <tr>
-                  <th className="px-3 py-2 text-center font-semibold border-b border-white/15 whitespace-nowrap select-none bg-slate-900/95 text-purple-200">
-                    Approve
+                  <th
+                    style={{ left: 0, width: APPROVE_W, minWidth: APPROVE_W, zIndex: 30 }}
+                    className="sticky top-0 px-3 py-2 text-center font-semibold border-b border-r border-white/15 whitespace-nowrap select-none bg-slate-900 text-purple-200"
+                  >
+                    <label className="flex items-center justify-center gap-1 cursor-pointer" title="Select all approvable orders">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        disabled={selectableIds.length === 0}
+                        className="w-3.5 h-3.5 accent-fuchsia-500 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      Approve
+                    </label>
                   </th>
-                  {columns.map((c) => {
+                  {columns.map((c, ci) => {
                     const active = sortKey === c.key;
+                    const frozen = ci < FROZEN_COLS;
+                    const lastFrozen = frozen && ci === FROZEN_COLS - 1;
                     return (
                       <th
                         key={c.key}
                         onClick={() => toggleSort(c.key)}
+                        style={frozen ? { left: colLeft(ci), width: COL_W[ci], minWidth: COL_W[ci], maxWidth: COL_W[ci], zIndex: 30, ...(lastFrozen ? FREEZE_EDGE : {}) } : undefined}
                         className={
-                          'px-3 py-2 text-left font-semibold border-b border-white/15 whitespace-nowrap cursor-pointer select-none bg-slate-900/95 hover:bg-slate-800/95 ' +
+                          'px-3 py-2 text-left font-semibold border-b border-white/15 whitespace-nowrap cursor-pointer select-none bg-slate-900 hover:bg-slate-800/95 ' +
+                          (frozen ? 'sticky top-0 border-r border-white/15 ' : '') +
                           (active ? 'text-fuchsia-300' : 'text-purple-200')
                         }
                         title="Click to sort"
@@ -645,10 +707,13 @@ export default function OrdersPushed() {
                   const rowId = String(r['purchaseOrderId'] ?? '').trim();
                   const approvedVal = r['isApproved'];
                   const isApproved = approvedVal !== null && approvedVal !== undefined && approvedVal !== '';
-                  const isApprovingRow = approvingId === rowId;
+                  const selected = selectedIds.has(rowId);
                   return (
                   <tr key={i} className={'transition-colors ' + rowToneClass(r)}>
-                    <td className="px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-center">
+                    <td
+                      style={{ left: 0, width: APPROVE_W, minWidth: APPROVE_W, zIndex: 2, backgroundColor: FROZEN_BG }}
+                      className="sticky px-3 py-1.5 border-b border-r border-white/10 whitespace-nowrap text-center"
+                    >
                       {isApproved ? (
                         <span
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30"
@@ -657,26 +722,33 @@ export default function OrdersPushed() {
                           ✓ Approved
                         </span>
                       ) : (
-                        <button
-                          onClick={() => approveOne(r)}
-                          disabled={isApprovingRow || !!approvingId || !rowId}
-                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-gradient-to-r from-fuchsia-500/25 to-violet-500/25 text-fuchsia-100 border border-fuchsia-400/40 hover:from-fuchsia-500/40 hover:to-violet-500/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                          title="Approve this PO (sets isApproved with your name + timestamp)"
-                        >
-                          {isApprovingRow ? '⏳…' : '✓ Approve'}
-                        </button>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          disabled={!rowId}
+                          onChange={() => toggleSelect(rowId)}
+                          className="w-4 h-4 accent-fuchsia-500 cursor-pointer disabled:cursor-not-allowed"
+                          title="Select this PO for bulk approve"
+                        />
                       )}
                     </td>
-                    {columns.map((c) => {
+                    {columns.map((c, ci) => {
                       const v = r[c.key];
                       const num = isNumericCol(v, c.key);
                       const tone = cellToneClass(c, v);
                       const heat = heatBg(c, v, maxLoss);
+                      const frozen = ci < FROZEN_COLS;
+                      const lastFrozen = frozen && ci === FROZEN_COLS - 1;
+                      const frozenStyle = frozen
+                        ? { left: colLeft(ci), width: COL_W[ci], minWidth: COL_W[ci], maxWidth: COL_W[ci], zIndex: 2, backgroundColor: FROZEN_BG, ...(lastFrozen ? FREEZE_EDGE : {}) }
+                        : undefined;
+                      const frozenCls = frozen ? 'sticky border-r border-white/10 ' : '';
                       if (c.key === 'poNumber') {
                         return (
                           <td
                             key={c.key}
-                            className="px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-left"
+                            style={frozenStyle}
+                            className={'px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-left ' + frozenCls}
                           >
                             <button
                               onClick={() =>
@@ -693,9 +765,10 @@ export default function OrdersPushed() {
                       return (
                         <td
                           key={c.key}
-                          style={heat ? { backgroundColor: heat } : undefined}
+                          style={{ ...(heat ? { backgroundColor: heat } : {}), ...(frozenStyle || {}) }}
                           className={
                             'px-3 py-1.5 border-b border-white/5 whitespace-nowrap ' +
+                            frozenCls +
                             (num ? 'text-right tabular-nums ' : 'text-left ') +
                             (heat ? 'text-rose-50 font-semibold' : tone || 'text-purple-100/90')
                           }

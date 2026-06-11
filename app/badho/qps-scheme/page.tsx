@@ -743,8 +743,8 @@ export default function QpsSchemePage() {
                         <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">RTO ₹</th>
                         <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">% Delivered</th>
                         <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Due ₹</th>
-                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">Address</th>
-                        <th className="py-2.5 px-3 font-medium whitespace-nowrap">Landmark</th>
+                        <th className="py-2.5 px-3 text-sm font-bold whitespace-nowrap bg-fuchsia-500/20 text-fuchsia-200 border-l border-fuchsia-400/30">Address</th>
+                        <th className="py-2.5 px-3 text-sm font-bold whitespace-nowrap bg-fuchsia-500/20 text-fuchsia-200">Landmark</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -807,12 +807,10 @@ export default function QpsSchemePage() {
                             <td className={`py-2 px-3 text-right whitespace-nowrap ${Number(row.due_amount) > 0 ? 'text-amber-300' : 'text-purple-400/40'}`}>
                               {fmtAmt(row.due_amount)}
                             </td>
-                            <td className="py-2 px-3 text-purple-200/80 max-w-[200px] truncate whitespace-nowrap"
-                                title={[row.buyer_address_line1, row.buyer_address_line2].filter(Boolean).join(', ')}>
+                            <td className="py-2 px-3 text-purple-200/80 min-w-[200px] border-l border-fuchsia-400/20">
                               {[row.buyer_address_line1, row.buyer_address_line2].filter(Boolean).join(', ') || '—'}
                             </td>
-                            <td className="py-2 px-3 text-purple-200/80 max-w-[150px] truncate whitespace-nowrap"
-                                title={row.buyer_landmark}>
+                            <td className="py-2 px-3 text-purple-200/80 min-w-[150px]">
                               {row.buyer_landmark || '—'}
                             </td>
                           </tr>

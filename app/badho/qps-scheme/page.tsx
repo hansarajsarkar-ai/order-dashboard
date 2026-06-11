@@ -1041,42 +1041,48 @@ export default function QpsSchemePage() {
 
       <div className="max-w-[1600px] mx-auto relative z-10">
         {/* Header */}
-        <div className="mb-6 flex items-center gap-3 flex-wrap">
-          <Link href="/badho" className="text-purple-300 hover:text-white text-sm transition-colors">
-            ← Dashboards
-          </Link>
-          <span className="text-white/20">/</span>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-            QPS Dashboard
-          </h1>
-          <span className="ml-auto text-xs text-purple-300/60">Quantity Purchase Scheme · D2R Brand Sellers</span>
-          {employeeName && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
-                {employeeName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-              </div>
-              <span className="text-purple-100 font-medium">{employeeName}</span>
+        <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+          {/* Title */}
+          <div>
+            <div className="flex items-center gap-2.5">
+              <Link href="/badho" className="text-purple-300 hover:text-white text-sm transition-colors">← Dashboards</Link>
+              <span className="text-white/20">/</span>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">QPS Dashboard</h1>
             </div>
-          )}
-          <button
-            onClick={handleLogout}
-            className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/30 text-rose-200 text-sm font-medium transition-colors"
-          >
-            Logout
-          </button>
-          <div className="flex flex-col items-end gap-1">
-            <button
-              onClick={refreshAll}
-              disabled={loading || detailLoading}
-              title="Refresh dashboard data"
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors shadow-[0_0_20px_rgba(217,70,239,0.3)]"
-            >
-              <svg viewBox="0 0 24 24" className={`h-4 w-4 ${loading || detailLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                <path d="M21 3v6h-6" />
-              </svg>
-              Refresh
-            </button>
+            <p className="text-xs text-purple-300/55 mt-1">Quantity Purchase Scheme · D2R Brand Sellers</p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              {employeeName && (
+                <div className="flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-white/5 border border-white/10">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                    {employeeName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <span className="text-purple-100 font-medium text-sm whitespace-nowrap">{employeeName}</span>
+                </div>
+              )}
+              <button
+                onClick={handleLogout}
+                title="Sign out"
+                className="px-3 py-2 rounded-lg text-purple-300/80 hover:text-rose-200 hover:bg-rose-500/15 border border-transparent hover:border-rose-400/30 text-sm font-medium transition-colors"
+              >
+                Logout
+              </button>
+              <button
+                onClick={refreshAll}
+                disabled={loading || detailLoading}
+                title="Refresh dashboard data"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors shadow-[0_0_20px_rgba(217,70,239,0.3)]"
+              >
+                <svg viewBox="0 0 24 24" className={`h-4 w-4 ${loading || detailLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <path d="M21 3v6h-6" />
+                </svg>
+                Refresh
+              </button>
+            </div>
             <span className="text-[11px] text-purple-300/50">
               {lastUpdated
                 ? `Last updated ${lastUpdated.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}`

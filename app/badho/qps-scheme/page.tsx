@@ -475,6 +475,10 @@ export default function QpsSchemePage() {
     );
   };
 
+  // Pagination for detail table
+  const [detailPage, setDetailPage] = useState(1);
+  const [detailPageSize, setDetailPageSize] = useState(50);
+
   // Buyer order expand state
   const [expandedBuyerId, setExpandedBuyerId] = useState<string | null>(null);
   const [buyerOrdersMap, setBuyerOrdersMap] = useState<Record<string, BuyerOrderRow[]>>({});
@@ -533,6 +537,7 @@ export default function QpsSchemePage() {
         if (d.error) throw new Error(d.error);
         captureQuery('detail', d);
         setDetailRows(d.data ?? []);
+        setDetailPage(1);
         setDetailMonthLabel(d.month_label ?? '');
         setIsMayPlus(d.is_may_plus ?? false);
       })
@@ -648,7 +653,7 @@ export default function QpsSchemePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
                 <div className="mb-4 flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-sm font-semibold text-white">Monthly Qualified Buyers</div>
+                    <div className="text-base font-extrabold bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Monthly Qualified Buyers</div>
                     <div className="text-xs text-purple-300/70 mt-0.5">Buyers who spent ≥ ₹3,000 in the month · year-to-date</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -743,8 +748,8 @@ export default function QpsSchemePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
                 <div className="mb-4 flex items-start justify-between gap-2">
                   <div>
-                  <div className="text-sm font-semibold text-white">New vs Returning Qualified Buyers</div>
-                  <div className="text-xs text-purple-300/70 mt-0.5">New = first-ever qualifying month · year-to-date</div>
+                    <div className="text-base font-extrabold bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">New vs Returning Qualified Buyers</div>
+                    <div className="text-xs text-purple-300/70 mt-0.5">New = first-ever qualifying month · year-to-date</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {queryBtn('newVsOld', 'New vs Returning Qualified Buyers')}
@@ -800,7 +805,7 @@ export default function QpsSchemePage() {
             <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5 overflow-x-auto">
               <div className="mb-4 flex items-start justify-between gap-2">
                 <div>
-                  <div className="text-sm font-semibold text-white">Monthly Scheme Breakdown</div>
+                  <div className="text-base font-extrabold bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Monthly Scheme Breakdown</div>
                   <div className="text-xs text-purple-300/70 mt-0.5">
                     L1 ≥₹3k · L2 ≥₹5k · L3 ≥₹10k · L4 ≥₹20k (May+) · L5 ≥₹30k (May+) · year-to-date
                   </div>
@@ -898,11 +903,11 @@ export default function QpsSchemePage() {
         {/* ── ALERTS ───────────────────────────────────────────────────────── */}
         {!loading && tab === 'alerts' && (() => {
           const GIFT_ORDER = [
-            'Airfryer/Mixer (Worth 3000)',
-            'CCTV/Iron (Worth 2000)',
-            'Speaker (Worth 1000)',
-            'Mini table fan (Worth 500)',
             'Vastu tortoise (Worth 300)',
+            'Mini table fan (Worth 500)',
+            'Speaker (Worth 1000)',
+            'CCTV/Iron (Worth 2000)',
+            'Airfryer/Mixer (Worth 3000)',
           ];
           // Previous month derived from already-loaded schemeTableData (sorted ascending)
           const prevRow = schemeRows.length >= 2 ? schemeRows[schemeRows.length - 2] : null;
@@ -947,7 +952,7 @@ export default function QpsSchemePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
                 <div className="mb-6 flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-sm font-semibold text-white">Current Month — Gift Winners</div>
+                    <div className="text-base font-extrabold bg-gradient-to-r from-fuchsia-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">Current Month — Gift Winners</div>
                     <div className="text-xs text-purple-300/70 mt-0.5">Buyers already qualified for a gift this month (DELIVERED / COMPLETED)</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -959,7 +964,7 @@ export default function QpsSchemePage() {
                   <div className="text-purple-300/60 text-sm text-center py-12">No data</div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    {giftData.map((g) => (
+                    {[...giftData].reverse().map((g) => (
                       <GiftCard
                         key={g.gift_name}
                         g={{ gift_name: g.gift_name, buyer_count: Number(g.buyer_count) }}
@@ -989,7 +994,7 @@ export default function QpsSchemePage() {
               {prevRow && (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                   <div className="mb-6">
-                    <div className="text-sm font-semibold text-white">Previous Month ({prevRow.month}) — Gift Winners</div>
+                    <div className="text-base font-extrabold bg-gradient-to-r from-purple-300 via-indigo-300 to-blue-300 bg-clip-text text-transparent">Previous Month ({prevRow.month}) — Gift Winners</div>
                     <div className="text-xs text-purple-300/70 mt-0.5">Final tally for {prevRow.month}</div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -1159,7 +1164,11 @@ export default function QpsSchemePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {detailRows.map((row, i) => {
+                      {(() => {
+                        const pageStart = (detailPage - 1) * detailPageSize;
+                        const pagedRows = detailRows.slice(pageStart, pageStart + detailPageSize);
+                        return pagedRows.map((row, idx) => {
+                        const i = pageStart + idx;
                         const qualified = row.gift_won !== 'No Gift';
                         const rowBg = qualified ? '' : 'bg-red-500/[0.04]';
                         const placedNum = Number(row.placed_amount);
@@ -1289,10 +1298,32 @@ export default function QpsSchemePage() {
                           )}
                           </React.Fragment>
                         );
-                      })}
+                      });
+                      })()}
                     </tbody>
                   </table>
                 </div>
+                {/* Pagination footer */}
+                {detailRows.length > detailPageSize && (() => {
+                  const totalPages = Math.ceil(detailRows.length / detailPageSize);
+                  const pageStart = (detailPage - 1) * detailPageSize;
+                  return (
+                    <div className="px-5 py-3 border-t border-white/10 bg-white/[0.02] flex items-center justify-between flex-wrap gap-3 text-xs">
+                      <div className="text-purple-200/80">
+                        Showing <span className="text-white font-bold">{Math.min(pageStart + 1, detailRows.length)}</span>–<span className="text-white font-bold">{Math.min(pageStart + detailPageSize, detailRows.length)}</span> of <span className="text-white font-bold">{detailRows.length}</span> buyers
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-purple-300/70">Rows:</label>
+                        <select value={detailPageSize} onChange={(e) => { setDetailPageSize(Number(e.target.value)); setDetailPage(1); }} className="bg-white/10 border border-white/15 text-white text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-fuchsia-400/40">
+                          {[25, 50, 100, 200].map((n) => <option key={n} value={n} className="bg-slate-900">{n}</option>)}
+                        </select>
+                        <button disabled={detailPage <= 1} onClick={() => setDetailPage((p) => Math.max(1, p - 1))} className="px-2 py-1 rounded bg-white/5 border border-white/10 text-purple-200 disabled:opacity-30 hover:bg-white/10">‹ Prev</button>
+                        <span className="text-purple-200 tabular-nums">Page <span className="text-white font-bold">{detailPage}</span> / {totalPages}</span>
+                        <button disabled={detailPage >= totalPages} onClick={() => setDetailPage((p) => Math.min(totalPages, p + 1))} className="px-2 py-1 rounded bg-white/5 border border-white/10 text-purple-200 disabled:opacity-30 hover:bg-white/10">Next ›</button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

@@ -1355,7 +1355,17 @@ export default function QpsSchemePage() {
                                       <tbody>
                                         {orders.map((o) => (
                                           <tr key={o.po_number} className="border-b border-white/5 hover:bg-white/5">
-                                            <td className="py-1.5 pr-4 font-mono text-purple-200 whitespace-nowrap">{o.po_number}</td>
+                                            <td className="py-1.5 pr-4 font-mono whitespace-nowrap">
+                                              <a
+                                                href={`https://d2r-support-dashboard.vercel.app/?q=${encodeURIComponent(o.po_number)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                title={`Open PO ${o.po_number} in the D2R support dashboard`}
+                                                className="text-sky-300 hover:text-sky-100 underline decoration-dotted underline-offset-2"
+                                              >
+                                                {o.po_number}
+                                              </a>
+                                            </td>
                                             <td className="py-1.5 pr-4 text-purple-300 whitespace-nowrap">{o.order_datetime || '—'}</td>
                                             <td className="py-1.5 pr-4 text-purple-300 whitespace-nowrap">{o.itl_datetime || '—'}</td>
                                             <td className="py-1.5 pr-4 text-white max-w-[200px] truncate" title={o.seller_name}>{o.seller_name}</td>

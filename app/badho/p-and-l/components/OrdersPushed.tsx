@@ -100,9 +100,8 @@ export default function OrdersPushed() {
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ title: string; subtitle: string; rows: Row[]; sortKey?: string } | null>(null);
 
-  // Bulk-approve state.
-  const [approving, setApproving] = useState(false);
-  const [approveMsg, setApproveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Per-row approve state — the purchaseOrderId currently being approved.
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   // Table filters + sort.
   const [filterPo, setFilterPo] = useState('');
@@ -280,23 +279,16 @@ export default function OrdersPushed() {
     URL.revokeObjectURL(url);
   };
 
-  // Approve EVERY PO in the dashboard query (ignores the on-screen filters) —
-  // stamps purchaseOrder.isApproved with "true | <you> | <timestamp>" server-side.
-  const approveAll = async () => {
-    const ids = Array.from(
-      new Set(rows.map((r) => String(r['purchaseOrderId'] ?? '').trim()).filter(Boolean))
-    );
-    if (ids.length === 0) return;
+  // Approve a SINGLE selected PO — stamps purchaseOrder.isApproved with
+  // "true | <you> | <timestamp>" server-side for just that order.
+  const approveOne = async (row: Row) => {
+    const id = String(row['purchaseOrderId'] ?? '').trim();
+    if (!id || approvingId) return;
+    const po = String(row['poNumber'] ?? id);
     const who = (typeof window !== 'undefined' && localStorage.getItem('employeeName')) || 'you';
-    if (
-      !window.confirm(
-        `Approve all ${ids.length} pushed orders as ${who}?\n\n` +
-          `This sets isApproved = true (with your name + timestamp) on every order in this dashboard.`
-      )
-    )
+    if (!window.confirm(`Approve PO ${po} as ${who}?\n\nThis sets isApproved = true (with your name + timestamp) on this order.`))
       return;
-    setApproving(true);
-    setApproveMsg(null);
+    setApprovingId(id);
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
       const res = await fetch('/api/p-and-l/orders-pushed/approve', {
@@ -305,24 +297,19 @@ export default function OrdersPushed() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ purchaseOrderIds: ids }),
+        body: JSON.stringify({ purchaseOrderIds: [id] }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-      // Reflect the new isApproved value locally so the table/CSV update without a refetch.
+      if ((json.approved ?? 0) < 1) throw new Error('Order not approvable (status may have changed).');
+      // Reflect the new isApproved value locally so the row/CSV update without a refetch.
       setRows((prev) =>
-        prev.map((r) =>
-          ids.includes(String(r['purchaseOrderId'] ?? '').trim()) ? { ...r, isApproved: json.value } : r
-        )
+        prev.map((r) => (String(r['purchaseOrderId'] ?? '').trim() === id ? { ...r, isApproved: json.value } : r))
       );
-      setApproveMsg({
-        ok: true,
-        text: `✓ Approved ${json.approved.toLocaleString('en-IN')} order${json.approved === 1 ? '' : 's'} as ${json.approver}.`,
-      });
     } catch (e) {
-      setApproveMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      window.alert(`Approve failed for PO ${po}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
-      setApproving(false);
+      setApprovingId(null);
     }
   };
 
@@ -603,31 +590,11 @@ export default function OrdersPushed() {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {approveMsg && (
-              <span
-                className={
-                  'text-[11px] font-semibold px-2 py-1 rounded-lg border ' +
-                  (approveMsg.ok
-                    ? 'text-emerald-200 bg-emerald-500/10 border-emerald-400/30'
-                    : 'text-rose-200 bg-rose-500/10 border-rose-400/30')
-                }
-              >
-                {approveMsg.text}
-              </span>
-            )}
+          <div className="flex items-center gap-3">
             <span className="text-[11px] font-semibold text-purple-300/70">
               {displayRows.length.toLocaleString('en-IN')}
               {displayRows.length !== rows.length ? ` / ${rows.length.toLocaleString('en-IN')}` : ''} rows
             </span>
-            <button
-              onClick={approveAll}
-              disabled={approving || rows.length === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-gradient-to-r from-fuchsia-500/25 to-violet-500/25 text-fuchsia-100 border border-fuchsia-400/40 hover:from-fuchsia-500/40 hover:to-violet-500/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title={`Approve all ${rows.length.toLocaleString('en-IN')} pushed orders (sets isApproved with your name + timestamp)`}
-            >
-              {approving ? '⏳ Approving…' : `✓ Approve all (${rows.length.toLocaleString('en-IN')})`}
-            </button>
             <button
               onClick={downloadCsv}
               disabled={displayRows.length === 0}
@@ -647,6 +614,9 @@ export default function OrdersPushed() {
             <table className="text-xs border-collapse">
               <thead className="sticky top-0 z-10">
                 <tr>
+                  <th className="px-3 py-2 text-center font-semibold border-b border-white/15 whitespace-nowrap select-none bg-slate-900/95 text-purple-200">
+                    Approve
+                  </th>
                   {columns.map((c) => {
                     const active = sortKey === c.key;
                     return (
@@ -671,8 +641,32 @@ export default function OrdersPushed() {
                 </tr>
               </thead>
               <tbody>
-                {displayRows.map((r, i) => (
+                {displayRows.map((r, i) => {
+                  const rowId = String(r['purchaseOrderId'] ?? '').trim();
+                  const approvedVal = r['isApproved'];
+                  const isApproved = approvedVal !== null && approvedVal !== undefined && approvedVal !== '';
+                  const isApprovingRow = approvingId === rowId;
+                  return (
                   <tr key={i} className={'transition-colors ' + rowToneClass(r)}>
+                    <td className="px-3 py-1.5 border-b border-white/5 whitespace-nowrap text-center">
+                      {isApproved ? (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30"
+                          title={String(approvedVal)}
+                        >
+                          ✓ Approved
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => approveOne(r)}
+                          disabled={isApprovingRow || !!approvingId || !rowId}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-gradient-to-r from-fuchsia-500/25 to-violet-500/25 text-fuchsia-100 border border-fuchsia-400/40 hover:from-fuchsia-500/40 hover:to-violet-500/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                          title="Approve this PO (sets isApproved with your name + timestamp)"
+                        >
+                          {isApprovingRow ? '⏳…' : '✓ Approve'}
+                        </button>
+                      )}
+                    </td>
                     {columns.map((c) => {
                       const v = r[c.key];
                       const num = isNumericCol(v, c.key);
@@ -711,7 +705,8 @@ export default function OrdersPushed() {
                       );
                     })}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}

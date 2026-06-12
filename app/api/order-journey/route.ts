@@ -24,6 +24,9 @@ const bool = (v: unknown): boolean => v === true || v === 't' || v === 'true' ||
 const num = (v: string | null | undefined): number | null =>
   v != null && v !== '' ? parseFloat(v) : null;
 
+// QPS qualifying spend excludes this seller (matches the QPS dashboard).
+const QPS_EXCLUDED_SELLER = 'cb9e18f5-1ed7-4b24-8cdb-17f29efa4366';
+
 // Canonical order milestones, in forward order. Exceptions only render if set.
 const STAGE_DEFS: { key: string; label: string; kind: 'step' | 'exception' }[] = [
   { key: 'markedPendingTime', label: 'Order Placed', kind: 'step' },
@@ -78,6 +81,8 @@ async function _GET(req: NextRequest) {
         po."isReadyForSettlement"     AS "isReadyForSettlement",
         po."remainingDueAmount"::text AS "remainingDueAmount",
         po."refundableAmount"::text   AS "refundableAmount",
+        po."originalPOAmount"::text   AS "originalPOAmount",
+        po."poModifiedBuyerInformed"  AS "poModifiedBuyerInformed",
         po."plannedDispatchTime"      AS "plannedDispatchTime",
         po."created_at_actual"        AS "createdAt",
         po."markedPendingTime"        AS "markedPendingTime",
@@ -240,6 +245,53 @@ async function _GET(req: NextRequest) {
       smartFloRows = []; // enrichment is best-effort; never fail the whole request
     }
 
+    // ── 7. PO edit (seller removed an item / decreased a qty) ────────────────
+    const modsSql = `
+      SELECT
+        bsku."label" AS "skuLabel",
+        CASE
+          WHEN poi."isArchived" = TRUE  AND poi."originalSnapshot" IS NULL     THEN 'Item Removed'
+          WHEN poi."isArchived" = FALSE AND poi."originalSnapshot" IS NOT NULL THEN 'Quantity Decreased'
+        END AS "changeType"
+      FROM "purchaseOrder"."purchaseOrderItem" poi
+      LEFT JOIN "brands"."brandSKU" bsku ON bsku."id" = poi."brandSKUId"
+      WHERE poi."purchaseOrderId" = $1
+        AND poi."status" <> 'DRAFT'
+        AND poi."modifiedByRole" ILIKE 'seller'
+        AND ( (poi."isArchived" = TRUE  AND poi."originalSnapshot" IS NULL)
+           OR (poi."isArchived" = FALSE AND poi."originalSnapshot" IS NOT NULL) );
+    `;
+    const modRows = await query<Record<string, string | null>>(modsSql, [poId]);
+
+    // ── 8. QPS buyer stage — qualifying spend in this PO's month ──────────────
+    const qpsSql = `
+      WITH target AS (
+        SELECT p."buyerId" AS bid,
+               date_trunc('month', COALESCE(p."markedPendingTime", p."created_at_actual", p."created_at"))::date AS mstart
+        FROM "purchaseOrder"."purchaseOrder" p WHERE p."poNumber" = $1::int
+      )
+      SELECT
+        (SELECT mstart::text FROM target) AS "monthStart",
+        COALESCE((
+          SELECT ROUND(SUM(po."amount")::numeric, 2)
+          FROM "purchaseOrder"."purchaseOrder" po
+          JOIN "users"."seller" s ON s."id" = po."sellerId"
+          JOIN target t ON TRUE
+          WHERE po."buyerId" = t.bid
+            AND po."status" IN ('DELIVERED','COMPLETED')
+            AND po."isTest" = FALSE
+            AND po."deliveryType" = 'INTERCITY'
+            AND po."deliveryNetwork" = 'THIRD_PARTY'
+            AND po."markedPendingTime" >= t.mstart
+            AND po."markedPendingTime" <  (t.mstart + INTERVAL '1 month')
+            AND s."isD2RBrandSeller" = TRUE
+            AND s."isTest" = FALSE
+            AND s."businessName" NOT ILIKE '%test%'
+            AND s."id" <> $2
+        ), 0)::text AS "qualifiedAmount";
+    `;
+    const qpsRows = await query<Record<string, string | null>>(qpsSql, [poNumber, QPS_EXCLUDED_SELLER]);
+
     // ── Assemble ─────────────────────────────────────────────────────────────
     const stages = STAGE_DEFS.map((d) => ({
       key: d.key,
@@ -310,6 +362,15 @@ async function _GET(req: NextRequest) {
       matchedByPoNumber: bool(r.matchedByPoNumber),
     }));
 
+    const modifications = modRows
+      .filter((r) => r.changeType)
+      .map((r) => ({ skuLabel: r.skuLabel, changeType: r.changeType }));
+
+    const qpsRow = qpsRows[0] || null;
+    const qps = qpsRow
+      ? { monthStart: qpsRow.monthStart, qualifiedAmount: num(qpsRow.qualifiedAmount) ?? 0 }
+      : null;
+
     const phoneCalls = smartFloRows.map((r) => ({
       direction: r.direction, // Outbound | Inbound | Manual
       callStatus: r.callStatus, // Answer | No Answer | ...
@@ -350,6 +411,8 @@ async function _GET(req: NextRequest) {
         isReadyForSettlement: bool(p.isReadyForSettlement),
         remainingDueAmount: num(p.remainingDueAmount),
         refundableAmount: num(p.refundableAmount),
+        originalPOAmount: num(p.originalPOAmount),
+        poModifiedBuyerInformed: p.poModifiedBuyerInformed,
         plannedDispatchTime: p.plannedDispatchTime,
         markedDispatchedTime: p.markedDispatchedTime,
         createdAt: p.createdAt,
@@ -360,6 +423,8 @@ async function _GET(req: NextRequest) {
       calls,
       qrScans,
       phoneCalls,
+      modifications,
+      qps,
       items,
       timestamp: new Date().toISOString(),
     });

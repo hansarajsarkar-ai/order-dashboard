@@ -39,10 +39,14 @@ interface Po {
   isReadyForSettlement: boolean | null;
   remainingDueAmount: number | null;
   refundableAmount: number | null;
+  originalPOAmount: number | null;
+  poModifiedBuyerInformed: string | null;
   plannedDispatchTime: string | null;
   markedDispatchedTime: string | null;
   createdAt: string | null;
 }
+interface Modification { skuLabel: string | null; changeType: string | null; }
+interface Qps { monthStart: string | null; qualifiedAmount: number; }
 interface Courier {
   status: string | null;
   partner: string | null;
@@ -84,8 +88,38 @@ interface Item {
 }
 interface JourneyResp {
   found: boolean; isD2R?: boolean; poNumber?: number; po?: Po; courier?: Courier | null;
-  stages?: Stage[]; scans?: Scan[]; calls?: Call[]; qrScans?: QrScan[]; phoneCalls?: PhoneCall[]; items?: Item[];
+  stages?: Stage[]; scans?: Scan[]; calls?: Call[]; qrScans?: QrScan[]; phoneCalls?: PhoneCall[];
+  modifications?: Modification[]; qps?: Qps | null; items?: Item[];
   error?: string;
+}
+
+// QPS tier → level + gift, by qualifying spend in the PO's month (May 2026+ has
+// 5 tiers; earlier months 3). Mirrors the QPS dashboard thresholds.
+function qpsStage(amount: number, monthStart: string | null) {
+  const mayPlus = (monthStart ?? '') >= '2026-05-01';
+  const tiers: [number, string, string][] = mayPlus
+    ? [
+        [30000, 'Level 5', 'Airfryer / Mixer (₹3000)'],
+        [20000, 'Level 4', 'CCTV / Iron (₹2000)'],
+        [10000, 'Level 3', 'Speaker (₹1000)'],
+        [5000, 'Level 2', 'Mini table fan (₹500)'],
+        [3000, 'Level 1', 'Vastu tortoise (₹300)'],
+      ]
+    : [
+        [10000, 'Level 3', 'Speaker (₹1000)'],
+        [5000, 'Level 2', 'Mini table fan (₹500)'],
+        [3000, 'Level 1', 'Vastu tortoise (₹300)'],
+      ];
+  const asc = [...tiers].reverse(); // low → high
+  for (let i = 0; i < asc.length; i++) {
+    const [thr, level, gift] = asc[i];
+    if (amount < thr) {
+      return { qualified: i > 0, level: i > 0 ? asc[i - 1][1] : null, gift: i > 0 ? asc[i - 1][2] : null,
+               nextLevel: level, toNext: thr - amount };
+    }
+  }
+  const top = tiers[0];
+  return { qualified: true, level: top[1], gift: top[2], nextLevel: null, toNext: 0 };
 }
 
 // ── Time helpers ─────────────────────────────────────────────────────────────
@@ -307,6 +341,11 @@ function OrderJourneyDashboard() {
 
   const po = resp?.po;
   const courier = resp?.courier;
+  const mods = resp?.modifications ?? [];
+  const qpsInfo = resp?.qps ? qpsStage(resp.qps.qualifiedAmount, resp.qps.monthStart) : null;
+  const qpsMonth = resp?.qps?.monthStart
+    ? new Date(resp.qps.monthStart + 'T00:00:00+05:30').toLocaleString('en-IN', { timeZone: IST, month: 'short', year: 'numeric' })
+    : '';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 sm:p-8 relative overflow-hidden">
@@ -393,6 +432,7 @@ function OrderJourneyDashboard() {
                   {po.deliveryStatus && <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusTone(po.deliveryStatus)}`}>📦 {po.deliveryStatus}</span>}
                   {po.isRTOReceived && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-rose-500/20 text-rose-200 border-rose-400/30">RTO Received</span>}
                   {po.isFalseOrder && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-rose-500/20 text-rose-200 border-rose-400/30">False Order</span>}
+                  {mods.length > 0 && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-orange-500/20 text-orange-200 border-orange-400/30">✏️ PO Edited</span>}
                   {po.isSettledToSeller && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-emerald-500/20 text-emerald-200 border-emerald-400/30">💰 Settled</span>}
                 </div>
               </div>
@@ -438,6 +478,57 @@ function OrderJourneyDashboard() {
                 {po.cancelReason && <span className="text-rose-200"><span className="text-rose-300/60">Cancel:</span> {po.cancelReason}</span>}
                 {po.rejectReason && <span className="text-rose-200"><span className="text-rose-300/60">Reject:</span> {po.rejectReason}</span>}
               </div>
+
+              {/* QPS buyer stage + PO edit detail */}
+              {(qpsInfo || mods.length > 0) && (
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {qpsInfo && (
+                    <div className="flex-1 min-w-[240px] rounded-xl border border-fuchsia-400/20 bg-fuchsia-500/[0.07] px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wider text-fuchsia-300/70 font-semibold mb-1">
+                        🎁 QPS Buyer Stage {qpsMonth && <span className="text-purple-300/50 normal-case">· {qpsMonth}</span>}
+                      </div>
+                      {qpsInfo.qualified ? (
+                        <div className="text-sm text-white font-medium">
+                          <span className="text-fuchsia-200 font-bold">{qpsInfo.level}</span> · {qpsInfo.gift}
+                          <span className="text-purple-300/70 font-normal"> · {inr(resp!.qps!.qualifiedAmount)} qualified</span>
+                          {qpsInfo.nextLevel && (
+                            <div className="text-[11px] text-purple-300/60 mt-0.5">{inr(qpsInfo.toNext)} more → {qpsInfo.nextLevel}</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-white font-medium">
+                          <span className="text-amber-200">Not yet qualified</span>
+                          <span className="text-purple-300/70 font-normal"> · {inr(resp!.qps!.qualifiedAmount)} spent</span>
+                          <div className="text-[11px] text-purple-300/60 mt-0.5">{inr(qpsInfo.toNext)} more → {qpsInfo.nextLevel}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {mods.length > 0 && (
+                    <div className="flex-1 min-w-[240px] rounded-xl border border-orange-400/20 bg-orange-500/[0.07] px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wider text-orange-300/70 font-semibold mb-1">
+                        ✏️ PO Edited by Seller
+                      </div>
+                      <div className="text-sm text-white font-medium">
+                        {po.originalPOAmount != null && (
+                          <span className="tabular-nums">{inr(po.originalPOAmount)} → {inr(po.amount)}</span>
+                        )}
+                        {po.originalPOAmount != null && po.amount != null && po.originalPOAmount > po.amount && (
+                          <span className="text-orange-200 font-normal"> · {inr(po.originalPOAmount - po.amount)} lost</span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-orange-200/80 mt-0.5">
+                        {mods.map((m, i) => (
+                          <span key={i}>{i > 0 ? ' · ' : ''}{m.changeType}{m.skuLabel ? `: ${m.skuLabel}` : ''}</span>
+                        ))}
+                      </div>
+                      {po.poModifiedBuyerInformed && (
+                        <div className="text-[11px] text-purple-300/60 mt-0.5">Buyer informed: {po.poModifiedBuyerInformed}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Courier card */}

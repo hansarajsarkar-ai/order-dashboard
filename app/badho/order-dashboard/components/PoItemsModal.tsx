@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { PoModifiedMarker } from '../poModifiedMarker';
 
 // Reusable PO Items + Price Breakup modal. Mirrors the inline "View Items"
 // modal on the order-dashboard page so every "View Items" button across the
@@ -118,6 +119,7 @@ export default function PoItemsModal({ poNumber, breakup: initialBreakup = null,
           <div className="relative flex items-baseline gap-3 min-w-0">
             <span className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-semibold">PO</span>
             <h3 className="text-xl font-extrabold tracking-tight truncate">{poNumber}</h3>
+            <PoModifiedMarker poNumber={poNumber} className="h-5 min-w-[20px] text-[12px]" />
             {totals && (
               <span className="hidden sm:flex items-baseline gap-4 ml-4 text-[12px] text-white/85">
                 <span><span className="font-bold tabular-nums">{totals.items}</span> <span className="text-white/60">SKUs</span></span>
@@ -433,7 +435,7 @@ export default function PoItemsModal({ poNumber, breakup: initialBreakup = null,
                   </div>
                   <div className="min-w-0">
                     <div className="text-[10px] uppercase tracking-[0.25em] text-purple-600 font-bold">Price Breakup</div>
-                    <div className="text-slate-900 font-bold text-sm leading-tight truncate">PO {poNumber}</div>
+                    <div className="text-slate-900 font-bold text-sm leading-tight truncate">PO {poNumber} <PoModifiedMarker poNumber={poNumber} /></div>
                   </div>
                 </div>
                 {(() => {

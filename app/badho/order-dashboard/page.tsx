@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { PoModifiedMarker } from './poModifiedMarker';
 import {
   ResponsiveContainer,
   RadialBarChart, RadialBar, PolarAngleAxis,
@@ -7248,7 +7249,7 @@ export default function OrderStatusDashboard() {
                             <td className="px-3 py-2.5 text-purple-100 whitespace-nowrap font-medium">{r.brandName || '—'}</td>
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-white tabular-nums font-semibold">{r.poNumber}</span>
+                                <span className="text-white tabular-nums font-semibold">{r.poNumber}</span><PoModifiedMarker poNumber={r.poNumber} />
                                 <a
                                   href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
                                   target="_blank"
@@ -7637,7 +7638,7 @@ export default function OrderStatusDashboard() {
                                 </td>
                                 <td className="px-3 py-1.5 border-b border-white/5 min-w-[180px]">
                                   <div className="flex flex-col items-start gap-1">
-                                    <span className="text-xs font-extrabold tabular-nums text-fuchsia-200">#{r.poNumber}</span>
+                                    <span className="text-xs font-extrabold tabular-nums text-fuchsia-200">#{r.poNumber}</span><PoModifiedMarker poNumber={r.poNumber} />
                                     <div className="flex items-center gap-1.5">
                                       <a
                                         href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
@@ -10130,6 +10131,7 @@ export default function OrderStatusDashboard() {
                               ) : (
                                 <span className="text-purple-300/50">—</span>
                               )}
+                              <PoModifiedMarker poNumber={o.poNumber as string} />
                             </td>
                             <td className="px-4 py-2.5 text-right text-purple-100 tabular-nums">{fmtFull(o.poAmount)}</td>
                             <td className="px-4 py-2.5 text-right text-purple-200/80 tabular-nums">{o.badhoCommissionPct ? `${o.badhoCommissionPct}%` : '—'}</td>
@@ -11023,6 +11025,7 @@ export default function OrderStatusDashboard() {
                               >
                                 {r.poNumber}
                               </button>
+                              <PoModifiedMarker poNumber={r.poNumber} />
                             </td>
                             <td className="px-4 py-2 max-w-[220px] truncate">
                               <button
@@ -12219,7 +12222,7 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className={`sticky left-[280px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                                 <div className="inline-flex items-center gap-2">
-                                  <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
+                                  <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span><PoModifiedMarker poNumber={r.poNumber} />
                                   <a
                                     href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
                                     target="_blank"
@@ -12907,7 +12910,7 @@ export default function OrderStatusDashboard() {
                           </td>
                           <td className={`sticky left-[280px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                             <div className="inline-flex items-center gap-2">
-                              <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
+                              <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span><PoModifiedMarker poNumber={r.poNumber} />
                               <a
                                 href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
                                 target="_blank"
@@ -13299,7 +13302,7 @@ export default function OrderStatusDashboard() {
                     <tbody>
                       {(sellerDrillPaged?.rows || filteredSellerDrillRows).map((r) => (
                         <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="px-4 py-3 text-slate-900 tabular-nums font-medium">{r.poNumber}</td>
+                          <td className="px-4 py-3 text-slate-900 tabular-nums font-medium">{r.poNumber} <PoModifiedMarker poNumber={r.poNumber} /></td>
                           <td className="px-4 py-3">
                             <a href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(r.poNumber)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold border border-sky-300" title={`Search Freshdesk tickets for PO ${r.poNumber}`}>
                               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -13451,7 +13454,7 @@ export default function OrderStatusDashboard() {
                     <tbody>
                       {(drillPaged?.rows || filteredDrillRows).map((r) => (
                         <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="px-4 py-3 text-slate-900 tabular-nums font-medium">{r.poNumber}</td>
+                          <td className="px-4 py-3 text-slate-900 tabular-nums font-medium">{r.poNumber} <PoModifiedMarker poNumber={r.poNumber} /></td>
                           <td className="px-4 py-3">
                             <a href={`https://badho.freshdesk.com/a/search/tickets?term=${encodeURIComponent(r.poNumber)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold border border-sky-300" title={`Search Freshdesk tickets for PO ${r.poNumber}`}>
                               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -14051,7 +14054,7 @@ export default function OrderStatusDashboard() {
                               </td>
                               <td className={`sticky left-[280px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                                 <div className="inline-flex items-center gap-2">
-                                  <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
+                                  <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span><PoModifiedMarker poNumber={r.poNumber} />
                                   <a
                                     href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
                                     target="_blank"
@@ -14327,7 +14330,7 @@ export default function OrderStatusDashboard() {
                           <tr key={r.poNumber} className="border-b border-slate-100 hover:bg-emerald-50/40 align-top">
                             <td className="px-3 py-2 whitespace-nowrap">
                               <div className="inline-flex items-center gap-2">
-                                <span className="text-slate-900 tabular-nums font-semibold">{r.poNumber}</span>
+                                <span className="text-slate-900 tabular-nums font-semibold">{r.poNumber}</span><PoModifiedMarker poNumber={r.poNumber} />
                                 <button
                                   onClick={() => openPoItemsModal(r.poNumber)}
                                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[10px] font-bold border border-emerald-300 hover:border-emerald-400 transition-all"

@@ -229,6 +229,14 @@ export default function PoModifiedDashboard() {
     setAuthChecked(true);
   }, [router]);
 
+  // Deep-link support: /badho/po-modified?po=<poNumber> lands here pre-filtered
+  // to that PO — used by the "modified" markers shown across the order dashboard.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const po = new URLSearchParams(window.location.search).get('po');
+    if (po) setSearch(po);
+  }, []);
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {

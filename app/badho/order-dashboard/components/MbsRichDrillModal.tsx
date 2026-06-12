@@ -5,6 +5,7 @@ import MultiSelectFilter from './MultiSelectFilter';
 import GroupByMenu, { type GroupDimension } from './GroupByMenu';
 import GroupByModal from './GroupByModal';
 import PoItemsModal, { type PriceBreakup } from './PoItemsModal';
+import { PoModifiedMarker } from '../poModifiedMarker';
 
 const MBS_PAGE_SIZE = 50;
 
@@ -613,6 +614,7 @@ export default function MbsRichDrillModal({
                       <td className={`sticky left-[280px] z-10 ${rowBg} group-hover:bg-purple-50 px-2.5 py-2 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                         <div className="inline-flex items-center gap-2">
                           <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
+                          <PoModifiedMarker poNumber={r.poNumber} />
                           <a
                             href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
                             target="_blank"

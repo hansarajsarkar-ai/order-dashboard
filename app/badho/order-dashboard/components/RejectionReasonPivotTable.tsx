@@ -4,6 +4,7 @@ import { useEffect, useState, Fragment, useRef } from 'react';
 import MultiSelectFilter from './MultiSelectFilter';
 import GroupByMenu, { type GroupDimension } from './GroupByMenu';
 import GroupByModal, { type GroupableOrderRow } from './GroupByModal';
+import { PoModifiedMarker } from '../poModifiedMarker';
 
 interface DrilldownCell {
   count: number;
@@ -1192,6 +1193,7 @@ export default function RejectionReasonPivotTable({ onViewItems, onBuyerClick, o
                               <>
                               <div className="inline-flex items-center gap-2">
                                 <span className="text-slate-900 tabular-nums font-bold">{r.poNumber}</span>
+                                <PoModifiedMarker poNumber={r.poNumber} />
                                 <a
                                   href={`https://d2r-support-dashboard.vercel.app/?po_number=${encodeURIComponent(r.poNumber)}`}
                                   target="_blank"

@@ -1601,26 +1601,28 @@ export default function QpsSchemePage() {
                   <label className="text-xs text-purple-300/70 font-medium">Levels {levelFilters.length > 0 && <span className="text-purple-300/50">(tap to toggle)</span>}</label>
                   <div className="flex items-center gap-1.5">
                     {[
-                      { lvl: 'Level 1', label: 'L1', show: true },
-                      { lvl: 'Level 2', label: 'L2', show: true },
-                      { lvl: 'Level 3', label: 'L3', show: true },
-                      { lvl: 'Level 4', label: 'L4', show: isMayPlus },
-                      { lvl: 'Level 5', label: 'L5', show: isMayPlus },
-                    ].filter((x) => x.show).map(({ lvl, label }) => {
+                      { lvl: 'Level 1', label: 'L1', emoji: '🐢', dot: 'bg-amber-400', show: true },
+                      { lvl: 'Level 2', label: 'L2', emoji: '🌀', dot: 'bg-sky-400', show: true },
+                      { lvl: 'Level 3', label: 'L3', emoji: '🔊', dot: 'bg-fuchsia-400', show: true },
+                      { lvl: 'Level 4', label: 'L4', emoji: '📷', dot: 'bg-rose-400', show: isMayPlus },
+                      { lvl: 'Level 5', label: 'L5', emoji: '🍳', dot: 'bg-orange-400', show: isMayPlus },
+                    ].filter((x) => x.show).map(({ lvl, label, emoji, dot }) => {
                       const on = levelFilters.includes(lvl);
                       return (
                         <button
                           key={lvl}
                           type="button"
                           onClick={() => toggleLevel(lvl)}
-                          className={`px-3 py-2 rounded-lg text-sm font-bold transition-all border ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-all border ${
                             on
                               ? 'bg-fuchsia-600 text-white border-fuchsia-400/60 shadow-[0_0_14px_rgba(217,70,239,0.4)]'
                               : 'bg-white/5 text-purple-200 border-white/15 hover:bg-white/10 hover:text-white'
                           }`}
                           title={on ? `Hide ${label}` : `Show ${label}`}
                         >
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${dot} ${on ? '' : 'opacity-80'}`} />
                           {label}
+                          <span className="text-base leading-none">{emoji}</span>
                         </button>
                       );
                     })}

@@ -90,6 +90,7 @@ interface BuyerOrderRow {
   order_datetime: string;
   itl_datetime: string;
   status: string;
+  delivery_status?: string | null;
   amount: string;
   coupon_value: string;
   payment_mode: string | null;
@@ -516,6 +517,33 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
   const [monthLabel, setMonthLabel] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  // Per-buyer PO-level expansion for the "Highest RTO buyers" table.
+  const [expandedRto, setExpandedRto] = React.useState<string | null>(null);
+  const [rtoOrders, setRtoOrders] = React.useState<Record<string, BuyerOrderRow[]>>({});
+  const [rtoOrdersLoading, setRtoOrdersLoading] = React.useState<string | null>(null);
+  const [rtoOrdersErr, setRtoOrdersErr] = React.useState<Record<string, string>>({});
+
+  const toggleRtoBuyer = (buyerId: string) => {
+    if (expandedRto === buyerId) { setExpandedRto(null); return; }
+    setExpandedRto(buyerId);
+    if (rtoOrders[buyerId] !== undefined || rtoOrdersLoading === buyerId) return;
+    setRtoOrdersLoading(buyerId);
+    fetch(`/api/qps-buyer-orders?buyerId=${encodeURIComponent(buyerId)}&month=${currentMonthIso}`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.error) throw new Error(res.error);
+        const data = (res.data ?? []) as BuyerOrderRow[];
+        // RTO orders first (they explain the RTO ₹), then by amount desc.
+        data.sort((a, b) => {
+          const ar = (a.delivery_status || '').toUpperCase() === 'RTO' ? 0 : 1;
+          const br = (b.delivery_status || '').toUpperCase() === 'RTO' ? 0 : 1;
+          return ar - br || Number(b.amount) - Number(a.amount);
+        });
+        setRtoOrders((m) => ({ ...m, [buyerId]: data }));
+      })
+      .catch((e) => setRtoOrdersErr((m) => ({ ...m, [buyerId]: e.message })))
+      .finally(() => setRtoOrdersLoading((cur) => (cur === buyerId ? null : cur)));
+  };
 
   React.useEffect(() => {
     setLoading(true); setError(null);
@@ -678,21 +706,89 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
         </div>
         {topRtoBuyers.length > 0 && (
           <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-white/10 text-sm font-semibold text-purple-200">Highest RTO buyers · {monthLabel}</div>
+            <div className="px-4 py-2.5 border-b border-white/10 text-sm font-semibold text-purple-200">Highest RTO buyers · {monthLabel} <span className="font-normal text-purple-300/50 text-xs">· click a row for PO-wise orders</span></div>
             <table className="w-full text-xs">
               <thead><tr className="text-purple-200/70 text-left border-b border-white/10">
                 <th className="py-2 px-4 font-medium">Buyer</th><th className="py-2 px-4 text-right font-medium">Placed ₹</th>
                 <th className="py-2 px-4 text-right font-medium text-rose-300/70">RTO ₹</th><th className="py-2 px-4 text-right font-medium">RTO %</th>
               </tr></thead>
               <tbody>
-                {topRtoBuyers.map(({ d, placed, rto, pct }) => (
-                  <tr key={d.buyer_id} className="border-b border-white/5 hover:bg-white/[0.04]">
-                    <td className="py-2 px-4 text-white">{d.buyer_business_name || d.buyer_name}<span className="text-purple-300/50"> · {d.buyer_phone}</span></td>
-                    <td className="py-2 px-4 text-right text-cyan-300">{fmtAmt(placed)}</td>
-                    <td className="py-2 px-4 text-right text-rose-300 font-semibold">{fmtAmt(rto)}</td>
-                    <td className={`py-2 px-4 text-right font-bold ${pct >= 50 ? 'text-rose-300' : pct >= 25 ? 'text-amber-300' : 'text-purple-200'}`}>{pct}%</td>
-                  </tr>
-                ))}
+                {topRtoBuyers.map(({ d, placed, rto, pct }) => {
+                  const isOpen = expandedRto === d.buyer_id;
+                  const orders = rtoOrders[d.buyer_id];
+                  return (
+                    <React.Fragment key={d.buyer_id}>
+                      <tr onClick={() => toggleRtoBuyer(d.buyer_id)} className="border-b border-white/5 hover:bg-white/[0.04] cursor-pointer" title="Click to see this buyer's orders, PO-wise">
+                        <td className="py-2 px-4 text-white">
+                          <span className={`inline-block w-4 text-purple-300 transition-transform ${isOpen ? 'rotate-90' : ''}`}>▸</span>
+                          {d.buyer_business_name || d.buyer_name}<span className="text-purple-300/50"> · {d.buyer_phone}</span>
+                        </td>
+                        <td className="py-2 px-4 text-right text-cyan-300">{fmtAmt(placed)}</td>
+                        <td className="py-2 px-4 text-right text-rose-300 font-semibold">{fmtAmt(rto)}</td>
+                        <td className={`py-2 px-4 text-right font-bold ${pct >= 50 ? 'text-rose-300' : pct >= 25 ? 'text-amber-300' : 'text-purple-200'}`}>{pct}%</td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="bg-purple-900/30">
+                          <td colSpan={4} className="px-6 py-3">
+                            {rtoOrdersLoading === d.buyer_id || orders === undefined ? (
+                              <div className="text-purple-300/60 text-xs py-2 animate-pulse">Loading orders…</div>
+                            ) : rtoOrdersErr[d.buyer_id] ? (
+                              <div className="text-rose-300 text-xs py-2">Error: {rtoOrdersErr[d.buyer_id]}</div>
+                            ) : orders.length === 0 ? (
+                              <div className="text-purple-300/60 text-xs py-2">No orders found for this month</div>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <div className="text-xs text-purple-300/60 mb-2 font-medium">
+                                  Orders in {monthLabel} — {orders.length} order{orders.length !== 1 ? 's' : ''} ·{' '}
+                                  <span className="text-rose-300 font-semibold">{orders.filter((o) => (o.delivery_status || '').toUpperCase() === 'RTO').length} RTO</span>
+                                </div>
+                                <table className="w-full text-xs border-collapse">
+                                  <thead>
+                                    <tr className="text-purple-200/70 text-left border-b border-white/10">
+                                      <th className="py-1.5 pr-4 font-medium whitespace-nowrap">PO #</th>
+                                      <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Order Date</th>
+                                      <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Brand</th>
+                                      <th className="py-1.5 pr-4 font-medium text-right whitespace-nowrap">Amount</th>
+                                      <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Payment</th>
+                                      <th className="py-1.5 pr-4 font-medium text-center whitespace-nowrap">PO Status</th>
+                                      <th className="py-1.5 pr-4 font-medium text-center whitespace-nowrap">Delivery</th>
+                                      <th className="py-1.5 pr-4 font-medium whitespace-nowrap">AWB</th>
+                                      <th className="py-1.5 font-medium whitespace-nowrap">Courier</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {orders.map((o) => {
+                                      const isRto = (o.delivery_status || '').toUpperCase() === 'RTO';
+                                      return (
+                                        <tr key={o.po_number} className={`border-b border-white/5 ${isRto ? 'bg-rose-500/10' : 'hover:bg-white/5'}`}>
+                                          <td className="py-1.5 pr-4 font-mono whitespace-nowrap">
+                                            <a href={`https://d2r-support-dashboard.vercel.app/?q=${encodeURIComponent(o.po_number)}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-sky-300 hover:text-sky-100 underline decoration-dotted underline-offset-2">{o.po_number}</a>
+                                          </td>
+                                          <td className="py-1.5 pr-4 text-purple-300 whitespace-nowrap">{o.order_datetime || '—'}</td>
+                                          <td className="py-1.5 pr-4 text-white max-w-[180px] truncate" title={o.seller_name}>{o.seller_name}</td>
+                                          <td className="py-1.5 pr-4 text-right font-semibold text-white whitespace-nowrap">{fmtAmt(o.amount)}</td>
+                                          <td className="py-1.5 pr-4 text-purple-200/90 whitespace-nowrap">{o.payment_mode || '—'}</td>
+                                          <td className="py-1.5 pr-4 text-center"><span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderStatusClass(o.status)}`}>{o.status}</span></td>
+                                          <td className="py-1.5 pr-4 text-center whitespace-nowrap">
+                                            {isRto
+                                              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-200 border border-rose-400/30">RTO</span>
+                                              : <span className="text-purple-200/90">{o.delivery_status || o.shipment_status || '—'}</span>}
+                                          </td>
+                                          <td className="py-1.5 pr-4 text-purple-300/70 font-mono whitespace-nowrap">{o.awb_number || '—'}</td>
+                                          <td className="py-1.5 text-purple-300/70 whitespace-nowrap">{o.courier_name || '—'}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -8,6 +8,7 @@ interface Row {
   order_datetime: string;
   itl_datetime: string;
   status: string;
+  delivery_status: string | null;
   amount: string;
   coupon_value: string;
   payment_mode: string | null;
@@ -38,6 +39,7 @@ async function _GET(req: NextRequest) {
         TO_CHAR(po."markedPendingTime", 'DD Mon YYYY HH12:MI AM')  AS order_datetime,
         TO_CHAR(di."created_at", 'DD Mon YYYY HH12:MI AM')         AS itl_datetime,
         po."status"                                               AS status,
+        po."deliveryStatus"                                       AS delivery_status,
         ROUND(po."amount"::numeric, 2)                            AS amount,
         COALESCE(po."appliedOfferDiscount", 0)                    AS coupon_value,
         po."paymentInfo"->>'option'                               AS payment_mode,

@@ -193,6 +193,159 @@ function callTitle(callType: string | null, entity: string | null): string {
   return inbound ? `${role} called support` : `Support called ${role.toLowerCase()}`;
 }
 
+// ── Calendar helpers ─────────────────────────────────────────────────────────
+const DAY_MS = 86400000;
+const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DOT_COLOR: Record<EvType, string> = {
+  order: 'bg-fuchsia-400', exception: 'bg-rose-400', scan: 'bg-cyan-400',
+  call: 'bg-amber-400', qr: 'bg-emerald-400', phone: 'bg-indigo-400',
+};
+/** Calendar day (IST) for an epoch ms, as 'YYYY-MM-DD'. */
+function istKey(ms: number): string {
+  return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+/** 'YYYY-MM-DD' → UTC-midnight epoch (used only for grid math, tz-stable). */
+function keyToUTC(k: string): number {
+  const [y, m, d] = k.split('-').map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+function utcKey(t: number): string {
+  const d = new Date(t);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+function fmtKey(k: string): string {
+  return new Date(keyToUTC(k)).toLocaleDateString('en-IN', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+interface CalCell { key: string; day: number; inSpan: boolean; isStart: boolean; isEnd: boolean; types: EvType[]; }
+interface CalPanel { label: string; weeks: (CalCell | null)[][]; }
+
+/**
+ * Calendar overview of a journey: highlights the placed→last-event span and
+ * marks each day with colored dots per event type. Multi-month spans render as
+ * separate month panels, each trimmed to only the weeks the journey touches
+ * (the "partial / adjusted" view). Clicking a marked day calls onSelectDay.
+ */
+function JourneyCalendar({
+  events, selectedDay, onSelectDay,
+}: { events: Ev[]; selectedDay: string | null; onSelectDay: (k: string) => void }) {
+  const { panels, startKey, endKey, spanDays } = useMemo(() => {
+    const dayTypes = new Map<string, Set<EvType>>();
+    for (const e of events) {
+      const k = istKey(e.ms);
+      (dayTypes.get(k) ?? dayTypes.set(k, new Set()).get(k)!).add(e.type);
+    }
+    const sKey = istKey(events[0].ms);
+    const eKey = istKey(events[events.length - 1].ms);
+    const startUTC = keyToUTC(sKey), endUTC = keyToUTC(eKey);
+    const span = Math.round((endUTC - startUTC) / DAY_MS) + 1;
+
+    const out: CalPanel[] = [];
+    const ed = new Date(endUTC);
+    let y = new Date(startUTC).getUTCFullYear();
+    let mon = new Date(startUTC).getUTCMonth();
+    const endY = ed.getUTCFullYear(), endMon = ed.getUTCMonth();
+    while (y < endY || (y === endY && mon <= endMon)) {
+      const monthFirst = Date.UTC(y, mon, 1), monthLast = Date.UTC(y, mon + 1, 0);
+      const spanFrom = Math.max(monthFirst, startUTC), spanTo = Math.min(monthLast, endUTC);
+      const gridFrom = spanFrom - new Date(spanFrom).getUTCDay() * DAY_MS;
+      const gridTo = spanTo + (6 - new Date(spanTo).getUTCDay()) * DAY_MS;
+      const weeks: (CalCell | null)[][] = [];
+      for (let cur = gridFrom; cur <= gridTo; ) {
+        const week: (CalCell | null)[] = [];
+        for (let i = 0; i < 7; i++, cur += DAY_MS) {
+          const dt = new Date(cur);
+          if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mon) { week.push(null); continue; }
+          const k = utcKey(cur);
+          week.push({
+            key: k, day: dt.getUTCDate(),
+            inSpan: cur >= startUTC && cur <= endUTC,
+            isStart: cur === startUTC, isEnd: cur === endUTC,
+            types: [...(dayTypes.get(k) ?? [])],
+          });
+        }
+        weeks.push(week);
+      }
+      out.push({ label: new Date(Date.UTC(y, mon, 1)).toLocaleString('en-US', { month: 'long', year: 'numeric' }), weeks });
+      mon++; if (mon > 11) { mon = 0; y++; }
+    }
+    return { panels: out, startKey: sKey, endKey: eKey, spanDays: span };
+  }, [events]);
+
+  if (events.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="text-lg font-bold text-white">Journey Calendar</h2>
+        <div className="text-xs text-purple-300/80">
+          <span className="text-emerald-300 font-semibold">{fmtKey(startKey)}</span>
+          <span className="text-purple-300/50"> → </span>
+          <span className="text-fuchsia-300 font-semibold">{fmtKey(endKey)}</span>
+          <span className="text-purple-300/50"> · {spanDays} day{spanDays > 1 ? 's' : ''}</span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-x-8 gap-y-4">
+        {panels.map((panel, pi) => (
+          <div key={pi} className="min-w-[238px]">
+            <div className="text-sm font-semibold text-fuchsia-200 mb-2 text-center">{panel.label}</div>
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {WEEKDAYS.map((w, i) => <div key={i} className="text-[10px] text-purple-300/40 text-center font-semibold">{w}</div>)}
+            </div>
+            <div className="space-y-1">
+              {panel.weeks.map((week, wi) => (
+                <div key={wi} className="grid grid-cols-7 gap-1">
+                  {week.map((cell, ci) => {
+                    if (!cell) return <div key={ci} />;
+                    const has = cell.types.length > 0;
+                    const sel = selectedDay === cell.key;
+                    return (
+                      <button
+                        key={ci} type="button" disabled={!has}
+                        onClick={() => has && onSelectDay(cell.key)}
+                        title={has ? `${fmtKey(cell.key)} — click to jump` : fmtKey(cell.key)}
+                        className={[
+                          'relative h-11 rounded-md text-xs flex flex-col items-center justify-center pt-1 transition-colors',
+                          cell.inSpan ? 'bg-fuchsia-500/15 text-white' : 'text-purple-300/40',
+                          has ? 'cursor-pointer hover:bg-fuchsia-500/30' : 'cursor-default',
+                          cell.isStart ? 'ring-1 ring-emerald-400/70' : '',
+                          cell.isEnd && !cell.isStart ? 'ring-1 ring-fuchsia-400/70' : '',
+                          sel ? 'ring-2 ring-white' : '',
+                        ].join(' ')}
+                      >
+                        <span className={cell.isStart || cell.isEnd ? 'font-bold' : ''}>{cell.day}</span>
+                        {has && (
+                          <span className="flex gap-0.5 mt-0.5 h-1.5">
+                            {cell.types.slice(0, 5).map((t, ti) => <span key={ti} className={`w-1 h-1 rounded-full ${DOT_COLOR[t]}`} />)}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-purple-300/70">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-emerald-400/70 inline-block" /> Start</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-fuchsia-400/70 inline-block" /> End</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-fuchsia-500/15 inline-block" /> In journey</span>
+        <span className="text-purple-300/50">·</span>
+        <span className="flex items-center gap-1.5">
+          {(['order', 'scan', 'call', 'qr', 'phone'] as EvType[]).map((t) => (
+            <span key={t} className="flex items-center gap-0.5"><span className={`w-1.5 h-1.5 rounded-full ${DOT_COLOR[t]}`} />{t}</span>
+          ))}
+        </span>
+        <span className="ml-auto text-purple-300/50">Click a marked day to jump to its events ↓</span>
+      </div>
+    </div>
+  );
+}
+
 export default function OrderJourneyPage() {
   return (
     <Suspense
@@ -223,6 +376,7 @@ function OrderJourneyDashboard() {
   const [queriedPo, setQueriedPo] = useState('');
   const [searchError, setSearchError] = useState('');
   const [resolving, setResolving] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   // List view state
   const [list, setList] = useState<ListResp | null>(null);
@@ -250,7 +404,7 @@ function OrderJourneyDashboard() {
   const fetchJourney = useCallback(async (po: string) => {
     const trimmed = po.trim();
     if (!/^\d+$/.test(trimmed)) { setError('Enter a numeric PO Number.'); setResp(null); return; }
-    setLoading(true); setError(''); setResp(null); setQueriedPo(trimmed);
+    setLoading(true); setError(''); setResp(null); setQueriedPo(trimmed); setSelectedDay(null);
     try {
       const r = await fetch(`/api/order-journey?poNumber=${encodeURIComponent(trimmed)}`);
       const j: JourneyResp = await r.json();
@@ -297,6 +451,13 @@ function OrderJourneyDashboard() {
   };
 
   const openPo = (pn: number | null) => { if (pn != null) router.push(`/badho/order-journey?po=${pn}`); };
+
+  // Calendar day click → toggle selection + scroll the first event of that day into view.
+  const handleSelectDay = (key: string) => {
+    setSelectedDay((prev) => (prev === key ? null : key));
+    const idx = events.findIndex((e) => istKey(e.ms) === key);
+    if (idx >= 0) setTimeout(() => document.getElementById(`oj-ev-${idx}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+  };
 
   // ── Build the merged timeline ──────────────────────────────────────────────
   const events: Ev[] = useMemo(() => {
@@ -625,6 +786,11 @@ function OrderJourneyDashboard() {
               </div>
             )}
 
+            {/* Calendar overview */}
+            {events.length > 0 && (
+              <JourneyCalendar events={events} selectedDay={selectedDay} onSelectDay={handleSelectDay} />
+            )}
+
             {/* Merged timeline */}
             <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
               <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
@@ -646,8 +812,9 @@ function OrderJourneyDashboard() {
                     const gap = prev ? fmtGap(prev.ms, e.ms) : '';
                     const isLast = i === events.length - 1;
                     const st = EV_STYLE[e.type];
+                    const isSelDay = selectedDay != null && istKey(e.ms) === selectedDay;
                     return (
-                      <li key={i} className="relative pl-11 pb-5 last:pb-0">
+                      <li id={`oj-ev-${i}`} key={i} className={`relative pl-11 pb-5 last:pb-0 rounded-lg transition-colors ${isSelDay ? 'bg-white/[0.07] ring-1 ring-white/25' : ''}`}>
                         {!isLast && <span className="absolute left-[15px] top-8 bottom-0 w-px bg-white/10" />}
                         <span className={`absolute left-0 top-0.5 flex h-8 w-8 items-center justify-center rounded-full border text-sm ${st.node}`}>{e.icon}</span>
                         <div className="flex items-baseline justify-between gap-3 flex-wrap">

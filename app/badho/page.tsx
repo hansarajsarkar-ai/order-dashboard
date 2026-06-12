@@ -115,7 +115,9 @@ const DASHBOARDS: DashboardEntry[] = [
     description:
       'Track the whole lifecycle of a D2R order, PO Number-wise — every milestone from placed → accepted → dispatched → delivered → completed, with timestamps and time spent in each stage.',
     icon: '🧭',
-    status: 'live',
+    // Locked on the index (shows "Coming soon", non-clickable) so other employees
+    // don't open it. The /badho/order-journey route stays live — reach it by direct URL.
+    status: 'coming-soon',
   },
   {
     slug: 'po-modified',

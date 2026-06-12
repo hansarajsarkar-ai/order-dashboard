@@ -1447,6 +1447,17 @@ export default function OrderStatusDashboard() {
   const [rtoKpiModalAttemptFilter, setRtoKpiModalAttemptFilter] = useState<Set<string>>(new Set());
   const [rtoKpiModalSort, setRtoKpiModalSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [rtoGroupByDims, setRtoGroupByDims] = useState<GroupDimension[]>([]);
+
+  // Deep-link: /badho/order-dashboard?tab=rto&rtoModal=count opens the RTO orders
+  // detail modal straight away (used by the QPS dashboard's RTO cards, new tab).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const rm = new URLSearchParams(window.location.search).get('rtoModal');
+    if (rm && ['count', 'value', 'rate', 'avg'].includes(rm)) {
+      setRtoKpiWindow(null);
+      setRtoKpiModal(rm as RtoKpiKind);
+    }
+  }, []);
   const toggleRtoKpiSort = (key: string) => {
     setRtoKpiModalSort((prev) => {
       if (!prev || prev.key !== key) return { key, direction: 'asc' };

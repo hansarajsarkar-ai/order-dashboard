@@ -769,20 +769,20 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
           <div className="text-xs text-purple-300/70 mt-2">RTO = orders returned to origin (deliveryStatus &lsquo;RTO&rsquo;), by order-placed month. % is of <em>resolved</em> orders — delivered + RTO. Recent months keep rising as in-transit orders settle.</div></div>
         {latestRto && (
           <div className="flex flex-wrap gap-3">
-            {/* Each card links to the order dashboard's RTO tab for order-level detail. */}
-            <Link href="/badho/order-dashboard?tab=rto" title="Open the RTO dashboard for order-level detail →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
-              <KpiCard label={`RTO count · ${latestRto.month}`} value={fmt(latestRto.rtoCnt)} tone="bad" sub="view orders →" />
+            {/* Each card opens the order dashboard's RTO orders detail modal in a new tab. */}
+            <Link href="/badho/order-dashboard?tab=rto&rtoModal=count" target="_blank" rel="noopener noreferrer" title="Open the RTO orders list in a new tab →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
+              <KpiCard label={`RTO count · ${latestRto.month}`} value={fmt(latestRto.rtoCnt)} tone="bad" sub="view orders ↗" />
             </Link>
-            <Link href="/badho/order-dashboard?tab=rto" title="Open the RTO dashboard for order-level detail →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
-              <KpiCard label="RTO ₹" value={fmtAmt(latestRto.rto)} tone="bad" sub="view orders →" />
+            <Link href="/badho/order-dashboard?tab=rto&rtoModal=value" target="_blank" rel="noopener noreferrer" title="Open the RTO orders list in a new tab →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
+              <KpiCard label="RTO ₹" value={fmtAmt(latestRto.rto)} tone="bad" sub="view orders ↗" />
             </Link>
-            <Link href="/badho/order-dashboard?tab=rto" title="Open the RTO dashboard for order-level detail →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
+            <Link href="/badho/order-dashboard?tab=rto&rtoModal=rate" target="_blank" rel="noopener noreferrer" title="Open the RTO orders list in a new tab →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
               <KpiCard label="RTO count %" value={`${latestRto.rtoCntPct}%`} tone={latestRto.rtoCntPct >= 30 ? 'bad' : latestRto.rtoCntPct >= 15 ? 'neutral' : 'good'} sub="of resolved" />
             </Link>
-            <Link href="/badho/order-dashboard?tab=rto" title="Open the RTO dashboard for order-level detail →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
+            <Link href="/badho/order-dashboard?tab=rto&rtoModal=rate" target="_blank" rel="noopener noreferrer" title="Open the RTO orders list in a new tab →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
               <KpiCard label="RTO amount %" value={`${latestRto.rtoAmtPct}%`} tone={latestRto.rtoAmtPct >= 30 ? 'bad' : latestRto.rtoAmtPct >= 15 ? 'neutral' : 'good'} sub="of resolved ₹" />
             </Link>
-            <Link href="/badho/order-dashboard?tab=rto" title="Open the RTO dashboard for order-level detail →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
+            <Link href="/badho/order-dashboard?tab=rto&rtoModal=count" target="_blank" rel="noopener noreferrer" title="Open the RTO orders list in a new tab →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
               <KpiCard label="Delivered ₹" value={fmtAmt(latestRto.delivered)} tone="good" />
             </Link>
           </div>

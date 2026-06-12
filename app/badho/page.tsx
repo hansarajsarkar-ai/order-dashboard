@@ -110,6 +110,14 @@ const DASHBOARDS: DashboardEntry[] = [
     status: 'live',
   },
   {
+    slug: 'order-journey',
+    title: 'Order Journey',
+    description:
+      'Track the whole lifecycle of a D2R order, PO Number-wise — every milestone from placed → accepted → dispatched → delivered → completed, with timestamps and time spent in each stage.',
+    icon: '🧭',
+    status: 'live',
+  },
+  {
     slug: 'po-modified',
     title: 'PO Modified',
     description:

@@ -47,6 +47,16 @@ interface Po {
 }
 interface Modification { skuLabel: string | null; changeType: string | null; }
 interface Qps { monthStart: string | null; qualifiedAmount: number; }
+
+interface ListRow {
+  poNumber: number | null; placed: string | null; status: string | null; deliveryStatus: string | null;
+  amount: number | null; seller: string | null; buyer: string | null;
+  buyerCity: string | null; buyerState: string | null; partner: string | null; awb: string | null;
+}
+interface ListResp {
+  data: ListRow[]; total: number; page: number; pageSize: number; pageCount: number;
+  from: string; to: string | null; error?: string;
+}
 interface Courier {
   status: string | null;
   partner: string | null;
@@ -204,11 +214,23 @@ function OrderJourneyDashboard() {
   const [employeeName, setEmployeeName] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  const poParam = searchParams.get('po');
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resp, setResp] = useState<JourneyResp | null>(null);
   const [queriedPo, setQueriedPo] = useState('');
+  const [searchError, setSearchError] = useState('');
+  const [resolving, setResolving] = useState(false);
+
+  // List view state
+  const [list, setList] = useState<ListResp | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState('');
+  const [listPage, setListPage] = useState(1);
+  const [fromDate, setFromDate] = useState('2026-01-15');
+  const [toDate, setToDate] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -238,19 +260,43 @@ function OrderJourneyDashboard() {
     finally { setLoading(false); }
   }, []);
 
+  // Journey mode: load when ?po is present.
   useEffect(() => {
     if (!authChecked) return;
-    const po = searchParams.get('po');
-    if (po && /^\d+$/.test(po)) { setInput(po); fetchJourney(po); }
-  }, [authChecked, searchParams, fetchJourney]);
+    if (poParam && /^\d+$/.test(poParam)) { setInput(poParam); fetchJourney(poParam); }
+  }, [authChecked, poParam, fetchJourney]);
 
-  const onSearch = (e?: React.FormEvent) => {
+  // List mode: load the orders table when no ?po.
+  useEffect(() => {
+    if (!authChecked || poParam) return;
+    let cancelled = false;
+    setListLoading(true); setListError('');
+    const qs = new URLSearchParams({ page: String(listPage), from: fromDate });
+    if (toDate) qs.set('to', toDate);
+    fetch(`/api/order-journey/list?${qs.toString()}`)
+      .then((r) => r.json())
+      .then((j: ListResp) => { if (!cancelled) { if (j.error) setListError(j.error); else setList(j); } })
+      .catch(() => { if (!cancelled) setListError('Failed to load orders.'); })
+      .finally(() => { if (!cancelled) setListLoading(false); });
+    return () => { cancelled = true; };
+  }, [authChecked, poParam, listPage, fromDate, toDate]);
+
+  // Search resolves a PO Number OR an AWB, then opens that order's journey.
+  const onSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    router.replace(`/badho/order-journey?po=${encodeURIComponent(trimmed)}`);
-    fetchJourney(trimmed);
+    const term = input.trim();
+    if (!term) return;
+    setResolving(true); setSearchError('');
+    try {
+      const r = await fetch(`/api/order-journey/resolve?q=${encodeURIComponent(term)}`);
+      const j = await r.json();
+      if (j.found && j.poNumber) router.push(`/badho/order-journey?po=${j.poNumber}`);
+      else setSearchError(`No order found for “${term}”. Enter a PO Number or AWB.`);
+    } catch { setSearchError('Search failed — please try again.'); }
+    finally { setResolving(false); }
   };
+
+  const openPo = (pn: number | null) => { if (pn != null) router.push(`/badho/order-journey?po=${pn}`); };
 
   // ── Build the merged timeline ──────────────────────────────────────────────
   const events: Ev[] = useMemo(() => {
@@ -383,13 +429,18 @@ function OrderJourneyDashboard() {
           </p>
         </div>
 
-        {/* Search */}
-        <form onSubmit={onSearch} className="mb-8 flex items-center gap-3 flex-wrap">
+        {/* Search (PO Number or AWB) */}
+        <form onSubmit={onSearch} className="mb-3 flex items-center gap-3 flex-wrap">
+          {poParam && (
+            <button type="button" onClick={() => router.push('/badho/order-journey')} className="text-xs font-semibold text-purple-200 hover:text-white px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors whitespace-nowrap">
+              ← All orders
+            </button>
+          )}
           <div className="relative flex-1 min-w-[240px] max-w-[420px]">
             <input
-              type="text" inputMode="numeric" value={input}
-              onChange={(e) => setInput(e.target.value.replace(/[^\d]/g, ''))}
-              placeholder="Enter PO Number…"
+              type="text" value={input}
+              onChange={(e) => setInput(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+              placeholder="Search by PO Number or AWB…"
               className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 text-white placeholder-purple-300/50 focus:bg-white/10 focus:border-fuchsia-400/50 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/30 transition-all"
             />
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-300/60 text-sm">⌕</span>
@@ -397,14 +448,16 @@ function OrderJourneyDashboard() {
               <button type="button" onClick={() => setInput('')} className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-xs font-bold rounded text-purple-300/70 hover:text-white hover:bg-white/10" title="Clear">×</button>
             )}
           </div>
-          <button type="submit" disabled={loading || !input.trim()} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white text-sm font-semibold disabled:opacity-50 hover:brightness-110 transition-all">
-            {loading ? 'Loading…' : 'Track'}
+          <button type="submit" disabled={resolving || !input.trim()} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white text-sm font-semibold disabled:opacity-50 hover:brightness-110 transition-all">
+            {resolving ? 'Finding…' : 'Track'}
           </button>
         </form>
+        {searchError && <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-amber-100 text-sm">{searchError}</div>}
+        {!searchError && <div className="mb-6" />}
 
-        {error && <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-4 text-rose-200 text-sm">{error}</div>}
+        {poParam && error && <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-4 text-rose-200 text-sm">{error}</div>}
 
-        {!loading && !error && resp && !resp.found && (
+        {poParam && !loading && !error && resp && !resp.found && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-10 text-center">
             <div className="text-4xl mb-3 opacity-60">🔍</div>
             <div className="text-purple-100 font-semibold mb-1">No order found for PO #{queriedPo}</div>
@@ -412,7 +465,7 @@ function OrderJourneyDashboard() {
           </div>
         )}
 
-        {!loading && !error && resp?.found && po && (
+        {poParam && !loading && !error && resp?.found && po && (
           <div className="space-y-6">
             {!resp.isD2R && (
               <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 text-amber-100 text-sm">
@@ -652,11 +705,105 @@ function OrderJourneyDashboard() {
           </div>
         )}
 
-        {!loading && !error && !resp && (
+        {/* Journey loading */}
+        {poParam && loading && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-12 text-center">
-            <div className="text-4xl mb-3 opacity-60">🧭</div>
-            <div className="text-purple-100 font-semibold mb-1">Track a D2R order&apos;s full journey</div>
-            <div className="text-purple-300/70 text-sm">Enter a PO Number above to see every milestone, scan, call and QR event on one timeline.</div>
+            <div className="inline-block w-8 h-8 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+            <div className="text-purple-300/70 text-sm mt-3">Loading journey for PO #{queriedPo}…</div>
+          </div>
+        )}
+
+        {/* ─── LIST VIEW (default — all D2R orders) ─────────────────────────── */}
+        {!poParam && (
+          <div className="space-y-4">
+            {/* Date filter */}
+            <div className="flex items-end gap-3 flex-wrap">
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-purple-300/60 font-semibold mb-1">From</label>
+                <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value || '2026-01-15'); setListPage(1); }}
+                  className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:border-fuchsia-400/50 focus:outline-none [color-scheme:dark]" />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-purple-300/60 font-semibold mb-1">To</label>
+                <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setListPage(1); }}
+                  className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:border-fuchsia-400/50 focus:outline-none [color-scheme:dark]" />
+              </div>
+              {(fromDate !== '2026-01-15' || toDate) && (
+                <button onClick={() => { setFromDate('2026-01-15'); setToDate(''); setListPage(1); }}
+                  className="px-3 py-2 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10">Reset</button>
+              )}
+              {list && (
+                <div className="ml-auto text-xs text-purple-200/80 self-center">
+                  <span className="text-fuchsia-300 font-bold tabular-nums">{list.total.toLocaleString('en-IN')}</span> D2R orders
+                </div>
+              )}
+            </div>
+
+            {listError && <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-4 text-rose-200 text-sm">{listError}</div>}
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-violet-300/25 bg-gradient-to-r from-violet-500/25 to-fuchsia-500/20 text-[12px] font-bold uppercase tracking-wider text-white">
+                      <th className="px-3 py-3 text-center">PO #</th>
+                      <th className="px-3 py-3 text-center">Placed</th>
+                      <th className="px-3 py-3 text-center">Seller</th>
+                      <th className="px-3 py-3 text-center">Buyer</th>
+                      <th className="px-3 py-3 text-center">Status</th>
+                      <th className="px-3 py-3 text-center">Delivery</th>
+                      <th className="px-3 py-3 text-center">Amount</th>
+                      <th className="px-3 py-3 text-center">Courier</th>
+                      <th className="px-3 py-3 text-center">AWB</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {listLoading ? (
+                      <tr><td colSpan={9} className="px-4 py-16 text-center text-purple-300/70">
+                        <div className="inline-block w-7 h-7 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
+                        <div className="text-sm mt-2">Loading orders…</div>
+                      </td></tr>
+                    ) : list && list.data.length > 0 ? (
+                      list.data.map((r, i) => (
+                        <tr key={r.poNumber ?? i} onClick={() => openPo(r.poNumber)}
+                          className={`border-t border-white/5 cursor-pointer transition-colors hover:bg-fuchsia-500/[0.08] ${i % 2 === 1 ? 'bg-white/[0.025]' : ''}`}>
+                          <td className="px-3 py-2.5 text-center font-mono text-fuchsia-200 font-semibold">#{r.poNumber}</td>
+                          <td className="px-3 py-2.5 text-center text-purple-200/90 whitespace-nowrap text-xs">{fmtMs(toMs(r.placed))}</td>
+                          <td className="px-3 py-2.5 text-center text-white max-w-[180px] truncate" title={r.seller || ''}>{r.seller || '—'}</td>
+                          <td className="px-3 py-2.5 text-center text-purple-100 max-w-[160px] truncate" title={r.buyer || ''}>
+                            {r.buyer || '—'}
+                            <div className="text-[10px] text-purple-300/60">{[r.buyerCity, r.buyerState].filter(Boolean).join(', ')}</div>
+                          </td>
+                          <td className="px-3 py-2.5 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusTone(r.status)}`}>{r.status || '—'}</span></td>
+                          <td className="px-3 py-2.5 text-center">{r.deliveryStatus ? <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusTone(r.deliveryStatus)}`}>{r.deliveryStatus}</span> : <span className="text-purple-300/40">—</span>}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums text-white whitespace-nowrap">{inr(r.amount)}</td>
+                          <td className="px-3 py-2.5 text-center text-cyan-200/90 text-xs">{r.partner || '—'}</td>
+                          <td className="px-3 py-2.5 text-center font-mono text-[11px] text-purple-200/80">{r.awb || '—'}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={9} className="px-4 py-16 text-center text-purple-300/70 text-sm">No D2R orders in this range.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {list && list.pageCount > 1 && (
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-white/10 bg-white/[0.02] flex-wrap">
+                  <div className="text-xs text-purple-300/70">
+                    Page <span className="text-white font-semibold tabular-nums">{list.page}</span> of <span className="tabular-nums">{list.pageCount.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button disabled={list.page <= 1 || listLoading} onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed">← Prev</button>
+                    <button disabled={list.page >= list.pageCount || listLoading} onClick={() => setListPage((p) => p + 1)}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed">Next →</button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="text-center text-purple-300/50 text-xs">Click any row to open that order&apos;s full journey · or search a PO Number / AWB above.</div>
           </div>
         )}
       </div>

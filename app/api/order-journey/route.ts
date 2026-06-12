@@ -4,83 +4,32 @@ import { query, withQueryCapture } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 /**
- * Order Journey (D2R) — full lifecycle of a single PO by its poNumber.
+ * Order Journey (D2R) — the WHOLE lifecycle of a single PO, stitched from five
+ * sources into one chronological story:
  *
- * Returns the order header, the chronological journey (each milestone with the
- * timestamp it was reached), and the line items. Restricted to D2R orders:
- * the seller must be a D2R brand seller and the PO must be INTERCITY. If the PO
- * exists but is not D2R, `isD2R` is false (the UI shows a notice).
+ *   1. purchaseOrder.purchaseOrder         → order milestones, settlement, brand SLA
+ *   2. deliveries.intercityDelivery        → courier (Delhivery) leg + scan trail
+ *   3. deliveries.intercityDeliveryCallLogs→ PO-linked calls (driver/buyer/seller)
+ *   4. deliveries.intercityDeliveryDropQRScanLog → driver scanned buyer-location QR
+ *   5. smartFlo.call_logs                  → phone+time-matched calls (duration, recording)
  *
- * Journey is reconstructed from the marked*Time columns on
- * "purchaseOrder"."purchaseOrder" — there is no separate event log, so a NULL
- * timestamp means that milestone was never reached.
+ * The route returns the structured pieces; the page merges them into a single
+ * time-sorted timeline. D2R = seller.isD2RBrandSeller AND deliveryType=INTERCITY.
+ *
+ * run_sql returns every column as text, so booleans arrive as 't'/'f' and must
+ * be coerced; numbers are parsed explicitly.
  */
 
-interface PoRow {
-  id: string;
-  poNumber: number;
-  status: string | null;
-  deliveryStatus: string | null;
-  deliveryType: string | null;
-  deliveryNetwork: string | null;
-  isD2R: boolean | null;
-  sellerName: string | null;
-  buyerName: string | null;
-  sellerCity: string | null;
-  sellerState: string | null;
-  buyerCity: string | null;
-  buyerState: string | null;
-  amount: string | null;
-  itemTotal: string | null;
-  discount: string | null;
-  totalDiscount: string | null;
-  distance: string | null;
-  awb: string | null;
-  lastMileInvoiceNumber: string | null;
-  firstMileDeliveryId: string | null;
-  lastMileDeliveryId: string | null;
-  poRatingFromBuyer: string | null;
-  poRatingFromSeller: string | null;
-  isFalseOrder: boolean | null;
-  isAutoRejected: boolean | null;
-  isRTOReceived: boolean | null;
-  cancelReason: string | null;
-  rejectReason: string | null;
-  // journey timestamps
-  createdAt: string | null;
-  markedPendingTime: string | null;
-  markedInProgressTime: string | null;
-  markedVerifiedTime: string | null;
-  plannedDispatchTime: string | null;
-  markedDispatchedTime: string | null;
-  markedInTransitTime: string | null;
-  markedDeliveredTime: string | null;
-  markedCompletedTime: string | null;
-  markedPartialTime: string | null;
-  markedRejectedTime: string | null;
-  markedCancelledTime: string | null;
-  markedFalseOrderTime: string | null;
-}
+const bool = (v: unknown): boolean => v === true || v === 't' || v === 'true' || v === 'TRUE';
+const num = (v: string | null | undefined): number | null =>
+  v != null && v !== '' ? parseFloat(v) : null;
 
-interface ItemRow {
-  skuLabel: string | null;
-  brandLabel: string | null;
-  status: string | null;
-  quantity: number | null;
-  quantityUnit: string | null;
-  total: string | null;
-  isRejected: boolean | null;
-  rejectedComment: string | null;
-}
-
-// Canonical happy-path milestones, in order. `kind: 'step'` are the normal
-// forward flow; `kind: 'exception'` are terminal-negative states that only
-// render when they actually have a timestamp.
-const STAGE_DEFS: { key: keyof PoRow; label: string; kind: 'step' | 'exception' }[] = [
+// Canonical order milestones, in forward order. Exceptions only render if set.
+const STAGE_DEFS: { key: string; label: string; kind: 'step' | 'exception' }[] = [
   { key: 'markedPendingTime', label: 'Order Placed', kind: 'step' },
   { key: 'markedInProgressTime', label: 'Accepted (In Progress)', kind: 'step' },
   { key: 'markedVerifiedTime', label: 'Verified', kind: 'step' },
-  { key: 'markedDispatchedTime', label: 'Dispatched', kind: 'step' },
+  { key: 'markedDispatchedTime', label: 'Dispatched by Brand', kind: 'step' },
   { key: 'markedInTransitTime', label: 'In Transit', kind: 'step' },
   { key: 'markedDeliveredTime', label: 'Delivered', kind: 'step' },
   { key: 'markedCompletedTime', label: 'Completed', kind: 'step' },
@@ -89,9 +38,6 @@ const STAGE_DEFS: { key: keyof PoRow; label: string; kind: 'step' | 'exception' 
   { key: 'markedCancelledTime', label: 'Cancelled', kind: 'exception' },
   { key: 'markedFalseOrderTime', label: 'Marked False Order', kind: 'exception' },
 ];
-// NOTE: autoRejectionTime is intentionally excluded — it is a *scheduled*
-// auto-rejection deadline stamped on most orders (incl. completed ones), not an
-// actual event. Real auto-rejections land on markedRejectedTime (status REJECTED).
 
 async function _GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -101,43 +47,42 @@ async function _GET(req: NextRequest) {
   }
 
   try {
+    // ── 1. PO header + lifecycle + settlement + SLA ──────────────────────────
     const poSql = `
       SELECT
         po."id"                       AS "id",
         po."poNumber"                 AS "poNumber",
         po."status"                   AS "status",
         po."deliveryStatus"           AS "deliveryStatus",
-        po."deliveryType"             AS "deliveryType",
-        po."deliveryNetwork"          AS "deliveryNetwork",
-        COALESCE(s."isD2RBrandSeller", FALSE)
-          AND po."deliveryType" = 'INTERCITY'            AS "isD2R",
+        COALESCE(s."isD2RBrandSeller", FALSE) AND po."deliveryType" = 'INTERCITY' AS "isD2R",
         s."businessName"              AS "sellerName",
         b."businessName"              AS "buyerName",
+        b."phone"                     AS "buyerPhone",
+        s."phone"                     AS "sellerPhone",
         po."sellerCity"               AS "sellerCity",
         po."sellerState"              AS "sellerState",
         po."buyerCity"                AS "buyerCity",
         po."buyerState"               AS "buyerState",
         po."amount"::text             AS "amount",
         po."itemTotal"::text          AS "itemTotal",
-        po."discount"::text           AS "discount",
         po."totalDiscount"::text      AS "totalDiscount",
         po."distance"::text           AS "distance",
-        po."trackingInfo"->>'awb'     AS "awb",
-        po."lastMileInvoiceNumber"    AS "lastMileInvoiceNumber",
-        po."firstMileDeliveryId"      AS "firstMileDeliveryId",
-        po."lastMileDeliveryId"       AS "lastMileDeliveryId",
         po."poRatingFromBuyer"::text  AS "poRatingFromBuyer",
         po."poRatingFromSeller"::text AS "poRatingFromSeller",
         po."isFalseOrder"             AS "isFalseOrder",
-        po."isAutoRejected"           AS "isAutoRejected",
         po."isRTOReceived"            AS "isRTOReceived",
         po."cancelReason"             AS "cancelReason",
         po."rejectReason"             AS "rejectReason",
+        po."settledAmountToSeller"::text AS "settledAmountToSeller",
+        po."isSettledToSeller"        AS "isSettledToSeller",
+        po."isReadyForSettlement"     AS "isReadyForSettlement",
+        po."remainingDueAmount"::text AS "remainingDueAmount",
+        po."refundableAmount"::text   AS "refundableAmount",
+        po."plannedDispatchTime"      AS "plannedDispatchTime",
         po."created_at_actual"        AS "createdAt",
         po."markedPendingTime"        AS "markedPendingTime",
         po."markedInProgressTime"     AS "markedInProgressTime",
         po."markedVerifiedTime"       AS "markedVerifiedTime",
-        po."plannedDispatchTime"      AS "plannedDispatchTime",
         po."markedDispatchedTime"     AS "markedDispatchedTime",
         po."markedInTransitTime"      AS "markedInTransitTime",
         po."markedDeliveredTime"      AS "markedDeliveredTime",
@@ -152,88 +97,269 @@ async function _GET(req: NextRequest) {
       WHERE po."poNumber" = $1::int
       LIMIT 1;
     `;
+    const poRows = await query<Record<string, string | null>>(poSql, [poNumber]);
+    if (poRows.length === 0) return NextResponse.json({ found: false, poNumber });
+    const p = poRows[0];
+    const poId = p.id as string;
 
-    const poRows = await query<PoRow>(poSql, [poNumber]);
-    if (poRows.length === 0) {
-      return NextResponse.json({ found: false, poNumber });
-    }
-    const po = poRows[0];
-
+    // ── 2. Items ─────────────────────────────────────────────────────────────
     const itemsSql = `
       SELECT
         bsku."label"                                       AS "skuLabel",
-        COALESCE(NULLIF(bsku."brandLabel", ''), b."label") AS "brandLabel",
+        COALESCE(NULLIF(bsku."brandLabel", ''), br."label") AS "brandLabel",
         poi."status"                                       AS "status",
         poi."quantity"                                     AS "quantity",
         poi."quantityUnit"                                 AS "quantityUnit",
         poi."total"::text                                  AS "total",
-        poi."isRejected"                                   AS "isRejected",
-        poi."rejectedComment"                              AS "rejectedComment"
+        poi."isRejected"                                   AS "isRejected"
       FROM "purchaseOrder"."purchaseOrderItem" poi
       LEFT JOIN "brands"."brandSKU" bsku ON bsku."id" = poi."brandSKUId"
-      LEFT JOIN "brands"."brand"    b    ON b."id" = bsku."brandId"
+      LEFT JOIN "brands"."brand"    br   ON br."id" = bsku."brandId"
       WHERE poi."purchaseOrderId" = $1
         AND COALESCE(poi."isArchived", FALSE) = FALSE
       ORDER BY poi."created_at" ASC;
     `;
-    const itemRows = await query<ItemRow>(itemsSql, [po.id]);
+    const itemRows = await query<Record<string, string | null>>(itemsSql, [poId]);
 
-    const stages = STAGE_DEFS.map((d) => {
-      const time = (po[d.key] as string | null) ?? null;
-      return { key: d.key as string, label: d.label, kind: d.kind, time };
-    }).filter((s) => s.kind === 'step' || s.time != null);
+    // ── 3. Courier (latest intercityDelivery) ────────────────────────────────
+    const courierSql = `
+      SELECT
+        di."status"                          AS "status",
+        di."deliveryPartnerId"               AS "partner",
+        COALESCE(di."trackingInfo"->>'awbNumber', di."latestLogDetails"->>'awb', di."networkReferenceId") AS "awb",
+        di."networkReferenceId"              AS "networkRef",
+        di."trackingInfo"->>'trackingUrl'    AS "trackingUrl",
+        di."trackingInfo"->>'courierName'    AS "courierName",
+        di."trackingInfo"->>'provider'       AS "provider",
+        di."trackingInfo"->>'labelUrl'       AS "labelUrl",
+        di."codAmountToBeCollected"::text    AS "codAmount",
+        di."pickupScheduledForDate"          AS "pickupScheduledForDate",
+        di."rtoClaimStatus"                  AS "rtoClaimStatus",
+        di."created_at"                      AS "deliveryCreatedAt",
+        di."pickupJSON"->>'pickupAddressName' AS "pickupAddressName",
+        di."pickupJSON"->>'pickupPincode'    AS "pickupPincode",
+        di."dropJSON"->'contact'->>'name'    AS "dropName",
+        di."dropJSON"->'contact'->>'phone'   AS "dropPhone",
+        di."dropJSON"->'location'->>'city'   AS "dropCity",
+        di."dropJSON"->'location'->>'state'  AS "dropState",
+        di."dropJSON"->'location'->>'pincode' AS "dropPincode",
+        di."dropJSON"->'location'->>'latitude'  AS "dropLat",
+        di."dropJSON"->'location'->>'longitude' AS "dropLng"
+      FROM "deliveries"."intercityDelivery" di
+      WHERE di."purchaseOrderId" = $1 AND di."isTest" = FALSE
+      ORDER BY di."created_at" DESC
+      LIMIT 1;
+    `;
+    const courierRows = await query<Record<string, string | null>>(courierSql, [poId]);
+    const c = courierRows[0] || null;
 
-    // run_sql returns every column as text, so booleans arrive as 't'/'f'.
-    const bool = (v: unknown): boolean =>
-      v === true || v === 't' || v === 'true' || v === 'TRUE';
-    const num = (v: string | null) => (v != null ? parseFloat(v) : null);
+    // ── 3b. Courier scan trail (all scans, ascending) ────────────────────────
+    const scansSql = `
+      WITH latest_delivery AS (
+        SELECT di."latestLogDetails" AS l
+        FROM "deliveries"."intercityDelivery" di
+        WHERE di."purchaseOrderId" = $1 AND di."isTest" = FALSE
+        ORDER BY di."created_at" DESC LIMIT 1
+      )
+      SELECT scan->>'location' AS "location",
+             scan->>'date'     AS "date",
+             scan->>'status'   AS "status",
+             scan->>'activity' AS "activity"
+      FROM latest_delivery ld
+      CROSS JOIN LATERAL jsonb_array_elements(ld.l->'scans') AS scan
+      WHERE jsonb_typeof(ld.l) = 'object'
+        AND jsonb_typeof(ld.l->'scans') = 'array'
+        AND scan->>'date' IS NOT NULL
+      ORDER BY (scan->>'date')::timestamptz ASC;
+    `;
+    const scanRows = await query<Record<string, string | null>>(scansSql, [poId]);
+
+    // ── 4. PO-linked calls (driver / buyer / seller) ─────────────────────────
+    const callsSql = `
+      SELECT "callType","entity","agentName","riderPhone","callPlacedAt",
+             "callRemarks","callCount","whatsappStatus","whatsappSentAt"
+      FROM "deliveries"."intercityDeliveryCallLogs"
+      WHERE "poNumber" = $1::int
+      ORDER BY "callPlacedAt" ASC;
+    `;
+    const callRows = await query<Record<string, string | null>>(callsSql, [poNumber]);
+
+    // ── 5. Driver QR scan of buyer location ──────────────────────────────────
+    const qrSql = `
+      SELECT "created_at" AS "createdAt",
+             "logDetails"->>'outcome'                       AS "outcome",
+             "logDetails"->'dropCoordinates'->>'latitude'   AS "dropLat",
+             "logDetails"->'dropCoordinates'->>'longitude'  AS "dropLng",
+             "logDetails"->'riderLocation'->>'latitude'     AS "riderLat",
+             "logDetails"->'riderLocation'->>'longitude'    AS "riderLng",
+             "logDetails"->>'matchedByPoNumber'             AS "matchedByPoNumber"
+      FROM "deliveries"."intercityDeliveryDropQRScanLog"
+      WHERE "poNumber" = $1
+      ORDER BY "created_at" ASC;
+    `;
+    const qrRows = await query<Record<string, string | null>>(qrSql, [poNumber]);
+
+    // ── 6. smartFlo enrichment — buyer/seller calls by phone within window ───
+    // start_stamp is text in IST 'YYYY-MM-DD HH24:MI:SS' (lexicographically
+    // sortable) → range-filter as text to avoid casting 690K rows. Window =
+    // [placed, completed/delivered + 3d].
+    const smartFloSql = `
+      WITH po AS (
+        SELECT
+          to_char(p."markedPendingTime" AT TIME ZONE 'Asia/Kolkata','YYYY-MM-DD HH24:MI:SS') AS t0,
+          to_char((COALESCE(p."markedCompletedTime", p."markedDeliveredTime", NOW()) + INTERVAL '3 days')
+                  AT TIME ZONE 'Asia/Kolkata','YYYY-MM-DD HH24:MI:SS') AS t1,
+          RIGHT(regexp_replace(b."phone",'[^0-9]','','g'),10) AS bp,
+          RIGHT(regexp_replace(s."phone",'[^0-9]','','g'),10) AS sp
+        FROM "purchaseOrder"."purchaseOrder" p
+        JOIN "users"."buyer"  b ON b."id" = p."buyerId"
+        JOIN "users"."seller" s ON s."id" = p."sellerId"
+        WHERE p."poNumber" = $1::int
+      )
+      SELECT cl."direction", cl."call_status" AS "callStatus", cl."duration",
+             cl."start_stamp" AS "startStamp", cl."recording_url" AS "recordingUrl",
+             cl."agent_name" AS "agentName",
+             CASE
+               WHEN RIGHT(regexp_replace(cl."call_to_number",'[^0-9]','','g'),10) = po.bp
+                 OR RIGHT(regexp_replace(cl."caller_id_number",'[^0-9]','','g'),10) = po.bp THEN 'BUYER'
+               WHEN RIGHT(regexp_replace(cl."call_to_number",'[^0-9]','','g'),10) = po.sp
+                 OR RIGHT(regexp_replace(cl."caller_id_number",'[^0-9]','','g'),10) = po.sp THEN 'SELLER'
+             END AS "party"
+      FROM "smartFlo".call_logs cl, po
+      WHERE po.t0 IS NOT NULL
+        AND cl."start_stamp" >= po.t0 AND cl."start_stamp" <= po.t1
+        AND ( RIGHT(regexp_replace(cl."call_to_number",'[^0-9]','','g'),10) IN (po.bp, po.sp)
+           OR RIGHT(regexp_replace(cl."caller_id_number",'[^0-9]','','g'),10) IN (po.bp, po.sp) )
+      ORDER BY cl."start_stamp" ASC
+      LIMIT 60;
+    `;
+    let smartFloRows: Record<string, string | null>[] = [];
+    try {
+      smartFloRows = await query<Record<string, string | null>>(smartFloSql, [poNumber]);
+    } catch {
+      smartFloRows = []; // enrichment is best-effort; never fail the whole request
+    }
+
+    // ── Assemble ─────────────────────────────────────────────────────────────
+    const stages = STAGE_DEFS.map((d) => ({
+      key: d.key,
+      label: d.label,
+      kind: d.kind,
+      time: (p[d.key] as string | null) ?? null,
+    })).filter((s) => s.kind === 'step' || s.time != null);
 
     const items = itemRows.map((r) => ({
       skuLabel: r.skuLabel,
       brandLabel: r.brandLabel,
       status: r.status,
-      quantity: r.quantity != null ? Number(r.quantity) : null,
+      quantity: num(r.quantity),
       quantityUnit: r.quantityUnit,
-      total: r.total != null ? parseFloat(r.total) : null,
+      total: num(r.total),
       isRejected: bool(r.isRejected),
-      rejectedComment: r.rejectedComment,
+    }));
+
+    const courier = c
+      ? {
+          status: c.status,
+          partner: c.partner,
+          awb: c.awb,
+          trackingUrl: c.trackingUrl,
+          courierName: c.courierName || c.provider || c.partner,
+          labelUrl: c.labelUrl,
+          codAmount: num(c.codAmount),
+          pickupScheduledForDate: c.pickupScheduledForDate,
+          rtoClaimStatus: c.rtoClaimStatus,
+          pickupAddressName: c.pickupAddressName,
+          pickupPincode: c.pickupPincode,
+          dropName: c.dropName,
+          dropPhone: c.dropPhone,
+          dropCity: c.dropCity,
+          dropState: c.dropState,
+          dropPincode: c.dropPincode,
+          dropLat: num(c.dropLat),
+          dropLng: num(c.dropLng),
+        }
+      : null;
+
+    const scans = scanRows.map((r) => ({
+      location: r.location,
+      date: r.date,
+      status: r.status,
+      activity: r.activity,
+    }));
+
+    const calls = callRows.map((r) => ({
+      callType: r.callType, // INBOUND | OUTBOUND
+      entity: r.entity, // RIDER | BUYER | SELLER
+      agentName: r.agentName,
+      riderPhone: r.riderPhone,
+      callPlacedAt: r.callPlacedAt,
+      callRemarks: r.callRemarks,
+      callCount: num(r.callCount),
+      whatsappStatus: r.whatsappStatus,
+      whatsappSentAt: r.whatsappSentAt,
+    }));
+
+    const qrScans = qrRows.map((r) => ({
+      createdAt: r.createdAt,
+      outcome: r.outcome,
+      dropLat: num(r.dropLat),
+      dropLng: num(r.dropLng),
+      riderLat: num(r.riderLat),
+      riderLng: num(r.riderLng),
+      matchedByPoNumber: bool(r.matchedByPoNumber),
+    }));
+
+    const phoneCalls = smartFloRows.map((r) => ({
+      direction: r.direction, // Outbound | Inbound | Manual
+      callStatus: r.callStatus, // Answer | No Answer | ...
+      duration: num(r.duration),
+      startStamp: r.startStamp, // IST 'YYYY-MM-DD HH:MM:SS'
+      recordingUrl: r.recordingUrl,
+      agentName: r.agentName,
+      party: r.party, // BUYER | SELLER
     }));
 
     return NextResponse.json({
       found: true,
-      isD2R: bool(po.isD2R),
-      poNumber: po.poNumber,
+      isD2R: bool(p.isD2R),
+      poNumber: p.poNumber,
       po: {
-        status: po.status,
-        deliveryStatus: po.deliveryStatus,
-        deliveryType: po.deliveryType,
-        deliveryNetwork: po.deliveryNetwork,
-        sellerName: po.sellerName,
-        buyerName: po.buyerName,
-        sellerCity: po.sellerCity,
-        sellerState: po.sellerState,
-        buyerCity: po.buyerCity,
-        buyerState: po.buyerState,
-        amount: num(po.amount),
-        itemTotal: num(po.itemTotal),
-        discount: num(po.discount),
-        totalDiscount: num(po.totalDiscount),
-        distance: num(po.distance),
-        awb: po.awb,
-        lastMileInvoiceNumber: po.lastMileInvoiceNumber,
-        firstMileDeliveryId: po.firstMileDeliveryId,
-        lastMileDeliveryId: po.lastMileDeliveryId,
-        poRatingFromBuyer: num(po.poRatingFromBuyer),
-        poRatingFromSeller: num(po.poRatingFromSeller),
-        isFalseOrder: bool(po.isFalseOrder),
-        isAutoRejected: bool(po.isAutoRejected),
-        isRTOReceived: bool(po.isRTOReceived),
-        cancelReason: po.cancelReason,
-        rejectReason: po.rejectReason,
-        createdAt: po.createdAt,
-        plannedDispatchTime: po.plannedDispatchTime,
+        status: p.status,
+        deliveryStatus: p.deliveryStatus,
+        sellerName: p.sellerName,
+        buyerName: p.buyerName,
+        buyerPhone: p.buyerPhone,
+        sellerPhone: p.sellerPhone,
+        sellerCity: p.sellerCity,
+        sellerState: p.sellerState,
+        buyerCity: p.buyerCity,
+        buyerState: p.buyerState,
+        amount: num(p.amount),
+        itemTotal: num(p.itemTotal),
+        totalDiscount: num(p.totalDiscount),
+        distance: num(p.distance),
+        poRatingFromBuyer: num(p.poRatingFromBuyer),
+        poRatingFromSeller: num(p.poRatingFromSeller),
+        isFalseOrder: bool(p.isFalseOrder),
+        isRTOReceived: bool(p.isRTOReceived),
+        cancelReason: p.cancelReason,
+        rejectReason: p.rejectReason,
+        settledAmountToSeller: num(p.settledAmountToSeller),
+        isSettledToSeller: bool(p.isSettledToSeller),
+        isReadyForSettlement: bool(p.isReadyForSettlement),
+        remainingDueAmount: num(p.remainingDueAmount),
+        refundableAmount: num(p.refundableAmount),
+        plannedDispatchTime: p.plannedDispatchTime,
+        markedDispatchedTime: p.markedDispatchedTime,
+        createdAt: p.createdAt,
       },
+      courier,
       stages,
+      scans,
+      calls,
+      qrScans,
+      phoneCalls,
       items,
       timestamp: new Date().toISOString(),
     });

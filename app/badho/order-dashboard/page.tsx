@@ -706,6 +706,17 @@ export default function OrderStatusDashboard() {
   const [sellerDrillPo, setSellerDrillPo] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'trend' | 'rto' | 'seller' | 'geography' | 'zone' | 'margin' | 'alert'>('dashboard');
 
+  // Open a specific tab when linked with ?tab=<name> (e.g. /badho/order-dashboard?tab=rto
+  // from the QPS dashboard's RTO cards).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const t = new URLSearchParams(window.location.search).get('tab');
+    const valid = ['dashboard', 'trend', 'rto', 'seller', 'geography', 'zone', 'margin', 'alert'] as const;
+    if (t && (valid as readonly string[]).includes(t)) {
+      setActiveTab(t as typeof valid[number]);
+    }
+  }, []);
+
   // "View Query" infrastructure — every section's fetch records the SQL the backend
   // ran (response.__queries) keyed by a section id; a single shared modal renders it.
   const [sectionQueries, setSectionQueries] = useState<Record<string, SqlQuery[]>>({});

@@ -525,6 +525,11 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
   const [buyerOrdersErr, setBuyerOrdersErr] = React.useState<Record<string, string>>({});
   const [expandedRto, setExpandedRto] = React.useState<string | null>(null);
   const [expandedTier, setExpandedTier] = React.useState<string | null>(null);
+  // Buyer-wise drill toggles for the Concentration / Growth / ROI cards.
+  const [showConc, setShowConc] = React.useState(false);
+  const [showNewEx, setShowNewEx] = React.useState(false);
+  const [showRoi, setShowRoi] = React.useState(false);
+  const [expandedRegion, setExpandedRegion] = React.useState<string | null>(null);
 
   const loadBuyerOrders = (buyerId: string) => {
     if (buyerOrders[buyerId] !== undefined || buyerOrdersLoading[buyerId]) return;
@@ -553,6 +558,38 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
     setExpandedTier((cur) => (cur === buyerId ? null : buyerId));
     loadBuyerOrders(buyerId);
   };
+
+  // Compact buyer-list table for the Concentration / Growth / ROI drills.
+  const buyerMiniTable = (
+    rows: { d: DetailRow; metric: React.ReactNode; tag?: React.ReactNode }[],
+    metricLabel: string,
+  ) => (
+    <div className="mt-3 rounded-lg border border-white/10 max-h-72 overflow-auto">
+      <table className="w-full text-xs">
+        <thead className="sticky top-0 bg-slate-900/85 backdrop-blur">
+          <tr className="text-purple-200/70 text-left border-b border-white/10">
+            <th className="py-1.5 px-3 font-medium">#</th>
+            <th className="py-1.5 px-3 font-medium">Buyer</th>
+            <th className="py-1.5 px-3 font-medium text-right whitespace-nowrap">{metricLabel}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ d, metric, tag }, i) => (
+            <tr key={d.buyer_id} className="border-b border-white/5 hover:bg-white/5">
+              <td className="py-1.5 px-3 text-purple-300/50 tabular-nums">{i + 1}</td>
+              <td className="py-1.5 px-3 text-white">{d.buyer_business_name || d.buyer_name}<span className="text-purple-300/50"> · {d.buyer_phone}</span>{tag}</td>
+              <td className="py-1.5 px-3 text-right text-cyan-300 font-semibold tabular-nums whitespace-nowrap">{metric}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+  const drillBtn = (open: boolean, onClick: () => void) => (
+    <button onClick={onClick} className="mt-3 text-[11px] font-semibold text-fuchsia-300 hover:text-white inline-flex items-center gap-1">
+      <span className={`inline-block transition-transform ${open ? 'rotate-90' : ''}`}>▸</span>{open ? 'Hide buyers' : 'Show buyers'}
+    </button>
+  );
 
   // Shared PO-level order panel rendered inside an expanded buyer row.
   const renderOrdersPanel = (buyerId: string) => {
@@ -713,6 +750,13 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
   const deliveredGmv = detail.reduce((s, d) => s + Number(d.delivered_amount), 0);
   const roiX = giftCost > 0 ? +(deliveredGmv / giftCost).toFixed(1) : 0;
 
+  // Buyer-wise lists behind the Concentration / Growth / ROI cards.
+  const concBuyers = [...detail].sort((a, b) => Number(b.qualified_amount) - Number(a.qualified_amount)).slice(0, 20);
+  const newBuyersList = detail.filter((d) => String(d.is_new) === '1').sort((a, b) => Number(b.qualified_amount) - Number(a.qualified_amount));
+  const existingBuyersList = detail.filter((d) => String(d.is_new) !== '1').sort((a, b) => Number(b.qualified_amount) - Number(a.qualified_amount));
+  const giftBuyersList = detail.filter((d) => d.gift_won !== 'No Gift').sort((a, b) => Number(b.delivered_amount) - Number(a.delivered_amount));
+  const buyersByState = (st: string) => detail.filter((d) => ((d.buyer_state || 'Unknown').trim() || 'Unknown') === st).sort((a, b) => Number(b.qualified_amount) - Number(a.qualified_amount));
+
   const cohortColors = { Retained: '#34d399', Reactivated: '#fbbf24', 'New buyers': '#a78bfa' };
 
   return (
@@ -725,23 +769,52 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
           <div className="text-xs text-purple-300/70 mt-2">RTO = orders returned to origin (deliveryStatus &lsquo;RTO&rsquo;), by order-placed month. % is of <em>resolved</em> orders — delivered + RTO. Recent months keep rising as in-transit orders settle.</div></div>
         {latestRto && (
           <div className="flex flex-wrap gap-3">
-            <KpiCard label={`RTO count · ${latestRto.month}`} value={fmt(latestRto.rtoCnt)} tone="bad" />
-            <KpiCard label="RTO ₹" value={fmtAmt(latestRto.rto)} tone="bad" />
-            <KpiCard label="RTO count %" value={`${latestRto.rtoCntPct}%`} tone={latestRto.rtoCntPct >= 30 ? 'bad' : latestRto.rtoCntPct >= 15 ? 'neutral' : 'good'} sub="of resolved" />
-            <KpiCard label="RTO amount %" value={`${latestRto.rtoAmtPct}%`} tone={latestRto.rtoAmtPct >= 30 ? 'bad' : latestRto.rtoAmtPct >= 15 ? 'neutral' : 'good'} sub="of resolved ₹" />
-            <KpiCard label="Delivered ₹" value={fmtAmt(latestRto.delivered)} tone="good" />
+            {/* Each card links to the order dashboard's RTO tab for order-level detail. */}
+            <Link href="/badho/order-dashboard?tab=rto" title="Open the RTO dashboard for order-level detail →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
+              <KpiCard label={`RTO count · ${latestRto.month}`} value={fmt(latestRto.rtoCnt)} tone="bad" sub="view orders →" />
+            </Link>
+            <Link href="/badho/order-dashboard?tab=rto" title="Open the RTO dashboard for order-level detail →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
+              <KpiCard label="RTO ₹" value={fmtAmt(latestRto.rto)} tone="bad" sub="view orders →" />
+            </Link>
+            <Link href="/badho/order-dashboard?tab=rto" title="Open the RTO dashboard for order-level detail →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
+              <KpiCard label="RTO count %" value={`${latestRto.rtoCntPct}%`} tone={latestRto.rtoCntPct >= 30 ? 'bad' : latestRto.rtoCntPct >= 15 ? 'neutral' : 'good'} sub="of resolved" />
+            </Link>
+            <Link href="/badho/order-dashboard?tab=rto" title="Open the RTO dashboard for order-level detail →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
+              <KpiCard label="RTO amount %" value={`${latestRto.rtoAmtPct}%`} tone={latestRto.rtoAmtPct >= 30 ? 'bad' : latestRto.rtoAmtPct >= 15 ? 'neutral' : 'good'} sub="of resolved ₹" />
+            </Link>
+            <Link href="/badho/order-dashboard?tab=rto" title="Open the RTO dashboard for order-level detail →" className="rounded-xl hover:ring-2 hover:ring-fuchsia-400/40 transition-shadow">
+              <KpiCard label="Delivered ₹" value={fmtAmt(latestRto.delivered)} tone="good" />
+            </Link>
           </div>
         )}
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-sm font-semibold text-purple-200 mb-3">RTO amount % by month (of resolved)</div>
+          <div className="text-[11px] text-purple-300/55 mb-2">Labels show RTO % by count, with amount % in brackets.</div>
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={rtoRows} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+            <LineChart data={rtoRows} margin={{ top: 26, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
               <XAxis dataKey="month" tick={{ fill: '#c4b5fd', fontSize: 12 }} />
               <YAxis tick={{ fill: '#c4b5fd', fontSize: 12 }} unit="%" />
               <Tooltip content={<ChartTooltip />} />
               <Line type="monotone" dataKey="rtoAmtPct" name="RTO amount %" stroke="#fb7185" strokeWidth={3} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="rtoCntPct" name="RTO count %" stroke="#fbbf24" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 3 }} />
+              <Line
+                type="monotone"
+                dataKey="rtoCntPct"
+                name="RTO count %"
+                stroke="#fbbf24"
+                strokeWidth={2}
+                strokeDasharray="4 3"
+                dot={{ r: 3 }}
+                label={((p: { x?: number; y?: number; index?: number }) => {
+                  const r = rtoRows[p.index ?? -1];
+                  if (!r || p.x == null || p.y == null) return <g />;
+                  return (
+                    <text x={p.x} y={p.y - 10} fill="#fde68a" fontSize={11} fontWeight={600} textAnchor="middle">
+                      {`${r.rtoCntPct}% (${r.rtoAmtPct}%)`}
+                    </text>
+                  );
+                }) as unknown as undefined}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -901,6 +974,11 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
               <KpiCard label="Total qualified ₹" value={fmtAmt(totalValue)} />
             </div>
             <div className="text-xs text-purple-300/55 mt-3">A high top-10 share means revenue rides on a few buyers — concentration risk.</div>
+            {drillBtn(showConc, () => setShowConc((v) => !v))}
+            {showConc && buyerMiniTable(
+              (() => { let cum = 0; return concBuyers.map((d) => { cum += Number(d.qualified_amount); return { d, metric: <>{fmtAmt(d.qualified_amount)} <span className="text-purple-300/50 font-normal">· {totalValue > 0 ? Math.round((cum / totalValue) * 100) : 0}%</span></> }; }); })(),
+              'Qualified ₹ · cum %',
+            )}
           </div>
           {/* New vs existing */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -913,6 +991,15 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
               <KpiCard label="New-buyer ₹" value={fmtAmt(newValue)} tone="good" sub={`${newSharePct}% of value`} />
               <KpiCard label="Existing ₹" value={fmtAmt(existingValue)} sub={`${100 - newSharePct}% of value`} />
             </div>
+            {drillBtn(showNewEx, () => setShowNewEx((v) => !v))}
+            {showNewEx && (
+              <>
+                <div className="mt-3 text-[11px] font-semibold text-emerald-300">New buyers ({newBuyersList.length})</div>
+                {buyerMiniTable(newBuyersList.map((d) => ({ d, metric: fmtAmt(d.qualified_amount), tag: <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-400 text-emerald-950">New</span> })), 'Qualified ₹')}
+                <div className="mt-3 text-[11px] font-semibold text-fuchsia-300">Existing buyers ({existingBuyersList.length})</div>
+                {buyerMiniTable(existingBuyersList.map((d) => ({ d, metric: fmtAmt(d.qualified_amount) })), 'Qualified ₹')}
+              </>
+            )}
           </div>
           {/* Geo */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -926,6 +1013,21 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
                 <Bar dataKey="value" name="Qualified ₹" fill="#a78bfa" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            <div className="mt-3 text-[11px] text-purple-300/55">Click a region for its buyers</div>
+            <div className="mt-1 rounded-lg border border-white/10 divide-y divide-white/5">
+              {geoRows.map(([state, v]) => {
+                const open = expandedRegion === state;
+                return (
+                  <div key={state}>
+                    <button onClick={() => setExpandedRegion((cur) => (cur === state ? null : state))} className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-white/5">
+                      <span className="text-white"><span className={`inline-block w-4 text-purple-300 transition-transform ${open ? 'rotate-90' : ''}`}>▸</span>{state}</span>
+                      <span className="text-purple-300/60">{v.count} buyer{v.count !== 1 ? 's' : ''} · <span className="text-cyan-300 font-semibold">{fmtAmt(v.value)}</span></span>
+                    </button>
+                    {open && <div className="px-3 pb-2">{buyerMiniTable(buyersByState(state).map((d) => ({ d, metric: fmtAmt(d.qualified_amount) })), 'Qualified ₹')}</div>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
           {/* ROI */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -936,6 +1038,8 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
               <KpiCard label="Return on gift" value={roiX > 0 ? `${roiX}×` : '—'} tone={roiX >= 10 ? 'good' : 'neutral'} sub="delivered ₹ per ₹ gift" />
             </div>
             <div className="text-xs text-purple-300/55 mt-3">How much delivered GMV each rupee of gift spend unlocked.</div>
+            {drillBtn(showRoi, () => setShowRoi((v) => !v))}
+            {showRoi && buyerMiniTable(giftBuyersList.map((d) => ({ d, metric: fmtAmt(d.delivered_amount), tag: <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">{d.gift_won}</span> })), 'Delivered ₹')}
           </div>
         </div>
       </section>

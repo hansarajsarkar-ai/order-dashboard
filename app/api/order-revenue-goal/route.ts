@@ -45,7 +45,13 @@ async function _GET(req: NextRequest) {
         AND po."deliveryType"    = 'INTERCITY'
         AND po."status" IN ('DELIVERED', 'COMPLETED')
         AND po."markedPendingTime" >= $1::timestamptz
-        AND po."markedPendingTime" <  $2::timestamptz;
+        AND po."markedPendingTime" <  $2::timestamptz
+        -- Optional delivery cutoff: when set, count only orders DELIVERED by this
+        -- instant. Used to age-match the prior month to the current month-to-date
+        -- (both measured at the same point within their month), so a still-in-
+        -- progress current month isn't compared against a fully-delivered prior
+        -- month. NULL = no cutoff (count everything delivered so far).
+        AND ($3::timestamptz IS NULL OR po."markedDeliveredTime" < $3::timestamptz);
     `;
 
     // Sargable [monthStart, nextMonthStart) range -> uses the markedPendingTime index.
@@ -76,9 +82,14 @@ async function _GET(req: NextRequest) {
       prevEnd = monthStart; // whole previous month: [prevMonthStart, monthStart)
     }
 
+    // Current period counts everything delivered so far (no cutoff). For the live
+    // current month, the prior period's deliveries are capped at the same month-to-
+    // date instant (prevEnd) so both cohorts are measured at equal maturity; for a
+    // fully-elapsed historical month it's whole-month vs whole-month (no cutoff).
+    const prevDeliveredBefore = isCurrentMonth ? prevEnd : null;
     const [rows, prevRows] = await Promise.all([
-      query<Row>(sql, [monthStart, nextMonthStart]),
-      query<Row>(sql, [prevMonthStart, prevEnd]),
+      query<Row>(sql, [monthStart, nextMonthStart, null]),
+      query<Row>(sql, [prevMonthStart, prevEnd, prevDeliveredBefore]),
     ]);
 
     const achieved = parseFloat(rows[0]?.achieved || '0');

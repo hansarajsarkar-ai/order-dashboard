@@ -174,6 +174,18 @@ function statusTone(status: string | null): string {
   return 'bg-white/10 text-purple-100 border-white/20';
 }
 
+// PO-status tone for the filter chips + status column, matching the PO Modified
+// dashboard's filled-pill bar: completed=green, in-motion=sky, pending=amber,
+// rejected/cancelled=rose.
+function poStatusTone(status: string | null): string {
+  const s = (status || '').toUpperCase();
+  if (s === 'COMPLETED' || s === 'DELIVERED') return 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30';
+  if (s === 'INPROGRESS' || s === 'DISPATCHED' || s === 'IN_PROGRESS') return 'bg-sky-500/15 text-sky-200 border-sky-400/30';
+  if (s === 'PENDING') return 'bg-amber-500/15 text-amber-200 border-amber-400/30';
+  if (s === 'REJECTED' || s === 'CANCELLED') return 'bg-rose-500/15 text-rose-200 border-rose-400/30';
+  return 'bg-white/5 text-purple-200/70 border-white/15';
+}
+
 // ── Merged event model ───────────────────────────────────────────────────────
 type EvType = 'order' | 'exception' | 'scan' | 'call' | 'qr' | 'phone';
 interface Ev { ms: number; type: EvType; icon: string; title: string; lines: string[]; href?: string; }
@@ -914,28 +926,27 @@ function OrderJourneyDashboard() {
               )}
             </div>
 
-            {/* Status filter chips (toggleable, multi-select) */}
+            {/* Status filter — filled pills (active = ringed, others dimmed) */}
             {list && list.facets.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] uppercase tracking-wider text-purple-300/60 font-semibold mr-1">Status</span>
-                <button
-                  onClick={() => { setStatusFilter([]); setListPage(1); }}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${statusFilter.length === 0 ? 'bg-fuchsia-500/25 text-white border-fuchsia-400/50' : 'bg-white/5 text-purple-200/70 border-white/10 hover:bg-white/10'}`}
-                >
-                  All
-                </button>
-                {list.facets.map((f) => {
-                  const active = statusFilter.includes(f.status);
-                  return (
-                    <button
-                      key={f.status} onClick={() => toggleStatus(f.status)}
-                      className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors flex items-center gap-1.5 ${active ? statusTone(f.status) + ' ring-1 ring-white/40' : 'bg-white/5 text-purple-200/60 border-white/10 hover:bg-white/10'}`}
-                    >
-                      {f.status}
-                      <span className={`tabular-nums ${active ? 'opacity-80' : 'text-purple-300/50'}`}>{f.count.toLocaleString('en-IN')}</span>
-                    </button>
-                  );
-                })}
+              <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-300/70 mr-1">PO Status</span>
+                  {list.facets.map((f) => {
+                    const active = statusFilter.includes(f.status);
+                    const dimmed = statusFilter.length > 0 && !active;
+                    return (
+                      <button
+                        key={f.status} onClick={() => toggleStatus(f.status)}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${poStatusTone(f.status)} ${active ? 'ring-2 ring-fuchsia-400/60' : ''} ${dimmed ? 'opacity-40 hover:opacity-75' : 'hover:opacity-90'}`}
+                      >
+                        {f.status} <span className="font-normal opacity-70">({f.count.toLocaleString('en-IN')})</span>
+                      </button>
+                    );
+                  })}
+                  {statusFilter.length > 0 && (
+                    <button onClick={() => { setStatusFilter([]); setListPage(1); }} className="px-2 py-0.5 rounded-md text-[11px] text-purple-300 hover:text-white hover:bg-white/10 border border-white/10">clear</button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -974,7 +985,7 @@ function OrderJourneyDashboard() {
                             {r.buyer || '—'}
                             <div className="text-[10px] text-purple-300/60">{[r.buyerCity, r.buyerState].filter(Boolean).join(', ')}</div>
                           </td>
-                          <td className="px-3 py-2.5 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusTone(r.status)}`}>{r.status || '—'}</span></td>
+                          <td className="px-3 py-2.5 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${poStatusTone(r.status)}`}>{r.status || '—'}</span></td>
                           <td className="px-3 py-2.5 text-center">{r.deliveryStatus ? <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusTone(r.deliveryStatus)}`}>{r.deliveryStatus}</span> : <span className="text-purple-300/40">—</span>}</td>
                           <td className="px-3 py-2.5 text-center tabular-nums text-white whitespace-nowrap">{inr(r.amount)}</td>
                           <td className="px-3 py-2.5 text-center text-cyan-200/90 text-xs">{r.partner || '—'}</td>

@@ -575,6 +575,12 @@ function JourneyCalendar({
                         ].join(' ')}
                       >
                         <span className={`text-sm leading-none ${cell.inSpan ? 'font-bold' : 'font-medium'}`}>{cell.day}</span>
+                        {hasException && (
+                          <span className="absolute -top-2.5 -right-2.5 z-30 flex h-6 w-6 items-center justify-center" title="Exception on this day — rejected / cancelled / partial / false order">
+                            <span className="absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-70 animate-ping" />
+                            <span className="relative inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-600 ring-2 ring-amber-300 text-[12px] shadow-lg shadow-rose-500/70 animate-sla-blink">⚠️</span>
+                          </span>
+                        )}
                         {marks.length > 0 && (
                           <span className="absolute top-0.5 right-1 flex gap-0.5 leading-none z-10">
                             {marks.map((m, mi) => (
@@ -582,9 +588,9 @@ function JourneyCalendar({
                             ))}
                           </span>
                         )}
-                        {has && (
+                        {iconTypes.length > 0 && (
                           <span className="flex flex-wrap gap-x-1 gap-y-0.5 justify-center leading-none text-xs">
-                            {cell.types.map((t, ti) => <span key={ti} title={t}>{EV_EMOJI[t]}</span>)}
+                            {iconTypes.map((t, ti) => <span key={ti} title={t}>{EV_EMOJI[t]}</span>)}
                           </span>
                         )}
                       </button>

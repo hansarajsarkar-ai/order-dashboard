@@ -8,7 +8,7 @@
  * chronological timeline. Restricted to D2R orders; non-D2R POs show a notice.
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -201,7 +201,7 @@ function poStatusLabel(key: string): string {
 
 // ── Merged event model ───────────────────────────────────────────────────────
 type EvType = 'order' | 'exception' | 'scan' | 'call' | 'qr' | 'phone';
-interface Ev { ms: number; type: EvType; icon: string; title: string; lines: string[]; href?: string; }
+interface Ev { ms: number; type: EvType; icon: string; title: string; lines: string[]; href?: string; audioSec?: number; }
 
 const EV_STYLE: Record<EvType, { node: string; text: string; chip: string }> = {
   order:     { node: 'bg-gradient-to-br from-fuchsia-500/50 to-purple-600/50 border-fuchsia-400/50', text: 'text-white', chip: 'text-fuchsia-200' },
@@ -217,6 +217,60 @@ function callTitle(callType: string | null, entity: string | null): string {
   const who = (entity || '').toUpperCase();
   const role = who === 'RIDER' ? 'Driver' : who === 'BUYER' ? 'Buyer' : who === 'SELLER' ? 'Seller' : 'Party';
   return inbound ? `${role} called support` : `Support called ${role.toLowerCase()}`;
+}
+
+// ── Inline call-recording player ─────────────────────────────────────────────
+function fmtClock(s: number): string {
+  if (!Number.isFinite(s) || s < 0) return '--:--';
+  const m = Math.floor(s / 60);
+  return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+}
+/** Compact audio player for a call recording: play/pause, ±10s skip, draggable seek, time tracking. */
+function AudioPlayer({ src, hintSec }: { src: string; hintSec?: number | null }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [cur, setCur] = useState(0);
+  const [dur, setDur] = useState(hintSec && hintSec > 0 ? hintSec : 0);
+  const [err, setErr] = useState(false);
+
+  const toggle = () => {
+    const a = ref.current; if (!a) return;
+    if (a.paused) a.play().catch(() => setErr(true)); else a.pause();
+  };
+  const skip = (delta: number) => {
+    const a = ref.current; if (!a) return;
+    const max = Number.isFinite(a.duration) ? a.duration : dur || 0;
+    a.currentTime = Math.min(Math.max(0, a.currentTime + delta), max || a.currentTime + delta);
+  };
+  const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const a = ref.current; if (!a) return;
+    const v = parseFloat(e.target.value); a.currentTime = v; setCur(v);
+  };
+
+  const btn = 'flex items-center justify-center w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs transition-colors';
+  if (err) {
+    return <a href={src} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-[11px] text-indigo-300 hover:text-indigo-200 underline">▶ open recording</a>;
+  }
+  return (
+    <div className="mt-2 flex items-center gap-2 rounded-lg bg-black/25 border border-white/10 px-2.5 py-1.5 max-w-md">
+      <audio
+        ref={ref} src={src} preload="none"
+        onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setDur(d); }}
+        onTimeUpdate={(e) => setCur(e.currentTarget.currentTime)}
+        onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)} onError={() => setErr(true)}
+      />
+      <button type="button" onClick={() => skip(-10)} className={btn} title="Back 10s">«10</button>
+      <button type="button" onClick={toggle} className={`${btn} !bg-fuchsia-500/40 hover:!bg-fuchsia-500/60`} title={playing ? 'Pause' : 'Play'}>{playing ? '❚❚' : '▶'}</button>
+      <button type="button" onClick={() => skip(10)} className={btn} title="Forward 10s">10»</button>
+      <span className="text-[10px] tabular-nums text-purple-200/70 w-9 text-right">{fmtClock(cur)}</span>
+      <input
+        type="range" min={0} max={dur || 0} step={0.1} value={cur} onChange={seek}
+        className="flex-1 h-1 accent-fuchsia-400 cursor-pointer" aria-label="Seek"
+      />
+      <span className="text-[10px] tabular-nums text-purple-200/70 w-9">{fmtClock(dur)}</span>
+    </div>
+  );
 }
 
 // ── Calendar helpers ─────────────────────────────────────────────────────────
@@ -605,7 +659,7 @@ function OrderJourneyDashboard() {
       const dur = pc.duration != null ? `${pc.duration}s` : '';
       lines.push([pc.callStatus, dur].filter(Boolean).join(' · ') || 'phone-matched');
       lines.push('via smartFlo (phone-matched)');
-      out.push({ ms, type: 'phone', icon: '☎️', title, lines, href: pc.recordingUrl || undefined });
+      out.push({ ms, type: 'phone', icon: '☎️', title, lines, href: pc.recordingUrl || undefined, audioSec: pc.duration ?? undefined });
     }
 
     out.sort((a, b) => a.ms - b.ms);
@@ -915,7 +969,6 @@ function OrderJourneyDashboard() {
                         <div className="flex items-baseline justify-between gap-3 flex-wrap">
                           <div className={`text-sm font-semibold ${st.text}`}>
                             {e.title}
-                            {e.href && <a href={e.href} target="_blank" rel="noopener noreferrer" className="ml-2 text-[11px] font-normal text-indigo-300 hover:text-indigo-200 underline">▶ recording</a>}
                           </div>
                           {gap && <span className="text-[11px] text-purple-300/50 font-medium">+{gap}</span>}
                         </div>
@@ -925,6 +978,7 @@ function OrderJourneyDashboard() {
                             {e.lines.map((ln, k) => <div key={k} className={`text-[11px] ${st.chip}`}>{ln}</div>)}
                           </div>
                         )}
+                        {e.href && <AudioPlayer src={e.href} hintSec={e.audioSec} />}
                       </li>
                     );
                   })}

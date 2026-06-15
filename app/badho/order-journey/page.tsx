@@ -830,17 +830,19 @@ function OrderJourneyDashboard() {
     if (pts.length === 0) return [];
     pts.sort((a, b) => a.ms - b.ms);
     const lastMs = events[events.length - 1].ms;
-    const nowMs = Date.now();
+    // End of "today" (IST) — the open/current state continues to the bottom of
+    // its day cell rather than stopping at the current minute, so a freshly
+    // placed order shows a solid band (placed → end of day) instead of a sliver.
+    const endOfToday = istDayStartMs(istKey(Date.now())) + DAY_MS;
     const TERMINAL: CalState[] = ['delivered', 'rto'];
     const segs: StateSeg[] = [];
     for (let i = 0; i < pts.length; i++) {
       const start = pts[i].ms;
-      // The last (current) state runs to "now" so a still-open order fills the
-      // live day up to the current clock time; terminal states stop at their
-      // milestone so we don't paint days green/red beyond the actual event.
+      // Terminal states stop at their milestone (don't paint days green/red
+      // beyond the actual event); the open state runs to end of today.
       const end = i + 1 < pts.length
         ? pts[i + 1].ms
-        : (TERMINAL.includes(pts[i].state) ? lastMs : Math.max(lastMs, nowMs));
+        : (TERMINAL.includes(pts[i].state) ? lastMs : Math.max(lastMs, endOfToday));
       if (end > start) segs.push({ start, end, state: pts[i].state });
     }
     return segs;

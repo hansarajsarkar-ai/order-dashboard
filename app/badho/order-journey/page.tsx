@@ -621,7 +621,7 @@ function OrderJourneyDashboard() {
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
 
-      <div className="max-w-5xl mx-auto relative z-10">
+      <div className={`mx-auto relative z-10 ${poParam ? 'max-w-5xl' : 'max-w-[1700px]'}`}>
         {/* Top bar */}
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <Link href="/badho" className="text-xs font-semibold text-purple-200 hover:text-white px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
@@ -1062,8 +1062,8 @@ function OrderJourneyDashboard() {
                           <td className="px-3 py-2.5 text-center tabular-nums text-purple-300/60 text-xs">{(list.page - 1) * list.pageSize + i + 1}</td>
                           <td className="px-3 py-2.5 text-center font-mono text-fuchsia-200 font-semibold">#{r.poNumber}</td>
                           <td className="px-3 py-2.5 text-center text-purple-200/90 whitespace-nowrap text-xs">{fmtMs(toMs(r.placed))}</td>
-                          <td className="px-3 py-2.5 text-center text-white max-w-[180px] truncate" title={r.seller || ''}>{r.seller || '—'}</td>
-                          <td className="px-3 py-2.5 text-center text-purple-100 max-w-[160px] truncate" title={r.buyer || ''}>
+                          <td className="px-3 py-2.5 text-center text-white max-w-[260px] truncate" title={r.seller || ''}>{r.seller || '—'}</td>
+                          <td className="px-3 py-2.5 text-center text-purple-100 max-w-[220px] truncate" title={r.buyer || ''}>
                             {r.buyer || '—'}
                             <div className="text-[10px] text-purple-300/60">{[r.buyerCity, r.buyerState].filter(Boolean).join(', ')}</div>
                           </td>

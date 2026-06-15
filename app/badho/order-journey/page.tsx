@@ -894,6 +894,10 @@ function OrderJourneyDashboard() {
               )}
             </div>
 
+            {/* Detail grid — supporting cards beside the full timeline */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+              {/* Left column — courier · calendar */}
+              <div className="space-y-6">
             {/* Courier card */}
             {courier && (
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
@@ -939,8 +943,9 @@ function OrderJourneyDashboard() {
             {events.length > 0 && (
               <JourneyCalendar events={events} selectedDay={selectedDay} onSelectDay={handleSelectDay} poStatus={po.status} deliveryStatus={po.deliveryStatus} />
             )}
+              </div>
 
-            {/* Merged timeline */}
+            {/* Merged timeline — right column */}
             <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
               <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
                 <h2 className="text-lg font-bold text-white">Journey Timeline</h2>
@@ -984,6 +989,7 @@ function OrderJourneyDashboard() {
                   })}
                 </ol>
               )}
+            </div>
             </div>
 
             {/* Items */}

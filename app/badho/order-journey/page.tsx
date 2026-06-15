@@ -225,50 +225,85 @@ function fmtClock(s: number): string {
   const m = Math.floor(s / 60);
   return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 }
-/** Compact audio player for a call recording: play/pause, ±10s skip, draggable seek, time tracking. */
+const PLAYBACK_RATES = [1, 1.25, 1.5, 2];
+/** Call-recording player: play/pause, ±10s skip, draggable seek, speed, volume/mute, download. */
 function AudioPlayer({ src, hintSec }: { src: string; hintSec?: number | null }) {
   const ref = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [cur, setCur] = useState(0);
   const [dur, setDur] = useState(hintSec && hintSec > 0 ? hintSec : 0);
+  const [rate, setRate] = useState(1);
+  const [vol, setVol] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const [buffering, setBuffering] = useState(false);
   const [err, setErr] = useState(false);
 
   const toggle = () => {
     const a = ref.current; if (!a) return;
-    if (a.paused) a.play().catch(() => setErr(true)); else a.pause();
+    if (a.paused) {
+      // Only one recording plays at a time — pause every other audio element.
+      document.querySelectorAll('audio').forEach((o) => { if (o !== a) o.pause(); });
+      a.play().catch(() => setErr(true));
+    } else a.pause();
   };
   const skip = (delta: number) => {
     const a = ref.current; if (!a) return;
     const max = Number.isFinite(a.duration) ? a.duration : dur || 0;
     a.currentTime = Math.min(Math.max(0, a.currentTime + delta), max || a.currentTime + delta);
+    setCur(a.currentTime);
   };
   const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const a = ref.current; if (!a) return;
     const v = parseFloat(e.target.value); a.currentTime = v; setCur(v);
   };
+  const cycleRate = () => {
+    const a = ref.current; if (!a) return;
+    const next = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(rate) + 1) % PLAYBACK_RATES.length];
+    a.playbackRate = next; setRate(next);
+  };
+  const changeVol = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const a = ref.current; if (!a) return;
+    const v = parseFloat(e.target.value); a.volume = v; a.muted = v === 0;
+    setVol(v); setMuted(v === 0);
+  };
+  const toggleMute = () => {
+    const a = ref.current; if (!a) return;
+    const m = !a.muted; a.muted = m; setMuted(m);
+  };
 
-  const btn = 'flex items-center justify-center w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs transition-colors';
   if (err) {
     return <a href={src} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-[11px] text-indigo-300 hover:text-indigo-200 underline">▶ open recording</a>;
   }
+  const btn = 'flex items-center justify-center w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs transition-colors shrink-0';
   return (
-    <div className="mt-2 flex items-center gap-2 rounded-lg bg-black/25 border border-white/10 px-2.5 py-1.5 max-w-md">
+    <div className="mt-2 flex items-center gap-2 rounded-lg bg-black/25 border border-white/10 px-2.5 py-1.5 max-w-2xl flex-wrap">
       <audio
         ref={ref} src={src} preload="none"
-        onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setDur(d); }}
+        onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setDur(d); e.currentTarget.playbackRate = rate; }}
         onTimeUpdate={(e) => setCur(e.currentTarget.currentTime)}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)} onError={() => setErr(true)}
+        onEnded={() => { setPlaying(false); setCur(0); }} onError={() => setErr(true)}
+        onWaiting={() => setBuffering(true)} onPlaying={() => setBuffering(false)}
+        onCanPlay={() => setBuffering(false)} onStalled={() => setBuffering(true)}
       />
       <button type="button" onClick={() => skip(-10)} className={btn} title="Back 10s">«10</button>
-      <button type="button" onClick={toggle} className={`${btn} !bg-fuchsia-500/40 hover:!bg-fuchsia-500/60`} title={playing ? 'Pause' : 'Play'}>{playing ? '❚❚' : '▶'}</button>
+      <button type="button" onClick={toggle} className={`${btn} !bg-fuchsia-500/40 hover:!bg-fuchsia-500/60`} title={playing ? 'Pause' : 'Play'}>
+        {buffering ? <span className="inline-block w-3 h-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : playing ? '❚❚' : '▶'}
+      </button>
       <button type="button" onClick={() => skip(10)} className={btn} title="Forward 10s">10»</button>
       <span className="text-[10px] tabular-nums text-purple-200/70 w-9 text-right">{fmtClock(cur)}</span>
       <input
-        type="range" min={0} max={dur || 0} step={0.1} value={cur} onChange={seek}
-        className="flex-1 h-1 accent-fuchsia-400 cursor-pointer" aria-label="Seek"
+        type="range" min={0} max={dur || 0} step={0.1} value={cur > (dur || 0) ? dur : cur} onChange={seek}
+        className="flex-1 min-w-[120px] h-1 accent-fuchsia-400 cursor-pointer" aria-label="Seek"
       />
       <span className="text-[10px] tabular-nums text-purple-200/70 w-9">{fmtClock(dur)}</span>
+      <button type="button" onClick={cycleRate} className={`${btn} !w-9 tabular-nums`} title="Playback speed">{rate}×</button>
+      <button type="button" onClick={toggleMute} className={btn} title={muted ? 'Unmute' : 'Mute'}>{muted || vol === 0 ? '🔇' : '🔊'}</button>
+      <input
+        type="range" min={0} max={1} step={0.05} value={muted ? 0 : vol} onChange={changeVol}
+        className="w-14 h-1 accent-fuchsia-400 cursor-pointer shrink-0" aria-label="Volume"
+      />
+      <a href={src} download target="_blank" rel="noopener noreferrer" className={btn} title="Download recording">⬇</a>
     </div>
   );
 }

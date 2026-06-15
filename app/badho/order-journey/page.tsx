@@ -43,6 +43,13 @@ interface Po {
   poModifiedBuyerInformed: string | null;
   plannedDispatchTime: string | null;
   markedDispatchedTime: string | null;
+  markedPendingTime: string | null;
+  markedInProgressTime: string | null;
+  markedInTransitTime: string | null;
+  markedDeliveredTime: string | null;
+  markedCompletedTime: string | null;
+  markedRejectedTime: string | null;
+  markedCancelledTime: string | null;
   createdAt: string | null;
 }
 interface Modification { skuLabel: string | null; changeType: string | null; }
@@ -345,6 +352,37 @@ function journeyCalTone(poStatus: string | null, deliveryStatus: string | null):
   if (ps === 'PENDING') return { box: 'bg-orange-500/35 border border-orange-400/60', hover: 'hover:bg-orange-500/50', swatch: 'bg-orange-500', label: 'Pending' };
   return { box: 'bg-fuchsia-500/25 border border-fuchsia-400/50', hover: 'hover:bg-fuchsia-500/40', swatch: 'bg-fuchsia-500/50', label: ps ? ps.replace(/_/g, ' ') : 'In journey' };
 }
+// ── Per-day proportional state fill ──────────────────────────────────────────
+type CalState = 'pending' | 'inprogress' | 'dispatched' | 'ofd' | 'undelivered' | 'delivered' | 'rto';
+interface StateSeg { start: number; end: number; state: CalState; }
+const STATE_FILL: Record<CalState, string> = {
+  pending: 'rgba(249,115,22,0.60)',     // orange
+  inprogress: 'rgba(250,204,21,0.55)',  // yellow
+  dispatched: 'rgba(59,130,246,0.60)',  // blue
+  ofd: 'rgba(139,92,246,0.65)',         // violet
+  undelivered: 'rgba(251,113,133,0.60)',// light red
+  delivered: 'rgba(16,185,129,0.60)',   // green
+  rto: 'rgba(153,27,27,0.80)',          // dark red
+};
+const STATE_ORDER: CalState[] = ['pending', 'inprogress', 'dispatched', 'ofd', 'undelivered', 'rto', 'delivered'];
+const STATE_LABEL: Record<CalState, string> = {
+  pending: 'Pending', inprogress: 'In progress', dispatched: 'Dispatched', ofd: 'Out for delivery',
+  undelivered: 'Undelivered', delivered: 'Delivered', rto: 'RTO',
+};
+/** Map a courier scan status string to a calendar state. */
+function scanState(status: string | null): CalState {
+  const s = (status || '').toUpperCase();
+  if (s.includes('RTO') || s.includes('RETURN')) return 'rto';
+  if (s.includes('UNDELIV') || s.includes('FAIL')) return 'undelivered';
+  if (s.includes('OUT FOR DELIVERY') || s.includes('OUT_FOR')) return 'ofd';
+  if (s.includes('DELIVERED')) return 'delivered';
+  return 'dispatched'; // in transit / picked / manifested / reached
+}
+/** IST-midnight epoch for a 'YYYY-MM-DD' key (IST has no DST → fixed +05:30). */
+function istDayStartMs(key: string): number {
+  return new Date(`${key}T00:00:00+05:30`).getTime();
+}
+
 /** Calendar day (IST) for an epoch ms, as 'YYYY-MM-DD'. */
 function istKey(ms: number): string {
   return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -372,9 +410,29 @@ interface CalPanel { label: string; weeks: (CalCell | null)[][]; }
  * (the "partial / adjusted" view). Clicking a marked day calls onSelectDay.
  */
 function JourneyCalendar({
-  events, selectedDay, onSelectDay, poStatus, deliveryStatus,
-}: { events: Ev[]; selectedDay: string | null; onSelectDay: (k: string) => void; poStatus: string | null; deliveryStatus: string | null }) {
+  events, selectedDay, onSelectDay, poStatus, deliveryStatus, segments,
+}: { events: Ev[]; selectedDay: string | null; onSelectDay: (k: string) => void; poStatus: string | null; deliveryStatus: string | null; segments: StateSeg[] }) {
   const tone = journeyCalTone(poStatus, deliveryStatus);
+  // Proportional state fill for a day: split 24h by time spent in each state.
+  const dayFill = (key: string): string | null => {
+    if (segments.length === 0) return null;
+    const dayStart = istDayStartMs(key), dayEnd = dayStart + DAY_MS;
+    const acc: Partial<Record<CalState, number>> = {};
+    let total = 0;
+    for (const sg of segments) {
+      const s = Math.max(sg.start, dayStart), e = Math.min(sg.end, dayEnd);
+      if (e > s) { acc[sg.state] = (acc[sg.state] || 0) + (e - s); total += e - s; }
+    }
+    if (total <= 0) return null;
+    let cum = 0; const stops: string[] = [];
+    for (const st of STATE_ORDER) {
+      const v = acc[st]; if (!v) continue;
+      const frac = (v / total) * 100;
+      stops.push(`${STATE_FILL[st]} ${cum.toFixed(1)}%`, `${STATE_FILL[st]} ${(cum + frac).toFixed(1)}%`);
+      cum += frac;
+    }
+    return `linear-gradient(to bottom, ${stops.join(', ')})`;
+  };
   const { panels, startKey, endKey, spanDays } = useMemo(() => {
     const dayTypes = new Map<string, Set<EvType>>();
     for (const e of events) {
@@ -447,15 +505,17 @@ function JourneyCalendar({
                     if (!cell) return <div key={ci} />;
                     const has = cell.types.length > 0;
                     const sel = selectedDay === cell.key;
+                    const fill = cell.inSpan ? dayFill(cell.key) : null;
                     return (
                       <button
                         key={ci} type="button" disabled={!has}
                         onClick={() => has && onSelectDay(cell.key)}
+                        style={fill ? { background: fill } : undefined}
                         title={has ? `${fmtKey(cell.key)} · ${cell.types.join(', ')} — click to jump` : fmtKey(cell.key)}
                         className={[
-                          'relative min-h-[62px] rounded-lg flex flex-col items-center gap-1 pt-1.5 pb-1 px-1 transition-colors',
-                          cell.inSpan ? `${tone.box} text-white` : 'bg-white/[0.025] border border-transparent text-purple-300/40',
-                          has ? `cursor-pointer ${tone.hover}` : 'cursor-default',
+                          'relative min-h-[62px] rounded-lg flex flex-col items-center gap-1 pt-1.5 pb-1 px-1 transition-colors overflow-hidden',
+                          fill ? 'border border-white/20 text-white' : cell.inSpan ? `${tone.box} text-white` : 'bg-white/[0.025] border border-transparent text-purple-300/40',
+                          has ? 'cursor-pointer hover:brightness-125' : 'cursor-default',
                           cell.isStart ? 'ring-2 ring-emerald-400/80' : '',
                           cell.isEnd && !cell.isStart ? 'ring-2 ring-fuchsia-400/80' : '',
                           sel ? 'ring-2 ring-white' : '',
@@ -480,14 +540,16 @@ function JourneyCalendar({
       <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-purple-300/70">
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-emerald-400/70 inline-block" /> Start</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-fuchsia-400/70 inline-block" /> End</span>
-        <span className="flex items-center gap-1"><span className={`w-3 h-3 rounded ${tone.swatch} inline-block`} /> {tone.label}</span>
+        {STATE_ORDER.filter((st) => segments.some((s) => s.state === st)).map((st) => (
+          <span key={st} className="flex items-center gap-1"><span className="w-3 h-3 rounded inline-block" style={{ background: STATE_FILL[st] }} /> {STATE_LABEL[st]}</span>
+        ))}
         <span className="text-purple-300/50">·</span>
         <span className="flex items-center gap-2">
           {(['order', 'scan', 'call', 'qr', 'phone'] as EvType[]).map((t) => (
             <span key={t} className="flex items-center gap-0.5">{EV_EMOJI[t]} {t}</span>
           ))}
         </span>
-        <span className="ml-auto text-purple-300/50">Click a marked day to jump to its events ↓</span>
+        <span className="w-full text-purple-300/50">Each day is split by time spent in each state (24h proportional) · click a marked day to jump to its events ↓</span>
       </div>
     </div>
   );
@@ -719,6 +781,35 @@ function OrderJourneyDashboard() {
   }, [resp]);
 
   const totalGap = events.length >= 2 ? fmtGap(events[0].ms, events[events.length - 1].ms) : '';
+
+  // State intervals for the per-day proportional calendar fill: milestone times
+  // + courier scan statuses → ordered segments, each running to the next change.
+  const stateSegments = useMemo<StateSeg[]>(() => {
+    const po = resp?.po;
+    if (!po || events.length === 0) return [];
+    const pts: { ms: number; state: CalState }[] = [];
+    const add = (t: string | null | undefined, state: CalState) => { const ms = toMs(t ?? null); if (ms != null) pts.push({ ms, state }); };
+    add(po.markedPendingTime, 'pending');
+    add(po.markedInProgressTime, 'inprogress');
+    add(po.markedDispatchedTime, 'dispatched');
+    add(po.markedInTransitTime, 'dispatched');
+    for (const sc of resp?.scans ?? []) { const ms = toMs(sc.date); if (ms != null) pts.push({ ms, state: scanState(sc.status) }); }
+    add(po.markedDeliveredTime, 'delivered');
+    add(po.markedCompletedTime, 'delivered');
+    const ds = (po.deliveryStatus || '').toUpperCase();
+    if (ds.includes('RTO')) add(po.markedRejectedTime ?? po.markedCancelledTime, 'rto');
+    else if (ds === 'UNDELIVERED') add(po.markedRejectedTime, 'undelivered');
+    if (pts.length === 0) return [];
+    pts.sort((a, b) => a.ms - b.ms);
+    const lastMs = events[events.length - 1].ms;
+    const segs: StateSeg[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const start = pts[i].ms;
+      const end = i + 1 < pts.length ? pts[i + 1].ms : lastMs;
+      if (end > start) segs.push({ start, end, state: pts[i].state });
+    }
+    return segs;
+  }, [resp, events]);
 
   // Brand dispatch SLA badge
   const brandSla = useMemo(() => {
@@ -993,7 +1084,7 @@ function OrderJourneyDashboard() {
 
             {/* Calendar overview */}
             {events.length > 0 && (
-              <JourneyCalendar events={events} selectedDay={selectedDay} onSelectDay={handleSelectDay} poStatus={po.status} deliveryStatus={po.deliveryStatus} />
+              <JourneyCalendar events={events} selectedDay={selectedDay} onSelectDay={handleSelectDay} poStatus={po.status} deliveryStatus={po.deliveryStatus} segments={stateSegments} />
             )}
               </div>
 

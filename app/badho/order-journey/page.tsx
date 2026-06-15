@@ -389,6 +389,39 @@ function istDayStartMs(key: string): number {
 function istKey(ms: number): string {
   return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 }
+/** IST day-of-week for a 'YYYY-MM-DD' key (0 = Sunday). */
+function istDow(key: string): number {
+  return new Date(`${key}T00:00:00Z`).getUTCDay();
+}
+/**
+ * Business ms between two epochs with Sundays (IST) excluded — mirrors the
+ * `sundayExclSec` SQL used by the InProgress-Aging SLA report.
+ */
+function bizMsExclSun(startMs: number, endMs: number): number {
+  if (endMs <= startMs) return 0;
+  let total = 0, cur = startMs;
+  for (let i = 0; i < 4000 && cur < endMs; i++) {
+    const key = istKey(cur);
+    const dayEnd = istDayStartMs(key) + DAY_MS;
+    const segEnd = Math.min(endMs, dayEnd);
+    if (istDow(key) !== 0) total += segEnd - cur;
+    cur = dayEnd;
+  }
+  return total;
+}
+/** Wall-clock ms at which `budgetMs` of business time (excl. Sun, IST) elapses from startMs. */
+function addBizMsExclSun(startMs: number, budgetMs: number): number {
+  let remaining = budgetMs, cur = startMs;
+  for (let i = 0; i < 4000 && remaining > 0; i++) {
+    const key = istKey(cur);
+    const dayEnd = istDayStartMs(key) + DAY_MS;
+    if (istDow(key) === 0) { cur = dayEnd; continue; }
+    const avail = dayEnd - cur;
+    if (avail >= remaining) return cur + remaining;
+    remaining -= avail; cur = dayEnd;
+  }
+  return cur;
+}
 /** 'YYYY-MM-DD' → UTC-midnight epoch (used only for grid math, tz-stable). */
 function keyToUTC(k: string): number {
   const [y, m, d] = k.split('-').map(Number);
@@ -575,8 +608,8 @@ function JourneyCalendar({
           ))}
         </span>
         <span className="text-purple-300/50">·</span>
-        <span className="flex items-center gap-1"><span className="font-black" style={{ color: '#f97316', textShadow: '0 0 3px rgba(0,0,0,0.9)' }}>!</span> Brand SLA &gt;24h (placed→dispatch)</span>
-        <span className="flex items-center gap-1"><span className="font-black" style={{ color: '#3b82f6', textShadow: '0 0 3px rgba(0,0,0,0.9)' }}>!</span> Pickup SLA &gt;24h (ready→pickup)</span>
+        <span className="flex items-center gap-1"><span className="font-black" style={{ color: '#f97316', textShadow: '0 0 3px rgba(0,0,0,0.9)' }}>!</span> Brand SLA &gt;24h (placed→in-progress, excl. Sun)</span>
+        <span className="flex items-center gap-1"><span className="font-black" style={{ color: '#3b82f6', textShadow: '0 0 3px rgba(0,0,0,0.9)' }}>!</span> Pickup SLA &gt;24h (in-progress→pickup, excl. Sun)</span>
         <span className="w-full text-purple-300/50">Each day fills from the actual clock time of each state (top = 00:00, bottom = 24:00) · click a marked day to jump to its events ↓</span>
       </div>
     </div>
@@ -857,38 +890,38 @@ function OrderJourneyDashboard() {
     return { late, label: late ? `Late by ${fmtGap(planned, actual)}` : `On time (${fmtGap(actual, planned)} early)` };
   }, [resp]);
 
-  // 24h-SLA breach markers ("!" on the day the clock crossed 24h):
-  //  • Brand SLA  — order PLACED → DISPATCHED must be within 24h   (orange).
-  //  • Pickup SLA — SHIPMENT READY (dispatched) → PICKED UP within 24h (blue).
-  // If the next milestone hasn't happened yet, "now" is used, so an order that
-  // is still sitting past 24h is flagged live.
+  // 24h-SLA breach markers ("!" on the day the business clock crossed 24h),
+  // matching the InProgress-Aging report (Sundays excluded, IST):
+  //  • Brand SLA  — PENDING → INPROGRESS (brand packs + uploads dims/weight and
+  //    marks the shipment ready to pick up).                          (orange)
+  //  • Pickup SLA — INPROGRESS (shipment ready) → DISPATCHED (picked up). (blue)
+  // If the next milestone hasn't happened yet, "now" is used, so an order still
+  // sitting past 24h business hours is flagged live.
   const slaMarks = useMemo<SlaMark[]>(() => {
     const po = resp?.po;
     if (!po) return [];
     const nowMs = Date.now();
+    const SLA = DAY_MS; // 24 business hours
     const out: SlaMark[] = [];
-    // Brand SLA: placed → dispatched
     const placed = toMs(po.markedPendingTime);
+    const inprogress = toMs(po.markedInProgressTime);
     const dispatched = toMs(po.markedDispatchedTime);
+    // Brand SLA: PENDING → INPROGRESS (excl. Sun)
     if (placed != null) {
-      const deadline = placed + DAY_MS;
-      const end = dispatched ?? nowMs;
-      if (end > deadline) out.push({
-        key: istKey(deadline), color: '#f97316', // orange (brand / pending)
-        label: `Brand SLA breached — not dispatched within 24h of order placed (took ${fmtGap(placed, end)}${dispatched == null ? ', still pending' : ''})`,
+      const end = inprogress ?? nowMs;
+      const biz = bizMsExclSun(placed, end);
+      if (biz > SLA) out.push({
+        key: istKey(addBizMsExclSun(placed, SLA)), color: '#f97316', // orange
+        label: `Brand SLA breached — PENDING→INPROGRESS took ${fmtGap(0, biz)} (excl. Sun)${inprogress == null ? ', still pending' : ''}`,
       });
     }
-    // Pickup SLA: shipment ready (dispatched) → picked up (first courier scan)
-    const ready = dispatched;
-    const firstScan = (resp?.scans ?? [])
-      .map((s) => toMs(s.date)).filter((x): x is number => x != null).sort((a, b) => a - b)[0]
-      ?? toMs(po.markedInTransitTime);
-    if (ready != null) {
-      const deadline = ready + DAY_MS;
-      const end = firstScan ?? nowMs;
-      if (end > deadline) out.push({
-        key: istKey(deadline), color: '#3b82f6', // blue (pickup / dispatched)
-        label: `Pickup SLA breached — not picked up within 24h of shipment ready (took ${fmtGap(ready, end)}${firstScan == null ? ', not yet picked up' : ''})`,
+    // Pickup SLA: INPROGRESS → DISPATCHED (excl. Sun); only once shipment ready
+    if (inprogress != null) {
+      const end = dispatched ?? nowMs;
+      const biz = bizMsExclSun(inprogress, end);
+      if (biz > SLA) out.push({
+        key: istKey(addBizMsExclSun(inprogress, SLA)), color: '#3b82f6', // blue
+        label: `Pickup SLA breached — INPROGRESS→pickup took ${fmtGap(0, biz)} (excl. Sun)${dispatched == null ? ', not yet picked up' : ''}`,
       });
     }
     return out;

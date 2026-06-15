@@ -229,6 +229,25 @@ const DOT_COLOR: Record<EvType, string> = {
 const EV_EMOJI: Record<EvType, string> = {
   order: '📦', exception: '⚠️', scan: '🚚', call: '📞', qr: '📍', phone: '☎️',
 };
+
+/**
+ * Tint for the calendar's in-journey boxes, driven by the order's current state.
+ * Checks the most-advanced state first: RTO (dark red, through RTO-delivered) →
+ * delivered/completed (green) → undelivered (light red) → out-for-delivery
+ * (violet) → dispatched (blue) → in-progress (yellow) → pending (orange).
+ */
+function journeyCalTone(poStatus: string | null, deliveryStatus: string | null): { box: string; hover: string; swatch: string; label: string } {
+  const ps = (poStatus || '').toUpperCase();
+  const ds = (deliveryStatus || '').toUpperCase();
+  if (ds.includes('RTO')) return { box: 'bg-red-800/40', hover: 'hover:bg-red-800/55', swatch: 'bg-red-800', label: 'RTO' };
+  if (ds === 'DELIVERED' || ps === 'COMPLETED') return { box: 'bg-emerald-500/20', hover: 'hover:bg-emerald-500/35', swatch: 'bg-emerald-500', label: ds === 'DELIVERED' ? 'Delivered' : 'Completed' };
+  if (ds === 'UNDELIVERED') return { box: 'bg-rose-400/25', hover: 'hover:bg-rose-400/40', swatch: 'bg-rose-400', label: 'Undelivered' };
+  if (ds === 'OUT_FOR_DELIVERY') return { box: 'bg-violet-500/30', hover: 'hover:bg-violet-500/45', swatch: 'bg-violet-500', label: 'Out for delivery' };
+  if (ps === 'DISPATCHED') return { box: 'bg-blue-500/25', hover: 'hover:bg-blue-500/40', swatch: 'bg-blue-500', label: 'Dispatched' };
+  if (ps === 'INPROGRESS' || ps === 'IN_PROGRESS') return { box: 'bg-yellow-400/20', hover: 'hover:bg-yellow-400/35', swatch: 'bg-yellow-400', label: 'In progress' };
+  if (ps === 'PENDING') return { box: 'bg-orange-500/20', hover: 'hover:bg-orange-500/35', swatch: 'bg-orange-500', label: 'Pending' };
+  return { box: 'bg-fuchsia-500/15', hover: 'hover:bg-fuchsia-500/30', swatch: 'bg-fuchsia-500/40', label: ps ? ps.replace(/_/g, ' ') : 'In journey' };
+}
 /** Calendar day (IST) for an epoch ms, as 'YYYY-MM-DD'. */
 function istKey(ms: number): string {
   return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -256,8 +275,9 @@ interface CalPanel { label: string; weeks: (CalCell | null)[][]; }
  * (the "partial / adjusted" view). Clicking a marked day calls onSelectDay.
  */
 function JourneyCalendar({
-  events, selectedDay, onSelectDay,
-}: { events: Ev[]; selectedDay: string | null; onSelectDay: (k: string) => void }) {
+  events, selectedDay, onSelectDay, poStatus, deliveryStatus,
+}: { events: Ev[]; selectedDay: string | null; onSelectDay: (k: string) => void; poStatus: string | null; deliveryStatus: string | null }) {
+  const tone = journeyCalTone(poStatus, deliveryStatus);
   const { panels, startKey, endKey, spanDays } = useMemo(() => {
     const dayTypes = new Map<string, Set<EvType>>();
     for (const e of events) {
@@ -336,8 +356,8 @@ function JourneyCalendar({
                         title={has ? `${fmtKey(cell.key)} · ${cell.types.join(', ')} — click to jump` : fmtKey(cell.key)}
                         className={[
                           'relative min-h-[72px] rounded-xl flex flex-col items-center gap-1 pt-2 pb-1.5 px-1 transition-colors',
-                          cell.inSpan ? 'bg-fuchsia-500/15 text-white' : 'text-purple-300/40',
-                          has ? 'cursor-pointer hover:bg-fuchsia-500/30' : 'cursor-default',
+                          cell.inSpan ? `${tone.box} text-white` : 'text-purple-300/40',
+                          has ? `cursor-pointer ${tone.hover}` : 'cursor-default',
                           cell.isStart ? 'ring-1 ring-emerald-400/70' : '',
                           cell.isEnd && !cell.isStart ? 'ring-1 ring-fuchsia-400/70' : '',
                           sel ? 'ring-2 ring-white' : '',
@@ -362,7 +382,7 @@ function JourneyCalendar({
       <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-purple-300/70">
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-emerald-400/70 inline-block" /> Start</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-fuchsia-400/70 inline-block" /> End</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-fuchsia-500/15 inline-block" /> In journey</span>
+        <span className="flex items-center gap-1"><span className={`w-3 h-3 rounded ${tone.swatch} inline-block`} /> {tone.label}</span>
         <span className="text-purple-300/50">·</span>
         <span className="flex items-center gap-2">
           {(['order', 'scan', 'call', 'qr', 'phone'] as EvType[]).map((t) => (
@@ -863,7 +883,7 @@ function OrderJourneyDashboard() {
 
             {/* Calendar overview */}
             {events.length > 0 && (
-              <JourneyCalendar events={events} selectedDay={selectedDay} onSelectDay={handleSelectDay} />
+              <JourneyCalendar events={events} selectedDay={selectedDay} onSelectDay={handleSelectDay} poStatus={po.status} deliveryStatus={po.deliveryStatus} />
             )}
 
             {/* Merged timeline */}

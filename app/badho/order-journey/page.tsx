@@ -152,6 +152,11 @@ function fmtMs(ms: number | null): string {
     timeZone: IST, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
   });
 }
+/** Time-only (IST), e.g. "01:26 pm". */
+function fmtTime(ms: number | null): string {
+  if (ms == null) return '—';
+  return new Date(ms).toLocaleTimeString('en-IN', { timeZone: IST, hour: '2-digit', minute: '2-digit', hour12: true });
+}
 /** Human gap, e.g. "1d 4h 12m". */
 function fmtGap(fromMs: number | null, toMs2: number | null): string {
   if (fromMs == null || toMs2 == null || toMs2 < fromMs) return '';
@@ -671,8 +676,10 @@ function OrderJourneyDashboard() {
       const ms = toMs(cl.callPlacedAt);
       if (ms == null) continue;
       const lines: string[] = [];
-      if (cl.agentName) lines.push(`Agent: ${cl.agentName}`);
+      const clInbound = (cl.callType || '').toUpperCase() === 'INBOUND';
+      if (cl.agentName) lines.push(`${clInbound ? '🎧 Answered in support by' : '📤 Placed by'} ${cl.agentName}`);
       if (cl.entity === 'RIDER' && cl.riderPhone) lines.push(`Driver: ${cl.riderPhone}`);
+      lines.push(fmtTime(ms));
       if (cl.callRemarks && cl.callRemarks.trim()) lines.push(`“${cl.callRemarks.trim()}”`);
       if (cl.callCount && cl.callCount > 1) lines.push(`Attempt #${cl.callCount}`);
       if (cl.whatsappStatus) lines.push(`WhatsApp: ${cl.whatsappStatus}`);
@@ -692,12 +699,18 @@ function OrderJourneyDashboard() {
       if (ms == null) continue;
       const partyLabel = pc.party === 'BUYER' ? 'buyer' : pc.party === 'SELLER' ? 'seller' : 'contact';
       const dir = (pc.direction || '').toLowerCase();
-      const title = `${dir === 'inbound' ? 'Inbound' : 'Outbound'} call · ${partyLabel}`;
+      const inbound = dir === 'inbound';
+      const title = `${inbound ? 'Inbound' : 'Outbound'} call · ${partyLabel}`;
       const lines: string[] = [];
-      const dur = pc.duration != null ? `${pc.duration}s` : '';
+      const durSec = pc.duration != null ? Number(pc.duration) : null;
+      const dur = durSec != null ? fmtClock(durSec) : '';
       lines.push([pc.callStatus, dur].filter(Boolean).join(' · ') || 'phone-matched');
+      const agent = pc.agentName?.trim();
+      if (agent) lines.push(`${inbound ? '🎧 Answered in support by' : '📤 Placed by'} ${agent}`);
+      if (durSec != null && durSec > 0) lines.push(`${fmtTime(ms)} → ${fmtTime(ms + durSec * 1000)}`);
+      else lines.push(fmtTime(ms));
       lines.push('via smartFlo (phone-matched)');
-      out.push({ ms, type: 'phone', icon: '☎️', title, lines, href: pc.recordingUrl || undefined, audioSec: pc.duration ?? undefined });
+      out.push({ ms, type: 'phone', icon: '☎️', title, lines, href: pc.recordingUrl || undefined, audioSec: durSec ?? undefined });
     }
 
     out.sort((a, b) => a.ms - b.ms);

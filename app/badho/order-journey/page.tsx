@@ -355,6 +355,8 @@ function journeyCalTone(poStatus: string | null, deliveryStatus: string | null):
 // ── Per-day proportional state fill ──────────────────────────────────────────
 type CalState = 'pending' | 'inprogress' | 'dispatched' | 'ofd' | 'undelivered' | 'delivered' | 'rto';
 interface StateSeg { start: number; end: number; state: CalState; }
+/** A 24h-SLA breach to flag with a "!" on a specific calendar day. */
+interface SlaMark { key: string; color: string; label: string; }
 const STATE_FILL: Record<CalState, string> = {
   pending: 'rgba(249,115,22,0.60)',     // orange
   inprogress: 'rgba(250,204,21,0.55)',  // yellow
@@ -410,27 +412,42 @@ interface CalPanel { label: string; weeks: (CalCell | null)[][]; }
  * (the "partial / adjusted" view). Clicking a marked day calls onSelectDay.
  */
 function JourneyCalendar({
-  events, selectedDay, onSelectDay, poStatus, deliveryStatus, segments,
-}: { events: Ev[]; selectedDay: string | null; onSelectDay: (k: string) => void; poStatus: string | null; deliveryStatus: string | null; segments: StateSeg[] }) {
+  events, selectedDay, onSelectDay, poStatus, deliveryStatus, segments, slaMarks = [],
+}: { events: Ev[]; selectedDay: string | null; onSelectDay: (k: string) => void; poStatus: string | null; deliveryStatus: string | null; segments: StateSeg[]; slaMarks?: SlaMark[] }) {
   const tone = journeyCalTone(poStatus, deliveryStatus);
-  // Proportional state fill for a day: split 24h by time spent in each state.
+  // Day-key → SLA breach marks, for the "!" overlay.
+  const marksByDay = useMemo(() => {
+    const m = new Map<string, SlaMark[]>();
+    for (const sm of slaMarks) (m.get(sm.key) ?? m.set(sm.key, []).get(sm.key)!).push(sm);
+    return m;
+  }, [slaMarks]);
+  // Per-day fill anchored to the actual clock: top = 00:00, bottom = 24:00.
+  // Each state occupies its real time-of-day slice; time before the order
+  // existed (or between states) stays transparent — so the placed day fills
+  // only from placed-time downward, as a true fraction of the cell, instead of
+  // flooding the whole 24h.
   const dayFill = (key: string): string | null => {
     if (segments.length === 0) return null;
     const dayStart = istDayStartMs(key), dayEnd = dayStart + DAY_MS;
-    const acc: Partial<Record<CalState, number>> = {};
-    let total = 0;
+    const slices: { from: number; to: number; state: CalState }[] = [];
     for (const sg of segments) {
       const s = Math.max(sg.start, dayStart), e = Math.min(sg.end, dayEnd);
-      if (e > s) { acc[sg.state] = (acc[sg.state] || 0) + (e - s); total += e - s; }
+      if (e > s) slices.push({
+        from: ((s - dayStart) / DAY_MS) * 100,
+        to: ((e - dayStart) / DAY_MS) * 100,
+        state: sg.state,
+      });
     }
-    if (total <= 0) return null;
-    let cum = 0; const stops: string[] = [];
-    for (const st of STATE_ORDER) {
-      const v = acc[st]; if (!v) continue;
-      const frac = (v / total) * 100;
-      stops.push(`${STATE_FILL[st]} ${cum.toFixed(1)}%`, `${STATE_FILL[st]} ${(cum + frac).toFixed(1)}%`);
-      cum += frac;
+    if (slices.length === 0) return null;
+    slices.sort((a, b) => a.from - b.from);
+    const stops: string[] = [];
+    let cursor = 0;
+    for (const sl of slices) {
+      if (sl.from > cursor + 0.01) stops.push(`transparent ${cursor.toFixed(1)}%`, `transparent ${sl.from.toFixed(1)}%`);
+      stops.push(`${STATE_FILL[sl.state]} ${sl.from.toFixed(1)}%`, `${STATE_FILL[sl.state]} ${sl.to.toFixed(1)}%`);
+      cursor = sl.to;
     }
+    if (cursor < 100) stops.push(`transparent ${cursor.toFixed(1)}%`, `transparent 100%`);
     return `linear-gradient(to bottom, ${stops.join(', ')})`;
   };
   const { panels, startKey, endKey, spanDays } = useMemo(() => {
@@ -506,6 +523,7 @@ function JourneyCalendar({
                     const has = cell.types.length > 0;
                     const sel = selectedDay === cell.key;
                     const fill = cell.inSpan ? dayFill(cell.key) : null;
+                    const marks = marksByDay.get(cell.key) ?? [];
                     return (
                       <button
                         key={ci} type="button" disabled={!has}
@@ -522,6 +540,13 @@ function JourneyCalendar({
                         ].join(' ')}
                       >
                         <span className={`text-sm leading-none ${cell.inSpan ? 'font-bold' : 'font-medium'}`}>{cell.day}</span>
+                        {marks.length > 0 && (
+                          <span className="absolute top-0.5 right-1 flex gap-0.5 leading-none z-10">
+                            {marks.map((m, mi) => (
+                              <span key={mi} className="text-base font-black" style={{ color: m.color, textShadow: '0 0 3px rgba(0,0,0,0.95)' }} title={m.label}>!</span>
+                            ))}
+                          </span>
+                        )}
                         {has && (
                           <span className="flex flex-wrap gap-x-1 gap-y-0.5 justify-center leading-none text-xs">
                             {cell.types.map((t, ti) => <span key={ti} title={t}>{EV_EMOJI[t]}</span>)}
@@ -549,7 +574,10 @@ function JourneyCalendar({
             <span key={t} className="flex items-center gap-0.5">{EV_EMOJI[t]} {t}</span>
           ))}
         </span>
-        <span className="w-full text-purple-300/50">Each day is split by time spent in each state (24h proportional) · click a marked day to jump to its events ↓</span>
+        <span className="text-purple-300/50">·</span>
+        <span className="flex items-center gap-1"><span className="font-black" style={{ color: '#f97316', textShadow: '0 0 3px rgba(0,0,0,0.9)' }}>!</span> Brand SLA &gt;24h (placed→dispatch)</span>
+        <span className="flex items-center gap-1"><span className="font-black" style={{ color: '#3b82f6', textShadow: '0 0 3px rgba(0,0,0,0.9)' }}>!</span> Pickup SLA &gt;24h (ready→pickup)</span>
+        <span className="w-full text-purple-300/50">Each day fills from the actual clock time of each state (top = 00:00, bottom = 24:00) · click a marked day to jump to its events ↓</span>
       </div>
     </div>
   );
@@ -802,10 +830,17 @@ function OrderJourneyDashboard() {
     if (pts.length === 0) return [];
     pts.sort((a, b) => a.ms - b.ms);
     const lastMs = events[events.length - 1].ms;
+    const nowMs = Date.now();
+    const TERMINAL: CalState[] = ['delivered', 'rto'];
     const segs: StateSeg[] = [];
     for (let i = 0; i < pts.length; i++) {
       const start = pts[i].ms;
-      const end = i + 1 < pts.length ? pts[i + 1].ms : lastMs;
+      // The last (current) state runs to "now" so a still-open order fills the
+      // live day up to the current clock time; terminal states stop at their
+      // milestone so we don't paint days green/red beyond the actual event.
+      const end = i + 1 < pts.length
+        ? pts[i + 1].ms
+        : (TERMINAL.includes(pts[i].state) ? lastMs : Math.max(lastMs, nowMs));
       if (end > start) segs.push({ start, end, state: pts[i].state });
     }
     return segs;
@@ -818,6 +853,43 @@ function OrderJourneyDashboard() {
     if (planned == null || actual == null) return null;
     const late = actual > planned;
     return { late, label: late ? `Late by ${fmtGap(planned, actual)}` : `On time (${fmtGap(actual, planned)} early)` };
+  }, [resp]);
+
+  // 24h-SLA breach markers ("!" on the day the clock crossed 24h):
+  //  • Brand SLA  — order PLACED → DISPATCHED must be within 24h   (orange).
+  //  • Pickup SLA — SHIPMENT READY (dispatched) → PICKED UP within 24h (blue).
+  // If the next milestone hasn't happened yet, "now" is used, so an order that
+  // is still sitting past 24h is flagged live.
+  const slaMarks = useMemo<SlaMark[]>(() => {
+    const po = resp?.po;
+    if (!po) return [];
+    const nowMs = Date.now();
+    const out: SlaMark[] = [];
+    // Brand SLA: placed → dispatched
+    const placed = toMs(po.markedPendingTime);
+    const dispatched = toMs(po.markedDispatchedTime);
+    if (placed != null) {
+      const deadline = placed + DAY_MS;
+      const end = dispatched ?? nowMs;
+      if (end > deadline) out.push({
+        key: istKey(deadline), color: '#f97316', // orange (brand / pending)
+        label: `Brand SLA breached — not dispatched within 24h of order placed (took ${fmtGap(placed, end)}${dispatched == null ? ', still pending' : ''})`,
+      });
+    }
+    // Pickup SLA: shipment ready (dispatched) → picked up (first courier scan)
+    const ready = dispatched;
+    const firstScan = (resp?.scans ?? [])
+      .map((s) => toMs(s.date)).filter((x): x is number => x != null).sort((a, b) => a - b)[0]
+      ?? toMs(po.markedInTransitTime);
+    if (ready != null) {
+      const deadline = ready + DAY_MS;
+      const end = firstScan ?? nowMs;
+      if (end > deadline) out.push({
+        key: istKey(deadline), color: '#3b82f6', // blue (pickup / dispatched)
+        label: `Pickup SLA breached — not picked up within 24h of shipment ready (took ${fmtGap(ready, end)}${firstScan == null ? ', not yet picked up' : ''})`,
+      });
+    }
+    return out;
   }, [resp]);
 
   // Courier transit time (first scan → delivered milestone, else last scan)
@@ -1084,7 +1156,7 @@ function OrderJourneyDashboard() {
 
             {/* Calendar overview */}
             {events.length > 0 && (
-              <JourneyCalendar events={events} selectedDay={selectedDay} onSelectDay={handleSelectDay} poStatus={po.status} deliveryStatus={po.deliveryStatus} segments={stateSegments} />
+              <JourneyCalendar events={events} selectedDay={selectedDay} onSelectDay={handleSelectDay} poStatus={po.status} deliveryStatus={po.deliveryStatus} segments={stateSegments} slaMarks={slaMarks} />
             )}
               </div>
 

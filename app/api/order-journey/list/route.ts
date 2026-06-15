@@ -40,6 +40,15 @@ async function _GET(req: NextRequest) {
     ? `AND po."status" IN (${statuses.map((s) => `'${s}'`).join(', ')})`
     : '';
 
+  // Delivery-status filter. 'NONE' matches orders with no deliveryStatus yet.
+  const delivery = (searchParams.get('delivery') || '')
+    .split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z_]+$/.test(s));
+  const deliveryExplicit = delivery.filter((s) => s !== 'NONE');
+  const deliveryParts: string[] = [];
+  if (deliveryExplicit.length) deliveryParts.push(`po."deliveryStatus" IN (${deliveryExplicit.map((s) => `'${s}'`).join(', ')})`);
+  if (delivery.includes('NONE')) deliveryParts.push(`po."deliveryStatus" IS NULL`);
+  const deliveryClause = deliveryParts.length ? `AND (${deliveryParts.join(' OR ')})` : '';
+
   // Shared filter — placed date derived with a fallback so orders missing
   // markedPendingTime still appear. whereBase excludes the status filter so the
   // status facet counts stay stable as chips are toggled.
@@ -55,7 +64,7 @@ async function _GET(req: NextRequest) {
     AND COALESCE(po."markedPendingTime", po."created_at_actual", po."created_at") >= '${fromDate}'::date
     ${toClause}
   `;
-  const whereCore = `${whereBase} ${statusClause}`;
+  const whereCore = `${whereBase} ${statusClause} ${deliveryClause}`;
 
   try {
     // All interpolated values (dates, statuses, page size, offset) are validated
@@ -115,16 +124,32 @@ async function _GET(req: NextRequest) {
       ORDER BY n DESC;
     `;
 
-    const [rows, countRows, facetRows] = await Promise.all([
+    // Delivery-status facets ('NONE' = no deliveryStatus yet), also over the
+    // date range only, so the chips stay stable.
+    const deliveryFacetSql = `
+      SELECT COALESCE(po."deliveryStatus", 'NONE') AS ds, COUNT(*) AS n
+      FROM "purchaseOrder"."purchaseOrder" po
+      JOIN "users"."seller" s ON s."id" = po."sellerId"
+      JOIN "users"."buyer"  b ON b."id" = po."buyerId"
+      WHERE ${whereBase}
+      GROUP BY ds
+      ORDER BY n DESC;
+    `;
+
+    const [rows, countRows, facetRows, deliveryFacetRows] = await Promise.all([
       query<Record<string, string | null>>(listSql, []),
       query<{ n: string }>(countSql, []),
       query<{ status: string | null; n: string }>(facetSql, []),
+      query<{ ds: string | null; n: string }>(deliveryFacetSql, []),
     ]);
 
     const total = parseInt(countRows[0]?.n || '0', 10);
     const facets = facetRows
       .filter((f) => f.status)
       .map((f) => ({ status: f.status as string, count: parseInt(f.n, 10) }));
+    const deliveryFacets = deliveryFacetRows
+      .filter((f) => f.ds)
+      .map((f) => ({ status: f.ds as string, count: parseInt(f.n, 10) }));
     const data = rows.map((r) => ({
       poNumber: num(r.poNumber),
       placed: r.placed,
@@ -149,6 +174,8 @@ async function _GET(req: NextRequest) {
       to: dateOk(to) ? to : null,
       statuses,
       facets,
+      delivery,
+      deliveryFacets,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err) || 'Unknown error';

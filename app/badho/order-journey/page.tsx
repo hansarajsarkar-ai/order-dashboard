@@ -56,7 +56,10 @@ interface ListRow {
 interface ListResp {
   data: ListRow[]; total: number; page: number; pageSize: number; pageCount: number;
   from: string; to: string | null; statuses: string[];
-  facets: { status: string; count: number }[]; error?: string;
+  facets: { status: string; count: number }[];
+  delivery: string[];
+  deliveryFacets: { status: string; count: number }[];
+  error?: string;
 }
 interface Courier {
   status: string | null;
@@ -399,6 +402,7 @@ function OrderJourneyDashboard() {
   const [fromDate, setFromDate] = useState('2026-01-15');
   const [toDate, setToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [deliveryFilter, setDeliveryFilter] = useState<string[]>([]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -442,16 +446,21 @@ function OrderJourneyDashboard() {
     const qs = new URLSearchParams({ page: String(listPage), from: fromDate });
     if (toDate) qs.set('to', toDate);
     if (statusFilter.length) qs.set('status', statusFilter.join(','));
+    if (deliveryFilter.length) qs.set('delivery', deliveryFilter.join(','));
     fetch(`/api/order-journey/list?${qs.toString()}`)
       .then((r) => r.json())
       .then((j: ListResp) => { if (!cancelled) { if (j.error) setListError(j.error); else setList(j); } })
       .catch(() => { if (!cancelled) setListError('Failed to load orders.'); })
       .finally(() => { if (!cancelled) setListLoading(false); });
     return () => { cancelled = true; };
-  }, [authChecked, poParam, listPage, fromDate, toDate, statusFilter]);
+  }, [authChecked, poParam, listPage, fromDate, toDate, statusFilter, deliveryFilter]);
 
   const toggleStatus = (s: string) => {
     setStatusFilter((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+    setListPage(1);
+  };
+  const toggleDelivery = (s: string) => {
+    setDeliveryFilter((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
     setListPage(1);
   };
 
@@ -947,6 +956,28 @@ function OrderJourneyDashboard() {
                     <button onClick={() => { setStatusFilter([]); setListPage(1); }} className="px-2 py-0.5 rounded-md text-[11px] text-purple-300 hover:text-white hover:bg-white/10 border border-white/10">clear</button>
                   )}
                 </div>
+
+                {list.deliveryFacets.length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-300/70 mr-1">Delivery</span>
+                    {list.deliveryFacets.map((f) => {
+                      const active = deliveryFilter.includes(f.status);
+                      const dimmed = deliveryFilter.length > 0 && !active;
+                      const label = f.status === 'NONE' ? 'Not Shipped' : f.status.replace(/_/g, ' ');
+                      return (
+                        <button
+                          key={f.status} onClick={() => toggleDelivery(f.status)}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${statusTone(f.status)} ${active ? 'ring-2 ring-fuchsia-400/60' : ''} ${dimmed ? 'opacity-40 hover:opacity-75' : 'hover:opacity-90'}`}
+                        >
+                          {label} <span className="font-normal opacity-70">({f.count.toLocaleString('en-IN')})</span>
+                        </button>
+                      );
+                    })}
+                    {deliveryFilter.length > 0 && (
+                      <button onClick={() => { setDeliveryFilter([]); setListPage(1); }} className="px-2 py-0.5 rounded-md text-[11px] text-purple-300 hover:text-white hover:bg-white/10 border border-white/10">clear</button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

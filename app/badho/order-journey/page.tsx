@@ -336,14 +336,14 @@ const EV_EMOJI: Record<EvType, string> = {
 function journeyCalTone(poStatus: string | null, deliveryStatus: string | null): { box: string; hover: string; swatch: string; label: string } {
   const ps = (poStatus || '').toUpperCase();
   const ds = (deliveryStatus || '').toUpperCase();
-  if (ds.includes('RTO')) return { box: 'bg-red-800/40', hover: 'hover:bg-red-800/55', swatch: 'bg-red-800', label: 'RTO' };
-  if (ds === 'DELIVERED' || ps === 'COMPLETED') return { box: 'bg-emerald-500/20', hover: 'hover:bg-emerald-500/35', swatch: 'bg-emerald-500', label: ds === 'DELIVERED' ? 'Delivered' : 'Completed' };
-  if (ds === 'UNDELIVERED') return { box: 'bg-rose-400/25', hover: 'hover:bg-rose-400/40', swatch: 'bg-rose-400', label: 'Undelivered' };
-  if (ds === 'OUT_FOR_DELIVERY') return { box: 'bg-violet-500/30', hover: 'hover:bg-violet-500/45', swatch: 'bg-violet-500', label: 'Out for delivery' };
-  if (ps === 'DISPATCHED') return { box: 'bg-blue-500/25', hover: 'hover:bg-blue-500/40', swatch: 'bg-blue-500', label: 'Dispatched' };
-  if (ps === 'INPROGRESS' || ps === 'IN_PROGRESS') return { box: 'bg-yellow-400/20', hover: 'hover:bg-yellow-400/35', swatch: 'bg-yellow-400', label: 'In progress' };
-  if (ps === 'PENDING') return { box: 'bg-orange-500/20', hover: 'hover:bg-orange-500/35', swatch: 'bg-orange-500', label: 'Pending' };
-  return { box: 'bg-fuchsia-500/15', hover: 'hover:bg-fuchsia-500/30', swatch: 'bg-fuchsia-500/40', label: ps ? ps.replace(/_/g, ' ') : 'In journey' };
+  if (ds.includes('RTO')) return { box: 'bg-red-800/55 border border-red-500/60', hover: 'hover:bg-red-800/70', swatch: 'bg-red-700', label: 'RTO' };
+  if (ds === 'DELIVERED' || ps === 'COMPLETED') return { box: 'bg-emerald-500/30 border border-emerald-400/60', hover: 'hover:bg-emerald-500/45', swatch: 'bg-emerald-500', label: ds === 'DELIVERED' ? 'Delivered' : 'Completed' };
+  if (ds === 'UNDELIVERED') return { box: 'bg-rose-400/35 border border-rose-300/60', hover: 'hover:bg-rose-400/50', swatch: 'bg-rose-400', label: 'Undelivered' };
+  if (ds === 'OUT_FOR_DELIVERY') return { box: 'bg-violet-500/40 border border-violet-400/60', hover: 'hover:bg-violet-500/55', swatch: 'bg-violet-500', label: 'Out for delivery' };
+  if (ps === 'DISPATCHED') return { box: 'bg-blue-500/35 border border-blue-400/60', hover: 'hover:bg-blue-500/50', swatch: 'bg-blue-500', label: 'Dispatched' };
+  if (ps === 'INPROGRESS' || ps === 'IN_PROGRESS') return { box: 'bg-yellow-400/30 border border-yellow-300/60', hover: 'hover:bg-yellow-400/45', swatch: 'bg-yellow-400', label: 'In progress' };
+  if (ps === 'PENDING') return { box: 'bg-orange-500/35 border border-orange-400/60', hover: 'hover:bg-orange-500/50', swatch: 'bg-orange-500', label: 'Pending' };
+  return { box: 'bg-fuchsia-500/25 border border-fuchsia-400/50', hover: 'hover:bg-fuchsia-500/40', swatch: 'bg-fuchsia-500/50', label: ps ? ps.replace(/_/g, ' ') : 'In journey' };
 }
 /** Calendar day (IST) for an epoch ms, as 'YYYY-MM-DD'. */
 function istKey(ms: number): string {
@@ -392,10 +392,11 @@ function JourneyCalendar({
     let mon = new Date(startUTC).getUTCMonth();
     const endY = ed.getUTCFullYear(), endMon = ed.getUTCMonth();
     while (y < endY || (y === endY && mon <= endMon)) {
+      // Render the FULL month (padded to whole weeks), with the journey days
+      // highlighted within it.
       const monthFirst = Date.UTC(y, mon, 1), monthLast = Date.UTC(y, mon + 1, 0);
-      const spanFrom = Math.max(monthFirst, startUTC), spanTo = Math.min(monthLast, endUTC);
-      const gridFrom = spanFrom - new Date(spanFrom).getUTCDay() * DAY_MS;
-      const gridTo = spanTo + (6 - new Date(spanTo).getUTCDay()) * DAY_MS;
+      const gridFrom = monthFirst - new Date(monthFirst).getUTCDay() * DAY_MS;
+      const gridTo = monthLast + (6 - new Date(monthLast).getUTCDay()) * DAY_MS;
       const weeks: (CalCell | null)[][] = [];
       for (let cur = gridFrom; cur <= gridTo; ) {
         const week: (CalCell | null)[] = [];
@@ -452,17 +453,17 @@ function JourneyCalendar({
                         onClick={() => has && onSelectDay(cell.key)}
                         title={has ? `${fmtKey(cell.key)} · ${cell.types.join(', ')} — click to jump` : fmtKey(cell.key)}
                         className={[
-                          'relative min-h-[72px] rounded-xl flex flex-col items-center gap-1 pt-2 pb-1.5 px-1 transition-colors',
-                          cell.inSpan ? `${tone.box} text-white` : 'text-purple-300/40',
+                          'relative min-h-[62px] rounded-lg flex flex-col items-center gap-1 pt-1.5 pb-1 px-1 transition-colors',
+                          cell.inSpan ? `${tone.box} text-white` : 'bg-white/[0.025] border border-transparent text-purple-300/40',
                           has ? `cursor-pointer ${tone.hover}` : 'cursor-default',
-                          cell.isStart ? 'ring-1 ring-emerald-400/70' : '',
-                          cell.isEnd && !cell.isStart ? 'ring-1 ring-fuchsia-400/70' : '',
+                          cell.isStart ? 'ring-2 ring-emerald-400/80' : '',
+                          cell.isEnd && !cell.isStart ? 'ring-2 ring-fuchsia-400/80' : '',
                           sel ? 'ring-2 ring-white' : '',
                         ].join(' ')}
                       >
-                        <span className={`text-sm leading-none ${cell.isStart || cell.isEnd ? 'font-bold' : 'font-medium'}`}>{cell.day}</span>
+                        <span className={`text-sm leading-none ${cell.inSpan ? 'font-bold' : 'font-medium'}`}>{cell.day}</span>
                         {has && (
-                          <span className="flex flex-wrap gap-x-1 gap-y-0.5 justify-center leading-none text-[13px]">
+                          <span className="flex flex-wrap gap-x-1 gap-y-0.5 justify-center leading-none text-xs">
                             {cell.types.map((t, ti) => <span key={ti} title={t}>{EV_EMOJI[t]}</span>)}
                           </span>
                         )}

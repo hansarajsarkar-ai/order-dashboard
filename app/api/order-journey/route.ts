@@ -124,7 +124,7 @@ async function _GET(req: NextRequest) {
         AND COALESCE(poi."isArchived", FALSE) = FALSE
       ORDER BY poi."created_at" ASC;
     `;
-    const itemRows = await query<Record<string, string | null>>(itemsSql, [poId]);
+    const itemRowsP = query<Record<string, string | null>>(itemsSql, [poId]);
 
     // ── 3. Courier (latest intercityDelivery) ────────────────────────────────
     const courierSql = `
@@ -155,8 +155,7 @@ async function _GET(req: NextRequest) {
       ORDER BY di."created_at" DESC
       LIMIT 1;
     `;
-    const courierRows = await query<Record<string, string | null>>(courierSql, [poId]);
-    const c = courierRows[0] || null;
+    const courierRowsP = query<Record<string, string | null>>(courierSql, [poId]);
 
     // ── 3b. Courier scan trail (all scans, ascending) ────────────────────────
     const scansSql = `
@@ -177,7 +176,7 @@ async function _GET(req: NextRequest) {
         AND scan->>'date' IS NOT NULL
       ORDER BY (scan->>'date')::timestamptz ASC;
     `;
-    const scanRows = await query<Record<string, string | null>>(scansSql, [poId]);
+    const scanRowsP = query<Record<string, string | null>>(scansSql, [poId]);
 
     // ── 4. PO-linked calls (driver / buyer / seller) ─────────────────────────
     const callsSql = `
@@ -187,7 +186,7 @@ async function _GET(req: NextRequest) {
       WHERE "poNumber" = $1::int
       ORDER BY "callPlacedAt" ASC;
     `;
-    const callRows = await query<Record<string, string | null>>(callsSql, [poNumber]);
+    const callRowsP = query<Record<string, string | null>>(callsSql, [poNumber]);
 
     // ── 5. Driver QR scan of buyer location ──────────────────────────────────
     const qrSql = `
@@ -202,12 +201,13 @@ async function _GET(req: NextRequest) {
       WHERE "poNumber" = $1
       ORDER BY "created_at" ASC;
     `;
-    const qrRows = await query<Record<string, string | null>>(qrSql, [poNumber]);
+    const qrRowsP = query<Record<string, string | null>>(qrSql, [poNumber]);
 
     // ── 6. smartFlo enrichment — buyer/seller calls by phone within window ───
-    // start_stamp is text in IST 'YYYY-MM-DD HH24:MI:SS' (lexicographically
-    // sortable) → range-filter as text to avoid casting 690K rows. Window =
-    // [placed, completed/delivered + 3d].
+    // Match RIGHT(call_to_number,10) directly (NOT wrapped in regexp_replace) so
+    // the idx_call_logs_phone_last10 index is used — wrapping it forced a 698K-row
+    // seq scan (up to ~37s on wide windows). start_stamp is text IST and
+    // lexicographically sortable. Window = [placed, completed/delivered + 3d].
     const smartFloSql = `
       WITH po AS (
         SELECT
@@ -225,25 +225,22 @@ async function _GET(req: NextRequest) {
              cl."start_stamp" AS "startStamp", cl."recording_url" AS "recordingUrl",
              cl."agent_name" AS "agentName",
              CASE
-               WHEN RIGHT(regexp_replace(cl."call_to_number",'[^0-9]','','g'),10) = po.bp
-                 OR RIGHT(regexp_replace(cl."caller_id_number",'[^0-9]','','g'),10) = po.bp THEN 'BUYER'
-               WHEN RIGHT(regexp_replace(cl."call_to_number",'[^0-9]','','g'),10) = po.sp
-                 OR RIGHT(regexp_replace(cl."caller_id_number",'[^0-9]','','g'),10) = po.sp THEN 'SELLER'
+               WHEN RIGHT(cl."call_to_number",10) = po.bp
+                 OR RIGHT(cl."caller_id_number",10) = po.bp THEN 'BUYER'
+               WHEN RIGHT(cl."call_to_number",10) = po.sp
+                 OR RIGHT(cl."caller_id_number",10) = po.sp THEN 'SELLER'
              END AS "party"
       FROM "smartFlo".call_logs cl, po
       WHERE po.t0 IS NOT NULL
         AND cl."start_stamp" >= po.t0 AND cl."start_stamp" <= po.t1
-        AND ( RIGHT(regexp_replace(cl."call_to_number",'[^0-9]','','g'),10) IN (po.bp, po.sp)
-           OR RIGHT(regexp_replace(cl."caller_id_number",'[^0-9]','','g'),10) IN (po.bp, po.sp) )
+        AND ( RIGHT(cl."call_to_number",10) IN (po.bp, po.sp)
+           OR RIGHT(cl."caller_id_number",10) IN (po.bp, po.sp) )
       ORDER BY cl."start_stamp" ASC
       LIMIT 60;
     `;
-    let smartFloRows: Record<string, string | null>[] = [];
-    try {
-      smartFloRows = await query<Record<string, string | null>>(smartFloSql, [poNumber]);
-    } catch {
-      smartFloRows = []; // enrichment is best-effort; never fail the whole request
-    }
+    // enrichment is best-effort; never fail the whole request
+    const smartFloRowsP = query<Record<string, string | null>>(smartFloSql, [poNumber])
+      .catch(() => [] as Record<string, string | null>[]);
 
     // ── 7. PO edit (seller removed an item / decreased a qty) ────────────────
     const modsSql = `
@@ -261,7 +258,7 @@ async function _GET(req: NextRequest) {
         AND ( (poi."isArchived" = TRUE  AND poi."originalSnapshot" IS NULL)
            OR (poi."isArchived" = FALSE AND poi."originalSnapshot" IS NOT NULL) );
     `;
-    const modRows = await query<Record<string, string | null>>(modsSql, [poId]);
+    const modRowsP = query<Record<string, string | null>>(modsSql, [poId]);
 
     // ── 8. QPS buyer stage — qualifying spend in this PO's month ──────────────
     const qpsSql = `
@@ -290,7 +287,13 @@ async function _GET(req: NextRequest) {
             AND s."id" <> $2
         ), 0)::text AS "qualifiedAmount";
     `;
-    const qpsRows = await query<Record<string, string | null>>(qpsSql, [poNumber, QPS_EXCLUDED_SELLER]);
+    const qpsRowsP = query<Record<string, string | null>>(qpsSql, [poNumber, QPS_EXCLUDED_SELLER]);
+
+    // Run every per-PO query concurrently (poId & poNumber are both known) —
+    // collapses ~8 serial Hasura round-trips into a single wave (~3s → ~1.5s).
+    const [itemRows, courierRows, scanRows, callRows, qrRows, smartFloRows, modRows, qpsRows] =
+      await Promise.all([itemRowsP, courierRowsP, scanRowsP, callRowsP, qrRowsP, smartFloRowsP, modRowsP, qpsRowsP]);
+    const c = courierRows[0] || null;
 
     // ── Assemble ─────────────────────────────────────────────────────────────
     const stages = STAGE_DEFS.map((d) => ({

@@ -557,6 +557,8 @@ function JourneyCalendar({
                     const sel = selectedDay === cell.key;
                     const fill = cell.inSpan ? dayFill(cell.key) : null;
                     const marks = marksByDay.get(cell.key) ?? [];
+                    const hasException = cell.inSpan && cell.types.includes('exception');
+                    const iconTypes = cell.types.filter((t) => t !== 'exception');
                     return (
                       <button
                         key={ci} type="button" disabled={!has}
@@ -564,7 +566,7 @@ function JourneyCalendar({
                         style={fill ? { background: fill } : undefined}
                         title={has ? `${fmtKey(cell.key)} · ${cell.types.join(', ')} — click to jump` : fmtKey(cell.key)}
                         className={[
-                          'relative min-h-[62px] rounded-lg flex flex-col items-center gap-1 pt-1.5 pb-1 px-1 transition-colors overflow-hidden',
+                          'relative min-h-[62px] rounded-lg flex flex-col items-center gap-1 pt-1.5 pb-1 px-1 transition-colors',
                           fill ? 'border border-white/20 text-white' : cell.inSpan ? `${tone.box} text-white` : 'bg-white/[0.025] border border-transparent text-purple-300/40',
                           has ? 'cursor-pointer hover:brightness-125' : 'cursor-default',
                           cell.isStart ? 'ring-2 ring-emerald-400/80' : '',
@@ -686,7 +688,23 @@ function OrderJourneyDashboard() {
       const r = await fetch(`/api/order-journey?poNumber=${encodeURIComponent(trimmed)}`);
       const j: JourneyResp = await r.json();
       if (!r.ok) setError(j.error || 'Failed to load journey.');
-      else setResp(j);
+      else {
+        setResp(j);
+        // Phone-call (smartFlo) enrichment is loaded separately so its slow
+        // call_logs match never blocks the journey render; merge it in when it
+        // arrives, guarding against a stale response for a different PO.
+        if (j.found) {
+          fetch(`/api/order-journey/phone-calls?poNumber=${encodeURIComponent(trimmed)}`)
+            .then((pr) => pr.json())
+            .then((pj: { phoneCalls?: PhoneCall[] }) => {
+              if (pj?.phoneCalls?.length) {
+                setResp((prev) => (prev && prev.poNumber === j.poNumber
+                  ? { ...prev, phoneCalls: pj.phoneCalls } : prev));
+              }
+            })
+            .catch(() => {});
+        }
+      }
     } catch { setError('Network error — please try again.'); }
     finally { setLoading(false); }
   }, []);

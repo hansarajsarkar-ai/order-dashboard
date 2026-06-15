@@ -200,55 +200,9 @@ async function _GET(req: NextRequest) {
     `;
     const qrRowsP = query<Record<string, string | null>>(qrSql, [poNumber]);
 
-    // ── 6. smartFlo enrichment — buyer/seller calls by phone within window ───
-    // Match RIGHT(call_to_number,10) directly (NOT wrapped in regexp_replace) so
-    // the idx_call_logs_phone_last10 index is used — wrapping it forced a 698K-row
-    // seq scan (up to ~37s on wide windows). start_stamp is text IST and
-    // lexicographically sortable. Window = [placed, completed/delivered + 3d].
-    const smartFloSql = `
-      WITH po AS (
-        SELECT
-          to_char(p."markedPendingTime" AT TIME ZONE 'Asia/Kolkata','YYYY-MM-DD HH24:MI:SS') AS t0,
-          to_char((COALESCE(p."markedCompletedTime", p."markedDeliveredTime", NOW()) + INTERVAL '3 days')
-                  AT TIME ZONE 'Asia/Kolkata','YYYY-MM-DD HH24:MI:SS') AS t1,
-          RIGHT(regexp_replace(b."phone",'[^0-9]','','g'),10) AS bp,
-          RIGHT(regexp_replace(s."phone",'[^0-9]','','g'),10) AS sp
-        FROM "purchaseOrder"."purchaseOrder" p
-        JOIN "users"."buyer"  b ON b."id" = p."buyerId"
-        JOIN "users"."seller" s ON s."id" = p."sellerId"
-        WHERE p."poNumber" = $1::int
-      )
-      , matched AS (
-        SELECT cl."direction", cl."call_status", cl."duration", cl."start_stamp",
-               cl."recording_url", cl."agent_name", cl."call_to_number", cl."caller_id_number"
-        FROM "smartFlo".call_logs cl, po
-        WHERE po.t0 IS NOT NULL
-          AND cl."start_stamp" >= po.t0 AND cl."start_stamp" <= po.t1
-          AND RIGHT(cl."call_to_number",10) IN (po.bp, po.sp)
-        UNION
-        SELECT cl."direction", cl."call_status", cl."duration", cl."start_stamp",
-               cl."recording_url", cl."agent_name", cl."call_to_number", cl."caller_id_number"
-        FROM "smartFlo".call_logs cl, po
-        WHERE po.t0 IS NOT NULL
-          AND cl."start_stamp" >= po.t0 AND cl."start_stamp" <= po.t1
-          AND RIGHT(cl."caller_id_number",10) IN (po.bp, po.sp)
-      )
-      SELECT m."direction", m."call_status" AS "callStatus", m."duration",
-             m."start_stamp" AS "startStamp", m."recording_url" AS "recordingUrl",
-             m."agent_name" AS "agentName",
-             CASE
-               WHEN RIGHT(m."call_to_number",10) = po.bp
-                 OR RIGHT(m."caller_id_number",10) = po.bp THEN 'BUYER'
-               WHEN RIGHT(m."call_to_number",10) = po.sp
-                 OR RIGHT(m."caller_id_number",10) = po.sp THEN 'SELLER'
-             END AS "party"
-      FROM matched m, po
-      ORDER BY m."start_stamp" ASC
-      LIMIT 60;
-    `;
-    // enrichment is best-effort; never fail the whole request
-    const smartFloRowsP = query<Record<string, string | null>>(smartFloSql, [poNumber])
-      .catch(() => [] as Record<string, string | null>[]);
+    // ── 6. smartFlo phone-call enrichment is now loaded separately by the page
+    // via /api/order-journey/phone-calls so its occasionally-slow call_logs
+    // match never blocks this (otherwise sub-second) journey response.
 
     // ── 7. PO edit (seller removed an item / decreased a qty) ────────────────
     const modsSql = `
@@ -298,9 +252,9 @@ async function _GET(req: NextRequest) {
     const qpsRowsP = query<Record<string, string | null>>(qpsSql, [poNumber, QPS_EXCLUDED_SELLER]);
 
     // Every query keys off poNumber (the poId-based ones self-resolve it via a
-    // subquery), so all 9 run concurrently in ONE Hasura wave.
-    const [poRows, itemRows, courierRows, scanRows, callRows, qrRows, smartFloRows, modRows, qpsRows] =
-      await Promise.all([poRowsP, itemRowsP, courierRowsP, scanRowsP, callRowsP, qrRowsP, smartFloRowsP, modRowsP, qpsRowsP]);
+    // subquery), so all run concurrently in ONE Hasura wave.
+    const [poRows, itemRows, courierRows, scanRows, callRows, qrRows, modRows, qpsRows] =
+      await Promise.all([poRowsP, itemRowsP, courierRowsP, scanRowsP, callRowsP, qrRowsP, modRowsP, qpsRowsP]);
     if (poRows.length === 0) return NextResponse.json({ found: false, poNumber });
     const p = poRows[0];
     const c = courierRows[0] || null;
@@ -384,15 +338,8 @@ async function _GET(req: NextRequest) {
       ? { monthStart: qpsRow.monthStart, qualifiedAmount: num(qpsRow.qualifiedAmount) ?? 0 }
       : null;
 
-    const phoneCalls = smartFloRows.map((r) => ({
-      direction: r.direction, // Outbound | Inbound | Manual
-      callStatus: r.callStatus, // Answer | No Answer | ...
-      duration: num(r.duration),
-      startStamp: r.startStamp, // IST 'YYYY-MM-DD HH:MM:SS'
-      recordingUrl: r.recordingUrl,
-      agentName: r.agentName,
-      party: r.party, // BUYER | SELLER
-    }));
+    // phoneCalls are fetched separately by the page (see /phone-calls route).
+    const phoneCalls: never[] = [];
 
     return NextResponse.json({
       found: true,

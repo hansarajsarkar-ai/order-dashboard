@@ -102,10 +102,7 @@ async function _GET(req: NextRequest) {
       WHERE po."poNumber" = $1::int
       LIMIT 1;
     `;
-    const poRows = await query<Record<string, string | null>>(poSql, [poNumber]);
-    if (poRows.length === 0) return NextResponse.json({ found: false, poNumber });
-    const p = poRows[0];
-    const poId = p.id as string;
+    const poRowsP = query<Record<string, string | null>>(poSql, [poNumber]);
 
     // ── 2. Items ─────────────────────────────────────────────────────────────
     const itemsSql = `
@@ -120,11 +117,11 @@ async function _GET(req: NextRequest) {
       FROM "purchaseOrder"."purchaseOrderItem" poi
       LEFT JOIN "brands"."brandSKU" bsku ON bsku."id" = poi."brandSKUId"
       LEFT JOIN "brands"."brand"    br   ON br."id" = bsku."brandId"
-      WHERE poi."purchaseOrderId" = $1
+      WHERE poi."purchaseOrderId" = (SELECT "id" FROM "purchaseOrder"."purchaseOrder" WHERE "poNumber" = $1::int)
         AND COALESCE(poi."isArchived", FALSE) = FALSE
       ORDER BY poi."created_at" ASC;
     `;
-    const itemRowsP = query<Record<string, string | null>>(itemsSql, [poId]);
+    const itemRowsP = query<Record<string, string | null>>(itemsSql, [poNumber]);
 
     // ── 3. Courier (latest intercityDelivery) ────────────────────────────────
     const courierSql = `
@@ -151,18 +148,18 @@ async function _GET(req: NextRequest) {
         di."dropJSON"->'location'->>'latitude'  AS "dropLat",
         di."dropJSON"->'location'->>'longitude' AS "dropLng"
       FROM "deliveries"."intercityDelivery" di
-      WHERE di."purchaseOrderId" = $1 AND di."isTest" = FALSE
+      WHERE di."purchaseOrderId" = (SELECT "id" FROM "purchaseOrder"."purchaseOrder" WHERE "poNumber" = $1::int) AND di."isTest" = FALSE
       ORDER BY di."created_at" DESC
       LIMIT 1;
     `;
-    const courierRowsP = query<Record<string, string | null>>(courierSql, [poId]);
+    const courierRowsP = query<Record<string, string | null>>(courierSql, [poNumber]);
 
     // ── 3b. Courier scan trail (all scans, ascending) ────────────────────────
     const scansSql = `
       WITH latest_delivery AS (
         SELECT di."latestLogDetails" AS l
         FROM "deliveries"."intercityDelivery" di
-        WHERE di."purchaseOrderId" = $1 AND di."isTest" = FALSE
+        WHERE di."purchaseOrderId" = (SELECT "id" FROM "purchaseOrder"."purchaseOrder" WHERE "poNumber" = $1::int) AND di."isTest" = FALSE
         ORDER BY di."created_at" DESC LIMIT 1
       )
       SELECT scan->>'location' AS "location",
@@ -176,7 +173,7 @@ async function _GET(req: NextRequest) {
         AND scan->>'date' IS NOT NULL
       ORDER BY (scan->>'date')::timestamptz ASC;
     `;
-    const scanRowsP = query<Record<string, string | null>>(scansSql, [poId]);
+    const scanRowsP = query<Record<string, string | null>>(scansSql, [poNumber]);
 
     // ── 4. PO-linked calls (driver / buyer / seller) ─────────────────────────
     const callsSql = `
@@ -221,21 +218,32 @@ async function _GET(req: NextRequest) {
         JOIN "users"."seller" s ON s."id" = p."sellerId"
         WHERE p."poNumber" = $1::int
       )
-      SELECT cl."direction", cl."call_status" AS "callStatus", cl."duration",
-             cl."start_stamp" AS "startStamp", cl."recording_url" AS "recordingUrl",
-             cl."agent_name" AS "agentName",
+      , matched AS (
+        SELECT cl."direction", cl."call_status", cl."duration", cl."start_stamp",
+               cl."recording_url", cl."agent_name", cl."call_to_number", cl."caller_id_number"
+        FROM "smartFlo".call_logs cl, po
+        WHERE po.t0 IS NOT NULL
+          AND cl."start_stamp" >= po.t0 AND cl."start_stamp" <= po.t1
+          AND RIGHT(cl."call_to_number",10) IN (po.bp, po.sp)
+        UNION
+        SELECT cl."direction", cl."call_status", cl."duration", cl."start_stamp",
+               cl."recording_url", cl."agent_name", cl."call_to_number", cl."caller_id_number"
+        FROM "smartFlo".call_logs cl, po
+        WHERE po.t0 IS NOT NULL
+          AND cl."start_stamp" >= po.t0 AND cl."start_stamp" <= po.t1
+          AND RIGHT(cl."caller_id_number",10) IN (po.bp, po.sp)
+      )
+      SELECT m."direction", m."call_status" AS "callStatus", m."duration",
+             m."start_stamp" AS "startStamp", m."recording_url" AS "recordingUrl",
+             m."agent_name" AS "agentName",
              CASE
-               WHEN RIGHT(cl."call_to_number",10) = po.bp
-                 OR RIGHT(cl."caller_id_number",10) = po.bp THEN 'BUYER'
-               WHEN RIGHT(cl."call_to_number",10) = po.sp
-                 OR RIGHT(cl."caller_id_number",10) = po.sp THEN 'SELLER'
+               WHEN RIGHT(m."call_to_number",10) = po.bp
+                 OR RIGHT(m."caller_id_number",10) = po.bp THEN 'BUYER'
+               WHEN RIGHT(m."call_to_number",10) = po.sp
+                 OR RIGHT(m."caller_id_number",10) = po.sp THEN 'SELLER'
              END AS "party"
-      FROM "smartFlo".call_logs cl, po
-      WHERE po.t0 IS NOT NULL
-        AND cl."start_stamp" >= po.t0 AND cl."start_stamp" <= po.t1
-        AND ( RIGHT(cl."call_to_number",10) IN (po.bp, po.sp)
-           OR RIGHT(cl."caller_id_number",10) IN (po.bp, po.sp) )
-      ORDER BY cl."start_stamp" ASC
+      FROM matched m, po
+      ORDER BY m."start_stamp" ASC
       LIMIT 60;
     `;
     // enrichment is best-effort; never fail the whole request
@@ -252,13 +260,13 @@ async function _GET(req: NextRequest) {
         END AS "changeType"
       FROM "purchaseOrder"."purchaseOrderItem" poi
       LEFT JOIN "brands"."brandSKU" bsku ON bsku."id" = poi."brandSKUId"
-      WHERE poi."purchaseOrderId" = $1
+      WHERE poi."purchaseOrderId" = (SELECT "id" FROM "purchaseOrder"."purchaseOrder" WHERE "poNumber" = $1::int)
         AND poi."status" <> 'DRAFT'
         AND poi."modifiedByRole" ILIKE 'seller'
         AND ( (poi."isArchived" = TRUE  AND poi."originalSnapshot" IS NULL)
            OR (poi."isArchived" = FALSE AND poi."originalSnapshot" IS NOT NULL) );
     `;
-    const modRowsP = query<Record<string, string | null>>(modsSql, [poId]);
+    const modRowsP = query<Record<string, string | null>>(modsSql, [poNumber]);
 
     // ── 8. QPS buyer stage — qualifying spend in this PO's month ──────────────
     const qpsSql = `
@@ -289,10 +297,12 @@ async function _GET(req: NextRequest) {
     `;
     const qpsRowsP = query<Record<string, string | null>>(qpsSql, [poNumber, QPS_EXCLUDED_SELLER]);
 
-    // Run every per-PO query concurrently (poId & poNumber are both known) —
-    // collapses ~8 serial Hasura round-trips into a single wave (~3s → ~1.5s).
-    const [itemRows, courierRows, scanRows, callRows, qrRows, smartFloRows, modRows, qpsRows] =
-      await Promise.all([itemRowsP, courierRowsP, scanRowsP, callRowsP, qrRowsP, smartFloRowsP, modRowsP, qpsRowsP]);
+    // Every query keys off poNumber (the poId-based ones self-resolve it via a
+    // subquery), so all 9 run concurrently in ONE Hasura wave.
+    const [poRows, itemRows, courierRows, scanRows, callRows, qrRows, smartFloRows, modRows, qpsRows] =
+      await Promise.all([poRowsP, itemRowsP, courierRowsP, scanRowsP, callRowsP, qrRowsP, smartFloRowsP, modRowsP, qpsRowsP]);
+    if (poRows.length === 0) return NextResponse.json({ found: false, poNumber });
+    const p = poRows[0];
     const c = courierRows[0] || null;
 
     // ── Assemble ─────────────────────────────────────────────────────────────

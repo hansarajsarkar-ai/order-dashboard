@@ -12,18 +12,30 @@ export const dynamic = 'force-dynamic';
  */
 
 const DEFAULT_FROM = '2026-01-15';
-const PAGE_SIZE = 50;
+const PAGE_SIZES = [25, 50, 75, 100];
+const CSV_CAP = 20000;
 
 const num = (v: string | null | undefined): number | null =>
   v != null && v !== '' ? parseFloat(v) : null;
+
+const csvCell = (v: unknown): string => {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
 
 async function _GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = (searchParams.get('from') || DEFAULT_FROM).trim();
   const to = (searchParams.get('to') || '').trim();
+  const isCsv = searchParams.get('format') === 'csv';
+  const pageSizeRaw = parseInt(searchParams.get('pageSize') || '50', 10);
+  const PAGE_SIZE = PAGE_SIZES.includes(pageSizeRaw) ? pageSizeRaw : 50;
   const pageRaw = parseInt(searchParams.get('page') || '1', 10);
   const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
   const offset = (page - 1) * PAGE_SIZE;
+  // CSV exports the whole filtered set (capped); the table uses page/pageSize.
+  const limit = isCsv ? CSV_CAP : PAGE_SIZE;
+  const sliceOffset = isCsv ? 0 : offset;
 
   // Validate dates (YYYY-MM-DD) to keep them safe for inlining.
   const dateOk = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -87,7 +99,7 @@ async function _GET(req: NextRequest) {
         JOIN "users"."buyer"  b ON b."id" = po."buyerId"
         WHERE ${whereCore}
         ORDER BY placed DESC
-        LIMIT ${PAGE_SIZE} OFFSET ${offset}
+        LIMIT ${limit} OFFSET ${sliceOffset}
       )
       SELECT
         base."poNumber", base.placed, base.status, base."deliveryStatus",
@@ -135,6 +147,25 @@ async function _GET(req: NextRequest) {
       GROUP BY ds
       ORDER BY n DESC;
     `;
+
+    // CSV export — the filtered set (no facets/count needed), capped at CSV_CAP.
+    if (isCsv) {
+      const csvRows = await query<Record<string, string | null>>(listSql, []);
+      const header = ['PO Number', 'Placed', 'Seller', 'Buyer', 'City', 'State', 'Status', 'Delivery Status', 'Amount', 'Courier', 'AWB'];
+      const lines = [header.join(',')];
+      for (const r of csvRows) {
+        lines.push([
+          r.poNumber, r.placed, r.seller, r.buyer, r.buyerCity, r.buyerState,
+          r.status, r.deliveryStatus, r.amount, r.partner, r.awb,
+        ].map(csvCell).join(','));
+      }
+      return new NextResponse(lines.join('\n'), {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="order-journey-${fromDate}${dateOk(to) ? `_to_${to}` : ''}.csv"`,
+        },
+      });
+    }
 
     const [rows, countRows, facetRows, deliveryFacetRows] = await Promise.all([
       query<Record<string, string | null>>(listSql, []),

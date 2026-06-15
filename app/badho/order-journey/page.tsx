@@ -403,6 +403,11 @@ function OrderJourneyDashboard() {
   const [toDate, setToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [deliveryFilter, setDeliveryFilter] = useState<string[]>([]);
+  const [pageSize, setPageSize] = useState(50);
+  const [preset, setPreset] = useState<'all' | '7' | '30' | '90' | 'ytd' | 'custom'>('all');
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [jumpInput, setJumpInput] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -443,17 +448,45 @@ function OrderJourneyDashboard() {
     if (!authChecked || poParam) return;
     let cancelled = false;
     setListLoading(true); setListError('');
-    const qs = new URLSearchParams({ page: String(listPage), from: fromDate });
+    const qs = new URLSearchParams({ page: String(listPage), pageSize: String(pageSize), from: fromDate });
     if (toDate) qs.set('to', toDate);
     if (statusFilter.length) qs.set('status', statusFilter.join(','));
     if (deliveryFilter.length) qs.set('delivery', deliveryFilter.join(','));
     fetch(`/api/order-journey/list?${qs.toString()}`)
       .then((r) => r.json())
-      .then((j: ListResp) => { if (!cancelled) { if (j.error) setListError(j.error); else setList(j); } })
+      .then((j: ListResp) => { if (!cancelled) { if (j.error) setListError(j.error); else { setList(j); setLastUpdated(Date.now()); } } })
       .catch(() => { if (!cancelled) setListError('Failed to load orders.'); })
       .finally(() => { if (!cancelled) setListLoading(false); });
     return () => { cancelled = true; };
-  }, [authChecked, poParam, listPage, fromDate, toDate, statusFilter, deliveryFilter]);
+  }, [authChecked, poParam, listPage, pageSize, fromDate, toDate, statusFilter, deliveryFilter, refreshKey]);
+
+  const FLOOR = '2026-01-15';
+  const applyPreset = (p: typeof preset) => {
+    setPreset(p); setListPage(1);
+    if (p === 'custom') return; // reveal the From/To inputs, keep current range
+    const clamp = (s: string) => (s < FLOOR ? FLOOR : s);
+    const isoOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (p === 'all') { setFromDate(FLOOR); setToDate(''); return; }
+    const today = new Date();
+    if (p === 'ytd') { setFromDate(clamp(`${today.getFullYear()}-01-01`)); setToDate(''); return; }
+    const days = p === '7' ? 7 : p === '30' ? 30 : 90;
+    const f = new Date(today); f.setDate(f.getDate() - days);
+    setFromDate(clamp(isoOf(f))); setToDate('');
+  };
+
+  const exportCsv = () => {
+    const qs = new URLSearchParams({ format: 'csv', from: fromDate });
+    if (toDate) qs.set('to', toDate);
+    if (statusFilter.length) qs.set('status', statusFilter.join(','));
+    if (deliveryFilter.length) qs.set('delivery', deliveryFilter.join(','));
+    window.open(`/api/order-journey/list?${qs.toString()}`, '_blank');
+  };
+
+  const goToPage = () => {
+    const n = parseInt(jumpInput, 10);
+    if (list && Number.isFinite(n) && n >= 1 && n <= list.pageCount) setListPage(n);
+    setJumpInput('');
+  };
 
   const toggleStatus = (s: string) => {
     setStatusFilter((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
@@ -912,27 +945,43 @@ function OrderJourneyDashboard() {
         {/* ─── LIST VIEW (default — all D2R orders) ─────────────────────────── */}
         {!poParam && (
           <div className="space-y-4">
-            {/* Date filter */}
-            <div className="flex items-end gap-3 flex-wrap">
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-purple-300/60 font-semibold mb-1">From</label>
-                <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value || '2026-01-15'); setListPage(1); }}
-                  className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:border-fuchsia-400/50 focus:outline-none [color-scheme:dark]" />
+            {/* Controls — date presets · CSV · rows-per-page */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                {([['all', 'All'], ['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days'], ['ytd', 'YTD'], ['custom', 'Custom']] as const).map(([k, label]) => (
+                  <button key={k} onClick={() => applyPreset(k)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${preset === k ? 'bg-fuchsia-500/30 text-white border border-fuchsia-400/50' : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}>
+                    {label}
+                  </button>
+                ))}
               </div>
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-purple-300/60 font-semibold mb-1">To</label>
-                <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setListPage(1); }}
-                  className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:border-fuchsia-400/50 focus:outline-none [color-scheme:dark]" />
-              </div>
-              {(fromDate !== '2026-01-15' || toDate) && (
-                <button onClick={() => { setFromDate('2026-01-15'); setToDate(''); setListPage(1); }}
-                  className="px-3 py-2 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10">Reset</button>
-              )}
-              {list && (
-                <div className="ml-auto text-xs text-purple-200/80 self-center">
-                  <span className="text-fuchsia-300 font-bold tabular-nums">{list.total.toLocaleString('en-IN')}</span> D2R orders
+
+              {preset === 'custom' && (
+                <div className="flex items-end gap-2">
+                  <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value || FLOOR); setListPage(1); }}
+                    className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:border-fuchsia-400/50 focus:outline-none [color-scheme:dark]" />
+                  <span className="text-purple-300/50 text-sm self-center">→</span>
+                  <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setListPage(1); }}
+                    className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:border-fuchsia-400/50 focus:outline-none [color-scheme:dark]" />
                 </div>
               )}
+
+              <button onClick={exportCsv} disabled={!list || list.total === 0}
+                className="px-3 py-2 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-400/40 text-fuchsia-100 text-xs font-bold disabled:opacity-40 transition-colors">
+                ↓ CSV
+              </button>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-300/60">Rows per page</span>
+                <div className="flex gap-1 p-1 bg-white/5 border border-white/10 rounded-xl">
+                  {[25, 50, 75, 100].map((n) => (
+                    <button key={n} onClick={() => { setPageSize(n); setListPage(1); }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${pageSize === n ? 'bg-fuchsia-500/30 text-white border border-fuchsia-400/50' : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Status filter — filled pills (active = ringed, others dimmed) */}
@@ -988,6 +1037,7 @@ function OrderJourneyDashboard() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-violet-300/25 bg-gradient-to-r from-violet-500/25 to-fuchsia-500/20 text-[12px] font-bold uppercase tracking-wider text-white">
+                      <th className="px-3 py-3 text-center">#</th>
                       <th className="px-3 py-3 text-center">PO #</th>
                       <th className="px-3 py-3 text-center">Placed</th>
                       <th className="px-3 py-3 text-center">Seller</th>
@@ -1001,7 +1051,7 @@ function OrderJourneyDashboard() {
                   </thead>
                   <tbody>
                     {listLoading ? (
-                      <tr><td colSpan={9} className="px-4 py-16 text-center text-purple-300/70">
+                      <tr><td colSpan={10} className="px-4 py-16 text-center text-purple-300/70">
                         <div className="inline-block w-7 h-7 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
                         <div className="text-sm mt-2">Loading orders…</div>
                       </td></tr>
@@ -1009,6 +1059,7 @@ function OrderJourneyDashboard() {
                       list.data.map((r, i) => (
                         <tr key={r.poNumber ?? i} onClick={() => openPo(r.poNumber)}
                           className={`border-t border-white/5 cursor-pointer transition-colors hover:bg-fuchsia-500/[0.08] ${i % 2 === 1 ? 'bg-white/[0.025]' : ''}`}>
+                          <td className="px-3 py-2.5 text-center tabular-nums text-purple-300/60 text-xs">{(list.page - 1) * list.pageSize + i + 1}</td>
                           <td className="px-3 py-2.5 text-center font-mono text-fuchsia-200 font-semibold">#{r.poNumber}</td>
                           <td className="px-3 py-2.5 text-center text-purple-200/90 whitespace-nowrap text-xs">{fmtMs(toMs(r.placed))}</td>
                           <td className="px-3 py-2.5 text-center text-white max-w-[180px] truncate" title={r.seller || ''}>{r.seller || '—'}</td>
@@ -1024,24 +1075,47 @@ function OrderJourneyDashboard() {
                         </tr>
                       ))
                     ) : (
-                      <tr><td colSpan={9} className="px-4 py-16 text-center text-purple-300/70 text-sm">No D2R orders in this range.</td></tr>
+                      <tr><td colSpan={10} className="px-4 py-16 text-center text-purple-300/70 text-sm">No D2R orders in this range.</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
 
-              {/* Pagination */}
-              {list && list.pageCount > 1 && (
-                <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-white/10 bg-white/[0.02] flex-wrap">
-                  <div className="text-xs text-purple-300/70">
-                    Page <span className="text-white font-semibold tabular-nums">{list.page}</span> of <span className="tabular-nums">{list.pageCount.toLocaleString('en-IN')}</span>
+              {/* Footer — last updated · refresh · row count */}
+              {list && (
+                <div className="border-t border-white/10 bg-white/[0.02]">
+                  <div className="flex items-center justify-between gap-3 px-4 py-2.5 flex-wrap text-xs text-purple-300/70">
+                    <div className="flex items-center gap-3">
+                      <span>Last updated {lastUpdated != null ? fmtMs(lastUpdated) : '—'}</span>
+                      <button onClick={() => setRefreshKey((k) => k + 1)} disabled={listLoading}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 hover:text-white font-semibold disabled:opacity-50 transition-colors">
+                        <span className={listLoading ? 'inline-block animate-spin' : 'inline-block'}>↻</span> Refresh
+                      </button>
+                    </div>
+                    <div>
+                      <span className="text-fuchsia-300 font-bold tabular-nums">{list.total.toLocaleString('en-IN')}</span> rows · page <span className="tabular-nums">{list.page}/{list.pageCount.toLocaleString('en-IN')}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button disabled={list.page <= 1 || listLoading} onClick={() => setListPage((p) => Math.max(1, p - 1))}
-                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed">← Prev</button>
-                    <button disabled={list.page >= list.pageCount || listLoading} onClick={() => setListPage((p) => p + 1)}
-                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed">Next →</button>
-                  </div>
+
+                  {/* Pagination — first · prev · page · next · last · jump */}
+                  {list.pageCount > 1 && (() => {
+                    const pgBtn = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
+                    return (
+                      <div className="flex items-center justify-center gap-2 px-4 py-3 border-t border-white/5 flex-wrap">
+                        <button disabled={list.page <= 1 || listLoading} onClick={() => setListPage(1)} className={pgBtn} title="First">«</button>
+                        <button disabled={list.page <= 1 || listLoading} onClick={() => setListPage((p) => Math.max(1, p - 1))} className={pgBtn}>‹ Prev</button>
+                        <span className="px-3 py-1.5 rounded-lg bg-fuchsia-500/30 border border-fuchsia-400/50 text-white text-xs font-bold tabular-nums">{list.page}</span>
+                        <button disabled={list.page >= list.pageCount || listLoading} onClick={() => setListPage((p) => p + 1)} className={pgBtn}>Next ›</button>
+                        <button disabled={list.page >= list.pageCount || listLoading} onClick={() => setListPage(list.pageCount)} className={pgBtn} title="Last">»</button>
+                        <input
+                          value={jumpInput} onChange={(e) => setJumpInput(e.target.value.replace(/[^\d]/g, ''))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') goToPage(); }}
+                          placeholder={String(list.page)} aria-label="Jump to page"
+                          className="w-16 px-2 py-1.5 text-xs text-center rounded-lg bg-white/5 border border-white/10 text-white placeholder-purple-300/40 focus:border-fuchsia-400/50 focus:outline-none tabular-nums" />
+                        <button onClick={goToPage} className="px-3 py-1.5 rounded-lg bg-fuchsia-500/30 border border-fuchsia-400/50 text-white text-xs font-bold hover:bg-fuchsia-500/40 transition-colors">Go</button>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>

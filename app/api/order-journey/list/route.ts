@@ -29,12 +29,21 @@ async function _GET(req: NextRequest) {
   const dateOk = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
   const fromDate = dateOk(from) ? from : DEFAULT_FROM;
   const toClause = dateOk(to)
-    ? `AND COALESCE(po."markedPendingTime", po."created_at_actual", po."created_at") < ($3::date + INTERVAL '1 day')`
+    ? `AND COALESCE(po."markedPendingTime", po."created_at_actual", po."created_at") < ('${to}'::date + INTERVAL '1 day')`
+    : '';
+
+  // Status filter (comma-separated). Only uppercase A–Z tokens are accepted, so
+  // they can be inlined safely as quoted literals (no bind params via run_sql).
+  const statuses = (searchParams.get('status') || '')
+    .split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z]+$/.test(s));
+  const statusClause = statuses.length
+    ? `AND po."status" IN (${statuses.map((s) => `'${s}'`).join(', ')})`
     : '';
 
   // Shared filter — placed date derived with a fallback so orders missing
-  // markedPendingTime still appear.
-  const whereCore = `
+  // markedPendingTime still appear. whereBase excludes the status filter so the
+  // status facet counts stay stable as chips are toggled.
+  const whereBase = `
     s."isD2RBrandSeller" = TRUE
     AND po."deliveryType" = 'INTERCITY'
     AND po."isTest" = FALSE
@@ -43,17 +52,14 @@ async function _GET(req: NextRequest) {
     AND s."businessName" NOT ILIKE '%test%'
     AND b."isTest" = FALSE
     AND b."businessName" NOT ILIKE '%test%'
-    AND COALESCE(po."markedPendingTime", po."created_at_actual", po."created_at") >= $1::date
+    AND COALESCE(po."markedPendingTime", po."created_at_actual", po."created_at") >= '${fromDate}'::date
     ${toClause}
   `;
+  const whereCore = `${whereBase} ${statusClause}`;
 
   try {
-    const params: unknown[] = [fromDate, PAGE_SIZE];
-    if (toClause) params.push(to);
-    // OFFSET param index depends on whether `to` was added.
-    const offsetIdx = toClause ? 4 : 3;
-    params.push(offset);
-
+    // All interpolated values (dates, statuses, page size, offset) are validated
+    // or numeric, so the queries take no bind params.
     const listSql = `
       WITH base AS (
         SELECT
@@ -72,7 +78,7 @@ async function _GET(req: NextRequest) {
         JOIN "users"."buyer"  b ON b."id" = po."buyerId"
         WHERE ${whereCore}
         ORDER BY placed DESC
-        LIMIT $2 OFFSET $${offsetIdx}
+        LIMIT ${PAGE_SIZE} OFFSET ${offset}
       )
       SELECT
         base."poNumber", base.placed, base.status, base."deliveryStatus",
@@ -97,15 +103,28 @@ async function _GET(req: NextRequest) {
       WHERE ${whereCore};
     `;
 
-    const countParams: unknown[] = [fromDate];
-    if (toClause) countParams.push(to);
+    // Per-status counts over the date range (ignores the status filter so the
+    // chips show stable totals).
+    const facetSql = `
+      SELECT po."status" AS status, COUNT(*) AS n
+      FROM "purchaseOrder"."purchaseOrder" po
+      JOIN "users"."seller" s ON s."id" = po."sellerId"
+      JOIN "users"."buyer"  b ON b."id" = po."buyerId"
+      WHERE ${whereBase}
+      GROUP BY po."status"
+      ORDER BY n DESC;
+    `;
 
-    const [rows, countRows] = await Promise.all([
-      query<Record<string, string | null>>(listSql, params),
-      query<{ n: string }>(countSql, countParams),
+    const [rows, countRows, facetRows] = await Promise.all([
+      query<Record<string, string | null>>(listSql, []),
+      query<{ n: string }>(countSql, []),
+      query<{ status: string | null; n: string }>(facetSql, []),
     ]);
 
     const total = parseInt(countRows[0]?.n || '0', 10);
+    const facets = facetRows
+      .filter((f) => f.status)
+      .map((f) => ({ status: f.status as string, count: parseInt(f.n, 10) }));
     const data = rows.map((r) => ({
       poNumber: num(r.poNumber),
       placed: r.placed,
@@ -128,6 +147,8 @@ async function _GET(req: NextRequest) {
       pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
       from: fromDate,
       to: dateOk(to) ? to : null,
+      statuses,
+      facets,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err) || 'Unknown error';

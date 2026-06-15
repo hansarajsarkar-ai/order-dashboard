@@ -55,7 +55,8 @@ interface ListRow {
 }
 interface ListResp {
   data: ListRow[]; total: number; page: number; pageSize: number; pageCount: number;
-  from: string; to: string | null; error?: string;
+  from: string; to: string | null; statuses: string[];
+  facets: { status: string; count: number }[]; error?: string;
 }
 interface Courier {
   status: string | null;
@@ -168,7 +169,7 @@ function statusTone(status: string | null): string {
   const s = (status || '').toUpperCase();
   if (['COMPLETED', 'DELIVERED'].includes(s)) return 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30';
   if (['REJECTED', 'CANCELLED', 'RTO', 'UNDELIVERED'].includes(s)) return 'bg-rose-500/20 text-rose-200 border-rose-400/30';
-  if (['PENDING', 'IN_PROGRESS', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'PROCESSING', 'PARTIAL', 'DISPATCHED', 'COURIER_ASSIGNED'].includes(s))
+  if (['PENDING', 'IN_PROGRESS', 'INPROGRESS', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'PROCESSING', 'PARTIAL', 'DISPATCHED', 'COURIER_ASSIGNED'].includes(s))
     return 'bg-amber-500/20 text-amber-200 border-amber-400/30';
   return 'bg-white/10 text-purple-100 border-white/20';
 }
@@ -385,6 +386,7 @@ function OrderJourneyDashboard() {
   const [listPage, setListPage] = useState(1);
   const [fromDate, setFromDate] = useState('2026-01-15');
   const [toDate, setToDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -427,13 +429,19 @@ function OrderJourneyDashboard() {
     setListLoading(true); setListError('');
     const qs = new URLSearchParams({ page: String(listPage), from: fromDate });
     if (toDate) qs.set('to', toDate);
+    if (statusFilter.length) qs.set('status', statusFilter.join(','));
     fetch(`/api/order-journey/list?${qs.toString()}`)
       .then((r) => r.json())
       .then((j: ListResp) => { if (!cancelled) { if (j.error) setListError(j.error); else setList(j); } })
       .catch(() => { if (!cancelled) setListError('Failed to load orders.'); })
       .finally(() => { if (!cancelled) setListLoading(false); });
     return () => { cancelled = true; };
-  }, [authChecked, poParam, listPage, fromDate, toDate]);
+  }, [authChecked, poParam, listPage, fromDate, toDate, statusFilter]);
+
+  const toggleStatus = (s: string) => {
+    setStatusFilter((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+    setListPage(1);
+  };
 
   // Search resolves a PO Number OR an AWB, then opens that order's journey.
   const onSearch = async (e?: React.FormEvent) => {
@@ -905,6 +913,31 @@ function OrderJourneyDashboard() {
                 </div>
               )}
             </div>
+
+            {/* Status filter chips (toggleable, multi-select) */}
+            {list && list.facets.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] uppercase tracking-wider text-purple-300/60 font-semibold mr-1">Status</span>
+                <button
+                  onClick={() => { setStatusFilter([]); setListPage(1); }}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${statusFilter.length === 0 ? 'bg-fuchsia-500/25 text-white border-fuchsia-400/50' : 'bg-white/5 text-purple-200/70 border-white/10 hover:bg-white/10'}`}
+                >
+                  All
+                </button>
+                {list.facets.map((f) => {
+                  const active = statusFilter.includes(f.status);
+                  return (
+                    <button
+                      key={f.status} onClick={() => toggleStatus(f.status)}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors flex items-center gap-1.5 ${active ? statusTone(f.status) + ' ring-1 ring-white/40' : 'bg-white/5 text-purple-200/60 border-white/10 hover:bg-white/10'}`}
+                    >
+                      {f.status}
+                      <span className={`tabular-nums ${active ? 'opacity-80' : 'text-purple-300/50'}`}>{f.count.toLocaleString('en-IN')}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {listError && <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-4 text-rose-200 text-sm">{listError}</div>}
 

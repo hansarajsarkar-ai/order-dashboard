@@ -237,6 +237,10 @@ function AudioPlayer({ src, hintSec }: { src: string; hintSec?: number | null })
   const [muted, setMuted] = useState(false);
   const [buffering, setBuffering] = useState(false);
   const [err, setErr] = useState(false);
+  const [scrub, setScrub] = useState<number | null>(null); // non-null while dragging the seek bar
+
+  // Same-origin, range-capable proxy → makes the recording seekable.
+  const playSrc = `/api/order-journey/recording?u=${encodeURIComponent(src)}`;
 
   const toggle = () => {
     const a = ref.current; if (!a) return;
@@ -251,10 +255,6 @@ function AudioPlayer({ src, hintSec }: { src: string; hintSec?: number | null })
     const max = Number.isFinite(a.duration) ? a.duration : dur || 0;
     a.currentTime = Math.min(Math.max(0, a.currentTime + delta), max || a.currentTime + delta);
     setCur(a.currentTime);
-  };
-  const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const a = ref.current; if (!a) return;
-    const v = parseFloat(e.target.value); a.currentTime = v; setCur(v);
   };
   const cycleRate = () => {
     const a = ref.current; if (!a) return;
@@ -278,13 +278,13 @@ function AudioPlayer({ src, hintSec }: { src: string; hintSec?: number | null })
   return (
     <div className="mt-2 flex items-center gap-2 rounded-lg bg-black/25 border border-white/10 px-2.5 py-1.5 max-w-2xl flex-wrap">
       <audio
-        ref={ref} src={src} preload="none"
+        ref={ref} src={playSrc} preload="none"
         onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setDur(d); e.currentTarget.playbackRate = rate; }}
-        onTimeUpdate={(e) => setCur(e.currentTarget.currentTime)}
+        onTimeUpdate={(e) => { if (scrub === null) setCur(e.currentTarget.currentTime); }}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
         onEnded={() => { setPlaying(false); setCur(0); }} onError={() => setErr(true)}
         onWaiting={() => setBuffering(true)} onPlaying={() => setBuffering(false)}
-        onCanPlay={() => setBuffering(false)} onStalled={() => setBuffering(true)}
+        onCanPlay={() => setBuffering(false)} onSeeked={() => setBuffering(false)} onStalled={() => setBuffering(true)}
       />
       <button type="button" onClick={() => skip(-10)} className={btn} title="Back 10s">«10</button>
       <button type="button" onClick={toggle} className={`${btn} !bg-fuchsia-500/40 hover:!bg-fuchsia-500/60`} title={playing ? 'Pause' : 'Play'}>
@@ -293,7 +293,10 @@ function AudioPlayer({ src, hintSec }: { src: string; hintSec?: number | null })
       <button type="button" onClick={() => skip(10)} className={btn} title="Forward 10s">10»</button>
       <span className="text-[10px] tabular-nums text-purple-200/70 w-9 text-right">{fmtClock(cur)}</span>
       <input
-        type="range" min={0} max={dur || 0} step={0.1} value={cur > (dur || 0) ? dur : cur} onChange={seek}
+        type="range" min={0} max={dur || 0} step={0.1}
+        value={scrub ?? (cur > (dur || 0) ? dur : cur)}
+        onChange={(e) => { const v = parseFloat(e.target.value); setScrub(v); if (ref.current) ref.current.currentTime = v; }}
+        onPointerUp={() => setScrub(null)} onMouseUp={() => setScrub(null)} onTouchEnd={() => setScrub(null)} onBlur={() => setScrub(null)}
         className="flex-1 min-w-[120px] h-1 accent-fuchsia-400 cursor-pointer" aria-label="Seek"
       />
       <span className="text-[10px] tabular-nums text-purple-200/70 w-9">{fmtClock(dur)}</span>

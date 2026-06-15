@@ -22,6 +22,15 @@ body {
   animation-delay: 2s;
 }
 
+/* Blinking SLA "!" breach marker — hard on/off blink to draw attention. */
+@keyframes sla-blink {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0.15; }
+}
+.animate-sla-blink {
+  animation: sla-blink 0.9s steps(1, end) infinite;
+}
+
 /* Breathing red glow for cards that need attention (bad/critical orders).
    The border + outer halo swell and fade so the eye is drawn straight to
    the problem cards. */

@@ -576,7 +576,7 @@ function JourneyCalendar({
                         {marks.length > 0 && (
                           <span className="absolute top-0.5 right-1 flex gap-0.5 leading-none z-10">
                             {marks.map((m, mi) => (
-                              <span key={mi} className="text-base font-black" style={{ color: m.color, textShadow: '0 0 3px rgba(0,0,0,0.95)' }} title={m.label}>!</span>
+                              <span key={mi} className="animate-sla-blink text-base font-black" style={{ color: m.color, textShadow: '0 0 3px rgba(0,0,0,0.95)' }} title={m.label}>!</span>
                             ))}
                           </span>
                         )}

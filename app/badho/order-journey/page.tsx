@@ -1008,11 +1008,11 @@ function OrderJourneyDashboard() {
 
                 {list.deliveryFacets.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-300/70 mr-1">Delivery</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-300/70 mr-1">Shipment Status</span>
                     {list.deliveryFacets.map((f) => {
                       const active = deliveryFilter.includes(f.status);
                       const dimmed = deliveryFilter.length > 0 && !active;
-                      const label = f.status === 'NONE' ? 'Not Shipped' : f.status.replace(/_/g, ' ');
+                      const label = f.status.replace(/_/g, ' ');
                       return (
                         <button
                           key={f.status} onClick={() => toggleDelivery(f.status)}
@@ -1043,7 +1043,7 @@ function OrderJourneyDashboard() {
                       <th className="px-3 py-3 text-center">Seller</th>
                       <th className="px-3 py-3 text-center">Buyer</th>
                       <th className="px-3 py-3 text-center">Status</th>
-                      <th className="px-3 py-3 text-center">Delivery</th>
+                      <th className="px-3 py-3 text-center">Shipment</th>
                       <th className="px-3 py-3 text-center">Amount</th>
                       <th className="px-3 py-3 text-center">Courier</th>
                       <th className="px-3 py-3 text-center">AWB</th>

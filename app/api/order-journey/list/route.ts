@@ -52,14 +52,14 @@ async function _GET(req: NextRequest) {
     ? `AND po."status" IN (${statuses.map((s) => `'${s}'`).join(', ')})`
     : '';
 
-  // Delivery-status filter. 'NONE' matches orders with no deliveryStatus yet.
+  // Shipment-status filter. NONE (not shipped) and CANCELLED are excluded so
+  // this row stays mutually exclusive with the PO Status row.
   const delivery = (searchParams.get('delivery') || '')
-    .split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z_]+$/.test(s));
-  const deliveryExplicit = delivery.filter((s) => s !== 'NONE');
-  const deliveryParts: string[] = [];
-  if (deliveryExplicit.length) deliveryParts.push(`po."deliveryStatus" IN (${deliveryExplicit.map((s) => `'${s}'`).join(', ')})`);
-  if (delivery.includes('NONE')) deliveryParts.push(`po."deliveryStatus" IS NULL`);
-  const deliveryClause = deliveryParts.length ? `AND (${deliveryParts.join(' OR ')})` : '';
+    .split(',').map((s) => s.trim().toUpperCase())
+    .filter((s) => /^[A-Z_]+$/.test(s) && s !== 'NONE' && s !== 'CANCELLED');
+  const deliveryClause = delivery.length
+    ? `AND po."deliveryStatus" IN (${delivery.map((s) => `'${s}'`).join(', ')})`
+    : '';
 
   // Shared filter — placed date derived with a fallback so orders missing
   // markedPendingTime still appear. whereBase excludes the status filter so the
@@ -136,15 +136,18 @@ async function _GET(req: NextRequest) {
       ORDER BY n DESC;
     `;
 
-    // Delivery-status facets ('NONE' = no deliveryStatus yet), also over the
-    // date range only, so the chips stay stable.
+    // Shipment-status facets (over the date range only, so the chips stay
+    // stable). Excludes NULL ("not shipped") and CANCELLED so the shipment row
+    // stays mutually exclusive with the PO Status row (CANCELLED is a PO status).
     const deliveryFacetSql = `
-      SELECT COALESCE(po."deliveryStatus", 'NONE') AS ds, COUNT(*) AS n
+      SELECT po."deliveryStatus" AS ds, COUNT(*) AS n
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."seller" s ON s."id" = po."sellerId"
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       WHERE ${whereBase}
-      GROUP BY ds
+        AND po."deliveryStatus" IS NOT NULL
+        AND po."deliveryStatus" <> 'CANCELLED'
+      GROUP BY po."deliveryStatus"
       ORDER BY n DESC;
     `;
 

@@ -185,8 +185,18 @@ function poStatusTone(status: string | null): string {
   if (s === 'COMPLETED' || s === 'DELIVERED') return 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30';
   if (s === 'INPROGRESS' || s === 'DISPATCHED' || s === 'IN_PROGRESS') return 'bg-sky-500/15 text-sky-200 border-sky-400/30';
   if (s === 'PENDING') return 'bg-amber-500/15 text-amber-200 border-amber-400/30';
-  if (s === 'REJECTED' || s === 'CANCELLED') return 'bg-rose-500/15 text-rose-200 border-rose-400/30';
+  if (s.startsWith('REJECTED') || s === 'CANCELLED') return 'bg-rose-500/15 text-rose-200 border-rose-400/30';
   return 'bg-white/5 text-purple-200/70 border-white/15';
+}
+
+// Friendly chip labels for the split REJECTED sub-buckets.
+function poStatusLabel(key: string): string {
+  switch (key) {
+    case 'REJECTED_RTO': return 'Rejected · RTO';
+    case 'REJECTED_SLA': return 'Rejected · SLA';
+    case 'REJECTED_OTHER': return 'Rejected · Other';
+    default: return key;
+  }
 }
 
 // ── Merged event model ───────────────────────────────────────────────────────
@@ -997,7 +1007,7 @@ function OrderJourneyDashboard() {
                         key={f.status} onClick={() => toggleStatus(f.status)}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${poStatusTone(f.status)} ${active ? 'ring-2 ring-fuchsia-400/60' : ''} ${dimmed ? 'opacity-40 hover:opacity-75' : 'hover:opacity-90'}`}
                       >
-                        {f.status} <span className="font-normal opacity-70">({f.count.toLocaleString('en-IN')})</span>
+                        {poStatusLabel(f.status)} <span className="font-normal opacity-70">({f.count.toLocaleString('en-IN')})</span>
                       </button>
                     );
                   })}

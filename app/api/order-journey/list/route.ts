@@ -44,12 +44,22 @@ async function _GET(req: NextRequest) {
     ? `AND COALESCE(po."markedPendingTime", po."created_at_actual", po."created_at") < ('${to}'::date + INTERVAL '1 day')`
     : '';
 
-  // Status filter (comma-separated). Only uppercase A–Z tokens are accepted, so
-  // they can be inlined safely as quoted literals (no bind params via run_sql).
+  // Derived PO-status key: REJECTED is split into RTO-driven, SLA-breach
+  // auto-rejections, and everything else, so each is its own filter chip.
+  const STATUS_KEY = `CASE
+    WHEN po."status" = 'REJECTED' AND (po."deliveryStatus" = 'RTO' OR po."rejectReason" ILIKE '%RTO%') THEN 'REJECTED_RTO'
+    WHEN po."status" = 'REJECTED' AND (po."rejectReason" ILIKE '%SLA%' OR po."isAutoRejectedDueToDeliverySLABreach" = TRUE) THEN 'REJECTED_SLA'
+    WHEN po."status" = 'REJECTED' THEN 'REJECTED_OTHER'
+    ELSE po."status"
+  END`;
+
+  // Status filter (comma-separated). Tokens may include the synthetic rejected
+  // keys (e.g. REJECTED_RTO); validated to [A-Z_] so they inline safely. Matched
+  // against the derived STATUS_KEY so the sub-buckets are filterable.
   const statuses = (searchParams.get('status') || '')
-    .split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z]+$/.test(s));
+    .split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z_]+$/.test(s) && s !== 'CANCELLED');
   const statusClause = statuses.length
-    ? `AND po."status" IN (${statuses.map((s) => `'${s}'`).join(', ')})`
+    ? `AND (${STATUS_KEY}) IN (${statuses.map((s) => `'${s}'`).join(', ')})`
     : '';
 
   // Shipment-status filter. NONE (not shipped) and CANCELLED are excluded so
@@ -69,6 +79,7 @@ async function _GET(req: NextRequest) {
     AND po."deliveryType" = 'INTERCITY'
     AND po."isTest" = FALSE
     AND po."status" <> 'DRAFT'
+    AND po."status" <> 'CANCELLED'
     AND s."isTest" = FALSE
     AND s."businessName" NOT ILIKE '%test%'
     AND b."isTest" = FALSE
@@ -125,14 +136,15 @@ async function _GET(req: NextRequest) {
     `;
 
     // Per-status counts over the date range (ignores the status filter so the
-    // chips show stable totals).
+    // chips show stable totals). Grouped by the derived key so REJECTED splits
+    // into REJECTED_RTO / REJECTED_SLA / REJECTED_OTHER.
     const facetSql = `
-      SELECT po."status" AS status, COUNT(*) AS n
+      SELECT (${STATUS_KEY}) AS status, COUNT(*) AS n
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."seller" s ON s."id" = po."sellerId"
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       WHERE ${whereBase}
-      GROUP BY po."status"
+      GROUP BY (${STATUS_KEY})
       ORDER BY n DESC;
     `;
 

@@ -226,6 +226,9 @@ const DOT_COLOR: Record<EvType, string> = {
   order: 'bg-fuchsia-400', exception: 'bg-rose-400', scan: 'bg-cyan-400',
   call: 'bg-amber-400', qr: 'bg-emerald-400', phone: 'bg-indigo-400',
 };
+const EV_EMOJI: Record<EvType, string> = {
+  order: '📦', exception: '⚠️', scan: '🚚', call: '📞', qr: '📍', phone: '☎️',
+};
 /** Calendar day (IST) for an epoch ms, as 'YYYY-MM-DD'. */
 function istKey(ms: number): string {
   return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -314,14 +317,14 @@ function JourneyCalendar({
 
       <div className="flex flex-wrap gap-x-8 gap-y-4">
         {panels.map((panel, pi) => (
-          <div key={pi} className="min-w-[238px]">
-            <div className="text-sm font-semibold text-fuchsia-200 mb-2 text-center">{panel.label}</div>
-            <div className="grid grid-cols-7 gap-1 mb-1">
-              {WEEKDAYS.map((w, i) => <div key={i} className="text-[10px] text-purple-300/40 text-center font-semibold">{w}</div>)}
+          <div key={pi} className="min-w-[320px] flex-1 max-w-[680px]">
+            <div className="text-base font-semibold text-fuchsia-200 mb-2 text-center">{panel.label}</div>
+            <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+              {WEEKDAYS.map((w, i) => <div key={i} className="text-[11px] text-purple-300/40 text-center font-semibold">{w}</div>)}
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {panel.weeks.map((week, wi) => (
-                <div key={wi} className="grid grid-cols-7 gap-1">
+                <div key={wi} className="grid grid-cols-7 gap-1.5">
                   {week.map((cell, ci) => {
                     if (!cell) return <div key={ci} />;
                     const has = cell.types.length > 0;
@@ -330,9 +333,9 @@ function JourneyCalendar({
                       <button
                         key={ci} type="button" disabled={!has}
                         onClick={() => has && onSelectDay(cell.key)}
-                        title={has ? `${fmtKey(cell.key)} — click to jump` : fmtKey(cell.key)}
+                        title={has ? `${fmtKey(cell.key)} · ${cell.types.join(', ')} — click to jump` : fmtKey(cell.key)}
                         className={[
-                          'relative h-11 rounded-md text-xs flex flex-col items-center justify-center pt-1 transition-colors',
+                          'relative min-h-[72px] rounded-xl flex flex-col items-center gap-1 pt-2 pb-1.5 px-1 transition-colors',
                           cell.inSpan ? 'bg-fuchsia-500/15 text-white' : 'text-purple-300/40',
                           has ? 'cursor-pointer hover:bg-fuchsia-500/30' : 'cursor-default',
                           cell.isStart ? 'ring-1 ring-emerald-400/70' : '',
@@ -340,10 +343,10 @@ function JourneyCalendar({
                           sel ? 'ring-2 ring-white' : '',
                         ].join(' ')}
                       >
-                        <span className={cell.isStart || cell.isEnd ? 'font-bold' : ''}>{cell.day}</span>
+                        <span className={`text-sm leading-none ${cell.isStart || cell.isEnd ? 'font-bold' : 'font-medium'}`}>{cell.day}</span>
                         {has && (
-                          <span className="flex gap-0.5 mt-0.5 h-1.5">
-                            {cell.types.slice(0, 5).map((t, ti) => <span key={ti} className={`w-1 h-1 rounded-full ${DOT_COLOR[t]}`} />)}
+                          <span className="flex flex-wrap gap-x-1 gap-y-0.5 justify-center leading-none text-[13px]">
+                            {cell.types.map((t, ti) => <span key={ti} title={t}>{EV_EMOJI[t]}</span>)}
                           </span>
                         )}
                       </button>
@@ -361,9 +364,9 @@ function JourneyCalendar({
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-fuchsia-400/70 inline-block" /> End</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-fuchsia-500/15 inline-block" /> In journey</span>
         <span className="text-purple-300/50">·</span>
-        <span className="flex items-center gap-1.5">
+        <span className="flex items-center gap-2">
           {(['order', 'scan', 'call', 'qr', 'phone'] as EvType[]).map((t) => (
-            <span key={t} className="flex items-center gap-0.5"><span className={`w-1.5 h-1.5 rounded-full ${DOT_COLOR[t]}`} />{t}</span>
+            <span key={t} className="flex items-center gap-0.5">{EV_EMOJI[t]} {t}</span>
           ))}
         </span>
         <span className="ml-auto text-purple-300/50">Click a marked day to jump to its events ↓</span>

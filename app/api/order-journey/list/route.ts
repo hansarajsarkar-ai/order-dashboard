@@ -104,7 +104,9 @@ async function _GET(req: NextRequest) {
           s."businessName" AS seller,
           b."businessName" AS buyer,
           po."buyerCity" AS "buyerCity",
-          po."buyerState" AS "buyerState"
+          po."buyerState" AS "buyerState",
+          po."markedDispatchedTime" AS dispatched_at,
+          po."markedDeliveredTime" AS delivered_at
         FROM "purchaseOrder"."purchaseOrder" po
         JOIN "users"."seller" s ON s."id" = po."sellerId"
         JOIN "users"."buyer"  b ON b."id" = po."buyerId"
@@ -115,7 +117,10 @@ async function _GET(req: NextRequest) {
       SELECT
         base."poNumber", base.placed, base.status, base."deliveryStatus",
         base.amount, base.seller, base.buyer, base."buyerCity", base."buyerState",
-        di."partner", di."awb", pp."paid"::text AS "paid", pp."refund"::text AS "refund"
+        di."partner", di."awb", pp."paid"::text AS "paid", pp."refund"::text AS "refund",
+        CASE WHEN base.delivered_at IS NOT NULL AND base.dispatched_at IS NOT NULL
+             THEN ROUND(EXTRACT(EPOCH FROM (base.delivered_at - base.dispatched_at)) / 86400.0, 1)::text
+             ELSE NULL END AS "courierDays"
       FROM base
       LEFT JOIN LATERAL (
         SELECT d."deliveryPartnerId" AS "partner",
@@ -217,6 +222,7 @@ async function _GET(req: NextRequest) {
       awb: r.awb,
       paid: num(r.paid),
       refund: num(r.refund),
+      courierDays: num(r.courierDays),
     }));
 
     return NextResponse.json({

@@ -60,6 +60,10 @@ interface Payment {
   mode: string | null; kind: string; paidAmount: number; paidAt: string | null; paymentId: string | null;
   toCollect: number | null; remainingDue: number | null; refunds: Refund[];
 }
+interface Ticket {
+  type: string | null; category: string | null; subcategory: string | null; description: string | null;
+  reference: string | null; status: string | null; network: string | null; createdAt: string | null;
+}
 
 interface ListRow {
   poNumber: number | null; placed: string | null; status: string | null; deliveryStatus: string | null;
@@ -117,7 +121,7 @@ interface Item {
 interface JourneyResp {
   found: boolean; isD2R?: boolean; poNumber?: number; po?: Po; courier?: Courier | null;
   stages?: Stage[]; scans?: Scan[]; calls?: Call[]; qrScans?: QrScan[]; phoneCalls?: PhoneCall[];
-  modifications?: Modification[]; qps?: Qps | null; items?: Item[]; payment?: Payment | null;
+  modifications?: Modification[]; qps?: Qps | null; items?: Item[]; payment?: Payment | null; tickets?: Ticket[];
   error?: string;
 }
 
@@ -165,6 +169,29 @@ function fmtMs(ms: number | null): string {
   return new Date(ms).toLocaleString('en-IN', {
     timeZone: IST, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
   });
+}
+/** Duration like "5d 1h" (≥1d) or "19.4h" (<1d). */
+function fmtDur(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '0h';
+  const h = ms / 3600000;
+  if (h < 24) return `${h.toFixed(1)}h`;
+  const d = Math.floor(h / 24), rh = Math.round(h - d * 24);
+  return rh ? `${d}d ${rh}h` : `${d}d`;
+}
+/** Elapsed ms between two epochs, excluding time that falls on a Sunday (IST). */
+function durExclSun(startMs: number | null, endMs: number | null): number {
+  if (startMs == null || endMs == null || endMs <= startMs) return 0;
+  let ms = endMs - startMs;
+  let dayStart = istDayStartMs(istKey(startMs));
+  while (dayStart < endMs) {
+    const [y, mo, d] = istKey(dayStart).split('-').map(Number);
+    if (new Date(Date.UTC(y, mo - 1, d)).getUTCDay() === 0) {
+      const s = Math.max(startMs, dayStart), e = Math.min(endMs, dayStart + 86400000);
+      if (e > s) ms -= e - s;
+    }
+    dayStart += 86400000;
+  }
+  return Math.max(0, ms);
 }
 /** Time-only (IST), e.g. "01:26 pm". */
 function fmtTime(ms: number | null): string {
@@ -1040,6 +1067,21 @@ function OrderJourneyDashboard() {
   const courier = resp?.courier;
   const mods = resp?.modifications ?? [];
   const pay = resp?.payment ?? null;
+  const tickets = resp?.tickets ?? [];
+  const ageing = (() => {
+    const placed = toMs(resp?.po?.markedPendingTime ?? null);
+    if (placed == null) return null;
+    const now = Date.now();
+    const inprog = toMs(resp?.po?.markedInProgressTime ?? null);
+    const dispatched = toMs(resp?.po?.markedDispatchedTime ?? null);
+    const terminal = toMs(resp?.po?.markedCompletedTime ?? null) ?? toMs(resp?.po?.markedDeliveredTime ?? null)
+      ?? toMs(resp?.po?.markedRejectedTime ?? null) ?? toMs(resp?.po?.markedCancelledTime ?? null);
+    return {
+      orderAge: (terminal ?? now) - placed, ended: terminal != null,
+      brandSla: durExclSun(placed, inprog ?? now), brandDone: inprog != null,
+      pickupSla: inprog != null ? durExclSun(inprog, dispatched ?? now) : null, pickupDone: dispatched != null,
+    };
+  })();
   const qpsInfo = resp?.qps ? qpsStage(resp.qps.qualifiedAmount, resp.qps.monthStart) : null;
   const qpsMonth = resp?.qps?.monthStart
     ? new Date(resp.qps.monthStart + 'T00:00:00+05:30').toLocaleString('en-IN', { timeZone: IST, month: 'short', year: 'numeric' })
@@ -1196,9 +1238,36 @@ function OrderJourneyDashboard() {
                 {po.rejectReason && <span className="text-rose-200"><span className="text-rose-300/60">Reject:</span> {po.rejectReason}</span>}
               </div>
 
-              {/* Payment + QPS buyer stage (PO-edit detail is the pill beside the PO number → popup) */}
-              {(qpsInfo || pay) && (
+              {/* Ageing & SLA + Payment + QPS + tickets */}
+              {(qpsInfo || pay || ageing || tickets.length > 0) && (
                 <div className="mt-3 flex flex-wrap gap-3">
+                  {ageing && (
+                    <div className="flex-1 min-w-[240px] rounded-xl border border-indigo-400/20 bg-indigo-500/[0.06] px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wider text-indigo-300/70 font-semibold mb-1">⏱ Ageing &amp; SLA</div>
+                      <div className="space-y-0.5 text-[12px]">
+                        <div><span className="text-purple-300/60">Order age:</span> <span className="text-white font-semibold tabular-nums">{fmtDur(ageing.orderAge)}</span> <span className="text-purple-300/50">· placed → {ageing.ended ? 'end' : 'now'} · incl. Sun</span></div>
+                        <div><span className="text-purple-300/60">Brand SLA:</span> <span className={`font-semibold tabular-nums ${ageing.brandSla > 86400000 ? 'text-rose-300' : 'text-emerald-300'}`}>{fmtDur(ageing.brandSla)}</span>{!ageing.brandDone && <span className="text-amber-300"> · ongoing</span>} <span className="text-purple-300/50">· PENDING→INPROGRESS · excl. Sun</span></div>
+                        {ageing.pickupSla != null && (
+                          <div><span className="text-purple-300/60">Pickup SLA:</span> <span className={`font-semibold tabular-nums ${ageing.pickupSla > 86400000 ? 'text-rose-300' : 'text-emerald-300'}`}>{fmtDur(ageing.pickupSla)}</span>{!ageing.pickupDone && <span className="text-amber-300"> · ongoing</span>} <span className="text-purple-300/50">· INPROGRESS→DISPATCHED · excl. Sun</span></div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {tickets.length > 0 && (
+                    <div className="flex-1 min-w-[240px] rounded-xl border border-rose-400/20 bg-rose-500/[0.06] px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wider text-rose-300/70 font-semibold mb-1">🎫 Support Tickets ({tickets.length})</div>
+                      <div className="space-y-1">
+                        {tickets.map((t, i) => (
+                          <div key={i} className="text-[12px]">
+                            <span className="text-white font-medium">{[t.type, t.category, t.subcategory].filter(Boolean).join(' · ') || 'Ticket'}</span>
+                            {t.status && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] border bg-white/5 text-purple-100 border-white/15">{t.status}</span>}
+                            <div className="text-[10px] text-purple-300/55">{t.network ? `${t.network} · ` : ''}{t.reference ? `#${t.reference} · ` : ''}{t.createdAt ? fmtMs(toMs(t.createdAt)) : ''}</div>
+                            {t.description && <div className="text-[10px] text-purple-300/70">{t.description}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {pay && (
                     <div className="flex-1 min-w-[240px] rounded-xl border border-emerald-400/20 bg-emerald-500/[0.06] px-4 py-3">
                       <div className="text-[11px] uppercase tracking-wider text-emerald-300/70 font-semibold mb-1 flex items-center gap-2 flex-wrap">

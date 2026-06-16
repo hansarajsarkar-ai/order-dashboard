@@ -264,10 +264,24 @@ async function _GET(req: NextRequest) {
     `;
     const payRowsP = query<Record<string, string | null>>(paymentsSql, [poNumber]);
 
+    // ── 10. Support tickets (raised on the courier/delivery leg) ──────────────
+    const ticketsSql = `
+      SELECT st."type", st."category", st."subcategory", st."description",
+             st."networkTicketReferenceId" AS "reference", st."status", st."network",
+             st."created_at" AS "createdAt"
+      FROM "deliveries"."supportTicket" st
+      WHERE st."deliveryId" IN (
+        SELECT di."id" FROM "deliveries"."intercityDelivery" di
+        WHERE di."purchaseOrderId" = (SELECT "id" FROM "purchaseOrder"."purchaseOrder" WHERE "poNumber" = $1::int)
+      )
+      ORDER BY st."created_at" DESC;
+    `;
+    const ticketRowsP = query<Record<string, string | null>>(ticketsSql, [poNumber]);
+
     // Every query keys off poNumber (the poId-based ones self-resolve it via a
     // subquery), so all run concurrently in ONE Hasura wave.
-    const [poRows, itemRows, courierRows, scanRows, callRows, qrRows, modRows, qpsRows, payRows] =
-      await Promise.all([poRowsP, itemRowsP, courierRowsP, scanRowsP, callRowsP, qrRowsP, modRowsP, qpsRowsP, payRowsP]);
+    const [poRows, itemRows, courierRows, scanRows, callRows, qrRows, modRows, qpsRows, payRows, ticketRows] =
+      await Promise.all([poRowsP, itemRowsP, courierRowsP, scanRowsP, callRowsP, qrRowsP, modRowsP, qpsRowsP, payRowsP, ticketRowsP]);
     if (poRows.length === 0) return NextResponse.json({ found: false, poNumber });
     const p = poRows[0];
     const c = courierRows[0] || null;
@@ -423,6 +437,10 @@ async function _GET(req: NextRequest) {
         createdAt: p.createdAt,
       },
       payment,
+      tickets: ticketRows.map((t) => ({
+        type: t.type, category: t.category, subcategory: t.subcategory, description: t.description,
+        reference: t.reference, status: t.status, network: t.network, createdAt: t.createdAt,
+      })),
       courier,
       stages,
       scans,

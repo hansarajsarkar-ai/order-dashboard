@@ -1126,14 +1126,23 @@ function OrderJourneyDashboard() {
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                   <div className="text-xs uppercase tracking-wider text-purple-300/70 font-semibold">PO Number</div>
-                  <div className="text-2xl font-bold text-white font-mono">#{resp.poNumber}</div>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-2xl font-bold text-white font-mono">#{resp.poNumber}</span>
+                    {mods.length > 0 && (
+                      <button
+                        type="button" onClick={() => setShowMods(true)} title="This PO was edited by the seller — click for details"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border bg-orange-500/30 text-orange-100 border-orange-400/60 shadow-lg shadow-orange-500/30 ring-1 ring-orange-300/40 animate-pulse hover:bg-orange-500/50 hover:animate-none transition-colors"
+                      >
+                        ✏️ Edited <span className="opacity-80 font-normal">· view</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusTone(po.status)}`}>{po.status || '—'}</span>
                   {po.deliveryStatus && <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusTone(po.deliveryStatus)}`}>📦 {po.deliveryStatus}</span>}
                   {po.isRTOReceived && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-rose-500/20 text-rose-200 border-rose-400/30">RTO Received</span>}
                   {po.isFalseOrder && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-rose-500/20 text-rose-200 border-rose-400/30">False Order</span>}
-                  {mods.length > 0 && <button type="button" onClick={() => setShowMods(true)} className="px-3 py-1 rounded-full text-xs font-semibold border bg-orange-500/20 text-orange-200 border-orange-400/30 hover:bg-orange-500/35 transition-colors">✏️ Modified</button>}
                   {po.isSettledToSeller && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-emerald-500/20 text-emerald-200 border-emerald-400/30">💰 Settled</span>}
                 </div>
               </div>
@@ -1180,8 +1189,8 @@ function OrderJourneyDashboard() {
                 {po.rejectReason && <span className="text-rose-200"><span className="text-rose-300/60">Reject:</span> {po.rejectReason}</span>}
               </div>
 
-              {/* QPS buyer stage + PO edit detail */}
-              {(qpsInfo || mods.length > 0) && (
+              {/* QPS buyer stage (PO-edit detail is the highlighted pill beside the PO number → popup) */}
+              {qpsInfo && (
                 <div className="mt-3 flex flex-wrap gap-3">
                   {qpsInfo && (
                     <div className="flex-1 min-w-[240px] rounded-xl border border-fuchsia-400/20 bg-fuchsia-500/[0.07] px-4 py-3">
@@ -1204,21 +1213,6 @@ function OrderJourneyDashboard() {
                         </div>
                       )}
                     </div>
-                  )}
-                  {mods.length > 0 && (
-                    <button type="button" onClick={() => setShowMods(true)} className="flex-1 min-w-[240px] text-left rounded-xl border border-orange-400/30 bg-orange-500/[0.07] hover:bg-orange-500/[0.14] px-4 py-3 transition-colors">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-[11px] uppercase tracking-wider text-orange-300/70 font-semibold">✏️ PO Modified by Seller</div>
-                        <span className="text-[11px] text-orange-200 font-semibold">View details →</span>
-                      </div>
-                      <div className="text-sm text-white font-medium mt-0.5">
-                        {po.originalPOAmount != null && <span className="tabular-nums">{inr(po.originalPOAmount)} → {inr(po.amount)}</span>}
-                        {po.originalPOAmount != null && po.amount != null && po.originalPOAmount > po.amount && (
-                          <span className="text-orange-200 font-normal"> · {inr(po.originalPOAmount - po.amount)} lost</span>
-                        )}
-                        <span className="text-purple-300/60 font-normal"> · {mods.length} item{mods.length > 1 ? 's' : ''} changed</span>
-                      </div>
-                    </button>
                   )}
                 </div>
               )}

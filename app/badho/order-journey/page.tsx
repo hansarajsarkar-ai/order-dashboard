@@ -55,6 +55,11 @@ interface Po {
 }
 interface Modification { skuLabel: string | null; changeType: string | null; }
 interface Qps { monthStart: string | null; qualifiedAmount: number; }
+interface Refund { id: string | null; amount: number | null; status: string | null; type: string | null; time: string | null; }
+interface Payment {
+  mode: string | null; kind: string; paidAmount: number; paidAt: string | null; paymentId: string | null;
+  toCollect: number | null; remainingDue: number | null; refunds: Refund[];
+}
 
 interface ListRow {
   poNumber: number | null; placed: string | null; status: string | null; deliveryStatus: string | null;
@@ -111,7 +116,7 @@ interface Item {
 interface JourneyResp {
   found: boolean; isD2R?: boolean; poNumber?: number; po?: Po; courier?: Courier | null;
   stages?: Stage[]; scans?: Scan[]; calls?: Call[]; qrScans?: QrScan[]; phoneCalls?: PhoneCall[];
-  modifications?: Modification[]; qps?: Qps | null; items?: Item[];
+  modifications?: Modification[]; qps?: Qps | null; items?: Item[]; payment?: Payment | null;
   error?: string;
 }
 
@@ -1033,6 +1038,7 @@ function OrderJourneyDashboard() {
   const po = resp?.po;
   const courier = resp?.courier;
   const mods = resp?.modifications ?? [];
+  const pay = resp?.payment ?? null;
   const qpsInfo = resp?.qps ? qpsStage(resp.qps.qualifiedAmount, resp.qps.monthStart) : null;
   const qpsMonth = resp?.qps?.monthStart
     ? new Date(resp.qps.monthStart + 'T00:00:00+05:30').toLocaleString('en-IN', { timeZone: IST, month: 'short', year: 'numeric' })
@@ -1189,9 +1195,37 @@ function OrderJourneyDashboard() {
                 {po.rejectReason && <span className="text-rose-200"><span className="text-rose-300/60">Reject:</span> {po.rejectReason}</span>}
               </div>
 
-              {/* QPS buyer stage (PO-edit detail is the highlighted pill beside the PO number → popup) */}
-              {qpsInfo && (
+              {/* Payment + QPS buyer stage (PO-edit detail is the pill beside the PO number → popup) */}
+              {(qpsInfo || pay) && (
                 <div className="mt-3 flex flex-wrap gap-3">
+                  {pay && (
+                    <div className="flex-1 min-w-[240px] rounded-xl border border-emerald-400/20 bg-emerald-500/[0.06] px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wider text-emerald-300/70 font-semibold mb-1 flex items-center gap-2 flex-wrap">
+                        💳 Payment
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${pay.kind === 'Fully Paid' ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30' : pay.kind === 'Partially Paid' ? 'bg-amber-500/15 text-amber-200 border-amber-400/30' : pay.kind === 'COD' ? 'bg-sky-500/15 text-sky-200 border-sky-400/30' : 'bg-white/10 text-purple-100 border-white/20'}`}>{pay.kind}</span>
+                      </div>
+                      <div className="text-sm text-white font-medium">
+                        {pay.paidAmount > 0 && <span className="tabular-nums">Paid {inr(pay.paidAmount)}</span>}
+                        {pay.toCollect != null && pay.toCollect > 0 && <span className="tabular-nums">{pay.paidAmount > 0 ? ' · ' : ''}To collect {inr(pay.toCollect)}</span>}
+                        {pay.paidAmount === 0 && !(pay.toCollect && pay.toCollect > 0) && <span className="text-purple-300/70">—</span>}
+                      </div>
+                      {pay.paidAt && (
+                        <div className="text-[11px] text-purple-300/60 mt-0.5">Paid on {fmtMs(toMs(pay.paidAt))}{pay.paymentId ? ` · #${pay.paymentId.slice(0, 8)}` : ''}</div>
+                      )}
+                      {pay.refunds.length > 0 && (
+                        <div className="mt-1.5 pt-1.5 border-t border-white/10 space-y-0.5">
+                          {pay.refunds.map((r, i) => (
+                            <div key={i} className="text-[11px]">
+                              <span className="text-amber-200">↩️ Refund {inr(r.amount)}</span>
+                              <span className={r.status === 'COMPLETED' ? ' text-emerald-300' : ' text-amber-300'}> · {r.status}</span>
+                              {r.type ? <span className="text-purple-300/60"> · {r.type}</span> : null}
+                              <span className="text-purple-300/50">{r.time ? ` · ${fmtMs(toMs(r.time))}` : ''}{r.id ? ` · #${r.id.slice(0, 8)}` : ''}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {qpsInfo && (
                     <div className="flex-1 min-w-[240px] rounded-xl border border-fuchsia-400/20 bg-fuchsia-500/[0.07] px-4 py-3">
                       <div className="text-[11px] uppercase tracking-wider text-fuchsia-300/70 font-semibold mb-1">

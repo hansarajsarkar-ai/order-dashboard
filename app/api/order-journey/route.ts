@@ -252,10 +252,22 @@ async function _GET(req: NextRequest) {
     `;
     const qpsRowsP = query<Record<string, string | null>>(qpsSql, [poNumber, QPS_EXCLUDED_SELLER]);
 
+    // ── 9. Payments + refunds (advance paid, COD to collect, refunds) ─────────
+    const paymentsSql = `
+      SELECT pop."id" AS "id", pop."paidAmount"::text AS "paidAmount", pop."status" AS "status",
+             pop."event" AS "event", pop."refundStatus" AS "refundStatus",
+             pop."refundAmount"::text AS "refundAmount", pop."refundType" AS "refundType",
+             pop."created_at" AS "createdAt", pop."refundInitiationTime" AS "refundTime"
+      FROM "purchaseOrder"."purchaseOrderPayment" pop
+      WHERE pop."purchaseOrderId" = (SELECT "id" FROM "purchaseOrder"."purchaseOrder" WHERE "poNumber" = $1::int)
+      ORDER BY pop."created_at" ASC;
+    `;
+    const payRowsP = query<Record<string, string | null>>(paymentsSql, [poNumber]);
+
     // Every query keys off poNumber (the poId-based ones self-resolve it via a
     // subquery), so all run concurrently in ONE Hasura wave.
-    const [poRows, itemRows, courierRows, scanRows, callRows, qrRows, modRows, qpsRows] =
-      await Promise.all([poRowsP, itemRowsP, courierRowsP, scanRowsP, callRowsP, qrRowsP, modRowsP, qpsRowsP]);
+    const [poRows, itemRows, courierRows, scanRows, callRows, qrRows, modRows, qpsRows, payRows] =
+      await Promise.all([poRowsP, itemRowsP, courierRowsP, scanRowsP, callRowsP, qrRowsP, modRowsP, qpsRowsP, payRowsP]);
     if (poRows.length === 0) return NextResponse.json({ found: false, poNumber });
     const p = poRows[0];
     const c = courierRows[0] || null;
@@ -342,6 +354,30 @@ async function _GET(req: NextRequest) {
     // phoneCalls are fetched separately by the page (see /phone-calls route).
     const phoneCalls: never[] = [];
 
+    // ── Payment + refund summary ──────────────────────────────────────────────
+    const advances = payRows.filter((r) =>
+      (r.status || '').toUpperCase() === 'COMPLETED' && ['FULL_ADVANCE', 'PARTIAL_ADVANCE'].includes((r.event || '').toUpperCase()));
+    const paidAmount = advances.reduce((s, r) => s + (num(r.paidAmount) || 0), 0);
+    const lastAdvance = advances[advances.length - 1] || null;
+    const hasFull = advances.some((r) => (r.event || '').toUpperCase() === 'FULL_ADVANCE');
+    const hasPartial = advances.some((r) => (r.event || '').toUpperCase() === 'PARTIAL_ADVANCE');
+    const mode = p.paymentMode;
+    const isCod = (mode || '').toUpperCase().includes('COD');
+    const kind = hasFull && !hasPartial ? 'Fully Paid' : hasPartial ? 'Partially Paid' : isCod ? 'COD' : (paidAmount > 0 ? 'Fully Paid' : (mode || 'COD'));
+    const refunds = payRows
+      .filter((r) => r.refundStatus)
+      .map((r) => ({ id: r.id, amount: num(r.refundAmount), status: r.refundStatus, type: r.refundType, time: r.refundTime }));
+    const payment = {
+      mode,
+      kind,
+      paidAmount,
+      paidAt: lastAdvance?.createdAt ?? null,
+      paymentId: lastAdvance?.id ?? null,
+      toCollect: num(c?.codAmount) ?? num(p.remainingDueAmount),
+      remainingDue: num(p.remainingDueAmount),
+      refunds,
+    };
+
     return NextResponse.json({
       found: true,
       isD2R: bool(p.isD2R),
@@ -386,6 +422,7 @@ async function _GET(req: NextRequest) {
         markedCancelledTime: p.markedCancelledTime,
         createdAt: p.createdAt,
       },
+      payment,
       courier,
       stages,
       scans,

@@ -65,6 +65,7 @@ interface ListRow {
   poNumber: number | null; placed: string | null; status: string | null; deliveryStatus: string | null;
   amount: number | null; seller: string | null; buyer: string | null;
   buyerCity: string | null; buyerState: string | null; partner: string | null; awb: string | null;
+  paid: number | null; refund: number | null;
 }
 interface ListResp {
   data: ListRow[]; total: number; page: number; pageSize: number; pageCount: number;
@@ -1497,11 +1498,13 @@ function OrderJourneyDashboard() {
                       <th className="px-3 py-3 text-center">Amount</th>
                       <th className="px-3 py-3 text-center">Courier</th>
                       <th className="px-3 py-3 text-center">AWB</th>
+                      <th className="px-3 py-3 text-center">Paid</th>
+                      <th className="px-3 py-3 text-center">Refund</th>
                     </tr>
                   </thead>
                   <tbody>
                     {listLoading ? (
-                      <tr><td colSpan={10} className="px-4 py-16 text-center text-purple-300/70">
+                      <tr><td colSpan={12} className="px-4 py-16 text-center text-purple-300/70">
                         <div className="inline-block w-7 h-7 rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500 animate-spin" />
                         <div className="text-sm mt-2">Loading orders…</div>
                       </td></tr>
@@ -1522,10 +1525,12 @@ function OrderJourneyDashboard() {
                           <td className="px-3 py-2.5 text-center tabular-nums text-white whitespace-nowrap">{inr(r.amount)}</td>
                           <td className="px-3 py-2.5 text-center text-cyan-200/90 text-xs">{r.partner || '—'}</td>
                           <td className="px-3 py-2.5 text-center font-mono text-[11px] text-purple-200/80">{r.awb || '—'}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums text-emerald-200/90 whitespace-nowrap">{r.paid != null && r.paid > 0 ? inr(r.paid) : <span className="text-purple-300/40">—</span>}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums text-amber-200/90 whitespace-nowrap">{r.refund != null && r.refund > 0 ? inr(r.refund) : <span className="text-purple-300/40">—</span>}</td>
                         </tr>
                       ))
                     ) : (
-                      <tr><td colSpan={10} className="px-4 py-16 text-center text-purple-300/70 text-sm">No D2R orders in this range.</td></tr>
+                      <tr><td colSpan={12} className="px-4 py-16 text-center text-purple-300/70 text-sm">No D2R orders in this range.</td></tr>
                     )}
                   </tbody>
                 </table>

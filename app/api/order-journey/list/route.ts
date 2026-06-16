@@ -115,7 +115,7 @@ async function _GET(req: NextRequest) {
       SELECT
         base."poNumber", base.placed, base.status, base."deliveryStatus",
         base.amount, base.seller, base.buyer, base."buyerCity", base."buyerState",
-        di."partner", di."awb"
+        di."partner", di."awb", pp."paid"::text AS "paid", pp."refund"::text AS "refund"
       FROM base
       LEFT JOIN LATERAL (
         SELECT d."deliveryPartnerId" AS "partner",
@@ -124,6 +124,13 @@ async function _GET(req: NextRequest) {
         WHERE d."purchaseOrderId" = base.id AND d."isTest" = FALSE
         ORDER BY d."created_at" DESC LIMIT 1
       ) di ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(SUM(pop."paidAmount") FILTER (WHERE pop."status" = 'COMPLETED' AND pop."event" IN ('FULL_ADVANCE','PARTIAL_ADVANCE')), 0) AS "paid",
+          COALESCE(SUM(pop."refundAmount") FILTER (WHERE pop."refundStatus" IS NOT NULL), 0) AS "refund"
+        FROM "purchaseOrder"."purchaseOrderPayment" pop
+        WHERE pop."purchaseOrderId" = base.id
+      ) pp ON TRUE
       ORDER BY base.placed DESC;
     `;
 
@@ -208,6 +215,8 @@ async function _GET(req: NextRequest) {
       buyerState: r.buyerState,
       partner: r.partner,
       awb: r.awb,
+      paid: num(r.paid),
+      refund: num(r.refund),
     }));
 
     return NextResponse.json({

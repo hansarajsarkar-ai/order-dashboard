@@ -603,7 +603,7 @@ function JourneyCalendar({
 
       <div className="flex flex-wrap gap-x-8 gap-y-4">
         {panels.map((panel, pi) => (
-          <div key={pi} className="min-w-[320px] flex-1 max-w-[680px]">
+          <div key={pi} className="min-w-[320px] flex-1 max-w-[900px]">
             <div className="text-base font-semibold text-fuchsia-200 mb-2 text-center">{panel.label}</div>
             <div className="grid grid-cols-7 gap-1.5 mb-1.5">
               {WEEKDAYS.map((w, i) => <div key={i} className="text-[11px] text-purple-300/40 text-center font-semibold">{w}</div>)}
@@ -626,7 +626,7 @@ function JourneyCalendar({
                         style={fill ? { background: fill } : undefined}
                         title={has ? `${fmtKey(cell.key)} · ${cell.types.join(', ')} — click to jump` : fmtKey(cell.key)}
                         className={[
-                          'relative min-h-[62px] rounded-lg flex flex-col items-center gap-1 pt-1.5 pb-1 px-1 transition-colors',
+                          'relative min-h-[88px] rounded-lg flex flex-col items-center gap-1 pt-2 pb-1.5 px-1 transition-colors',
                           fill ? 'border border-white/20 text-white' : cell.inSpan ? `${tone.box} text-white` : 'bg-white/[0.025] border border-transparent text-purple-300/40',
                           has ? 'cursor-pointer hover:brightness-125' : 'cursor-default',
                           cell.isStart ? 'ring-2 ring-emerald-400/80' : '',
@@ -634,7 +634,7 @@ function JourneyCalendar({
                           sel ? 'ring-2 ring-white' : '',
                         ].join(' ')}
                       >
-                        <span className={`text-sm leading-none ${cell.inSpan ? 'font-bold' : 'font-medium'}`}>{cell.day}</span>
+                        <span className={`text-base leading-none ${cell.inSpan ? 'font-bold' : 'font-medium'}`}>{cell.day}</span>
                         {hasException && (
                           <span className="absolute -top-2.5 -right-2.5 z-30 flex h-6 w-6 items-center justify-center" title="Exception on this day — rejected / cancelled / partial / false order">
                             <span className="absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-70 animate-ping" />
@@ -649,7 +649,7 @@ function JourneyCalendar({
                           </span>
                         )}
                         {iconTypes.length > 0 && (
-                          <span className="flex flex-wrap gap-x-1 gap-y-0.5 justify-center leading-none text-xs">
+                          <span className="flex flex-wrap gap-x-1 gap-y-0.5 justify-center leading-none text-sm">
                             {iconTypes.map((t, ti) => <span key={ti} title={t}>{EV_EMOJI[t]}</span>)}
                           </span>
                         )}
@@ -1224,18 +1224,18 @@ function OrderJourneyDashboard() {
               <div className="space-y-6">
             {/* Courier card */}
             {courier && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
-                <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-                  <h2 className="text-lg font-bold text-white">🚚 Courier</h2>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {courier.courierName && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-cyan-500/15 text-cyan-200 border-cyan-400/30">{courier.courierName}</span>}
-                    {courier.status && <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusTone(courier.status)}`}>{courier.status}</span>}
-                    {courier.rtoClaimStatus && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-rose-500/15 text-rose-200 border-rose-400/30">RTO {courier.rtoClaimStatus}</span>}
+              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-4">
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                  <h2 className="text-sm font-bold text-white">🚚 Courier</h2>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {courier.courierName && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-cyan-500/15 text-cyan-200 border-cyan-400/30">{courier.courierName}</span>}
+                    {courier.status && <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${statusTone(courier.status)}`}>{courier.status}</span>}
+                    {courier.rtoClaimStatus && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-rose-500/15 text-rose-200 border-rose-400/30">RTO {courier.rtoClaimStatus}</span>}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-2 text-[11px]">
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider text-purple-300/60 font-semibold mb-0.5">AWB</div>
+                    <div className="text-[10px] uppercase tracking-wider text-purple-300/60 font-semibold">AWB</div>
                     {courier.trackingUrl && courier.awb ? (
                       <a href={courier.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:text-cyan-200 underline font-mono break-all">{courier.awb}</a>
                     ) : (
@@ -1243,20 +1243,18 @@ function OrderJourneyDashboard() {
                     )}
                   </div>
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider text-purple-300/60 font-semibold mb-0.5">Pickup</div>
-                    <div className="text-white">{courier.pickupAddressName || '—'}</div>
-                    <div className="text-purple-300/70">{courier.pickupPincode || ''}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-purple-300/60 font-semibold">Pickup</div>
+                    <div className="text-white truncate" title={courier.pickupAddressName || ''}>{courier.pickupAddressName || '—'} <span className="text-purple-300/60">{courier.pickupPincode || ''}</span></div>
                   </div>
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider text-purple-300/60 font-semibold mb-0.5">Drop</div>
-                    <div className="text-white">{courier.dropName || '—'}</div>
-                    <div className="text-purple-300/70">{[courier.dropCity, courier.dropState].filter(Boolean).join(', ')} {courier.dropPincode || ''}</div>
-                    {courier.dropPhone && <div className="text-purple-300/50 font-mono">{courier.dropPhone}</div>}
+                    <div className="text-[10px] uppercase tracking-wider text-purple-300/60 font-semibold">Drop</div>
+                    <div className="text-white truncate" title={courier.dropName || ''}>{courier.dropName || '—'}</div>
+                    <div className="text-purple-300/70 truncate">{[courier.dropCity, courier.dropState].filter(Boolean).join(', ')} {courier.dropPincode || ''}</div>
                   </div>
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider text-purple-300/60 font-semibold mb-0.5">Label</div>
+                    <div className="text-[10px] uppercase tracking-wider text-purple-300/60 font-semibold">Label</div>
                     {courier.labelUrl ? (
-                      <a href={courier.labelUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:text-cyan-200 underline">Shipping label ↗</a>
+                      <a href={courier.labelUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:text-cyan-200 underline">Label ↗</a>
                     ) : <div className="text-purple-300/50">—</div>}
                   </div>
                 </div>

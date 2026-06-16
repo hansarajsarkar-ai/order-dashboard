@@ -1219,9 +1219,9 @@ function OrderJourneyDashboard() {
             </div>
 
             {/* Detail grid — supporting cards beside the full timeline */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-              {/* Left column — courier · calendar */}
-              <div className="space-y-6">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+              {/* Left column — courier · calendar (wider) */}
+              <div className="space-y-6 xl:col-span-8">
             {/* Courier card */}
             {courier && (
               <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-4">
@@ -1267,16 +1267,16 @@ function OrderJourneyDashboard() {
             )}
               </div>
 
-            {/* Merged timeline — right column */}
-            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
-              <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
-                <h2 className="text-lg font-bold text-white">Journey Timeline</h2>
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
-                  <span className="text-fuchsia-300">📦 Order</span>
-                  <span className="text-cyan-300">🚚 Courier</span>
-                  <span className="text-amber-300">📞 Call</span>
-                  <span className="text-emerald-300">📍 QR</span>
-                  <span className="text-indigo-300">☎️ Phone</span>
+            {/* Merged timeline — right column (compact) */}
+            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-4 xl:col-span-4">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <h2 className="text-base font-bold text-white">Journey Timeline</h2>
+                <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px]">
+                  <span className="text-fuchsia-300">📦</span>
+                  <span className="text-cyan-300">🚚</span>
+                  <span className="text-amber-300">📞</span>
+                  <span className="text-emerald-300">📍</span>
+                  <span className="text-indigo-300">☎️</span>
                 </div>
               </div>
               {events.length === 0 ? (
@@ -1290,19 +1290,19 @@ function OrderJourneyDashboard() {
                     const st = EV_STYLE[e.type];
                     const isSelDay = selectedDay != null && istKey(e.ms) === selectedDay;
                     return (
-                      <li id={`oj-ev-${i}`} key={i} className={`relative pl-11 pb-5 last:pb-0 rounded-lg transition-colors ${isSelDay ? 'bg-white/[0.07] ring-1 ring-white/25' : ''}`}>
-                        {!isLast && <span className="absolute left-[15px] top-8 bottom-0 w-px bg-white/10" />}
-                        <span className={`absolute left-0 top-0.5 flex h-8 w-8 items-center justify-center rounded-full border text-sm ${st.node}`}>{e.icon}</span>
-                        <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                          <div className={`text-sm font-semibold ${st.text}`}>
+                      <li id={`oj-ev-${i}`} key={i} className={`relative pl-9 pb-3 last:pb-0 rounded-lg transition-colors ${isSelDay ? 'bg-white/[0.07] ring-1 ring-white/25' : ''}`}>
+                        {!isLast && <span className="absolute left-[13px] top-7 bottom-0 w-px bg-white/10" />}
+                        <span className={`absolute left-0 top-0.5 flex h-7 w-7 items-center justify-center rounded-full border text-[13px] ${st.node}`}>{e.icon}</span>
+                        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                          <div className={`text-[13px] font-semibold ${st.text}`}>
                             {e.title}
                           </div>
-                          {gap && <span className="text-[11px] text-purple-300/50 font-medium">+{gap}</span>}
+                          {gap && <span className="text-[10px] text-purple-300/50 font-medium">+{gap}</span>}
                         </div>
-                        <div className="text-xs text-purple-300/80 mt-0.5">{fmtMs(e.ms)}</div>
+                        <div className="text-[11px] text-purple-300/80">{fmtMs(e.ms)}</div>
                         {e.lines.length > 0 && (
-                          <div className="mt-1 space-y-0.5">
-                            {e.lines.map((ln, k) => <div key={k} className={`text-[11px] ${st.chip}`}>{ln}</div>)}
+                          <div className="mt-0.5 space-y-0">
+                            {e.lines.map((ln, k) => <div key={k} className={`text-[10px] ${st.chip}`}>{ln}</div>)}
                           </div>
                         )}
                         {e.href && <AudioPlayer src={e.href} hintSec={e.audioSec} />}

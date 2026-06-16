@@ -41,6 +41,7 @@ interface Po {
   refundableAmount: number | null;
   originalPOAmount: number | null;
   poModifiedBuyerInformed: string | null;
+  paymentMode: string | null;
   plannedDispatchTime: string | null;
   markedDispatchedTime: string | null;
   markedPendingTime: string | null;
@@ -438,6 +439,65 @@ function fmtKey(k: string): string {
 interface CalCell { key: string; day: number; inSpan: boolean; isStart: boolean; isEnd: boolean; types: EvType[]; }
 interface CalPanel { label: string; weeks: (CalCell | null)[][]; }
 
+/** PO-Modified popup — seller item edits, before/after amounts, value lost, in the PO Modified dashboard style. */
+function PoModifiedModal({ poNumber, po, mods, onClose }: { poNumber: number | null; po: Po; mods: Modification[]; onClose: () => void }) {
+  const prev = po.originalPOAmount, next = po.amount;
+  const lost = prev != null && next != null && prev > next ? prev - next : null;
+  const informed = !!(po.poModifiedBuyerInformed && po.poModifiedBuyerInformed.trim());
+  const Stat = ({ label, value, tone }: { label: string; value: string; tone?: string }) => (
+    <div className="rounded-lg bg-white/[0.04] border border-white/10 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-purple-300/60 font-semibold">{label}</div>
+      <div className={`text-sm font-bold tabular-nums ${tone || 'text-white'}`}>{value}</div>
+    </div>
+  );
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl border border-white/15 bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-gradient-to-r from-orange-500/25 to-fuchsia-500/15 rounded-t-2xl">
+          <h3 className="text-base font-bold text-white">✏️ PO Modified by Seller <span className="font-mono text-orange-200 ml-1">#{poNumber}</span></h3>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white text-lg leading-none">×</button>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-xs text-purple-200/70 mb-3">The seller removed an item or decreased its quantity due to unavailability after the order was placed.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4">
+            <Stat label="Previous Amount" value={inr(prev)} />
+            <Stat label="New Amount" value={inr(next)} />
+            <Stat label="Value Lost" value={lost != null ? `−${inr(lost)}` : '—'} tone="text-rose-300" />
+            <Stat label="Payment" value={po.paymentMode || '—'} />
+            <Stat label="Refund Owed" value={po.refundableAmount != null && po.refundableAmount > 0 ? inr(po.refundableAmount) : '—'} tone={po.refundableAmount ? 'text-amber-300' : 'text-white'} />
+            <Stat label="Buyer Informed" value={informed ? 'Yes' : 'No'} tone={informed ? 'text-emerald-300' : 'text-amber-300'} />
+          </div>
+          <div className="rounded-xl border border-white/10 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-violet-300/25 bg-gradient-to-r from-violet-500/25 to-fuchsia-500/20 text-[12px] font-bold uppercase tracking-wider text-white">
+                  <th className="px-4 py-2.5 text-center">#</th>
+                  <th className="px-4 py-2.5 text-left">Item</th>
+                  <th className="px-4 py-2.5 text-center">Change</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mods.map((m, i) => (
+                  <tr key={i} className={`border-t border-white/5 ${i % 2 === 1 ? 'bg-white/[0.025]' : ''}`}>
+                    <td className="px-4 py-2 text-center tabular-nums text-purple-300/60">{i + 1}</td>
+                    <td className="px-4 py-2 text-left text-white">{m.skuLabel || '—'}</td>
+                    <td className="px-4 py-2 text-center">
+                      <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${m.changeType === 'Item Removed' ? 'bg-rose-500/15 text-rose-200 border-rose-400/30' : 'bg-amber-500/15 text-amber-200 border-amber-400/30'}`}>{m.changeType || 'Modified'}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {po.poModifiedBuyerInformed && po.poModifiedBuyerInformed.trim() && (
+            <div className="mt-3 text-[11px] text-purple-300/70">Buyer informed: <span className="text-purple-100">{po.poModifiedBuyerInformed}</span></div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Calendar overview of a journey: highlights the placed→last-event span and
  * marks each day with colored dots per event type. Multi-month spans render as
@@ -655,6 +715,7 @@ function OrderJourneyDashboard() {
   const [searchError, setSearchError] = useState('');
   const [resolving, setResolving] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [showMods, setShowMods] = useState(false);
 
   // List view state
   const [list, setList] = useState<ListResp | null>(null);
@@ -689,7 +750,7 @@ function OrderJourneyDashboard() {
   const fetchJourney = useCallback(async (po: string) => {
     const trimmed = po.trim();
     if (!/^\d+$/.test(trimmed)) { setError('Enter a numeric PO Number.'); setResp(null); return; }
-    setLoading(true); setError(''); setResp(null); setQueriedPo(trimmed); setSelectedDay(null);
+    setLoading(true); setError(''); setResp(null); setQueriedPo(trimmed); setSelectedDay(null); setShowMods(false);
     try {
       const r = await fetch(`/api/order-journey?poNumber=${encodeURIComponent(trimmed)}`);
       const j: JourneyResp = await r.json();
@@ -1051,6 +1112,9 @@ function OrderJourneyDashboard() {
 
         {poParam && !loading && !error && resp?.found && po && (
           <div className="space-y-6">
+            {showMods && mods.length > 0 && (
+              <PoModifiedModal poNumber={resp.poNumber ?? null} po={po} mods={mods} onClose={() => setShowMods(false)} />
+            )}
             {!resp.isD2R && (
               <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 text-amber-100 text-sm">
                 ⚠️ PO #{resp.poNumber} is <strong>not a D2R order</strong> (D2R = INTERCITY orders from D2R brand sellers). Showing its journey anyway.
@@ -1069,7 +1133,7 @@ function OrderJourneyDashboard() {
                   {po.deliveryStatus && <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusTone(po.deliveryStatus)}`}>📦 {po.deliveryStatus}</span>}
                   {po.isRTOReceived && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-rose-500/20 text-rose-200 border-rose-400/30">RTO Received</span>}
                   {po.isFalseOrder && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-rose-500/20 text-rose-200 border-rose-400/30">False Order</span>}
-                  {mods.length > 0 && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-orange-500/20 text-orange-200 border-orange-400/30">✏️ PO Edited</span>}
+                  {mods.length > 0 && <button type="button" onClick={() => setShowMods(true)} className="px-3 py-1 rounded-full text-xs font-semibold border bg-orange-500/20 text-orange-200 border-orange-400/30 hover:bg-orange-500/35 transition-colors">✏️ Modified</button>}
                   {po.isSettledToSeller && <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-emerald-500/20 text-emerald-200 border-emerald-400/30">💰 Settled</span>}
                 </div>
               </div>
@@ -1142,27 +1206,19 @@ function OrderJourneyDashboard() {
                     </div>
                   )}
                   {mods.length > 0 && (
-                    <div className="flex-1 min-w-[240px] rounded-xl border border-orange-400/20 bg-orange-500/[0.07] px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-wider text-orange-300/70 font-semibold mb-1">
-                        ✏️ PO Edited by Seller
+                    <button type="button" onClick={() => setShowMods(true)} className="flex-1 min-w-[240px] text-left rounded-xl border border-orange-400/30 bg-orange-500/[0.07] hover:bg-orange-500/[0.14] px-4 py-3 transition-colors">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[11px] uppercase tracking-wider text-orange-300/70 font-semibold">✏️ PO Modified by Seller</div>
+                        <span className="text-[11px] text-orange-200 font-semibold">View details →</span>
                       </div>
-                      <div className="text-sm text-white font-medium">
-                        {po.originalPOAmount != null && (
-                          <span className="tabular-nums">{inr(po.originalPOAmount)} → {inr(po.amount)}</span>
-                        )}
+                      <div className="text-sm text-white font-medium mt-0.5">
+                        {po.originalPOAmount != null && <span className="tabular-nums">{inr(po.originalPOAmount)} → {inr(po.amount)}</span>}
                         {po.originalPOAmount != null && po.amount != null && po.originalPOAmount > po.amount && (
                           <span className="text-orange-200 font-normal"> · {inr(po.originalPOAmount - po.amount)} lost</span>
                         )}
+                        <span className="text-purple-300/60 font-normal"> · {mods.length} item{mods.length > 1 ? 's' : ''} changed</span>
                       </div>
-                      <div className="text-[11px] text-orange-200/80 mt-0.5">
-                        {mods.map((m, i) => (
-                          <span key={i}>{i > 0 ? ' · ' : ''}{m.changeType}{m.skuLabel ? `: ${m.skuLabel}` : ''}</span>
-                        ))}
-                      </div>
-                      {po.poModifiedBuyerInformed && (
-                        <div className="text-[11px] text-purple-300/60 mt-0.5">Buyer informed: {po.poModifiedBuyerInformed}</div>
-                      )}
-                    </div>
+                    </button>
                   )}
                 </div>
               )}

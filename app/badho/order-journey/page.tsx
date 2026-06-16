@@ -1265,6 +1265,39 @@ function OrderJourneyDashboard() {
             {events.length > 0 && (
               <JourneyCalendar events={events} selectedDay={selectedDay} onSelectDay={handleSelectDay} poStatus={po.status} deliveryStatus={po.deliveryStatus} segments={stateSegments} slaMarks={slaMarks} />
             )}
+
+            {/* Items — compact, scrollable, under the calendar in the left column */}
+            {resp.items && resp.items.length > 0 && (
+              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-4">
+                <h2 className="text-sm font-bold text-white mb-2">Items <span className="text-purple-300/60 text-xs font-normal">({resp.items.length})</span></h2>
+                <div className="overflow-auto rounded-xl border border-white/10 max-h-[340px]">
+                  <table className="w-full text-[13px]">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-gradient-to-r from-violet-800 to-fuchsia-800 text-[11px] font-bold uppercase tracking-wider text-white">
+                        <th className="px-2.5 py-2 text-center">#</th>
+                        <th className="px-2.5 py-2 text-left">SKU</th>
+                        <th className="px-2.5 py-2 text-center">Brand</th>
+                        <th className="px-2.5 py-2 text-center">Qty</th>
+                        <th className="px-2.5 py-2 text-center">Status</th>
+                        <th className="px-2.5 py-2 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resp.items.map((it, i) => (
+                        <tr key={i} className={`border-t border-white/5 hover:bg-white/[0.07] ${i % 2 === 1 ? 'bg-white/[0.025]' : ''} ${it.isRejected ? 'opacity-60' : ''}`}>
+                          <td className="px-2.5 py-1.5 text-center tabular-nums text-purple-300/60">{i + 1}</td>
+                          <td className="px-2.5 py-1.5 text-left text-white">{it.skuLabel || '—'}</td>
+                          <td className="px-2.5 py-1.5 text-center text-purple-200">{it.brandLabel || '—'}</td>
+                          <td className="px-2.5 py-1.5 text-center tabular-nums text-purple-100 whitespace-nowrap">{it.quantity ?? '—'} {it.quantityUnit || ''}</td>
+                          <td className="px-2.5 py-1.5 text-center"><span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusTone(it.status)}`}>{it.isRejected ? 'REJECTED' : it.status || '—'}</span></td>
+                          <td className="px-2.5 py-1.5 text-right tabular-nums text-white whitespace-nowrap">{inr(it.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
               </div>
 
             {/* Merged timeline — right column (compact) */}
@@ -1314,38 +1347,6 @@ function OrderJourneyDashboard() {
             </div>
             </div>
 
-            {/* Items */}
-            {resp.items && resp.items.length > 0 && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
-                <h2 className="text-lg font-bold text-white mb-4">Items <span className="text-purple-300/60 text-sm font-normal">({resp.items.length})</span></h2>
-                <div className="overflow-x-auto rounded-xl border border-white/10">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-violet-300/25 bg-gradient-to-r from-violet-500/25 to-fuchsia-500/20 text-[13px] font-bold uppercase tracking-wider text-white">
-                        <th className="px-4 py-3 text-center">SKU</th>
-                        <th className="px-4 py-3 text-center">Brand</th>
-                        <th className="px-4 py-3 text-center">Qty</th>
-                        <th className="px-4 py-3 text-center">Status</th>
-                        <th className="px-4 py-3 text-center">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {resp.items.map((it, i) => (
-                        <tr key={i} className={`border-t border-white/5 transition-colors hover:bg-white/[0.07] ${i % 2 === 1 ? 'bg-white/[0.025]' : ''} ${it.isRejected ? 'opacity-60' : ''}`}>
-                          <td className="px-4 py-2.5 text-center text-white">{it.skuLabel || '—'}</td>
-                          <td className="px-4 py-2.5 text-center text-purple-200">{it.brandLabel || '—'}</td>
-                          <td className="px-4 py-2.5 text-center tabular-nums text-purple-100">{it.quantity ?? '—'} {it.quantityUnit || ''}</td>
-                          <td className="px-4 py-2.5 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${statusTone(it.status)}`}>{it.isRejected ? 'REJECTED' : it.status || '—'}</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-center tabular-nums text-white">{inr(it.total)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
           </div>
         )}
 

@@ -636,8 +636,8 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
                   <td className="py-1.5 pr-4 text-center"><span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderStatusClass(o.status)}`}>{o.status}</span></td>
                   <td className="py-1.5 pr-4 text-center whitespace-nowrap">
                     {isRto
-                      ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-200 border border-rose-400/30">RTO</span>
-                      : <span className="text-purple-200/90">{o.delivery_status || o.shipment_status || '—'}</span>}
+                      ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-200 border border-rose-400/30">{o.shipment_status || o.delivery_status || 'RTO'}</span>
+                      : <span className="text-purple-200/90">{o.shipment_status || o.delivery_status || '—'}</span>}
                   </td>
                   <td className="py-1.5 pr-4 text-purple-300/70 font-mono whitespace-nowrap">{o.awb_number || '—'}</td>
                   <td className="py-1.5 text-purple-300/70 whitespace-nowrap">{o.courier_name || '—'}</td>

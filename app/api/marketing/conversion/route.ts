@@ -10,9 +10,9 @@ export const maxDuration = 60;
 // buyer's first real order placed at/after install, joining history.session →
 // purchaseOrder.purchaseOrder. Grouped by channel or by Meta campaign.
 //   buyers     = distinct acquired buyers in the window
-//   ordered    = how many placed ≥1 real order since install (not DRAFT/REJECTED/CANCELLED)
+//   ordered    = how many placed ≥1 order since install (not DRAFT/CANCELLED; REJECTED counts)
 //   conv%      = ordered / buyers
-//   gmv        = sum of those real orders' amount (net amount column)
+//   gmv        = sum of those orders' amount (net amount column)
 //   avgDays    = mean days from install → first order (only those who ordered)
 // Note: conversion rises as a cohort matures, so recent installs understate it.
 
@@ -55,13 +55,13 @@ export async function GET(req: NextRequest) {
           ORDER BY "buyerId", created_at
         ),
         ord AS (
-          -- A "real" order = placed and not DRAFT/REJECTED/CANCELLED. ordered count,
-          -- GMV and days-to-first-order all use this so rejected/cancelled don't
-          -- inflate conversion or revenue.
+          -- A counted order = placed and not DRAFT/CANCELLED (REJECTED IS included).
+          -- ordered count, GMV and days-to-first-order all use this filter so
+          -- cancelled orders don't inflate conversion or revenue.
           SELECT i.bid, i.grp, i.inst_at,
-                 MIN(po."markedPendingTime") FILTER (WHERE po."status" NOT IN ('DRAFT','REJECTED','CANCELLED')) AS fo,
-                 COUNT(po.*) FILTER (WHERE po."status" NOT IN ('DRAFT','REJECTED','CANCELLED')) AS pc,
-                 COALESCE(SUM((po."amount")::numeric) FILTER (WHERE po."status" NOT IN ('DRAFT','REJECTED','CANCELLED')), 0) AS gmv
+                 MIN(po."markedPendingTime") FILTER (WHERE po."status" NOT IN ('DRAFT','CANCELLED')) AS fo,
+                 COUNT(po.*) FILTER (WHERE po."status" NOT IN ('DRAFT','CANCELLED')) AS pc,
+                 COALESCE(SUM((po."amount")::numeric) FILTER (WHERE po."status" NOT IN ('DRAFT','CANCELLED')), 0) AS gmv
           FROM inst i
           LEFT JOIN "purchaseOrder"."purchaseOrder" po
             ON po."buyerId" = i.bid

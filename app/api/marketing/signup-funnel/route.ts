@@ -4,6 +4,7 @@ import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, CHANNEL_CASE } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 interface ChannelRow { channel: string; installs: string; signups: string }
 interface ObjRow { objective: string | null; installs: string }

@@ -4,6 +4,7 @@ import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, campaignClause } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const GRAN: Record<string, 'day' | 'week' | 'month'> = { day: 'day', week: 'week', month: 'month' };
 

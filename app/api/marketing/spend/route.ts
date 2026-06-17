@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 export const runtime = 'nodejs';
 
 // Pulls ad spend per campaign from the Meta (Facebook) Marketing API so the UI

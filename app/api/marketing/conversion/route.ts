@@ -4,6 +4,7 @@ import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, CHANNEL_CASE, campaignClause } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 // Acquisition QUALITY: attribute each install (first session, has buyerId) to the
 // buyer's first real order placed at/after install, joining history.session →

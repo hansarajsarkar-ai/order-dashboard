@@ -33,9 +33,19 @@ interface FeatureProps { ST_NM: string }
 interface RsmGeography { rsmKey: string; properties: FeatureProps; geometry: unknown }
 type GeoFeatureCollection = { type: 'FeatureCollection'; features: { type: 'Feature'; properties: FeatureProps; geometry: unknown }[] };
 
-// Nudge a few tiny/cramped states so their bubbles don't overlap neighbours.
+// Nudge the cramped northern + tiny states so their bubbles spread out and stay
+// readable. Offsets are in degrees [lng (east+), lat (north+)].
 const OFFSETS: Record<string, [number, number]> = {
-  Delhi: [0.5, 0.4], Goa: [-0.5, -0.3], Sikkim: [0.3, 0.5], Chandigarh: [-0.6, 0.5], Puducherry: [0.5, -0.3],
+  Punjab: [-0.6, 0.6],
+  Haryana: [-0.9, -0.2],
+  Delhi: [0.8, -0.7],
+  Chandigarh: [0.0, 0.8],
+  'Himachal Pradesh': [0.4, 0.6],
+  Uttarakhand: [0.9, 0.2],
+  'Jammu & Kashmir': [-0.3, 0.2],
+  Goa: [-0.8, -0.2],
+  Sikkim: [-0.1, 0.6],
+  Puducherry: [0.6, -0.3],
 };
 
 export default function InstallBubbleMap({ data }: { data: GeoRow[] }) {
@@ -59,11 +69,12 @@ export default function InstallBubbleMap({ data }: { data: GeoRow[] }) {
 
   const unknown = useMemo(() => data.find((r) => r.state === '(unknown)') || null, [data]);
 
-  // sqrt scale → bubble AREA is proportional to the value. Min radius keeps the
-  // number readable even for the smallest state.
+  // sqrt scale → bubble AREA is proportional to the value. Smaller max radius
+  // than before so big states don't swamp their neighbours; min keeps the number
+  // readable even for the smallest state.
   const radius = useMemo(() => {
     const max = data.reduce((m, r) => Math.max(m, r[metric] || 0), 1);
-    return scaleSqrt<number, number>().domain([1, max]).range([13, 46]);
+    return scaleSqrt<number, number>().domain([1, max]).range([10, 32]);
   }, [data, metric]);
 
   // Draw the biggest bubbles first so smaller ones sit on top and stay clickable.
@@ -102,12 +113,12 @@ export default function InstallBubbleMap({ data }: { data: GeoRow[] }) {
       </div>
 
       <div className="relative bg-slate-950/40 rounded-2xl border border-white/5 overflow-hidden">
-        <ComposableMap projection="geoMercator" projectionConfig={{ scale: 1100, center: [82.5, 23] }} width={800} height={620} style={{ width: '100%', height: 'auto' }}>
-          {/* Base state shapes — dim; bubbles carry the data */}
+        <ComposableMap projection="geoMercator" projectionConfig={{ scale: 1120, center: [82.5, 22.5] }} width={800} height={700} style={{ width: '100%', height: 'auto' }}>
+          {/* Base state shapes — visible fill + clear borders so it reads as a map */}
           <Geographies geography={geo}>
             {({ geographies }: { geographies: RsmGeography[] }) => geographies.map((g) => (
-              <Geography key={g.rsmKey} geography={g} fill="#241b4d" stroke="#0f172a" strokeWidth={0.6}
-                style={{ default: { outline: 'none' }, hover: { fill: '#2e2358', outline: 'none' }, pressed: { outline: 'none' } }} />
+              <Geography key={g.rsmKey} geography={g} fill="#3b2e6e" stroke="#a78bfa" strokeWidth={0.5} strokeOpacity={0.4}
+                style={{ default: { outline: 'none' }, hover: { fill: '#4a3a87', outline: 'none' }, pressed: { outline: 'none' } }} />
             ))}
           </Geographies>
 

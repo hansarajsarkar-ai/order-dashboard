@@ -27,3 +27,19 @@ export const CHANNEL_CASE = `CASE
   WHEN "installReferrer" IS NULL OR "installReferrer" #>> '{}' IN ('unknown', '') THEN 'Unknown'
   ELSE 'Other'
 END`;
+
+// Optional "filter to one Meta campaign" clause. Matches the value against EITHER
+// campaign_name OR campaign_id, so the UI can filter by whichever the user typed.
+// Pushes one param and returns the SQL fragment (or '' when no campaign given).
+// Restricts to object referrers since only paid-ad installs carry a campaign.
+export function campaignClause(
+  campaign: string | null | undefined,
+  params: (string | number)[],
+): string {
+  const c = (campaign || '').trim();
+  if (!c) return '';
+  params.push(c);
+  const i = params.length;
+  return `AND jsonb_typeof("installReferrer") = 'object'
+    AND ("installReferrer"->>'campaign_name' = $${i} OR "installReferrer"->>'campaign_id' = $${i})`;
+}

@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, CHANNEL_CASE } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,7 @@ export async function GET(req: NextRequest) {
   const days = Number.isFinite(daysParam) && daysParam > 0 && daysParam <= 365 ? daysParam : 30;
 
   try {
+    const payload = await cached(`mkt:signup-funnel:${days}`, 5 * 60_000, async () => {
     const channelSql = `
       SELECT ${CHANNEL_CASE} AS channel,
              COUNT(*)::text  AS installs,
@@ -49,13 +51,15 @@ export async function GET(req: NextRequest) {
     });
     const objectives = objRows.map((r) => ({ objective: r.objective || '(unknown)', installs: parseInt(r.installs, 10) }));
 
-    return NextResponse.json({
-      channels,
-      objectives,
-      objectivesTotal: objectives.reduce((a, b) => a + b.installs, 0),
-      windowDays: days,
-      timestamp: new Date().toISOString(),
+      return {
+        channels,
+        objectives,
+        objectivesTotal: objectives.reduce((a, b) => a + b.installs, 0),
+        windowDays: days,
+      };
     });
+
+    return NextResponse.json({ ...payload, timestamp: new Date().toISOString() });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err) || 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });

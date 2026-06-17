@@ -8,6 +8,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList,
 } from 'recharts';
 import InstallBubbleMap from './components/InstallBubbleMap';
+import CampaignFilter, { type CampaignOption } from './components/CampaignFilter';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 type Granularity = 'day' | 'week' | 'month';
@@ -143,7 +144,9 @@ export default function MarketingDashboard() {
   const [granularity, setGranularity] = useState<Granularity>('day');
   const [convBy, setConvBy] = useState<'channel' | 'campaign'>('channel');
   const [geoView, setGeoView] = useState<'map' | 'chart'>('map');
+  const [campaign, setCampaign] = useState('');
   const windowSub = `last ${days} days`;
+  const campQ = campaign ? `&campaign=${encodeURIComponent(campaign)}` : '';
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -153,15 +156,18 @@ export default function MarketingDashboard() {
     setAuthChecked(true);
   }, [router]);
 
-  // Tab-gated fetches.
-  const trend = useApi<{ data: TrendPoint[]; summary: TrendSummary }>(`/api/marketing/installs-trend?days=${days}&granularity=${granularity}`, authChecked && tab === 'acquisition');
+  // Campaign filter options (cheap + cached) — load once authed.
+  const campaignList = useApi<{ data: CampaignOption[] }>(`/api/marketing/campaign-list?days=${days}`, authChecked);
+
+  // Tab-gated fetches. campQ scopes the campaign-relevant panels when a campaign is picked.
+  const trend = useApi<{ data: TrendPoint[]; summary: TrendSummary }>(`/api/marketing/installs-trend?days=${days}&granularity=${granularity}${campQ}`, authChecked && tab === 'acquisition');
   const channels = useApi<{ data: ChannelRow[]; total: number }>(`/api/marketing/channel-mix?days=${days}`, authChecked && tab === 'acquisition');
   const signup = useApi<{ channels: SignupChannel[]; objectives: ObjRow[]; objectivesTotal: number }>(`/api/marketing/signup-funnel?days=${days}`, authChecked && (tab === 'acquisition' || tab === 'campaigns'));
-  const campaigns = useApi<{ data: CampaignRow[]; total: number }>(`/api/marketing/campaigns?days=${days}`, authChecked && (tab === 'campaigns' || tab === 'spend'));
-  const creatives = useApi<{ data: CreativeRow[]; total: number }>(`/api/marketing/creatives?days=${days}`, authChecked && tab === 'campaigns');
-  const conv = useApi<ConvResp>(`/api/marketing/conversion?days=${days}&by=${convBy}`, authChecked && tab === 'conversion');
-  const convCamp = useApi<ConvResp>(`/api/marketing/conversion?days=${days}&by=campaign`, authChecked && tab === 'spend');
-  const geo = useApi<{ data: GeoRow[]; total: number }>(`/api/marketing/geography?days=${days}`, authChecked && tab === 'geography');
+  const campaigns = useApi<{ data: CampaignRow[]; total: number }>(`/api/marketing/campaigns?days=${days}${campQ}`, authChecked && (tab === 'campaigns' || tab === 'spend'));
+  const creatives = useApi<{ data: CreativeRow[]; total: number }>(`/api/marketing/creatives?days=${days}${campQ}`, authChecked && tab === 'campaigns');
+  const conv = useApi<ConvResp>(`/api/marketing/conversion?days=${days}&by=${convBy}${campQ}`, authChecked && tab === 'conversion');
+  const convCamp = useApi<ConvResp>(`/api/marketing/conversion?days=${days}&by=campaign${campQ}`, authChecked && tab === 'spend');
+  const geo = useApi<{ data: GeoRow[]; total: number }>(`/api/marketing/geography?days=${days}${campQ}`, authChecked && tab === 'geography');
   const whatsapp = useApi<{ data: WaRow[]; total: number }>(`/api/marketing/whatsapp-campaigns?days=${days}`, authChecked && tab === 'whatsapp');
   const spend = useApi<{ configured: boolean; message?: string; data?: SpendRow[]; totalSpend?: number; currency?: string; error?: string }>(`/api/marketing/spend?days=${days}`, authChecked && tab === 'spend');
 
@@ -246,12 +252,22 @@ export default function MarketingDashboard() {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent flex items-center gap-2">📣 Marketing Dashboard</h1>
             <p className="text-purple-200 text-sm mt-1">User acquisition &amp; attribution — installs, channels, campaigns, conversion to orders, geography, and ad ROI.</p>
           </div>
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
-            {RANGES.map((r) => (
-              <button key={r.days} onClick={() => setDays(r.days)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${days === r.days ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-[0_0_18px_rgba(217,70,239,0.45)]' : 'text-purple-200 hover:bg-white/10'}`}>{r.label}</button>
-            ))}
+          <div className="flex items-center gap-3 flex-wrap">
+            <CampaignFilter value={campaign} onChange={setCampaign} options={campaignList.data?.data || []} loading={campaignList.loading} />
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+              {RANGES.map((r) => (
+                <button key={r.days} onClick={() => setDays(r.days)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${days === r.days ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-[0_0_18px_rgba(217,70,239,0.45)]' : 'text-purple-200 hover:bg-white/10'}`}>{r.label}</button>
+              ))}
+            </div>
           </div>
         </div>
+        {campaign && (
+          <div className="mb-4 -mt-1 flex items-center gap-2 text-xs text-fuchsia-200">
+            <span className="px-2 py-1 rounded-lg bg-fuchsia-500/15 border border-fuchsia-400/30">Filtered to campaign: <span className="font-semibold">{campaign}</span></span>
+            <span className="text-purple-300/60">scopes Acquisition trend, Campaigns, Conversion &amp; Geography</span>
+            <button onClick={() => setCampaign('')} className="underline hover:text-white">clear</button>
+          </div>
+        )}
 
         {/* Tab bar */}
         <div className="mb-6 flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10 w-fit flex-wrap">

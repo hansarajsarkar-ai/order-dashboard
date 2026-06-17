@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
-import { COHORT_WHERE } from '@/lib/marketingCohort';
+import { cached } from '@/lib/memoCache';
+import { COHORT_WHERE, campaignClause } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,43 +20,43 @@ export async function GET(req: NextRequest) {
   const daysParam = parseInt(searchParams.get('days') || '30', 10);
   const days = Number.isFinite(daysParam) && daysParam > 0 && daysParam <= 365 ? daysParam : 30;
   const gran = GRAN[(searchParams.get('granularity') || 'day').toLowerCase()] || 'day';
+  const campaign = searchParams.get('campaign') || '';
 
   try {
-    const sql = `
-      SELECT date_trunc($1, created_at)::date::text AS bucket,
-             COUNT(*)::text                         AS installs
-      FROM history.session
-      WHERE ${COHORT_WHERE}
-        AND created_at >= current_date - $2::int
-      GROUP BY 1
-      ORDER BY 1;
-    `;
-    const rows = await query<Row>(sql, [gran, days]);
+    const payload = await cached(`mkt:installs-trend:${gran}:${days}:${campaign}`, 5 * 60_000, async () => {
+      const params: (string | number)[] = [gran, days];
+      const camp = campaignClause(campaign, params);
+      const sql = `
+        SELECT date_trunc($1, created_at)::date::text AS bucket,
+               COUNT(*)::text                         AS installs
+        FROM history.session
+        WHERE ${COHORT_WHERE}
+          AND created_at >= current_date - $2::int
+          ${camp}
+        GROUP BY 1
+        ORDER BY 1;
+      `;
+      const rows = await query<Row>(sql, params);
 
-    const data = rows.map((r) => ({
-      bucket: r.bucket,
-      installs: parseInt(r.installs, 10),
-    }));
+      const data = rows.map((r) => ({ bucket: r.bucket, installs: parseInt(r.installs, 10) }));
+      const totalInstalls = data.reduce((a, b) => a + b.installs, 0);
+      const peak = data.reduce((best, r) => (r.installs > best.installs ? r : best), { bucket: '', installs: -1 });
+      const avg = data.length ? Math.round(totalInstalls / data.length) : 0;
 
-    const totalInstalls = data.reduce((a, b) => a + b.installs, 0);
-    const peak = data.reduce(
-      (best, r) => (r.installs > best.installs ? r : best),
-      { bucket: '', installs: -1 }
-    );
-    const avg = data.length ? Math.round(totalInstalls / data.length) : 0;
-
-    return NextResponse.json({
-      data,
-      summary: {
-        totalInstalls,
-        avg,
-        peak: peak.installs >= 0 ? peak.installs : 0,
-        peakBucket: peak.bucket || null,
-        granularity: gran,
-        windowDays: days,
-      },
-      timestamp: new Date().toISOString(),
+      return {
+        data,
+        summary: {
+          totalInstalls,
+          avg,
+          peak: peak.installs >= 0 ? peak.installs : 0,
+          peakBucket: peak.bucket || null,
+          granularity: gran,
+          windowDays: days,
+        },
+      };
     });
+
+    return NextResponse.json({ ...payload, timestamp: new Date().toISOString() });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err) || 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });

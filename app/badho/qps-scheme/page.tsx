@@ -2165,6 +2165,7 @@ export default function QpsSchemePage() {
                                           <th className="py-1.5 pr-4 font-medium whitespace-nowrap">Payment</th>
                                           <th className="py-1.5 pr-4 font-medium text-center whitespace-nowrap">PO Status</th>
                                           <th className="py-1.5 pr-4 font-medium text-center whitespace-nowrap">Shipment</th>
+                                          <th className="py-1.5 pr-4 font-medium text-center whitespace-nowrap">Delhivery SLA</th>
                                           <th className="py-1.5 pr-4 font-medium text-right whitespace-nowrap">COD</th>
                                           <th className="py-1.5 pr-4 font-medium whitespace-nowrap">AWB</th>
                                           <th className="py-1.5 font-medium whitespace-nowrap">Courier</th>
@@ -2194,6 +2195,11 @@ export default function QpsSchemePage() {
                                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderStatusClass(o.status)}`}>{o.status}</span>
                                             </td>
                                             <td className="py-1.5 pr-4 text-center text-purple-200/90 whitespace-nowrap">{o.shipment_status || '—'}</td>
+                                            <td className="py-1.5 pr-4 text-center whitespace-nowrap">
+                                              {(o.status || '').toUpperCase() === 'REJECTED' && (o.shipment_status || '').toUpperCase().replace(/_/g, ' ').includes('NOT PICK')
+                                                ? <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/25 text-rose-200 border border-rose-400/40" title="Rejected because the courier never picked up">⚠ SLA Breach</span>
+                                                : <span className="text-purple-300/40">—</span>}
+                                            </td>
                                             <td className="py-1.5 pr-4 text-right text-emerald-200/80 whitespace-nowrap">{Number(o.cod_collect) > 0 ? fmtAmt(o.cod_collect) : '—'}</td>
                                             <td className="py-1.5 pr-4 text-purple-300/70 font-mono whitespace-nowrap">{o.awb_number || '—'}</td>
                                             <td className="py-1.5 text-purple-300/70 whitespace-nowrap">{o.courier_name || '—'}</td>

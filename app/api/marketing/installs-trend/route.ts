@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, campaignClause } from '@/lib/marketingCohort';
 
@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
           granularity: gran,
           windowDays: days,
         },
+        sql: displaySql(sql, params),
       };
     });
 

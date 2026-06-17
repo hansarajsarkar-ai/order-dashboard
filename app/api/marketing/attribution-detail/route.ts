@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, SA } from '@/lib/marketingCohort';
 
@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
         entryPoints,
         entryTotal: entryPoints.reduce((a, b) => a + b.installs, 0),
         windowDays: days,
+        sql: '-- platforms:\n' + displaySql(platformSql, [days]) + ';\n\n-- entry points:\n' + displaySql(entrySql, [days]),
       };
     });
     return NextResponse.json({ ...payload, timestamp: new Date().toISOString() });

@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, campaignClause, IS_PAID } from '@/lib/marketingCohort';
 
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
         const paid = parseInt(r.paid, 10);
         return { state: r.state, paid, other: total - paid, total };
       });
-      return { data, total: data.reduce((a, b) => a + b.total, 0), windowDays: days };
+      return { data, total: data.reduce((a, b) => a + b.total, 0), windowDays: days, sql: displaySql(sql, params) };
     });
 
     return NextResponse.json({ ...payload, timestamp: new Date().toISOString() });

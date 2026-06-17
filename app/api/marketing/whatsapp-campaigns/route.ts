@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE } from '@/lib/marketingCohort';
 
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       `;
       const rows = await query<Row>(sql, [days]);
       const data = rows.map((r) => ({ campaign: r.campaign || '(no campaign)', sessions: parseInt(r.sessions, 10) }));
-      return { data, total: data.reduce((a, b) => a + b.sessions, 0), windowDays: days };
+      return { data, total: data.reduce((a, b) => a + b.sessions, 0), windowDays: days, sql: displaySql(sql, [days]) };
     });
 
     return NextResponse.json({ ...payload, timestamp: new Date().toISOString() });

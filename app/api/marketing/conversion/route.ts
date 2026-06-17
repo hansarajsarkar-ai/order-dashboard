@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { queryNoNestloop } from '@/lib/db';
+import { queryNoNestloop, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, CHANNEL_CASE, campaignClause } from '@/lib/marketingCohort';
 
@@ -109,6 +109,7 @@ export async function GET(req: NextRequest) {
         by,
         totals: { buyers: totBuyers, ordered: totOrdered, gmv: totGmv, convPct: totBuyers ? (totOrdered / totBuyers) * 100 : 0 },
         windowDays: days,
+        sql: displaySql(sql, params),
       };
     });
 

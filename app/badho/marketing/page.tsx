@@ -118,7 +118,21 @@ function KPICard({ label, value, sub, tone }: { label: string; value: string; su
   );
 }
 
-function Panel({ title, desc, right, children }: { title: string; desc?: string; right?: React.ReactNode; children: React.ReactNode }) {
+// Trigger a client-side CSV download of the given rows (already filter-scoped,
+// since the fetched data reflects the active date range + campaign filter).
+function downloadCsv(filename: string, data: readonly unknown[]) {
+  if (!data.length) return;
+  const rows = data as Record<string, unknown>[];
+  const cols = Object.keys(rows[0]);
+  const esc = (v: unknown) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const csv = [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+function Panel({ title, desc, right, sql, csv, children }: { title: string; desc?: string; right?: React.ReactNode; sql?: string; csv?: { filename: string; rows: () => readonly unknown[] }; children: React.ReactNode }) {
+  const [showSql, setShowSql] = useState(false);
   return (
     <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
       <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
@@ -126,8 +140,24 @@ function Panel({ title, desc, right, children }: { title: string; desc?: string;
           <h2 className="text-lg font-bold text-white">{title}</h2>
           {desc && <p className="text-xs text-purple-300/70 mt-0.5">{desc}</p>}
         </div>
-        {right}
+        <div className="flex items-center gap-2 flex-wrap">
+          {right}
+          {csv && (
+            <button onClick={() => downloadCsv(csv.filename, csv.rows())} title="Download CSV (respects current filters)"
+              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-purple-200 hover:bg-white/10 transition-colors">⬇ CSV</button>
+          )}
+          {sql && (
+            <button onClick={() => setShowSql((v) => !v)} title="Show the SQL behind this panel"
+              className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${showSql ? 'bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-100' : 'bg-white/5 border-white/10 text-purple-200 hover:bg-white/10'}`}>{showSql ? 'Hide SQL' : '</> SQL'}</button>
+          )}
+        </div>
       </div>
+      {showSql && sql && (
+        <div className="mb-4 relative">
+          <button onClick={() => navigator.clipboard?.writeText(sql)} className="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-semibold rounded bg-white/10 text-purple-200 hover:bg-white/20">Copy</button>
+          <pre className="overflow-x-auto rounded-xl border border-white/10 bg-slate-950/70 p-4 pr-16 text-[11px] leading-relaxed text-purple-100 whitespace-pre">{sql}</pre>
+        </div>
+      )}
       {children}
     </div>
   );
@@ -162,7 +192,7 @@ const State = ({ kind, msg }: { kind: 'loading' | 'error' | 'empty'; msg: string
 
 // Generic fetch hook for the GET endpoints; only fires when `enabled`.
 function useApi<T>(url: string | null, enabled: boolean) {
-  const [data, setData] = useState<T | null>(null);
+  const [data, setData] = useState<(T & { sql?: string }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -170,7 +200,7 @@ function useApi<T>(url: string | null, enabled: boolean) {
     let cancelled = false;
     setLoading(true); setError(null);
     fetch(url)
-      .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed to load'); return j as T; })
+      .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed to load'); return j as T & { sql?: string }; })
       .then((j) => { if (!cancelled) setData(j); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -193,6 +223,8 @@ export default function MarketingDashboard() {
   const [campaign, setCampaign] = useState('');
   const windowSub = `last ${days} days`;
   const campQ = campaign ? `&campaign=${encodeURIComponent(campaign)}` : '';
+  // CSV filename encodes the active filters so downloads are self-describing.
+  const csvName = (name: string) => `marketing-${name}-${days}d${campaign ? '-' + campaign.replace(/[^a-z0-9]+/gi, '_').slice(0, 24) : ''}.csv`;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -337,6 +369,7 @@ export default function MarketingDashboard() {
             )}
 
             <Panel title="Installs Trend" desc={`New buyer installs per ${granularity}, with a 7-${granularity} moving average.`}
+              sql={trend.data?.sql} csv={{ filename: csvName('installs-trend'), rows: () => trend.data?.data ?? [] }}
               right={<div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">{GRANULARITIES.map((g) => (<button key={g.value} onClick={() => setGranularity(g.value)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${granularity === g.value ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-[0_0_18px_rgba(56,189,248,0.45)]' : 'text-purple-200 hover:bg-white/10'}`}>{g.label}</button>))}</div>}>
               {trend.loading ? <State kind="loading" msg="Loading trend…" /> : trend.error ? <State kind="error" msg={trend.error} /> : chartData.length === 0 ? <State kind="empty" msg="No data for this window." /> : (
                 <div className="h-96">
@@ -358,7 +391,7 @@ export default function MarketingDashboard() {
               )}
             </Panel>
 
-            <Panel title="Channel Mix" desc={`Where installs came from over the ${windowSub}.`}>
+            <Panel title="Channel Mix" desc={`Where installs came from over the ${windowSub}.`} sql={channels.data?.sql} csv={{ filename: csvName('channel-mix'), rows: () => channels.data?.data ?? [] }}>
               {channels.loading ? <State kind="loading" msg="Loading channels…" /> : channels.error ? <State kind="error" msg={channels.error} /> : !channels.data || channels.data.data.length === 0 ? <State kind="empty" msg="No data." /> : (
                 <div className="space-y-3">
                   {channels.data.data.map((c) => {
@@ -375,7 +408,7 @@ export default function MarketingDashboard() {
               )}
             </Panel>
 
-            <Panel title="Install → Signup Rate by Channel" desc="Share of installs that completed signup in their first session.">
+            <Panel title="Install → Signup Rate by Channel" desc="Share of installs that completed signup in their first session." sql={signup.data?.sql} csv={{ filename: csvName('signup-by-channel'), rows: () => signup.data?.channels ?? [] }}>
               {signup.loading ? <State kind="loading" msg="Loading signup funnel…" /> : signup.error ? <State kind="error" msg={signup.error} /> : !signup.data ? <State kind="empty" msg="No data." /> : (
                 <div className="space-y-3">
                   {signup.data.channels.map((c) => (
@@ -390,12 +423,12 @@ export default function MarketingDashboard() {
             </Panel>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Panel title="Platform" desc="True ad/install platform (standardizedAttribution).">
+              <Panel title="Platform" desc="True ad/install platform (standardizedAttribution)." sql={detail.data?.sql} csv={{ filename: csvName('platform'), rows: () => detail.data?.platforms ?? [] }}>
                 {detail.loading ? <State kind="loading" msg="Loading platforms…" /> : detail.error ? <State kind="error" msg={detail.error} /> : !detail.data ? <State kind="empty" msg="No data." /> : (
                   <BarList rows={detail.data.platforms} total={detail.data.platformsTotal} color={(l) => PLATFORM_COLORS[l] || '#a78bfa'} />
                 )}
               </Panel>
-              <Panel title="How the App Was Opened" desc="Session entry point — App Icon (organic), Deep Link, or Push.">
+              <Panel title="How the App Was Opened" desc="Session entry point — App Icon (organic), Deep Link, or Push." sql={detail.data?.sql} csv={{ filename: csvName('entry-point'), rows: () => detail.data?.entryPoints ?? [] }}>
                 {detail.loading ? <State kind="loading" msg="Loading entry points…" /> : detail.error ? <State kind="error" msg={detail.error} /> : !detail.data ? <State kind="empty" msg="No data." /> : (
                   <BarList rows={detail.data.entryPoints} total={detail.data.entryTotal} color={() => '#a78bfa'} labelMap={ENTRY_LABELS} />
                 )}
@@ -407,7 +440,7 @@ export default function MarketingDashboard() {
         {/* ══ CAMPAIGNS ════════════════════════════════════════════════════ */}
         {tab === 'campaigns' && (
           <div className="space-y-6">
-            <Panel title="Ad Objective Split" desc="Meta installs by campaign objective — pure install vs engagement vs sales campaigns.">
+            <Panel title="Ad Objective Split" desc="Meta installs by campaign objective — pure install vs engagement vs sales campaigns." sql={signup.data?.sql} csv={{ filename: csvName('objective-split'), rows: () => signup.data?.objectives ?? [] }}>
               {signup.loading ? <State kind="loading" msg="Loading…" /> : signup.error ? <State kind="error" msg={signup.error} /> : !signup.data ? <State kind="empty" msg="No data." /> : (
                 <div className="space-y-3">
                   {signup.data.objectives.map((o) => {
@@ -424,7 +457,7 @@ export default function MarketingDashboard() {
               )}
             </Panel>
 
-            <Panel title="Meta Campaign Performance" desc={`Installs per Facebook/Instagram campaign × platform, over the ${windowSub}.`}>
+            <Panel title="Meta Campaign Performance" desc={`Installs per Facebook/Instagram campaign × platform, over the ${windowSub}.`} sql={campaigns.data?.sql} csv={{ filename: csvName('campaigns'), rows: () => campaigns.data?.data ?? [] }}>
               {campaigns.loading ? <State kind="loading" msg="Loading campaigns…" /> : campaigns.error ? <State kind="error" msg={campaigns.error} /> : !campaigns.data || campaigns.data.data.length === 0 ? <State kind="empty" msg="No paid campaigns." /> : (
                 <div className="overflow-x-auto max-h-[32rem] overflow-y-auto rounded-xl border border-white/10">
                   <table className="w-full text-sm">
@@ -448,7 +481,7 @@ export default function MarketingDashboard() {
               )}
             </Panel>
 
-            <Panel title="Creative / Adgroup Drill" desc="Campaign → adgroup → placement, to spot winning creatives and placements.">
+            <Panel title="Creative / Adgroup Drill" desc="Campaign → adgroup → placement, to spot winning creatives and placements." sql={creatives.data?.sql} csv={{ filename: csvName('creatives'), rows: () => creatives.data?.data ?? [] }}>
               {creatives.loading ? <State kind="loading" msg="Loading creatives…" /> : creatives.error ? <State kind="error" msg={creatives.error} /> : !creatives.data || creatives.data.data.length === 0 ? <State kind="empty" msg="No creative data." /> : (
                 <div className="overflow-x-auto max-h-[32rem] overflow-y-auto rounded-xl border border-white/10">
                   <table className="w-full text-sm">
@@ -484,6 +517,7 @@ export default function MarketingDashboard() {
               </div>
             )}
             <Panel title="Install → Order Conversion" desc="Of buyers acquired in the window, how many placed a real order, the GMV they generated, and how long it took."
+              sql={conv.data?.sql} csv={{ filename: csvName(`conversion-by-${convBy}`), rows: () => conv.data?.data ?? [] }}
               right={<div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">{(['channel', 'campaign'] as const).map((b) => (<button key={b} onClick={() => setConvBy(b)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${convBy === b ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-[0_0_18px_rgba(56,189,248,0.45)]' : 'text-purple-200 hover:bg-white/10'}`}>By {b}</button>))}</div>}>
               {conv.loading ? <State kind="loading" msg="Crunching cohort (joins orders, ~a few seconds)…" /> : conv.error ? <State kind="error" msg={conv.error} /> : !conv.data || conv.data.data.length === 0 ? <State kind="empty" msg="No data." /> : (
                 <div className="overflow-x-auto max-h-[34rem] overflow-y-auto rounded-xl border border-white/10">
@@ -518,6 +552,7 @@ export default function MarketingDashboard() {
             desc={geoView === 'map'
               ? `Each state's installs as a sized circle (bigger = more), over the ${windowSub}.`
               : `Top 15 states by installs, Paid vs other, over the ${windowSub}.`}
+            sql={geo.data?.sql} csv={{ filename: csvName('geography'), rows: () => geo.data?.data ?? [] }}
             right={
               <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
                 {([['map', '🗺 Map'], ['chart', '📊 Chart']] as const).map(([v, label]) => (
@@ -546,7 +581,7 @@ export default function MarketingDashboard() {
               </div>
             )}
           </Panel>
-          <Panel title="Installs by State" desc={`Where new users are installing from, Paid vs other, over the ${windowSub}. ~1/3 of installs have no state set.`}>
+          <Panel title="Installs by State" desc={`Where new users are installing from, Paid vs other, over the ${windowSub}. ~1/3 of installs have no state set.`} sql={geo.data?.sql} csv={{ filename: csvName('geography'), rows: () => geo.data?.data ?? [] }}>
             {geo.loading ? <State kind="loading" msg="Loading geography…" /> : geo.error ? <State kind="error" msg={geo.error} /> : !geo.data || geo.data.data.length === 0 ? <State kind="empty" msg="No data." /> : (
               <div className="overflow-x-auto max-h-[40rem] overflow-y-auto rounded-xl border border-white/10">
                 <table className="w-full text-sm">
@@ -577,7 +612,7 @@ export default function MarketingDashboard() {
 
         {/* ══ WHATSAPP ═════════════════════════════════════════════════════ */}
         {tab === 'whatsapp' && (
-          <Panel title="WhatsApp Messaging Campaigns" desc={`New buyer installs attributed to WhatsApp deeplinks, by utm_campaign, over the ${windowSub}.`}>
+          <Panel title="WhatsApp Messaging Campaigns" desc={`New buyer installs attributed to WhatsApp deeplinks, by utm_campaign, over the ${windowSub}.`} sql={whatsapp.data?.sql} csv={{ filename: csvName('whatsapp'), rows: () => whatsapp.data?.data ?? [] }}>
             {whatsapp.loading ? <State kind="loading" msg="Loading WhatsApp campaigns…" /> : whatsapp.error ? <State kind="error" msg={whatsapp.error} /> : !whatsapp.data || whatsapp.data.data.length === 0 ? <State kind="empty" msg="No WhatsApp sessions." /> : (
               <div className="overflow-x-auto max-h-[34rem] overflow-y-auto rounded-xl border border-white/10">
                 <table className="w-full text-sm">
@@ -601,7 +636,7 @@ export default function MarketingDashboard() {
 
         {/* ══ SPEND & ROI ══════════════════════════════════════════════════ */}
         {tab === 'spend' && (
-          <Panel title="Spend, CAC & ROAS by Campaign" desc="Meta ad spend joined with installs and order GMV (matched on campaign name).">
+          <Panel title="Spend, CAC & ROAS by Campaign" desc="Meta ad spend joined with installs and order GMV (matched on campaign name)." csv={{ filename: csvName('spend-roi'), rows: () => roi ?? [] }}>
             {spend.loading ? <State kind="loading" msg="Loading spend…" /> : spend.error ? <State kind="error" msg={spend.error} /> : spend.data && !spend.data.configured ? (
               <div className="rounded-xl border border-amber-400/30 bg-amber-500/5 p-6 text-sm text-amber-100/90 space-y-3">
                 <div className="font-semibold text-amber-200">Meta spend not connected yet</div>
@@ -646,7 +681,7 @@ export default function MarketingDashboard() {
                 <KPICard label="Sources" value={String(sessionSrc.data.data.length)} sub="session sources" tone="sky" />
               </div>
             )}
-            <Panel title="Sessions by Source" desc={`Every buyer-app session (re-engagement included, NOT just installs) by source, over the ${windowSub}.`}>
+            <Panel title="Sessions by Source" desc={`Every buyer-app session (re-engagement included, NOT just installs) by source, over the ${windowSub}.`} sql={sessionSrc.data?.sql} csv={{ filename: csvName('sessions-by-source'), rows: () => sessionSrc.data?.data ?? [] }}>
               {sessionSrc.loading ? <State kind="loading" msg="Crunching sessions…" /> : sessionSrc.error ? <State kind="error" msg={sessionSrc.error} /> : !sessionSrc.data || sessionSrc.data.data.length === 0 ? <State kind="empty" msg="No sessions." /> : (
                 <div className="overflow-x-auto rounded-xl border border-white/10">
                   <table className="w-full text-sm">

@@ -59,6 +59,16 @@ function inlineParams(sql: string, params?: unknown[]): string {
   return sql.replace(/\$(\d+)/g, (_m, n: string) => sqlLiteral(params[Number(n) - 1]));
 }
 
+// The exact SQL a route ran, params inlined — for the dashboard's "View Query"
+// panels. Tidies leading indentation so it copy-pastes cleanly.
+export function displaySql(sql: string, params?: unknown[]): string {
+  return inlineParams(sql, params)
+    .split('\n')
+    .map((l) => l.replace(/^ {6,8}/, ''))
+    .join('\n')
+    .trim();
+}
+
 // --- run_sql transport ------------------------------------------------------
 function hasuraBase(): string {
   const ep = process.env.HASURA_GRAPHQL_ENDPOINT;

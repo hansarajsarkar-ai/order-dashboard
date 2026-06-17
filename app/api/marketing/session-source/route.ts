@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 
 export const dynamic = 'force-dynamic';
@@ -63,6 +63,7 @@ export async function GET(req: NextRequest) {
         totalSessions: data.reduce((a, b) => a + b.sessions, 0),
         totalBuyers: data.reduce((a, b) => a + b.buyers, 0),
         windowDays: days,
+        sql: displaySql(sql, [days]),
       };
     });
     return NextResponse.json({ ...payload, timestamp: new Date().toISOString() });

@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, campaignClause, SA } from '@/lib/marketingCohort';
 
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
         installs: parseInt(r.installs, 10),
         medianCti: r.median_cti != null ? parseInt(r.median_cti, 10) : null,
       }));
-      return { data, total: data.reduce((a, b) => a + b.installs, 0), windowDays: days };
+      return { data, total: data.reduce((a, b) => a + b.installs, 0), windowDays: days, sql: displaySql(sql, params) };
     });
 
     return NextResponse.json({ ...payload, timestamp: new Date().toISOString() });

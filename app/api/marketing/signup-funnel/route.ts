@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { query } from '@/lib/db';
+import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, CHANNEL_CASE } from '@/lib/marketingCohort';
 
@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
         objectives,
         objectivesTotal: objectives.reduce((a, b) => a + b.installs, 0),
         windowDays: days,
+        sql: displaySql(channelSql, [days]) + ';\n\n-- objective split:\n' + displaySql(objectiveSql, [days]),
       };
     });
 

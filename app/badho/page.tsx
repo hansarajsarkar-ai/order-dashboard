@@ -160,6 +160,14 @@ const DASHBOARDS: DashboardEntry[] = [
     icon: '🎁',
     status: 'live',
   },
+  {
+    slug: 'marketing',
+    title: 'Marketing Dashboard',
+    description:
+      'Marketing analytics — campaign performance, acquisition, engagement and spend metrics across channels and time.',
+    icon: '📣',
+    status: 'live',
+  },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];
 

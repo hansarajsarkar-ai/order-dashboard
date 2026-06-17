@@ -142,6 +142,7 @@ export default function MarketingDashboard() {
   const [days, setDays] = useState<number>(30);
   const [granularity, setGranularity] = useState<Granularity>('day');
   const [convBy, setConvBy] = useState<'channel' | 'campaign'>('channel');
+  const [geoView, setGeoView] = useState<'map' | 'chart'>('map');
   const windowSub = `last ${days} days`;
 
   useEffect(() => {
@@ -181,6 +182,12 @@ export default function MarketingDashboard() {
   }, [trend.data, granularity]);
   const showLabels = chartData.length <= 31;
   const summary = trend.data?.summary;
+
+  // Geography bar chart: top 15 real states by total, largest at top.
+  const geoChart = useMemo(() => {
+    const rows = (geo.data?.data || []).filter((r) => r.state !== '(unknown)');
+    return [...rows].sort((a, b) => b.total - a.total).slice(0, 15).reverse();
+  }, [geo.data]);
   const paidShare = channels.data ? pct(channels.data.data.find((c) => c.channel === 'Paid (Meta)')?.installs || 0, channels.data.total) : 0;
 
   // Spend & ROI join: spend (Meta API) ⋈ installs (campaigns) ⋈ GMV+orders (conversion by campaign), keyed on campaign_name.
@@ -428,9 +435,37 @@ export default function MarketingDashboard() {
         {/* ══ GEOGRAPHY ════════════════════════════════════════════════════ */}
         {tab === 'geography' && (
           <div className="space-y-6">
-          <Panel title="Install Bubble Map" desc={`Each state's installs as a sized circle (bigger = more), over the ${windowSub}.`}>
-            {geo.loading ? <State kind="loading" msg="Loading map…" /> : geo.error ? <State kind="error" msg={geo.error} /> : !geo.data || geo.data.data.length === 0 ? <State kind="empty" msg="No data." /> : (
+          <Panel
+            title={geoView === 'map' ? 'Install Bubble Map' : 'Installs by State (chart)'}
+            desc={geoView === 'map'
+              ? `Each state's installs as a sized circle (bigger = more), over the ${windowSub}.`
+              : `Top 15 states by installs, Paid vs other, over the ${windowSub}.`}
+            right={
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+                {([['map', '🗺 Map'], ['chart', '📊 Chart']] as const).map(([v, label]) => (
+                  <button key={v} onClick={() => setGeoView(v)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${geoView === v ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-[0_0_18px_rgba(217,70,239,0.45)]' : 'text-purple-200 hover:bg-white/10'}`}>{label}</button>
+                ))}
+              </div>
+            }
+          >
+            {geo.loading ? <State kind="loading" msg="Loading…" /> : geo.error ? <State kind="error" msg={geo.error} /> : !geo.data || geo.data.data.length === 0 ? <State kind="empty" msg="No data." /> : geoView === 'map' ? (
               <InstallBubbleMap data={geo.data.data} />
+            ) : (
+              <div style={{ height: 520 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={geoChart} layout="vertical" margin={{ top: 8, right: 60, left: 8, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                    <XAxis type="number" tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} />
+                    <YAxis type="category" dataKey="state" tick={{ fill: '#c4b5fd', fontSize: 11 }} width={112} />
+                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.06)' }} contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }} formatter={(v, name) => [fmtInt(Number(v)), String(name)]} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
+                    <Bar dataKey="paid" name="Paid (Meta)" stackId="a" fill="#d946ef" isAnimationActive={false} />
+                    <Bar dataKey="other" name="Other" stackId="a" fill="#6366f1" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+                      <LabelList dataKey="total" position="right" fill="#e9d5ff" fontSize={10} fontWeight={600} formatter={(v: any) => fmtInt(Number(v))} />
+                    </Bar>
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </Panel>
           <Panel title="Installs by State" desc={`Where new users are installing from, Paid vs other, over the ${windowSub}. ~1/3 of installs have no state set.`}>

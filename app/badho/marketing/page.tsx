@@ -143,7 +143,7 @@ export default function MarketingDashboard() {
   const [days, setDays] = useState<number>(30);
   const [granularity, setGranularity] = useState<Granularity>('day');
   const [convBy, setConvBy] = useState<'channel' | 'campaign'>('channel');
-  const [geoView, setGeoView] = useState<'map' | 'chart'>('map');
+  const [geoView, setGeoView] = useState<'map' | 'chart'>('chart');
   const [campaign, setCampaign] = useState('');
   const windowSub = `last ${days} days`;
   const campQ = campaign ? `&campaign=${encodeURIComponent(campaign)}` : '';

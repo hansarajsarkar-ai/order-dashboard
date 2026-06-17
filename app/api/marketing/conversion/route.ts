@@ -65,6 +65,10 @@ export async function GET(req: NextRequest) {
            AND po."isTest" = FALSE
            AND po."isFalseOrder" = FALSE
            AND po."markedPendingTime" >= i.inst_at
+           -- Redundant constant bound (installs are within the window, so any
+           -- qualifying order is too) — lets Postgres prune purchaseOrder via the
+           -- markedPendingTime index instead of scanning all 1.4M rows. 42s -> ~1s.
+           AND po."markedPendingTime" >= current_date - $1::int
           GROUP BY i.bid, i.grp, i.inst_at
         )
         SELECT COALESCE(grp, '(unattributed)')                                   AS grp,

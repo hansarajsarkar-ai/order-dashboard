@@ -12,13 +12,14 @@ import CampaignFilter, { type CampaignOption } from './components/CampaignFilter
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 type Granularity = 'day' | 'week' | 'month';
-type Tab = 'acquisition' | 'campaigns' | 'conversion' | 'geography' | 'whatsapp' | 'spend';
+type Tab = 'acquisition' | 'campaigns' | 'conversion' | 'geography' | 'whatsapp' | 'spend' | 'sessions';
 
 interface TrendPoint { bucket: string; installs: number }
 interface TrendSummary { totalInstalls: number; avg: number; peak: number; peakBucket: string | null }
 interface ChannelRow { channel: string; installs: number }
 interface CampaignRow { campaign: string; platform: string; objective: string; installs: number; medianCti: number | null }
 interface DetailRow { label: string; installs: number }
+interface SessSrcRow { source: string; sessions: number; buyers: number }
 interface CreativeRow { campaign: string; adgroup: string; placement: string; installs: number }
 interface WaRow { campaign: string; sessions: number }
 interface ConvRow { group: string; buyers: number; ordered: number; convPct: number; gmv: number; avgDays: number }
@@ -69,7 +70,18 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'geography', label: 'Geography' },
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'spend', label: 'Spend & ROI' },
+  { value: 'sessions', label: 'Sessions' },
 ];
+
+const SESSION_SOURCE_COLORS: Record<string, string> = {
+  'Organic / Direct App Open': '#94a3b8',
+  'Push Notification': '#f59e0b',
+  'Instagram': '#ec4899',
+  'Facebook / Meta': '#3b82f6',
+  'WhatsApp': '#22c55e',
+  'Google Ads': '#60a5fa',
+  'Other Paid/Install Source': '#a78bfa',
+};
 
 const CHANNEL_COLORS: Record<string, string> = {
   'Paid (Meta)': '#d946ef', 'Organic (Play Store)': '#34d399', 'Paid (Google)': '#60a5fa', 'WhatsApp': '#22c55e', 'Other': '#f59e0b', 'Unknown': '#94a3b8',
@@ -205,6 +217,7 @@ export default function MarketingDashboard() {
   const geo = useApi<{ data: GeoRow[]; total: number }>(`/api/marketing/geography?days=${days}${campQ}`, authChecked && tab === 'geography');
   const whatsapp = useApi<{ data: WaRow[]; total: number }>(`/api/marketing/whatsapp-campaigns?days=${days}`, authChecked && tab === 'whatsapp');
   const spend = useApi<{ configured: boolean; message?: string; data?: SpendRow[]; totalSpend?: number; currency?: string; error?: string }>(`/api/marketing/spend?days=${days}`, authChecked && tab === 'spend');
+  const sessionSrc = useApi<{ data: SessSrcRow[]; totalSessions: number; totalBuyers: number }>(`/api/marketing/session-source?days=${days}`, authChecked && tab === 'sessions');
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -623,8 +636,49 @@ export default function MarketingDashboard() {
           </Panel>
         )}
 
+        {/* ══ SESSIONS (all sessions by source — re-engagement, not just installs) ══ */}
+        {tab === 'sessions' && (
+          <div className="space-y-6">
+            {sessionSrc.data && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <KPICard label="Total Sessions" value={fmtInt(sessionSrc.data.totalSessions)} sub={`${windowSub} · all sessions`} tone="fuchsia" />
+                <KPICard label="Distinct Buyers" value={fmtInt(sessionSrc.data.totalBuyers)} sub="who opened the app" tone="purple" />
+                <KPICard label="Sources" value={String(sessionSrc.data.data.length)} sub="session sources" tone="sky" />
+              </div>
+            )}
+            <Panel title="Sessions by Source" desc={`Every buyer-app session (re-engagement included, NOT just installs) by source, over the ${windowSub}.`}>
+              {sessionSrc.loading ? <State kind="loading" msg="Crunching sessions…" /> : sessionSrc.error ? <State kind="error" msg={sessionSrc.error} /> : !sessionSrc.data || sessionSrc.data.data.length === 0 ? <State kind="empty" msg="No sessions." /> : (
+                <div className="overflow-x-auto rounded-xl border border-white/10">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">Session Source</th><th className="px-4 py-3 font-semibold">Share</th><th className="px-4 py-3 font-semibold text-right">Sessions</th><th className="px-4 py-3 font-semibold text-right">Buyers</th><th className="px-4 py-3 font-semibold text-right">% of Sessions</th></tr></thead>
+                    <tbody>
+                      {sessionSrc.data.data.map((r, i) => {
+                        const share = pct(r.sessions, sessionSrc.data!.totalSessions);
+                        const color = SESSION_SOURCE_COLORS[r.source] || '#a78bfa';
+                        return (
+                          <tr key={r.source} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>
+                            <td className="px-4 py-2.5 font-medium whitespace-nowrap"><span className="inline-flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />{r.source}</span></td>
+                            <td className="px-4 py-2.5 w-48"><div className="h-3 rounded bg-white/5 overflow-hidden"><div className="h-full rounded" style={{ width: `${Math.max(share, 1)}%`, background: color }} /></div></td>
+                            <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-white">{fmtInt(r.sessions)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{fmtInt(r.buyers)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{share.toFixed(1)}%</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15"><tr><td className="px-4 py-3" colSpan={2}>Total</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(sessionSrc.data.totalSessions)}</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(sessionSrc.data.totalBuyers)}</td><td className="px-4 py-3 text-right tabular-nums">100%</td></tr></tfoot>
+                  </table>
+                </div>
+              )}
+            </Panel>
+            <p className="text-[11px] text-purple-300/50">
+              Unlike the other tabs (new installs only), this counts <span className="text-purple-300">all</span> buyer-app sessions in the window. &ldquo;Push Notification&rdquo; = sessions actually opened via a push (<code className="text-purple-200">sessionContext.entryPoint = PUSH_NOTIFICATION</code>) — not merely sessions that carry a push token. Source from <code className="text-purple-200">standardizedAttribution</code>; buyers are de-duplicated per source. Filters: buyer · buyer-app · not master/test, excludes test businesses.
+            </p>
+          </div>
+        )}
+
         <p className="text-[11px] text-purple-300/50 mt-6">
-          Cohort (all panels): <code className="text-purple-200">history.session</code> where <code className="text-purple-200">userType=buyer</code>, <code className="text-purple-200">appUsed=buyer-app</code>, <code className="text-purple-200">isFirstSession=true</code>, <code className="text-purple-200">isMasterLogin=false</code>, <code className="text-purple-200">isTest=false</code> — i.e. genuine new-buyer installs. Conversion joins <code className="text-purple-200">purchaseOrder.purchaseOrder</code> on buyerId; channel/campaign parsed from <code className="text-purple-200">installReferrer</code>. All panels respect the date range above.
+          Cohort (install tabs): <code className="text-purple-200">history.session</code> where <code className="text-purple-200">userType=buyer</code>, <code className="text-purple-200">appUsed=buyer-app</code>, <code className="text-purple-200">isFirstSession=true</code>, <code className="text-purple-200">isMasterLogin=false</code>, <code className="text-purple-200">isTest=false</code> — i.e. genuine new-buyer installs. Conversion joins <code className="text-purple-200">purchaseOrder.purchaseOrder</code> on buyerId; channel/campaign parsed from <code className="text-purple-200">installReferrer</code>. All panels respect the date range above.
         </p>
       </div>
 

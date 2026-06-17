@@ -17,7 +17,8 @@ type Tab = 'acquisition' | 'campaigns' | 'conversion' | 'geography' | 'whatsapp'
 interface TrendPoint { bucket: string; installs: number }
 interface TrendSummary { totalInstalls: number; avg: number; peak: number; peakBucket: string | null }
 interface ChannelRow { channel: string; installs: number }
-interface CampaignRow { campaign: string; platform: string; objective: string; installs: number }
+interface CampaignRow { campaign: string; platform: string; objective: string; installs: number; medianCti: number | null }
+interface DetailRow { label: string; installs: number }
 interface CreativeRow { campaign: string; adgroup: string; placement: string; installs: number }
 interface WaRow { campaign: string; sessions: number }
 interface ConvRow { group: string; buyers: number; ordered: number; convPct: number; gmv: number; avgDays: number }
@@ -37,6 +38,12 @@ const fmtCompact = (n: number) => {
 const fmtInt = (n: number) => n.toLocaleString('en-IN');
 const fmtCur = (n: number) => `₹${fmtCompact(n)}`;
 const pct = (n: number, d: number) => (d > 0 ? (n / d) * 100 : 0);
+const fmtDur = (s: number | null) => {
+  if (s == null) return '—';
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+};
 
 const fmtBucket = (s: string, gran: Granularity) => {
   if (!s) return '';
@@ -65,7 +72,13 @@ const TABS: { value: Tab; label: string }[] = [
 ];
 
 const CHANNEL_COLORS: Record<string, string> = {
-  'Paid (Meta)': '#d946ef', 'Organic (Play Store)': '#34d399', 'WhatsApp': '#22c55e', 'Other': '#f59e0b', 'Unknown': '#94a3b8',
+  'Paid (Meta)': '#d946ef', 'Organic (Play Store)': '#34d399', 'Paid (Google)': '#60a5fa', 'WhatsApp': '#22c55e', 'Other': '#f59e0b', 'Unknown': '#94a3b8',
+};
+const PLATFORM_COLORS: Record<string, string> = {
+  instagram: '#ec4899', facebook: '#3b82f6', audience_network: '#f59e0b', 'google-play': '#34d399', direct: '#94a3b8', whatsapp: '#22c55e',
+};
+const ENTRY_LABELS: Record<string, string> = {
+  APP_ICON: 'App Icon (organic open)', DEEP_LINK: 'Deep Link', PUSH_NOTIFICATION: 'Push Notification',
 };
 const channelColor = (c: string) => CHANNEL_COLORS[c] || '#a78bfa';
 const PLATFORM_TONE: Record<string, string> = {
@@ -104,6 +117,27 @@ function Panel({ title, desc, right, children }: { title: string; desc?: string;
         {right}
       </div>
       {children}
+    </div>
+  );
+}
+
+// Horizontal share bars (used by channel mix, signup, platform, entry-point).
+function BarList({ rows, total, color, labelMap }: { rows: { label: string; installs: number }[]; total: number; color: (label: string) => string; labelMap?: Record<string, string> }) {
+  return (
+    <div className="space-y-3">
+      {rows.map((r) => {
+        const share = total > 0 ? (r.installs / total) * 100 : 0;
+        return (
+          <div key={r.label} className="flex items-center gap-3">
+            <div className="w-44 shrink-0 text-sm text-purple-100 font-medium flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color(r.label) }} />
+              <span className="truncate" title={labelMap?.[r.label] || r.label}>{labelMap?.[r.label] || r.label}</span>
+            </div>
+            <div className="flex-1 h-6 rounded-lg bg-white/5 overflow-hidden"><div className="h-full rounded-lg flex items-center justify-end pr-2 text-[10px] font-bold text-white/90" style={{ width: `${Math.max(share, 3)}%`, background: color(r.label) }}>{share >= 8 ? `${share.toFixed(1)}%` : ''}</div></div>
+            <div className="w-28 shrink-0 text-right text-sm tabular-nums"><span className="text-white font-semibold">{r.installs.toLocaleString('en-IN')}</span><span className="text-purple-300/60 text-xs ml-1">{share.toFixed(1)}%</span></div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -163,6 +197,7 @@ export default function MarketingDashboard() {
   const trend = useApi<{ data: TrendPoint[]; summary: TrendSummary }>(`/api/marketing/installs-trend?days=${days}&granularity=${granularity}${campQ}`, authChecked && tab === 'acquisition');
   const channels = useApi<{ data: ChannelRow[]; total: number }>(`/api/marketing/channel-mix?days=${days}`, authChecked && tab === 'acquisition');
   const signup = useApi<{ channels: SignupChannel[]; objectives: ObjRow[]; objectivesTotal: number }>(`/api/marketing/signup-funnel?days=${days}`, authChecked && (tab === 'acquisition' || tab === 'campaigns'));
+  const detail = useApi<{ platforms: DetailRow[]; platformsTotal: number; entryPoints: DetailRow[]; entryTotal: number }>(`/api/marketing/attribution-detail?days=${days}`, authChecked && tab === 'acquisition');
   const campaigns = useApi<{ data: CampaignRow[]; total: number }>(`/api/marketing/campaigns?days=${days}${campQ}`, authChecked && (tab === 'campaigns' || tab === 'spend'));
   const creatives = useApi<{ data: CreativeRow[]; total: number }>(`/api/marketing/creatives?days=${days}${campQ}`, authChecked && tab === 'campaigns');
   const conv = useApi<ConvResp>(`/api/marketing/conversion?days=${days}&by=${convBy}${campQ}`, authChecked && tab === 'conversion');
@@ -340,6 +375,19 @@ export default function MarketingDashboard() {
                 </div>
               )}
             </Panel>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Panel title="Platform" desc="True ad/install platform (standardizedAttribution).">
+                {detail.loading ? <State kind="loading" msg="Loading platforms…" /> : detail.error ? <State kind="error" msg={detail.error} /> : !detail.data ? <State kind="empty" msg="No data." /> : (
+                  <BarList rows={detail.data.platforms} total={detail.data.platformsTotal} color={(l) => PLATFORM_COLORS[l] || '#a78bfa'} />
+                )}
+              </Panel>
+              <Panel title="How the App Was Opened" desc="Session entry point — App Icon (organic), Deep Link, or Push.">
+                {detail.loading ? <State kind="loading" msg="Loading entry points…" /> : detail.error ? <State kind="error" msg={detail.error} /> : !detail.data ? <State kind="empty" msg="No data." /> : (
+                  <BarList rows={detail.data.entryPoints} total={detail.data.entryTotal} color={() => '#a78bfa'} labelMap={ENTRY_LABELS} />
+                )}
+              </Panel>
+            </div>
           </div>
         )}
 
@@ -367,7 +415,7 @@ export default function MarketingDashboard() {
               {campaigns.loading ? <State kind="loading" msg="Loading campaigns…" /> : campaigns.error ? <State kind="error" msg={campaigns.error} /> : !campaigns.data || campaigns.data.data.length === 0 ? <State kind="empty" msg="No paid campaigns." /> : (
                 <div className="overflow-x-auto max-h-[32rem] overflow-y-auto rounded-xl border border-white/10">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">#</th><th className="px-4 py-3 font-semibold">Campaign</th><th className="px-4 py-3 font-semibold">Platform</th><th className="px-4 py-3 font-semibold">Objective</th><th className="px-4 py-3 font-semibold text-right">Installs</th><th className="px-4 py-3 font-semibold text-right">% of Paid</th></tr></thead>
+                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">#</th><th className="px-4 py-3 font-semibold">Campaign</th><th className="px-4 py-3 font-semibold">Platform</th><th className="px-4 py-3 font-semibold">Objective</th><th className="px-4 py-3 font-semibold text-right">Installs</th><th className="px-4 py-3 font-semibold text-right">% of Paid</th><th className="px-4 py-3 font-semibold text-right" title="Median time from ad click to install — a creative-quality signal">Click→Install</th></tr></thead>
                     <tbody>
                       {campaigns.data.data.map((r, i) => (
                         <tr key={`${r.campaign}-${r.platform}-${i}`} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>
@@ -377,10 +425,11 @@ export default function MarketingDashboard() {
                           <td className="px-4 py-2.5 text-purple-300/80 text-xs whitespace-nowrap">{r.objective}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-white">{fmtInt(r.installs)}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{pct(r.installs, campaigns.data!.total).toFixed(1)}%</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{fmtDur(r.medianCti)}</td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15"><tr><td className="px-4 py-3" colSpan={4}>Total ({campaigns.data.data.length} rows)</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(campaigns.data.total)}</td><td className="px-4 py-3 text-right tabular-nums">100%</td></tr></tfoot>
+                    <tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15"><tr><td className="px-4 py-3" colSpan={4}>Total ({campaigns.data.data.length} rows)</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(campaigns.data.total)}</td><td className="px-4 py-3 text-right tabular-nums">100%</td><td className="px-4 py-3"></td></tr></tfoot>
                   </table>
                 </div>
               )}

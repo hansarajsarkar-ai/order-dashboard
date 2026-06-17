@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, campaignClause } from '@/lib/marketingCohort';
+import { COHORT_WHERE, campaignClause, SA } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -11,6 +11,7 @@ interface Row {
   platform: string | null;
   objective: string | null;
   installs: string;
+  median_cti: string | null;
 }
 
 // Meta (Facebook/Instagram) paid-ad campaign performance — installs attributed
@@ -31,7 +32,15 @@ export async function GET(req: NextRequest) {
         SELECT "installReferrer"->>'campaign_name'       AS campaign,
                "installReferrer"->>'publisher_platform'  AS platform,
                "installReferrer"->>'ad_objective_name'   AS objective,
-               COUNT(*)::text                            AS installs
+               COUNT(*)::text                            AS installs,
+               -- median seconds from ad click to install (creative-quality signal);
+               -- sane range only, skip junk/huge values.
+               ROUND(percentile_cont(0.5) WITHIN GROUP (
+                 ORDER BY (${SA}->>'clickToInstallDuration')::numeric
+               ) FILTER (
+                 WHERE ${SA}->>'clickToInstallDuration' ~ '^[0-9]+$'
+                   AND (${SA}->>'clickToInstallDuration')::numeric BETWEEN 0 AND 86400
+               ))::text                                  AS median_cti
         FROM history.session
         WHERE ${COHORT_WHERE}
           AND jsonb_typeof("installReferrer") = 'object'
@@ -47,6 +56,7 @@ export async function GET(req: NextRequest) {
         platform: r.platform || '—',
         objective: r.objective || '—',
         installs: parseInt(r.installs, 10),
+        medianCti: r.median_cti != null ? parseInt(r.median_cti, 10) : null,
       }));
       return { data, total: data.reduce((a, b) => a + b.installs, 0), windowDays: days };
     });

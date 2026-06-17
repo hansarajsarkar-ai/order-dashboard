@@ -17,19 +17,36 @@ export const COHORT_WHERE = `"userType" = 'buyer'
   AND "isMasterLogin" = FALSE
   AND "isTest" = FALSE`;
 
-// Acquisition channel derived from installReferrer. Kept here so the CASE is
-// identical across channel-mix, conversion (by=channel) and signup-funnel.
-// Meta paid installs arrive in TWO shapes: a JSON-object referrer (campaign_name
-// etc.), OR a string deeplink with utm_source=meta/fb/an or utm_medium=paid/
-// app_installs. This predicate catches the string form so it isn't mislabeled
-// "Other". (&|$) anchors the source value so utm_source=an doesn't match e.g.
-// "android".
+// standardizedAttribution (inside additionalDetails) is the platform's own
+// normalized attribution — clean source/medium/campaign/adGroup/originalSource,
+// ~100% populated on recent rows but absent on older ones (≈79% at 90d). So
+// channel classification PREFERS it and falls back to installReferrer parsing
+// when it's missing.
+export const SA = `"additionalDetails"->'standardizedAttribution'`;
+const SA_PRESENT = `jsonb_typeof(${SA}) = 'object'`;
+
+// Fallback: Meta paid installs also arrive as installReferrer string deeplinks
+// (utm_source=meta/fb/an or utm_medium=paid/app_installs). (&|$) anchors the
+// value so utm_source=an doesn't match "android".
 export const IS_PAID_STRING = `(
   "installReferrer" #>> '{}' ~ 'utm_source=(meta|fb|an)(&|$)'
   OR "installReferrer" #>> '{}' ~ 'utm_medium=(paid|app_installs)(&|$)'
 )`;
 
+// True when the install is a paid ad — used by geography's paid/other split.
+export const IS_PAID = `(
+  ${SA}->>'medium' IN ('paid','app_installs','cpc','ads')
+  OR (NOT (${SA_PRESENT}) AND (jsonb_typeof("installReferrer") = 'object' OR ${IS_PAID_STRING}))
+)`;
+
+// Acquisition channel — identical across channel-mix, conversion(by=channel) and
+// signup-funnel. SA first (clean), installReferrer fallback for older rows.
 export const CHANNEL_CASE = `CASE
+  WHEN ${SA}->>'source' = 'meta' THEN 'Paid (Meta)'
+  WHEN ${SA}->>'source' = 'google' AND ${SA}->>'medium' <> 'organic' THEN 'Paid (Google)'
+  WHEN ${SA}->>'medium' = 'whatsapp' THEN 'WhatsApp'
+  WHEN ${SA}->>'medium' = 'organic' OR ${SA}->>'source' IN ('organic','google') THEN 'Organic (Play Store)'
+  WHEN ${SA_PRESENT} AND ${SA}->>'source' IS NOT NULL THEN 'Other'
   WHEN jsonb_typeof("installReferrer") = 'object' THEN 'Paid (Meta)'
   WHEN "installReferrer" #>> '{}' ILIKE '%utm_source=whatsapp%' THEN 'WhatsApp'
   WHEN ${IS_PAID_STRING} THEN 'Paid (Meta)'
@@ -51,6 +68,9 @@ export function campaignClause(
   if (!c) return '';
   params.push(c);
   const i = params.length;
-  return `AND jsonb_typeof("installReferrer") = 'object'
-    AND ("installReferrer"->>'campaign_name' = $${i} OR "installReferrer"->>'campaign_id' = $${i})`;
+  // Match name or id, in EITHER the installReferrer object or standardizedAttribution.
+  return `AND (
+    ("installReferrer"->>'campaign_name' = $${i} OR "installReferrer"->>'campaign_id' = $${i})
+    OR (${SA}->>'campaign' = $${i} OR ${SA}->>'campaignId' = $${i})
+  )`;
 }

@@ -716,6 +716,15 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
   const tierName: Record<number, string> = {
     3000: 'L1 🐢', 5000: 'L2 🌀', 10000: 'L3 🔊', 20000: 'L4 📷', 30000: 'L5 🍳',
   };
+  // Per-level badge tone matching the Levels legend (L1 amber · L2 sky · L3
+  // fuchsia · L4 rose · L5 orange).
+  const tierTone: Record<number, string> = {
+    3000: 'bg-amber-500/20 text-amber-200',
+    5000: 'bg-sky-500/20 text-sky-200',
+    10000: 'bg-fuchsia-500/20 text-fuchsia-200',
+    20000: 'bg-rose-500/20 text-rose-200',
+    30000: 'bg-orange-500/20 text-orange-200',
+  };
   const almostThere = detail
     .map((d) => {
       const q = Number(d.qualified_amount);
@@ -943,7 +952,7 @@ function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
                           {d.buyer_business_name || d.buyer_name}<span className="text-purple-300/50"> · {d.buyer_phone}</span>{String(d.is_new) === '1' && <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-400 text-emerald-950">New</span>}
                         </td>
                         <td className="py-2 px-4 text-right text-white font-semibold">{fmtAmt(q)}</td>
-                        <td className="py-2 px-4 text-center"><span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-200 font-semibold">{tierName[next]} · ₹{(next / 1000)}k</span></td>
+                        <td className="py-2 px-4 text-center"><span className={`px-2 py-0.5 rounded-md font-semibold ${tierTone[next] ?? 'bg-amber-500/20 text-amber-200'}`}>{tierName[next]} · ₹{(next / 1000)}k</span></td>
                         <td className="py-2 px-4 text-right text-amber-300 font-bold">{fmtAmt(gap)}</td>
                         <td className="py-2 px-4 text-right text-emerald-300 font-semibold">{pct}%</td>
                       </tr>

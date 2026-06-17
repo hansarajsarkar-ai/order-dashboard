@@ -72,7 +72,7 @@ interface ListRow {
   paid: number | null; refund: number | null; courierDays: number | null;
 }
 interface ListResp {
-  data: ListRow[]; total: number; totalAmount: number; page: number; pageSize: number; pageCount: number;
+  data: ListRow[]; total: number; totalAmount: number; uniqueBuyers?: number; newBuyers?: number; page: number; pageSize: number; pageCount: number;
   from: string; to: string | null; statuses: string[];
   facets: { status: string; count: number }[];
   delivery: string[];
@@ -1574,6 +1574,14 @@ function OrderJourneyDashboard() {
                     <div className="flex flex-col">
                       <span className="text-[11px] uppercase tracking-wide text-purple-300/60">Total value</span>
                       <span className="text-2xl font-black text-white tabular-nums">{inr(list.totalAmount)}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] uppercase tracking-wide text-purple-300/60">Unique buyers</span>
+                      <span className="text-2xl font-black text-sky-200 tabular-nums">{(list.uniqueBuyers ?? 0).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] uppercase tracking-wide text-purple-300/60">New buyers</span>
+                      <span className="text-2xl font-black text-emerald-200 tabular-nums">{(list.newBuyers ?? 0).toLocaleString('en-IN')}<span className="text-xs font-normal text-purple-300/50 ml-1">first order in period</span></span>
                     </div>
                     {poSel.length > 0 && (
                       <div className="flex flex-col gap-1">

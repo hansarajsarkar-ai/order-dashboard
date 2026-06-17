@@ -140,11 +140,36 @@ async function _GET(req: NextRequest) {
     `;
 
     const countSql = `
-      SELECT COUNT(*) AS n, COALESCE(SUM(po."amount"), 0)::text AS amt
+      SELECT COUNT(*) AS n, COALESCE(SUM(po."amount"), 0)::text AS amt,
+             COUNT(DISTINCT po."buyerId") AS buyers
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."seller" s ON s."id" = po."sellerId"
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
       WHERE ${whereCore};
+    `;
+
+    // New buyers: distinct buyers in the matching set whose FIRST D2R order falls
+    // in this period — i.e. they have no D2R order placed before the window start
+    // (counted once even with multiple orders in the period).
+    const newBuyersSql = `
+      WITH fb AS (
+        SELECT DISTINCT po."buyerId" AS bid
+        FROM "purchaseOrder"."purchaseOrder" po
+        JOIN "users"."seller" s ON s."id" = po."sellerId"
+        JOIN "users"."buyer"  b ON b."id" = po."buyerId"
+        WHERE ${whereCore}
+      )
+      SELECT COUNT(*) AS n FROM fb
+      WHERE NOT EXISTS (
+        SELECT 1 FROM "purchaseOrder"."purchaseOrder" p2
+        JOIN "users"."seller" s2 ON s2."id" = p2."sellerId"
+        WHERE p2."buyerId" = fb.bid
+          AND s2."isD2RBrandSeller" = TRUE
+          AND p2."deliveryType" = 'INTERCITY'
+          AND p2."isTest" = FALSE
+          AND p2."status" <> 'DRAFT'
+          AND COALESCE(p2."markedPendingTime", p2."created_at_actual", p2."created_at") < '${fromDate}'::date
+      );
     `;
 
     // Per-status counts over the date range (ignores the status filter so the
@@ -194,15 +219,18 @@ async function _GET(req: NextRequest) {
       });
     }
 
-    const [rows, countRows, facetRows, deliveryFacetRows] = await Promise.all([
+    const [rows, countRows, facetRows, deliveryFacetRows, newBuyerRows] = await Promise.all([
       query<Record<string, string | null>>(listSql, []),
-      query<{ n: string; amt: string }>(countSql, []),
+      query<{ n: string; amt: string; buyers: string }>(countSql, []),
       query<{ status: string | null; n: string }>(facetSql, []),
       query<{ ds: string | null; n: string }>(deliveryFacetSql, []),
+      query<{ n: string }>(newBuyersSql, []),
     ]);
 
     const total = parseInt(countRows[0]?.n || '0', 10);
     const totalAmount = parseFloat(countRows[0]?.amt || '0');
+    const uniqueBuyers = parseInt(countRows[0]?.buyers || '0', 10);
+    const newBuyers = parseInt(newBuyerRows[0]?.n || '0', 10);
     const facets = facetRows
       .filter((f) => f.status)
       .map((f) => ({ status: f.status as string, count: parseInt(f.n, 10) }));
@@ -230,6 +258,8 @@ async function _GET(req: NextRequest) {
       data,
       total,
       totalAmount,
+      uniqueBuyers,
+      newBuyers,
       page,
       pageSize: PAGE_SIZE,
       pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),

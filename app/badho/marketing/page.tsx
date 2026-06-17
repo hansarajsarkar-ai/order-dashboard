@@ -444,7 +444,7 @@ export default function MarketingDashboard() {
                 </div>
               )}
             </Panel>
-            <p className="text-[11px] text-purple-300/50">Conversion = acquired buyer placed ≥1 non-DRAFT order at/after install. GMV is the net order amount. Conversion rises as a cohort matures, so recent-install windows understate it — compare equal windows. Orders joined from <code className="text-purple-200">purchaseOrder.purchaseOrder</code> on <code className="text-purple-200">buyerId</code>.</p>
+            <p className="text-[11px] text-purple-300/50">Conversion = acquired buyer placed ≥1 <span className="text-purple-300">real</span> order at/after install (excludes DRAFT, REJECTED &amp; CANCELLED). GMV sums those orders&apos; net amount. Conversion rises as a cohort matures, so recent-install windows understate it — compare equal windows. Orders joined from <code className="text-purple-200">purchaseOrder.purchaseOrder</code> on <code className="text-purple-200">buyerId</code>.</p>
           </div>
         )}
 

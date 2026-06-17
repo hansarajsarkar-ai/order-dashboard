@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, campaignClause } from '@/lib/marketingCohort';
+import { COHORT_WHERE, campaignClause, IS_PAID_STRING } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       const camp = campaignClause(campaign, params);
       const sql = `
         SELECT COALESCE(NULLIF("userProperties"->>'state', ''), '(unknown)')          AS state,
-               COUNT(*) FILTER (WHERE jsonb_typeof("installReferrer") = 'object')::text AS paid,
+               COUNT(*) FILTER (WHERE jsonb_typeof("installReferrer") = 'object' OR ${IS_PAID_STRING})::text AS paid,
                COUNT(*)::text                                                          AS total
         FROM history.session
         WHERE ${COHORT_WHERE}

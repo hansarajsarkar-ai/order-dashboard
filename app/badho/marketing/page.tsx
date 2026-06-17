@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList,
 } from 'recharts';
+import InstallBubbleMap from './components/InstallBubbleMap';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 type Granularity = 'day' | 'week' | 'month';
@@ -426,6 +427,12 @@ export default function MarketingDashboard() {
 
         {/* ══ GEOGRAPHY ════════════════════════════════════════════════════ */}
         {tab === 'geography' && (
+          <div className="space-y-6">
+          <Panel title="Install Bubble Map" desc={`Each state's installs as a sized circle (bigger = more), over the ${windowSub}.`}>
+            {geo.loading ? <State kind="loading" msg="Loading map…" /> : geo.error ? <State kind="error" msg={geo.error} /> : !geo.data || geo.data.data.length === 0 ? <State kind="empty" msg="No data." /> : (
+              <InstallBubbleMap data={geo.data.data} />
+            )}
+          </Panel>
           <Panel title="Installs by State" desc={`Where new users are installing from, Paid vs other, over the ${windowSub}. ~1/3 of installs have no state set.`}>
             {geo.loading ? <State kind="loading" msg="Loading geography…" /> : geo.error ? <State kind="error" msg={geo.error} /> : !geo.data || geo.data.data.length === 0 ? <State kind="empty" msg="No data." /> : (
               <div className="overflow-x-auto max-h-[40rem] overflow-y-auto rounded-xl border border-white/10">
@@ -452,6 +459,7 @@ export default function MarketingDashboard() {
               </div>
             )}
           </Panel>
+          </div>
         )}
 
         {/* ══ WHATSAPP ═════════════════════════════════════════════════════ */}

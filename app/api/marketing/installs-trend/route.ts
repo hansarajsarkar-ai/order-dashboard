@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { COHORT_WHERE } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,12 +9,10 @@ const GRAN: Record<string, 'day' | 'week' | 'month'> = { day: 'day', week: 'week
 interface Row {
   bucket: string;
   installs: string;
-  sessions: string;
 }
 
-// Installs (= first sessions) and total sessions per day/week/month, from
-// history.session. A "first session" (isFirstSession=true) is treated as a new
-// install/acquisition event. Test sessions excluded.
+// New-buyer installs per day/week/month, from history.session, scoped to the
+// shared cohort (buyer + buyer-app + first session + not master/test).
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
@@ -23,11 +22,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const sql = `
-      SELECT date_trunc($1, created_at)::date::text          AS bucket,
-             COUNT(*) FILTER (WHERE "isFirstSession")::text  AS installs,
-             COUNT(*)::text                                  AS sessions
+      SELECT date_trunc($1, created_at)::date::text AS bucket,
+             COUNT(*)::text                         AS installs
       FROM history.session
-      WHERE "isTest" = FALSE
+      WHERE ${COHORT_WHERE}
         AND created_at >= current_date - $2::int
       GROUP BY 1
       ORDER BY 1;
@@ -37,11 +35,9 @@ export async function GET(req: NextRequest) {
     const data = rows.map((r) => ({
       bucket: r.bucket,
       installs: parseInt(r.installs, 10),
-      sessions: parseInt(r.sessions, 10),
     }));
 
     const totalInstalls = data.reduce((a, b) => a + b.installs, 0);
-    const totalSessions = data.reduce((a, b) => a + b.sessions, 0);
     const peak = data.reduce(
       (best, r) => (r.installs > best.installs ? r : best),
       { bucket: '', installs: -1 }
@@ -52,7 +48,6 @@ export async function GET(req: NextRequest) {
       data,
       summary: {
         totalInstalls,
-        totalSessions,
         avg,
         peak: peak.installs >= 0 ? peak.installs : 0,
         peakBucket: peak.bucket || null,

@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { COHORT_WHERE } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +26,7 @@ export async function GET(req: NextRequest) {
              "installReferrer"->>'ad_objective_name'   AS objective,
              COUNT(*)::text                            AS installs
       FROM history.session
-      WHERE "isFirstSession" = TRUE
-        AND "isTest" = FALSE
+      WHERE ${COHORT_WHERE}
         AND jsonb_typeof("installReferrer") = 'object'
         AND created_at >= current_date - $1::int
       GROUP BY 1, 2, 3

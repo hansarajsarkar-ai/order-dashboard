@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { COHORT_WHERE, CHANNEL_CASE } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,21 +9,8 @@ interface Row {
   installs: string;
 }
 
-// Classify each install (first session) by acquisition channel, derived from the
-// installReferrer column:
-//   - object        → Meta paid ad (has campaign / publisher_platform keys)
-//   - utm_source=whatsapp           → WhatsApp messaging deeplink
-//   - utm_medium=organic / google-play → organic Play Store
-//   - null / "unknown"              → Unknown
-//   - anything else                 → Other (misc deeplinks / utm)
-const CHANNEL_CASE = `CASE
-  WHEN jsonb_typeof("installReferrer") = 'object' THEN 'Paid (Meta)'
-  WHEN "installReferrer" #>> '{}' ILIKE '%utm_source=whatsapp%' THEN 'WhatsApp'
-  WHEN "installReferrer" #>> '{}' ILIKE '%utm_medium=organic%'
-    OR "installReferrer" #>> '{}' ILIKE '%google-play%' THEN 'Organic (Play Store)'
-  WHEN "installReferrer" IS NULL OR "installReferrer" #>> '{}' IN ('unknown', '') THEN 'Unknown'
-  ELSE 'Other'
-END`;
+// Classify each install by acquisition channel (see CHANNEL_CASE), over the
+// shared new-buyer-install cohort (see COHORT_WHERE).
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -34,8 +22,7 @@ export async function GET(req: NextRequest) {
       SELECT ${CHANNEL_CASE} AS channel,
              COUNT(*)::text  AS installs
       FROM history.session
-      WHERE "isFirstSession" = TRUE
-        AND "isTest" = FALSE
+      WHERE ${COHORT_WHERE}
         AND created_at >= current_date - $1::int
       GROUP BY 1
       ORDER BY COUNT(*) DESC;

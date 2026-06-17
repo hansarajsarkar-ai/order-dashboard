@@ -1,16 +1,8 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { COHORT_WHERE, CHANNEL_CASE } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
-
-const CHANNEL_CASE = `CASE
-  WHEN jsonb_typeof("installReferrer") = 'object' THEN 'Paid (Meta)'
-  WHEN "installReferrer" #>> '{}' ILIKE '%utm_source=whatsapp%' THEN 'WhatsApp'
-  WHEN "installReferrer" #>> '{}' ILIKE '%utm_medium=organic%'
-    OR "installReferrer" #>> '{}' ILIKE '%google-play%' THEN 'Organic (Play Store)'
-  WHEN "installReferrer" IS NULL OR "installReferrer" #>> '{}' IN ('unknown', '') THEN 'Unknown'
-  ELSE 'Other'
-END`;
 
 interface ChannelRow { channel: string; installs: string; signups: string }
 interface ObjRow { objective: string | null; installs: string }
@@ -29,8 +21,7 @@ export async function GET(req: NextRequest) {
              COUNT(*)::text  AS installs,
              COUNT(*) FILTER (WHERE ("userProperties"->>'isSignUpCompleted') = 'true')::text AS signups
       FROM history.session
-      WHERE "isFirstSession" = TRUE
-        AND "isTest" = FALSE
+      WHERE ${COHORT_WHERE}
         AND created_at >= current_date - $1::int
       GROUP BY 1
       ORDER BY COUNT(*) DESC;
@@ -39,8 +30,7 @@ export async function GET(req: NextRequest) {
       SELECT "installReferrer"->>'ad_objective_name' AS objective,
              COUNT(*)::text                          AS installs
       FROM history.session
-      WHERE "isFirstSession" = TRUE
-        AND "isTest" = FALSE
+      WHERE ${COHORT_WHERE}
         AND jsonb_typeof("installReferrer") = 'object'
         AND created_at >= current_date - $1::int
       GROUP BY 1

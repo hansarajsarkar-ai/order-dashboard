@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { queryNoNestloop } from '@/lib/db';
+import { COHORT_WHERE, CHANNEL_CASE } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,15 +13,6 @@ export const dynamic = 'force-dynamic';
 //   gmv        = sum of those orders' amount (directional; net amount column)
 //   avgDays    = mean days from install → first order (only those who ordered)
 // Note: conversion rises as a cohort matures, so recent installs understate it.
-
-const CHANNEL_CASE = `CASE
-  WHEN jsonb_typeof("installReferrer") = 'object' THEN 'Paid (Meta)'
-  WHEN "installReferrer" #>> '{}' ILIKE '%utm_source=whatsapp%' THEN 'WhatsApp'
-  WHEN "installReferrer" #>> '{}' ILIKE '%utm_medium=organic%'
-    OR "installReferrer" #>> '{}' ILIKE '%google-play%' THEN 'Organic (Play Store)'
-  WHEN "installReferrer" IS NULL OR "installReferrer" #>> '{}' IN ('unknown', '') THEN 'Unknown'
-  ELSE 'Other'
-END`;
 
 interface Row {
   grp: string;
@@ -49,8 +41,7 @@ export async function GET(req: NextRequest) {
                created_at  AS inst_at,
                ${grpExpr}  AS grp
         FROM history.session
-        WHERE "isFirstSession" = TRUE
-          AND "isTest" = FALSE
+        WHERE ${COHORT_WHERE}
           AND "buyerId" IS NOT NULL
           ${paidFilter}
           AND created_at >= current_date - $1::int

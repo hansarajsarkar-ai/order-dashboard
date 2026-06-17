@@ -12,8 +12,8 @@ import {
 type Granularity = 'day' | 'week' | 'month';
 type Tab = 'acquisition' | 'campaigns' | 'conversion' | 'geography' | 'whatsapp' | 'spend';
 
-interface TrendPoint { bucket: string; installs: number; sessions: number }
-interface TrendSummary { totalInstalls: number; totalSessions: number; avg: number; peak: number; peakBucket: string | null }
+interface TrendPoint { bucket: string; installs: number }
+interface TrendSummary { totalInstalls: number; avg: number; peak: number; peakBucket: string | null }
 interface ChannelRow { channel: string; installs: number }
 interface CampaignRow { campaign: string; platform: string; objective: string; installs: number }
 interface CreativeRow { campaign: string; adgroup: string; placement: string; installs: number }
@@ -264,7 +264,7 @@ export default function MarketingDashboard() {
               </div>
             )}
 
-            <Panel title="Installs Trend" desc={`New installs per ${granularity}, with a 7-${granularity} moving average and total sessions.`}
+            <Panel title="Installs Trend" desc={`New buyer installs per ${granularity}, with a 7-${granularity} moving average.`}
               right={<div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">{GRANULARITIES.map((g) => (<button key={g.value} onClick={() => setGranularity(g.value)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${granularity === g.value ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-[0_0_18px_rgba(56,189,248,0.45)]' : 'text-purple-200 hover:bg-white/10'}`}>{g.label}</button>))}</div>}>
               {trend.loading ? <State kind="loading" msg="Loading trend…" /> : trend.error ? <State kind="error" msg={trend.error} /> : chartData.length === 0 ? <State kind="empty" msg="No data for this window." /> : (
                 <div className="h-96">
@@ -273,15 +273,13 @@ export default function MarketingDashboard() {
                       <defs><linearGradient id="installsBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#d946ef" stopOpacity={0.9} /><stop offset="100%" stopColor="#7c3aed" stopOpacity={0.5} /></linearGradient></defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                       <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" minTickGap={20} />
-                      <YAxis yAxisId="left" tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} width={48} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fill: '#7dd3fc', fontSize: 11 }} tickFormatter={fmtCompact} width={48} />
+                      <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} width={48} />
                       <Tooltip cursor={{ fill: 'rgba(255,255,255,0.06)' }} contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }} labelStyle={{ color: '#e9d5ff', fontWeight: 600, marginBottom: 2 }} formatter={(v, name) => [v == null ? '—' : fmtInt(Number(v)), String(name)]} />
                       <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
-                      <Bar yAxisId="left" dataKey="installs" name="Installs" fill="url(#installsBar)" radius={[4, 4, 0, 0]} maxBarSize={48} isAnimationActive={false}>
+                      <Bar dataKey="installs" name="Installs" fill="url(#installsBar)" radius={[4, 4, 0, 0]} maxBarSize={48} isAnimationActive={false}>
                         {showLabels && <LabelList dataKey="installs" position="top" offset={6} fill="#f0abfc" fontSize={9} fontWeight={600} formatter={(v: any) => (v == null ? '' : fmtCompact(Number(v)))} />}
                       </Bar>
-                      <Line yAxisId="left" type="monotone" dataKey="ma" name="7-pt Moving Avg" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
-                      <Line yAxisId="right" type="monotone" dataKey="sessions" name="Total Sessions" stroke="#38bdf8" strokeWidth={2} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="ma" name="7-pt Moving Avg" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -458,7 +456,7 @@ export default function MarketingDashboard() {
 
         {/* ══ WHATSAPP ═════════════════════════════════════════════════════ */}
         {tab === 'whatsapp' && (
-          <Panel title="WhatsApp Messaging Campaigns" desc={`Sessions driven by WhatsApp deeplinks (mostly re-engagement), by utm_campaign, over the ${windowSub}.`}>
+          <Panel title="WhatsApp Messaging Campaigns" desc={`New buyer installs attributed to WhatsApp deeplinks, by utm_campaign, over the ${windowSub}.`}>
             {whatsapp.loading ? <State kind="loading" msg="Loading WhatsApp campaigns…" /> : whatsapp.error ? <State kind="error" msg={whatsapp.error} /> : !whatsapp.data || whatsapp.data.data.length === 0 ? <State kind="empty" msg="No WhatsApp sessions." /> : (
               <div className="overflow-x-auto max-h-[34rem] overflow-y-auto rounded-xl border border-white/10">
                 <table className="w-full text-sm">
@@ -518,7 +516,7 @@ export default function MarketingDashboard() {
         )}
 
         <p className="text-[11px] text-purple-300/50 mt-6">
-          Source: <code className="text-purple-200">history.session</code> (install = <code className="text-purple-200">isFirstSession</code>, test excluded) joined to <code className="text-purple-200">purchaseOrder.purchaseOrder</code> for conversion. Channel/campaign parsed from <code className="text-purple-200">installReferrer</code>. All panels respect the date range above.
+          Cohort (all panels): <code className="text-purple-200">history.session</code> where <code className="text-purple-200">userType=buyer</code>, <code className="text-purple-200">appUsed=buyer-app</code>, <code className="text-purple-200">isFirstSession=true</code>, <code className="text-purple-200">isMasterLogin=false</code>, <code className="text-purple-200">isTest=false</code> — i.e. genuine new-buyer installs. Conversion joins <code className="text-purple-200">purchaseOrder.purchaseOrder</code> on buyerId; channel/campaign parsed from <code className="text-purple-200">installReferrer</code>. All panels respect the date range above.
         </p>
       </div>
 

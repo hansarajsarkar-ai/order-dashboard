@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
+import { COHORT_WHERE } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,11 +9,11 @@ interface Row {
   sessions: string;
 }
 
-// WhatsApp messaging campaign reach — sessions driven by WhatsApp deeplinks
-// (utm_source=whatsapp), grouped by utm_campaign parsed out of the referrer
-// string. These are mostly re-engagement clicks (not installs), so we count ALL
-// sessions, not just first sessions. The jsonb_typeof='string' pre-filter keeps
-// the scan light (skips the heavy paid-ad JSON objects).
+// WhatsApp-attributed installs — first sessions whose installReferrer is a
+// WhatsApp deeplink (utm_source=whatsapp), grouped by utm_campaign. Scoped to
+// the same new-buyer-install cohort as every other panel (COHORT_WHERE), so the
+// "sessions" here are first-session installs, not all re-engagement clicks. The
+// jsonb_typeof='string' pre-filter keeps the scan light (skips paid-ad objects).
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const daysParam = parseInt(searchParams.get('days') || '30', 10);
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
       FROM (
         SELECT "installReferrer" #>> '{}' AS r
         FROM history.session
-        WHERE "isTest" = FALSE
+        WHERE ${COHORT_WHERE}
           AND jsonb_typeof("installReferrer") = 'string'
           AND created_at >= current_date - $1::int
       ) s

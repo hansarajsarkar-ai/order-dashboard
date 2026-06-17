@@ -72,7 +72,7 @@ interface ListRow {
   paid: number | null; refund: number | null; courierDays: number | null;
 }
 interface ListResp {
-  data: ListRow[]; total: number; page: number; pageSize: number; pageCount: number;
+  data: ListRow[]; total: number; totalAmount: number; page: number; pageSize: number; pageCount: number;
   from: string; to: string | null; statuses: string[];
   facets: { status: string; count: number }[];
   delivery: string[];
@@ -1549,6 +1549,60 @@ function OrderJourneyDashboard() {
                 )}
               </div>
             )}
+
+            {/* Filtered summary — appears whenever a status/shipment/date filter is active */}
+            {list && (statusFilter.length > 0 || deliveryFilter.length > 0 || preset !== 'all') && (() => {
+              const dateLabel = preset === 'all' ? 'All time'
+                : preset === '7' ? 'Last 7 days'
+                : preset === '30' ? 'Last 30 days'
+                : preset === '90' ? 'Last 90 days'
+                : preset === 'ytd' ? 'Year to date'
+                : `${list.from}${list.to ? ` → ${list.to}` : ' onwards'}`;
+              const poSel = list.facets.filter((f) => statusFilter.includes(f.status));
+              const shipSel = list.deliveryFacets.filter((f) => deliveryFilter.includes(f.status));
+              return (
+                <div className="rounded-2xl border border-fuchsia-400/25 bg-gradient-to-r from-fuchsia-600/15 to-purple-600/10 px-4 py-3 shadow-[0_0_25px_rgba(217,70,239,0.12)]">
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-fuchsia-200/80">Filtered summary</span>
+                    <span className="text-xs text-purple-300/60">· {dateLabel}</span>
+                  </div>
+                  <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
+                    <div className="flex flex-col">
+                      <span className="text-[11px] uppercase tracking-wide text-purple-300/60">Matching POs</span>
+                      <span className="text-2xl font-black text-white tabular-nums">{list.total.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] uppercase tracking-wide text-purple-300/60">Total value</span>
+                      <span className="text-2xl font-black text-white tabular-nums">{inr(list.totalAmount)}</span>
+                    </div>
+                    {poSel.length > 0 && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] uppercase tracking-wide text-purple-300/60">PO status</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {poSel.map((f) => (
+                            <span key={f.status} className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${poStatusTone(f.status)}`}>
+                              {poStatusLabel(f.status)} <span className="font-normal opacity-70">({f.count.toLocaleString('en-IN')})</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {shipSel.length > 0 && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] uppercase tracking-wide text-purple-300/60">Shipment</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {shipSel.map((f) => (
+                            <span key={f.status} className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${statusTone(f.status)}`}>
+                              {f.status.replace(/_/g, ' ')} <span className="font-normal opacity-70">({f.count.toLocaleString('en-IN')})</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {listError && <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-4 text-rose-200 text-sm">{listError}</div>}
 

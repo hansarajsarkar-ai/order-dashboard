@@ -140,7 +140,7 @@ async function _GET(req: NextRequest) {
     `;
 
     const countSql = `
-      SELECT COUNT(*) AS n
+      SELECT COUNT(*) AS n, COALESCE(SUM(po."amount"), 0)::text AS amt
       FROM "purchaseOrder"."purchaseOrder" po
       JOIN "users"."seller" s ON s."id" = po."sellerId"
       JOIN "users"."buyer"  b ON b."id" = po."buyerId"
@@ -196,12 +196,13 @@ async function _GET(req: NextRequest) {
 
     const [rows, countRows, facetRows, deliveryFacetRows] = await Promise.all([
       query<Record<string, string | null>>(listSql, []),
-      query<{ n: string }>(countSql, []),
+      query<{ n: string; amt: string }>(countSql, []),
       query<{ status: string | null; n: string }>(facetSql, []),
       query<{ ds: string | null; n: string }>(deliveryFacetSql, []),
     ]);
 
     const total = parseInt(countRows[0]?.n || '0', 10);
+    const totalAmount = parseFloat(countRows[0]?.amt || '0');
     const facets = facetRows
       .filter((f) => f.status)
       .map((f) => ({ status: f.status as string, count: parseInt(f.n, 10) }));
@@ -228,6 +229,7 @@ async function _GET(req: NextRequest) {
     return NextResponse.json({
       data,
       total,
+      totalAmount,
       page,
       pageSize: PAGE_SIZE,
       pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),

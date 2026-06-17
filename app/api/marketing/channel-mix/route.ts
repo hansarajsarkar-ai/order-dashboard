@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, CHANNEL_CASE } from '@/lib/marketingCohort';
+import { COHORT_WHERE, CHANNEL_CASE, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -16,23 +16,24 @@ interface Row {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const daysParam = parseInt(searchParams.get('days') || '30', 10);
-  const days = Number.isFinite(daysParam) && daysParam > 0 && daysParam <= 365 ? daysParam : 30;
+  const dp = parseDateParams(searchParams);
 
   try {
-    const payload = await cached(`mkt:channel-mix:${days}`, 5 * 60_000, async () => {
+    const payload = await cached(`mkt:channel-mix:${dateKey(dp)}`, 5 * 60_000, async () => {
+      const params: (string | number)[] = [];
+      const { clause } = dateClause('created_at', dp, params);
       const sql = `
         SELECT ${CHANNEL_CASE} AS channel,
                COUNT(*)::text  AS installs
         FROM history.session
         WHERE ${COHORT_WHERE}
-          AND created_at >= current_date - $1::int
+          ${clause}
         GROUP BY 1
         ORDER BY COUNT(*) DESC;
       `;
-      const rows = await query<Row>(sql, [days]);
+      const rows = await query<Row>(sql, params);
       const data = rows.map((r) => ({ channel: r.channel, installs: parseInt(r.installs, 10) }));
-      return { data, total: data.reduce((a, b) => a + b.installs, 0), windowDays: days, sql: displaySql(sql, [days]) };
+      return { data, total: data.reduce((a, b) => a + b.installs, 0), sql: displaySql(sql, params) };
     });
 
     return NextResponse.json({ ...payload, timestamp: new Date().toISOString() });

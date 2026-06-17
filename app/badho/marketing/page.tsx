@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import InstallBubbleMap from './components/InstallBubbleMap';
 import CampaignFilter, { type CampaignOption } from './components/CampaignFilter';
+import DateFilter, { type DateSel, dateQuery, dateLabel, dateTag } from './components/DateFilter';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 type Granularity = 'day' | 'week' | 'month';
@@ -56,10 +57,6 @@ const fmtBucket = (s: string, gran: Granularity) => {
   return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
-const RANGES = [
-  { label: '7D', days: 7 }, { label: '14D', days: 14 }, { label: '30D', days: 30 },
-  { label: '45D', days: 45 }, { label: '60D', days: 60 }, { label: '90D', days: 90 },
-] as const;
 const GRANULARITIES = [
   { label: 'Day', value: 'day' as const }, { label: 'Week', value: 'week' as const }, { label: 'Month', value: 'month' as const },
 ] as const;
@@ -216,15 +213,16 @@ export default function MarketingDashboard() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [tab, setTab] = useState<Tab>('acquisition');
-  const [days, setDays] = useState<number>(30);
+  const [date, setDate] = useState<DateSel>({ mode: 'days', days: 30, from: '', to: '', year: new Date().getFullYear(), months: [] });
   const [granularity, setGranularity] = useState<Granularity>('day');
   const [convBy, setConvBy] = useState<'channel' | 'campaign'>('channel');
   const [geoView, setGeoView] = useState<'map' | 'chart'>('chart');
   const [campaign, setCampaign] = useState('');
-  const windowSub = `last ${days} days`;
+  const dateQ = dateQuery(date);
+  const windowSub = dateLabel(date).toLowerCase().startsWith('last') ? dateLabel(date).toLowerCase() : dateLabel(date);
   const campQ = campaign ? `&campaign=${encodeURIComponent(campaign)}` : '';
   // CSV filename encodes the active filters so downloads are self-describing.
-  const csvName = (name: string) => `marketing-${name}-${days}d${campaign ? '-' + campaign.replace(/[^a-z0-9]+/gi, '_').slice(0, 24) : ''}.csv`;
+  const csvName = (name: string) => `marketing-${name}-${dateTag(date)}${campaign ? '-' + campaign.replace(/[^a-z0-9]+/gi, '_').slice(0, 24) : ''}.csv`;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -235,21 +233,21 @@ export default function MarketingDashboard() {
   }, [router]);
 
   // Campaign filter options (cheap + cached) — load once authed.
-  const campaignList = useApi<{ data: CampaignOption[] }>(`/api/marketing/campaign-list?days=${days}`, authChecked);
+  const campaignList = useApi<{ data: CampaignOption[] }>(`/api/marketing/campaign-list?${dateQ}`, authChecked);
 
   // Tab-gated fetches. campQ scopes the campaign-relevant panels when a campaign is picked.
-  const trend = useApi<{ data: TrendPoint[]; summary: TrendSummary }>(`/api/marketing/installs-trend?days=${days}&granularity=${granularity}${campQ}`, authChecked && tab === 'acquisition');
-  const channels = useApi<{ data: ChannelRow[]; total: number }>(`/api/marketing/channel-mix?days=${days}`, authChecked && tab === 'acquisition');
-  const signup = useApi<{ channels: SignupChannel[]; objectives: ObjRow[]; objectivesTotal: number }>(`/api/marketing/signup-funnel?days=${days}`, authChecked && (tab === 'acquisition' || tab === 'campaigns'));
-  const detail = useApi<{ platforms: DetailRow[]; platformsTotal: number; entryPoints: DetailRow[]; entryTotal: number }>(`/api/marketing/attribution-detail?days=${days}`, authChecked && tab === 'acquisition');
-  const campaigns = useApi<{ data: CampaignRow[]; total: number }>(`/api/marketing/campaigns?days=${days}${campQ}`, authChecked && (tab === 'campaigns' || tab === 'spend'));
-  const creatives = useApi<{ data: CreativeRow[]; total: number }>(`/api/marketing/creatives?days=${days}${campQ}`, authChecked && tab === 'campaigns');
-  const conv = useApi<ConvResp>(`/api/marketing/conversion?days=${days}&by=${convBy}${campQ}`, authChecked && tab === 'conversion');
-  const convCamp = useApi<ConvResp>(`/api/marketing/conversion?days=${days}&by=campaign${campQ}`, authChecked && tab === 'spend');
-  const geo = useApi<{ data: GeoRow[]; total: number }>(`/api/marketing/geography?days=${days}${campQ}`, authChecked && tab === 'geography');
-  const whatsapp = useApi<{ data: WaRow[]; total: number }>(`/api/marketing/whatsapp-campaigns?days=${days}`, authChecked && tab === 'whatsapp');
-  const spend = useApi<{ configured: boolean; message?: string; data?: SpendRow[]; totalSpend?: number; currency?: string; error?: string }>(`/api/marketing/spend?days=${days}`, authChecked && tab === 'spend');
-  const sessionSrc = useApi<{ data: SessSrcRow[]; totalSessions: number; totalBuyers: number }>(`/api/marketing/session-source?days=${days}`, authChecked && tab === 'sessions');
+  const trend = useApi<{ data: TrendPoint[]; summary: TrendSummary }>(`/api/marketing/installs-trend?${dateQ}&granularity=${granularity}${campQ}`, authChecked && tab === 'acquisition');
+  const channels = useApi<{ data: ChannelRow[]; total: number }>(`/api/marketing/channel-mix?${dateQ}`, authChecked && tab === 'acquisition');
+  const signup = useApi<{ channels: SignupChannel[]; objectives: ObjRow[]; objectivesTotal: number }>(`/api/marketing/signup-funnel?${dateQ}`, authChecked && (tab === 'acquisition' || tab === 'campaigns'));
+  const detail = useApi<{ platforms: DetailRow[]; platformsTotal: number; entryPoints: DetailRow[]; entryTotal: number }>(`/api/marketing/attribution-detail?${dateQ}`, authChecked && tab === 'acquisition');
+  const campaigns = useApi<{ data: CampaignRow[]; total: number }>(`/api/marketing/campaigns?${dateQ}${campQ}`, authChecked && (tab === 'campaigns' || tab === 'spend'));
+  const creatives = useApi<{ data: CreativeRow[]; total: number }>(`/api/marketing/creatives?${dateQ}${campQ}`, authChecked && tab === 'campaigns');
+  const conv = useApi<ConvResp>(`/api/marketing/conversion?${dateQ}&by=${convBy}${campQ}`, authChecked && tab === 'conversion');
+  const convCamp = useApi<ConvResp>(`/api/marketing/conversion?${dateQ}&by=campaign${campQ}`, authChecked && tab === 'spend');
+  const geo = useApi<{ data: GeoRow[]; total: number }>(`/api/marketing/geography?${dateQ}${campQ}`, authChecked && tab === 'geography');
+  const whatsapp = useApi<{ data: WaRow[]; total: number }>(`/api/marketing/whatsapp-campaigns?${dateQ}`, authChecked && tab === 'whatsapp');
+  const spend = useApi<{ configured: boolean; message?: string; data?: SpendRow[]; totalSpend?: number; currency?: string; error?: string }>(`/api/marketing/spend?${dateQ}`, authChecked && tab === 'spend');
+  const sessionSrc = useApi<{ data: SessSrcRow[]; totalSessions: number; totalBuyers: number }>(`/api/marketing/session-source?${dateQ}`, authChecked && tab === 'sessions');
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -334,11 +332,7 @@ export default function MarketingDashboard() {
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <CampaignFilter value={campaign} onChange={setCampaign} options={campaignList.data?.data || []} loading={campaignList.loading} />
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
-              {RANGES.map((r) => (
-                <button key={r.days} onClick={() => setDays(r.days)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${days === r.days ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-[0_0_18px_rgba(217,70,239,0.45)]' : 'text-purple-200 hover:bg-white/10'}`}>{r.label}</button>
-              ))}
-            </div>
+            <DateFilter value={date} onChange={setDate} />
           </div>
         </div>
         {campaign && (

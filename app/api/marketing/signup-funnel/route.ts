@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, CHANNEL_CASE } from '@/lib/marketingCohort';
+import { COHORT_WHERE, CHANNEL_CASE, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -14,18 +14,19 @@ interface ObjRow { objective: string | null; installs: string }
 //   objectives— Meta ad-objective split (APP_INSTALLS vs ENGAGEMENT vs SALES …)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const daysParam = parseInt(searchParams.get('days') || '30', 10);
-  const days = Number.isFinite(daysParam) && daysParam > 0 && daysParam <= 365 ? daysParam : 30;
+  const dp = parseDateParams(searchParams);
 
   try {
-    const payload = await cached(`mkt:signup-funnel:${days}`, 5 * 60_000, async () => {
+    const payload = await cached(`mkt:signup-funnel:${dateKey(dp)}`, 5 * 60_000, async () => {
+    const params: (string | number)[] = [];
+    const { clause } = dateClause('created_at', dp, params);
     const channelSql = `
       SELECT ${CHANNEL_CASE} AS channel,
              COUNT(*)::text  AS installs,
              COUNT(*) FILTER (WHERE ("userProperties"->>'isSignUpCompleted') = 'true')::text AS signups
       FROM history.session
       WHERE ${COHORT_WHERE}
-        AND created_at >= current_date - $1::int
+        ${clause}
       GROUP BY 1
       ORDER BY COUNT(*) DESC;
     `;
@@ -35,14 +36,14 @@ export async function GET(req: NextRequest) {
       FROM history.session
       WHERE ${COHORT_WHERE}
         AND jsonb_typeof("installReferrer") = 'object'
-        AND created_at >= current_date - $1::int
+        ${clause}
       GROUP BY 1
       ORDER BY COUNT(*) DESC;
     `;
 
     const [channelRows, objRows] = await Promise.all([
-      query<ChannelRow>(channelSql, [days]),
-      query<ObjRow>(objectiveSql, [days]),
+      query<ChannelRow>(channelSql, params),
+      query<ObjRow>(objectiveSql, params),
     ]);
 
     const channels = channelRows.map((r) => {
@@ -56,8 +57,7 @@ export async function GET(req: NextRequest) {
         channels,
         objectives,
         objectivesTotal: objectives.reduce((a, b) => a + b.installs, 0),
-        windowDays: days,
-        sql: displaySql(channelSql, [days]) + ';\n\n-- objective split:\n' + displaySql(objectiveSql, [days]),
+        sql: displaySql(channelSql, params) + ';\n\n-- objective split:\n' + displaySql(objectiveSql, params),
       };
     });
 

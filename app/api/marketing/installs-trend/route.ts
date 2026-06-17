@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, campaignClause } from '@/lib/marketingCohort';
+import { COHORT_WHERE, campaignClause, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -18,21 +18,21 @@ interface Row {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
-  const daysParam = parseInt(searchParams.get('days') || '30', 10);
-  const days = Number.isFinite(daysParam) && daysParam > 0 && daysParam <= 365 ? daysParam : 30;
   const gran = GRAN[(searchParams.get('granularity') || 'day').toLowerCase()] || 'day';
   const campaign = searchParams.get('campaign') || '';
+  const dp = parseDateParams(searchParams);
 
   try {
-    const payload = await cached(`mkt:installs-trend:${gran}:${days}:${campaign}`, 5 * 60_000, async () => {
-      const params: (string | number)[] = [gran, days];
+    const payload = await cached(`mkt:installs-trend:${gran}:${dateKey(dp)}:${campaign}`, 5 * 60_000, async () => {
+      const params: (string | number)[] = [gran];
+      const { clause } = dateClause('created_at', dp, params);
       const camp = campaignClause(campaign, params);
       const sql = `
         SELECT date_trunc($1, created_at)::date::text AS bucket,
                COUNT(*)::text                         AS installs
         FROM history.session
         WHERE ${COHORT_WHERE}
-          AND created_at >= current_date - $2::int
+          ${clause}
           ${camp}
         GROUP BY 1
         ORDER BY 1;
@@ -52,7 +52,6 @@ export async function GET(req: NextRequest) {
           peak: peak.installs >= 0 ? peak.installs : 0,
           peakBucket: peak.bucket || null,
           granularity: gran,
-          windowDays: days,
         },
         sql: displaySql(sql, params),
       };

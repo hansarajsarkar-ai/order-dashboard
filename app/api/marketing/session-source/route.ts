@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
+import { parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -34,18 +35,20 @@ interface Row { src: string; sessions: string; buyers: string }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const daysParam = parseInt(searchParams.get('days') || '7', 10);
-  const days = Number.isFinite(daysParam) && daysParam > 0 && daysParam <= 365 ? daysParam : 7;
+  const dp = parseDateParams(searchParams);
 
   try {
-    const payload = await cached(`mkt:session-source:${days}`, 5 * 60_000, async () => {
+    const payload = await cached(`mkt:session-source:${dateKey(dp)}`, 5 * 60_000, async () => {
+      const params: (string | number)[] = [];
+      const { clause } = dateClause('a."sessionStartTimestamp"', dp, params);
       const sql = `
         SELECT ${CLASSIFY}                       AS src,
                COUNT(*)::text                    AS sessions,
                COUNT(DISTINCT a."buyerId")::text AS buyers
         FROM "history"."session" a
         JOIN "users"."buyer" b ON b."id" = a."buyerId"
-        WHERE a."sessionStartTimestamp" >= current_date - $1::int
+        WHERE TRUE
+          ${clause}
           AND a."buyerId" IS NOT NULL
           AND a."isTest" = FALSE
           AND b."isTest" = FALSE
@@ -56,14 +59,13 @@ export async function GET(req: NextRequest) {
         GROUP BY 1
         ORDER BY COUNT(DISTINCT a."id") DESC;
       `;
-      const rows = await query<Row>(sql, [days]);
+      const rows = await query<Row>(sql, params);
       const data = rows.map((r) => ({ source: r.src, sessions: parseInt(r.sessions, 10), buyers: parseInt(r.buyers, 10) }));
       return {
         data,
         totalSessions: data.reduce((a, b) => a + b.sessions, 0),
         totalBuyers: data.reduce((a, b) => a + b.buyers, 0),
-        windowDays: days,
-        sql: displaySql(sql, [days]),
+        sql: displaySql(sql, params),
       };
     });
     return NextResponse.json({ ...payload, timestamp: new Date().toISOString() });

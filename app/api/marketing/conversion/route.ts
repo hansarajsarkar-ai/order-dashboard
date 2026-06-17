@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { queryNoNestloop, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, CHANNEL_CASE, campaignClause } from '@/lib/marketingCohort';
+import { COHORT_WHERE, CHANNEL_CASE, campaignClause, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -26,9 +26,8 @@ interface Row {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const daysParam = parseInt(searchParams.get('days') || '30', 10);
-  const days = Number.isFinite(daysParam) && daysParam > 0 && daysParam <= 365 ? daysParam : 30;
   const by = searchParams.get('by') === 'campaign' ? 'campaign' : 'channel';
+  const dp = parseDateParams(searchParams);
 
   const grpExpr = by === 'campaign' ? `"installReferrer"->>'campaign_name'` : CHANNEL_CASE;
   // Campaign view only makes sense for Meta paid installs (they have campaign_name).
@@ -37,8 +36,9 @@ export async function GET(req: NextRequest) {
   const campaign = searchParams.get('campaign') || '';
 
   try {
-    const payload = await cached(`mkt:conversion:${by}:${days}:${campaign}`, 10 * 60_000, async () => {
-      const params: (string | number)[] = [days];
+    const payload = await cached(`mkt:conversion:${by}:${dateKey(dp)}:${campaign}`, 10 * 60_000, async () => {
+      const params: (string | number)[] = [];
+      const { clause, lowerBound } = dateClause('created_at', dp, params);
       const camp = campaignClause(campaign, params);
       const sql = `
         WITH inst AS (
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
           WHERE ${COHORT_WHERE}
             AND "buyerId" IS NOT NULL
             ${paidFilter}
-            AND created_at >= current_date - $1::int
+            ${clause}
             ${camp}
           ORDER BY "buyerId", created_at
         ),
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
            -- Redundant constant bound (installs are within the window, so any
            -- qualifying order is too) — lets Postgres prune purchaseOrder via the
            -- markedPendingTime index instead of scanning all 1.4M rows. 42s -> ~1s.
-           AND po."markedPendingTime" >= current_date - $1::int
+           AND po."markedPendingTime" >= ${lowerBound}
           GROUP BY i.bid, i.grp, i.inst_at
         )
         SELECT COALESCE(grp, '(unattributed)')                                   AS grp,
@@ -108,7 +108,6 @@ export async function GET(req: NextRequest) {
         data,
         by,
         totals: { buyers: totBuyers, ordered: totOrdered, gmv: totGmv, convPct: totBuyers ? (totOrdered / totBuyers) * 100 : 0 },
-        windowDays: days,
         sql: displaySql(sql, params),
       };
     });

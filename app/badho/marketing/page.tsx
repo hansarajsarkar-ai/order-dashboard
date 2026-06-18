@@ -21,6 +21,7 @@ interface ChannelRow { channel: string; installs: number }
 interface CampaignRow { campaign: string; platform: string; objective: string; installs: number; medianCti: number | null }
 interface DetailRow { label: string; installs: number }
 interface SessSrcRow { source: string; sessions: number; buyers: number }
+interface GeoEffRow { state: string; installs: number; paidInstalls: number; orderingBuyers: number; gmv: number; ordersPer100Paid: number; gmvPerPaid: number; tag: string }
 interface CreativeRow { campaign: string; adgroup: string; placement: string; installs: number }
 interface WaRow { campaign: string; sessions: number }
 interface ConvRow { group: string; buyers: number; ordered: number; convPct: number; gmv: number; avgDays: number }
@@ -245,6 +246,7 @@ export default function MarketingDashboard() {
   const conv = useApi<ConvResp>(`/api/marketing/conversion?${dateQ}&by=${convBy}${campQ}`, authChecked && tab === 'conversion');
   const convCamp = useApi<ConvResp>(`/api/marketing/conversion?${dateQ}&by=campaign${campQ}`, authChecked && tab === 'spend');
   const geo = useApi<{ data: GeoRow[]; total: number }>(`/api/marketing/geography?${dateQ}${campQ}`, authChecked && tab === 'geography');
+  const geoEff = useApi<{ data: GeoEffRow[]; underspent: string[]; overmarketed: string[]; medPaid: number; medYield: number }>(`/api/marketing/geo-efficiency?${dateQ}${campQ}`, authChecked && tab === 'geography');
   const whatsapp = useApi<{ data: WaRow[]; total: number }>(`/api/marketing/whatsapp-campaigns?${dateQ}`, authChecked && tab === 'whatsapp');
   const spend = useApi<{ configured: boolean; message?: string; data?: SpendRow[]; totalSpend?: number; currency?: string; error?: string }>(`/api/marketing/spend?${dateQ}`, authChecked && tab === 'spend');
   const sessionSrc = useApi<{ data: SessSrcRow[]; totalSessions: number; totalBuyers: number }>(`/api/marketing/session-source?${dateQ}`, authChecked && tab === 'sessions');
@@ -599,6 +601,44 @@ export default function MarketingDashboard() {
                   <tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15"><tr><td className="px-4 py-3" colSpan={5}>Total</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(geo.data.total)}</td><td className="px-4 py-3 text-right tabular-nums">100%</td></tr></tfoot>
                 </table>
               </div>
+            )}
+          </Panel>
+
+          <Panel title="Marketing Efficiency by State" desc="Where paid marketing is low but orders are high (organic strongholds / underspent) vs over-marketed zones. Ranked by ordering buyers per 100 paid installs."
+            sql={geoEff.data?.sql} csv={{ filename: csvName('geo-efficiency'), rows: () => geoEff.data?.data ?? [] }}>
+            {geoEff.loading ? <State kind="loading" msg="Crunching state-wise orders (joins orders, ~a few seconds)…" /> : geoEff.error ? <State kind="error" msg={geoEff.error} /> : !geoEff.data || geoEff.data.data.length === 0 ? <State kind="empty" msg="No data (need matured installs — try a 30D+ window)." /> : (
+              <>
+                {(geoEff.data.underspent.length > 0 || geoEff.data.overmarketed.length > 0) && (
+                  <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm flex flex-col gap-1.5">
+                    {geoEff.data.underspent.length > 0 && (
+                      <div><span className="text-emerald-300 font-semibold">🔥 Less marketing, more orders:</span> <span className="text-purple-100">{geoEff.data.underspent.slice(0, 6).join(', ')}</span> <span className="text-purple-300/60 text-xs">— below-median paid installs but above-median order-yield (scale these).</span></div>
+                    )}
+                    {geoEff.data.overmarketed.length > 0 && (
+                      <div><span className="text-rose-300 font-semibold">📉 Over-marketed:</span> <span className="text-purple-100">{geoEff.data.overmarketed.slice(0, 6).join(', ')}</span> <span className="text-purple-300/60 text-xs">— high paid installs, low order-yield.</span></div>
+                    )}
+                  </div>
+                )}
+                <div className="overflow-x-auto max-h-[34rem] overflow-y-auto rounded-xl border border-white/10">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">#</th><th className="px-4 py-3 font-semibold">State</th><th className="px-4 py-3 font-semibold text-right">Paid Installs</th><th className="px-4 py-3 font-semibold text-right">Ordering Buyers</th><th className="px-4 py-3 font-semibold text-right">GMV</th><th className="px-4 py-3 font-semibold text-right" title="Ordering buyers per 100 paid installs">Orders / 100 Paid</th><th className="px-4 py-3 font-semibold text-right">₹ / Paid</th><th className="px-4 py-3 font-semibold">Signal</th></tr></thead>
+                    <tbody>
+                      {geoEff.data.data.map((r, i) => (
+                        <tr key={r.state} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>
+                          <td className="px-4 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
+                          <td className="px-4 py-2.5 font-medium whitespace-nowrap">{r.state}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(r.paidInstalls)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(r.orderingBuyers)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-white">{fmtCur(r.gmv)}</td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${r.tag === 'underspent' ? 'text-emerald-300' : r.tag === 'overmarketed' ? 'text-rose-300' : 'text-purple-200'}`}>{r.ordersPer100Paid.toFixed(2)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">₹{r.gmvPerPaid.toFixed(0)}</td>
+                          <td className="px-4 py-2.5">{r.tag === 'underspent' ? <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">🔥 Underspent</span> : r.tag === 'overmarketed' ? <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-200 border border-rose-400/30">Over-marketed</span> : <span className="text-purple-300/40 text-xs">—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[11px] text-purple-300/50 mt-3">&ldquo;Paid installs&rdquo; = the marketing intensity (paid-attributed installs) in that state. &ldquo;Ordering buyers&rdquo; = acquired buyers (any channel) who placed a real order. Order-yield = ordering buyers per 100 paid installs; high yield with low paid = organic strength / underspent. Excludes states with &lt;50 installs and the unknown-state bucket. Conversion matures over time — use a 30D+ window.</p>
+              </>
             )}
           </Panel>
           </div>

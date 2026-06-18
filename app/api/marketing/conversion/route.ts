@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   const campaign = searchParams.get('campaign') || '';
 
   try {
-    const payload = await cached(`mkt:conversion:${by}:${dateKey(dp)}:${campaign}`, 10 * 60_000, async () => {
+    const payload = await cached(`mkt:conversion:${by}:${dateKey(dp)}:${campaign}`, 30 * 60_000, async () => {
       const params: (string | number)[] = [];
       const { clause, lowerBound } = dateClause('created_at', dp, params);
       const camp = campaignClause(campaign, params);

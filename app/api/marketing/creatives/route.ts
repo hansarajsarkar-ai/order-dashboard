@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const dp = parseDateParams(searchParams);
 
   try {
-    const payload = await cached(`mkt:creatives:${dateKey(dp)}:${campaign}`, 5 * 60_000, async () => {
+    const payload = await cached(`mkt:creatives:${dateKey(dp)}:${campaign}`, 30 * 60_000, async () => {
       const params: (string | number)[] = [];
       const { clause } = dateClause('created_at', dp, params);
       const camp = campaignClause(campaign, params);

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ResponsiveContainer,
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList, Cell,
+  ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList, Cell,
 } from 'recharts';
 import InstallBubbleMap from './components/InstallBubbleMap';
 import CampaignFilter, { type CampaignOption } from './components/CampaignFilter';
@@ -425,7 +425,7 @@ export default function MarketingDashboard() {
               </div>
             )}
 
-            <Panel title="Installs Trend" desc={`New buyer installs per ${granularity}, with a 7-${granularity} moving average.`}
+            <Panel title="Installs Trend" desc={`New buyer installs per ${granularity}.`}
               sql={trend.data?.sql} csv={{ filename: csvName('installs-trend'), rows: () => trend.data?.data ?? [] }}
               right={<div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">{GRANULARITIES.map((g) => (<button key={g.value} onClick={() => setGranularity(g.value)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${granularity === g.value ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-[0_0_18px_rgba(56,189,248,0.45)]' : 'text-purple-200 hover:bg-white/10'}`}>{g.label}</button>))}</div>}>
               {trend.loading ? <State kind="loading" msg="Loading trend…" /> : trend.error ? <State kind="error" msg={trend.error} /> : chartData.length === 0 ? <State kind="empty" msg="No data for this window." /> : (
@@ -445,7 +445,6 @@ export default function MarketingDashboard() {
                         {chartData.map((d, i) => <Cell key={i} fill={d.isSpike ? 'url(#spikeBar)' : 'url(#installsBar)'} />)}
                         {showLabels && <LabelList dataKey="installs" position="top" offset={6} fill="#f0abfc" fontSize={9} fontWeight={600} formatter={(v: any) => (v == null ? '' : fmtCompact(Number(v)))} />}
                       </Bar>
-                      <Line type="monotone" dataKey="ma" name="7-pt Moving Avg" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>

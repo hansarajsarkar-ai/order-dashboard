@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ResponsiveContainer,
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList, Cell,
 } from 'recharts';
 import InstallBubbleMap from './components/InstallBubbleMap';
 import CampaignFilter, { type CampaignOption } from './components/CampaignFilter';
@@ -264,11 +264,52 @@ export default function MarketingDashboard() {
     const rows = trend.data?.data || [];
     return rows.map((r, i) => {
       const win = rows.slice(Math.max(0, i - 6), i + 1);
-      return { ...r, label: fmtBucket(r.bucket, granularity), ma: Math.round(win.reduce((a, b) => a + b.installs, 0) / win.length) };
+      const ma = Math.round(win.reduce((a, b) => a + b.installs, 0) / win.length);
+      // A day is a "spike" if it's ≥1.5× its 7-day moving average (and not tiny) —
+      // usually a campaign launch.
+      return { ...r, label: fmtBucket(r.bucket, granularity), ma, isSpike: ma > 0 && r.installs >= ma * 1.5 && r.installs >= 200 };
     });
   }, [trend.data, granularity]);
   const showLabels = chartData.length <= 31;
   const summary = trend.data?.summary;
+
+  // Extra trend statistics (daily view only) — all derived client-side from the
+  // daily series: week-over-week growth, day-of-week averages, month run-rate.
+  const trendStats = useMemo(() => {
+    const rows = trend.data?.data || [];
+    if (granularity !== 'day' || rows.length < 2) return null;
+    const now = new Date();
+    const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    // Drop today (partial) for week/day-of-week so it doesn't drag numbers down.
+    const complete = rows[rows.length - 1]?.bucket === todayISO ? rows.slice(0, -1) : rows;
+
+    let wow: { last7: number; prev7: number; pct: number } | null = null;
+    if (complete.length >= 14) {
+      const last7 = complete.slice(-7).reduce((a, b) => a + b.installs, 0);
+      const prev7 = complete.slice(-14, -7).reduce((a, b) => a + b.installs, 0);
+      wow = { last7, prev7, pct: prev7 ? ((last7 - prev7) / prev7) * 100 : 0 };
+    }
+
+    const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const acc = Array.from({ length: 7 }, () => ({ sum: 0, n: 0 }));
+    for (const r of complete) {
+      const [y, m, d] = r.bucket.split('-').map(Number);
+      const wd = new Date(y, m - 1, d).getDay();
+      acc[wd].sum += r.installs; acc[wd].n++;
+    }
+    const dow = [1, 2, 3, 4, 5, 6, 0].map((i) => ({ day: DOW[i], avg: acc[i].n ? Math.round(acc[i].sum / acc[i].n) : 0 }));
+
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthRows = rows.filter((r) => r.bucket.startsWith(ym));
+    let projection: { monthSoFar: number; projected: number; daysElapsed: number; daysInMonth: number } | null = null;
+    if (monthRows.length) {
+      const monthSoFar = monthRows.reduce((a, b) => a + b.installs, 0);
+      const daysElapsed = now.getDate();
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      projection = { monthSoFar, daysElapsed, daysInMonth, projected: Math.round((monthSoFar / daysElapsed) * daysInMonth) };
+    }
+    return { wow, dow, projection };
+  }, [trend.data, granularity]);
 
   // Geography bar chart: top 15 real states by total, largest at top.
   const geoChart = useMemo(() => {
@@ -357,11 +398,17 @@ export default function MarketingDashboard() {
         {tab === 'acquisition' && (
           <div className="space-y-6">
             {summary && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <KPICard label="Total Installs" value={fmtInt(summary.totalInstalls)} sub={windowSub} tone="fuchsia" />
                 <KPICard label="Avg Installs / Day" value={fmtInt(summary.avg)} sub="first sessions / day" tone="purple" />
                 <KPICard label="Peak Day" value={fmtInt(summary.peak)} sub={summary.peakBucket ? fmtBucket(summary.peakBucket, 'day') : '—'} tone="emerald" />
                 <KPICard label="Paid (Meta) Share" value={`${paidShare.toFixed(1)}%`} sub="of installs" tone="sky" />
+                {trendStats?.wow && (
+                  <KPICard label="Week-over-Week" value={`${trendStats.wow.pct >= 0 ? '+' : ''}${trendStats.wow.pct.toFixed(0)}%`} sub={`${fmtInt(trendStats.wow.last7)} vs ${fmtInt(trendStats.wow.prev7)}`} tone={trendStats.wow.pct >= 0 ? 'emerald' : 'amber'} />
+                )}
+                {trendStats?.projection && (
+                  <KPICard label="Projected (Month)" value={fmtCompact(trendStats.projection.projected)} sub={`${fmtInt(trendStats.projection.monthSoFar)} in ${trendStats.projection.daysElapsed}/${trendStats.projection.daysInMonth}d`} tone="purple" />
+                )}
               </div>
             )}
 
@@ -372,13 +419,17 @@ export default function MarketingDashboard() {
                 <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={chartData} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
-                      <defs><linearGradient id="installsBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#d946ef" stopOpacity={0.9} /><stop offset="100%" stopColor="#7c3aed" stopOpacity={0.5} /></linearGradient></defs>
+                      <defs>
+                        <linearGradient id="installsBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#d946ef" stopOpacity={0.9} /><stop offset="100%" stopColor="#7c3aed" stopOpacity={0.5} /></linearGradient>
+                        <linearGradient id="spikeBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#fbbf24" stopOpacity={0.95} /><stop offset="100%" stopColor="#f59e0b" stopOpacity={0.6} /></linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                       <XAxis dataKey="label" tick={{ fill: '#c4b5fd', fontSize: 11 }} interval="preserveStartEnd" minTickGap={20} />
                       <YAxis tick={{ fill: '#c4b5fd', fontSize: 11 }} tickFormatter={fmtCompact} width={48} />
                       <Tooltip cursor={{ fill: 'rgba(255,255,255,0.06)' }} contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '8px', color: '#fff', fontSize: 12 }} labelStyle={{ color: '#e9d5ff', fontWeight: 600, marginBottom: 2 }} formatter={(v, name) => [v == null ? '—' : fmtInt(Number(v)), String(name)]} />
                       <Legend wrapperStyle={{ fontSize: 11, color: '#c4b5fd' }} />
                       <Bar dataKey="installs" name="Installs" fill="url(#installsBar)" radius={[4, 4, 0, 0]} maxBarSize={48} isAnimationActive={false}>
+                        {chartData.map((d, i) => <Cell key={i} fill={d.isSpike ? 'url(#spikeBar)' : 'url(#installsBar)'} />)}
                         {showLabels && <LabelList dataKey="installs" position="top" offset={6} fill="#f0abfc" fontSize={9} fontWeight={600} formatter={(v: any) => (v == null ? '' : fmtCompact(Number(v)))} />}
                       </Bar>
                       <Line type="monotone" dataKey="ma" name="7-pt Moving Avg" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
@@ -386,7 +437,26 @@ export default function MarketingDashboard() {
                   </ResponsiveContainer>
                 </div>
               )}
+              {chartData.some((d) => d.isSpike) && <p className="text-[11px] text-amber-300/70 mt-2">⚡ Amber bars are spike days (≥1.5× the 7-day average) — usually a campaign launch.</p>}
             </Panel>
+
+            {trendStats?.dow && (() => {
+              const maxDow = Math.max(...trendStats.dow.map((d) => d.avg), 1);
+              const best = trendStats.dow.reduce((a, b) => (b.avg > a.avg ? b : a));
+              return (
+                <Panel title="Installs by Day of Week" desc={`Average installs per weekday — ${best.day} is strongest. Use it to time ad budget.`} csv={{ filename: csvName('day-of-week'), rows: () => trendStats.dow }}>
+                  <div className="grid grid-cols-7 gap-2 items-end h-44">
+                    {trendStats.dow.map((d) => (
+                      <div key={d.day} className="flex flex-col items-center justify-end h-full gap-1">
+                        <span className="text-[11px] text-purple-200 tabular-nums">{fmtInt(d.avg)}</span>
+                        <div className="w-full rounded-t-lg bg-gradient-to-t from-fuchsia-600/40 to-fuchsia-400 transition-all" style={{ height: `${Math.max((d.avg / maxDow) * 100, 2)}%` }} title={`${d.day}: ${fmtInt(d.avg)} avg`} />
+                        <span className={`text-xs font-semibold ${d.day === best.day ? 'text-fuchsia-300' : 'text-purple-300/70'}`}>{d.day}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+              );
+            })()}
 
             <Panel title="Channel Mix" desc={`Where installs came from over the ${windowSub}.`} sql={channels.data?.sql} csv={{ filename: csvName('channel-mix'), rows: () => channels.data?.data ?? [] }}>
               {channels.loading ? <State kind="loading" msg="Loading channels…" /> : channels.error ? <State kind="error" msg={channels.error} /> : !channels.data || channels.data.data.length === 0 ? <State kind="empty" msg="No data." /> : (

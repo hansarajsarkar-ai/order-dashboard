@@ -110,8 +110,10 @@ function KPICard({ label, value, sub, tone, valueClass, highlight }: { label: st
     indigo: 'from-indigo-500/25 to-indigo-600/10 border-indigo-400/40 text-indigo-200',
   };
   return (
-    <div className={`relative rounded-xl border bg-gradient-to-br p-4 ${tones[tone] || tones.purple} ${highlight ? 'ring-2 ring-indigo-300/60 shadow-[0_0_22px_rgba(129,140,248,0.4)]' : ''}`}>
-      {highlight && <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-400/30 text-indigo-100 border border-indigo-300/40 tracking-wider">MTD</span>}
+    <div className={`relative overflow-hidden rounded-xl border p-4 ${highlight
+      ? 'bg-gradient-to-br from-amber-400/25 via-indigo-500/25 to-violet-700/25 border-amber-300/50 text-indigo-100 ring-2 ring-amber-300/60 shadow-[0_0_26px_rgba(251,191,36,0.35)]'
+      : `bg-gradient-to-br ${tones[tone] || tones.purple}`}`}>
+      {highlight && <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-amber-300 to-violet-400" />}
       <div className="text-[11px] uppercase tracking-wider font-semibold opacity-80">{label}</div>
       <div className={`mt-1 text-2xl font-bold tabular-nums ${valueClass || 'text-white'}`}>{value}</div>
       <div className="mt-0.5 text-[11px] opacity-70">{sub}</div>
@@ -415,7 +417,7 @@ export default function MarketingDashboard() {
                   <KPICard label="Week-over-Week" value={growthStr(trendStats.wow.pct)} valueClass={growthClass(trendStats.wow.pct)} sub={`${fmtInt(trendStats.wow.last7)} vs ${fmtInt(trendStats.wow.prev7)}`} tone={trendStats.wow.pct >= 0 ? 'emerald' : 'rose'} />
                 )}
                 {mom.data && mom.data.pct != null && (
-                  <KPICard label="Month-over-Month" value={growthStr(mom.data.pct)} valueClass={growthClass(mom.data.pct)} sub={`${mom.data.thisLabel} ${fmtInt(mom.data.thisMtd)} vs ${mom.data.lastLabel} ${fmtInt(mom.data.lastMtd)}`} tone="indigo" highlight />
+                  <KPICard label="MoM · Till Date" value={growthStr(mom.data.pct)} valueClass={growthClass(mom.data.pct)} sub={`${mom.data.thisLabel} ${fmtInt(mom.data.thisMtd)} vs ${mom.data.lastLabel} ${fmtInt(mom.data.lastMtd)} (MTD)`} tone="indigo" highlight />
                 )}
                 {trendStats?.projection && (
                   <KPICard label="Projected (Month)" value={fmtCompact(trendStats.projection.projected)} sub={`${fmtInt(trendStats.projection.monthSoFar)} in ${trendStats.projection.daysElapsed}/${trendStats.projection.daysInMonth}d`} tone="purple" />

@@ -99,22 +99,29 @@ const PLATFORM_TONE: Record<string, string> = {
 const platformTone = (p: string) => PLATFORM_TONE[p] || 'bg-white/10 text-purple-200 border-white/15';
 const convTone = (v: number) => (v >= 3 ? 'text-emerald-300' : v >= 1.5 ? 'text-amber-300' : 'text-rose-300');
 
-function KPICard({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: string }) {
+function KPICard({ label, value, sub, tone, valueClass, highlight }: { label: string; value: string; sub: string; tone: string; valueClass?: string; highlight?: boolean }) {
   const tones: Record<string, string> = {
     fuchsia: 'from-fuchsia-500/20 to-fuchsia-600/5 border-fuchsia-400/30 text-fuchsia-200',
     purple: 'from-purple-500/20 to-purple-600/5 border-purple-400/30 text-purple-200',
     emerald: 'from-emerald-500/20 to-emerald-600/5 border-emerald-400/30 text-emerald-200',
     amber: 'from-amber-500/20 to-amber-600/5 border-amber-400/30 text-amber-200',
+    rose: 'from-rose-500/20 to-rose-600/5 border-rose-400/30 text-rose-200',
     sky: 'from-sky-500/20 to-sky-600/5 border-sky-400/30 text-sky-200',
+    indigo: 'from-indigo-500/25 to-indigo-600/10 border-indigo-400/40 text-indigo-200',
   };
   return (
-    <div className={`rounded-xl border bg-gradient-to-br p-4 ${tones[tone] || tones.purple}`}>
+    <div className={`relative rounded-xl border bg-gradient-to-br p-4 ${tones[tone] || tones.purple} ${highlight ? 'ring-2 ring-indigo-300/60 shadow-[0_0_22px_rgba(129,140,248,0.4)]' : ''}`}>
+      {highlight && <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-400/30 text-indigo-100 border border-indigo-300/40 tracking-wider">MTD</span>}
       <div className="text-[11px] uppercase tracking-wider font-semibold opacity-80">{label}</div>
-      <div className="mt-1 text-2xl font-bold text-white tabular-nums">{value}</div>
+      <div className={`mt-1 text-2xl font-bold tabular-nums ${valueClass || 'text-white'}`}>{value}</div>
       <div className="mt-0.5 text-[11px] opacity-70">{sub}</div>
     </div>
   );
 }
+
+// Green for positive growth, red for negative.
+const growthClass = (pct: number) => (pct >= 0 ? 'text-emerald-300' : 'text-rose-300');
+const growthStr = (pct: number) => `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
 
 // Trigger a client-side CSV download of the given rows (already filter-scoped,
 // since the fetched data reflects the active date range + campaign filter).
@@ -242,6 +249,7 @@ export default function MarketingDashboard() {
   const channels = useApi<{ data: ChannelRow[]; total: number }>(`/api/marketing/channel-mix?${dateQ}`, authChecked && tab === 'acquisition');
   const signup = useApi<{ channels: SignupChannel[]; objectives: ObjRow[]; objectivesTotal: number }>(`/api/marketing/signup-funnel?${dateQ}`, authChecked && (tab === 'acquisition' || tab === 'campaigns'));
   const detail = useApi<{ platforms: DetailRow[]; platformsTotal: number; entryPoints: DetailRow[]; entryTotal: number }>(`/api/marketing/attribution-detail?${dateQ}`, authChecked && tab === 'acquisition');
+  const mom = useApi<{ thisMtd: number; lastMtd: number; spanDays: number; thisLabel: string; lastLabel: string; pct: number | null }>(`/api/marketing/mom?${campQ.replace(/^&/, '')}`, authChecked && tab === 'acquisition');
   const campaigns = useApi<{ data: CampaignRow[]; total: number }>(`/api/marketing/campaigns?${dateQ}${campQ}`, authChecked && (tab === 'campaigns' || tab === 'spend'));
   const creatives = useApi<{ data: CreativeRow[]; total: number }>(`/api/marketing/creatives?${dateQ}${campQ}`, authChecked && tab === 'campaigns');
   const conv = useApi<ConvResp>(`/api/marketing/conversion?${dateQ}&by=${convBy}${campQ}`, authChecked && tab === 'conversion');
@@ -398,13 +406,16 @@ export default function MarketingDashboard() {
         {tab === 'acquisition' && (
           <div className="space-y-6">
             {summary && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
                 <KPICard label="Total Installs" value={fmtInt(summary.totalInstalls)} sub={windowSub} tone="fuchsia" />
                 <KPICard label="Avg Installs / Day" value={fmtInt(summary.avg)} sub="first sessions / day" tone="purple" />
                 <KPICard label="Peak Day" value={fmtInt(summary.peak)} sub={summary.peakBucket ? fmtBucket(summary.peakBucket, 'day') : '—'} tone="emerald" />
                 <KPICard label="Paid (Meta) Share" value={`${paidShare.toFixed(1)}%`} sub="of installs" tone="sky" />
                 {trendStats?.wow && (
-                  <KPICard label="Week-over-Week" value={`${trendStats.wow.pct >= 0 ? '+' : ''}${trendStats.wow.pct.toFixed(0)}%`} sub={`${fmtInt(trendStats.wow.last7)} vs ${fmtInt(trendStats.wow.prev7)}`} tone={trendStats.wow.pct >= 0 ? 'emerald' : 'amber'} />
+                  <KPICard label="Week-over-Week" value={growthStr(trendStats.wow.pct)} valueClass={growthClass(trendStats.wow.pct)} sub={`${fmtInt(trendStats.wow.last7)} vs ${fmtInt(trendStats.wow.prev7)}`} tone={trendStats.wow.pct >= 0 ? 'emerald' : 'rose'} />
+                )}
+                {mom.data && mom.data.pct != null && (
+                  <KPICard label="Month-over-Month" value={growthStr(mom.data.pct)} valueClass={growthClass(mom.data.pct)} sub={`${mom.data.thisLabel} ${fmtInt(mom.data.thisMtd)} vs ${mom.data.lastLabel} ${fmtInt(mom.data.lastMtd)}`} tone="indigo" highlight />
                 )}
                 {trendStats?.projection && (
                   <KPICard label="Projected (Month)" value={fmtCompact(trendStats.projection.projected)} sub={`${fmtInt(trendStats.projection.monthSoFar)} in ${trendStats.projection.daysElapsed}/${trendStats.projection.daysInMonth}d`} tone="purple" />

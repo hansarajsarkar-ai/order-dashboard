@@ -114,9 +114,9 @@ function KPICard({ label, value, sub, tone, valueClass, highlight }: { label: st
       ? 'bg-gradient-to-br from-amber-400/25 via-indigo-500/25 to-violet-700/25 border-amber-300/50 text-indigo-100 ring-2 ring-amber-300/60 shadow-[0_0_26px_rgba(251,191,36,0.35)]'
       : `bg-gradient-to-br ${tones[tone] || tones.purple}`}`}>
       {highlight && <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-amber-300 to-violet-400" />}
-      <div className="text-[11px] uppercase tracking-wider font-semibold opacity-80">{label}</div>
-      <div className={`mt-1 text-2xl font-bold tabular-nums ${valueClass || 'text-white'}`}>{value}</div>
-      <div className="mt-0.5 text-[11px] opacity-70">{sub}</div>
+      <div className="text-sm uppercase tracking-wide font-bold opacity-95 leading-tight">{label}</div>
+      <div className={`mt-1.5 text-2xl font-bold tabular-nums ${valueClass || 'text-white'}`}>{value}</div>
+      <div className="mt-0.5 text-xs opacity-70">{sub}</div>
     </div>
   );
 }

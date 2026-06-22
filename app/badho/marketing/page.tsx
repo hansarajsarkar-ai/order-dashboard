@@ -207,7 +207,16 @@ function useApi<T>(url: string | null, enabled: boolean) {
     let cancelled = false;
     setLoading(true); setError(null);
     fetch(url)
-      .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed to load'); return j as T & { sql?: string }; })
+      .then(async (r) => {
+        // Read as text first so a non-JSON error body (e.g. a 504 gateway timeout
+        // HTML page) doesn't crash JSON.parse with "Unexpected token".
+        const text = await r.text();
+        let j: (T & { sql?: string; error?: string }) | null = null;
+        try { j = text ? JSON.parse(text) : null; } catch { j = null; }
+        if (!r.ok) throw new Error(j?.error || (r.status === 504 || r.status === 502 ? 'Took too long — try a shorter date range.' : `Request failed (${r.status})`));
+        if (j == null) throw new Error('Took too long — try a shorter date range.');
+        return j;
+      })
       .then((j) => { if (!cancelled) setData(j); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -228,6 +237,7 @@ export default function MarketingDashboard() {
   const [convBy, setConvBy] = useState<'channel' | 'campaign'>('channel');
   const [geoView, setGeoView] = useState<'map' | 'chart'>('chart');
   const [showEff, setShowEff] = useState(false);
+  const [showSessions, setShowSessions] = useState(false);
   const [campaign, setCampaign] = useState('');
   const dateQ = dateQuery(date);
   const windowSub = dateLabel(date).toLowerCase().startsWith('last') ? dateLabel(date).toLowerCase() : dateLabel(date);
@@ -260,7 +270,7 @@ export default function MarketingDashboard() {
   const geoEff = useApi<{ data: GeoEffRow[]; underspent: string[]; overmarketed: string[]; medPaid: number; medYield: number }>(`/api/marketing/geo-efficiency?${dateQ}${campQ}`, authChecked && tab === 'geography' && showEff);
   const whatsapp = useApi<{ data: WaRow[]; total: number }>(`/api/marketing/whatsapp-campaigns?${dateQ}`, authChecked && tab === 'whatsapp');
   const spend = useApi<{ configured: boolean; message?: string; data?: SpendRow[]; totalSpend?: number; currency?: string; error?: string }>(`/api/marketing/spend?${dateQ}`, authChecked && tab === 'spend');
-  const sessionSrc = useApi<{ data: SessSrcRow[]; totalSessions: number; totalBuyers: number }>(`/api/marketing/session-source?${dateQ}`, authChecked && tab === 'sessions');
+  const sessionSrc = useApi<{ data: SessSrcRow[]; totalSessions: number; totalBuyers: number }>(`/api/marketing/session-source?${dateQ}`, authChecked && tab === 'sessions' && showSessions);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -804,7 +814,12 @@ export default function MarketingDashboard() {
               </div>
             )}
             <Panel title="Sessions by Source" desc={`Every buyer-app session (re-engagement included, NOT just installs) by source, over the ${windowSub}.`} sql={sessionSrc.data?.sql} csv={{ filename: csvName('sessions-by-source'), rows: () => sessionSrc.data?.data ?? [] }}>
-              {sessionSrc.loading ? <State kind="loading" msg="Crunching sessions…" /> : sessionSrc.error ? <State kind="error" msg={sessionSrc.error} /> : !sessionSrc.data || sessionSrc.data.data.length === 0 ? <State kind="empty" msg="No sessions." /> : (
+              {!showSessions ? (
+                <div className="py-10 flex flex-col items-center gap-3 text-center">
+                  <p className="text-sm text-purple-300/70 max-w-md">This scans <span className="text-purple-200">all</span> app sessions (not just installs), so it&apos;s heavier than other panels — especially on long date ranges. Load it when you need it; shorter ranges (7–14D) are fastest.</p>
+                  <button onClick={() => setShowSessions(true)} className="px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-[0_0_18px_rgba(217,70,239,0.45)] hover:opacity-90 transition-opacity">▶ Load sessions by source</button>
+                </div>
+              ) : sessionSrc.loading ? <State kind="loading" msg="Crunching all sessions (can take a few seconds)…" /> : sessionSrc.error ? <State kind="error" msg={sessionSrc.error} /> : !sessionSrc.data || sessionSrc.data.data.length === 0 ? <State kind="empty" msg="No sessions." /> : (
                 <div className="overflow-x-auto rounded-xl border border-white/10">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">Session Source</th><th className="px-4 py-3 font-semibold">Share</th><th className="px-4 py-3 font-semibold text-right">Sessions</th><th className="px-4 py-3 font-semibold text-right">Buyers</th><th className="px-4 py-3 font-semibold text-right">% of Sessions</th></tr></thead>

@@ -4,7 +4,7 @@ import { cached } from '@/lib/memoCache';
 import { parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300; // heavy all-sessions scan; give large windows room
 
 // "Source-wise sessions" — ALL buyer-app sessions (NOT just first-session installs)
 // classified by source, for the selected window. This is the dashboard's only
@@ -46,18 +46,15 @@ export async function GET(req: NextRequest) {
                COUNT(*)::text                    AS sessions,
                COUNT(DISTINCT a."buyerId")::text AS buyers
         FROM "history"."session" a
-        JOIN "users"."buyer" b ON b."id" = a."buyerId"
         WHERE TRUE
           ${clause}
           AND a."buyerId" IS NOT NULL
           AND a."isTest" = FALSE
-          AND b."isTest" = FALSE
-          AND b."businessName" NOT ILIKE '%test%'
           AND a."userType" = 'buyer'
           AND a."appUsed" = 'buyer-app'
           AND a."isMasterLogin" = FALSE
         GROUP BY 1
-        ORDER BY COUNT(DISTINCT a."id") DESC;
+        ORDER BY COUNT(*) DESC;
       `;
       const rows = await query<Row>(sql, params);
       const data = rows.map((r) => ({ source: r.src, sessions: parseInt(r.sessions, 10), buyers: parseInt(r.buyers, 10) }));

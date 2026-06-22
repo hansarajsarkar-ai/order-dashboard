@@ -24,8 +24,9 @@ interface SessSrcRow { source: string; sessions: number; buyers: number }
 interface GeoEffRow { state: string; installs: number; paidInstalls: number; orderingBuyers: number; gmv: number; ordersPer100Paid: number; gmvPerPaid: number; tag: string }
 interface CreativeRow { campaign: string; adgroup: string; placement: string; installs: number }
 interface WaRow { campaign: string; sessions: number }
-interface ConvRow { group: string; buyers: number; ordered: number; convPct: number; gmv: number; avgDays: number }
-interface ConvResp { data: ConvRow[]; by: string; totals: { buyers: number; ordered: number; gmv: number; convPct: number } }
+interface ConvRow { group: string; buyers: number; signups: number; ordered: number; totalOrders: number; repeatBuyers: number; convPct: number; signupPct: number; repeatPct: number; ordersPerBuyer: number; gmv: number; gmvPerBuyer: number; avgDays: number }
+interface ConvTotals { buyers: number; signups: number; ordered: number; totalOrders: number; repeatBuyers: number; gmv: number; convPct: number; signupPct: number; repeatPct: number; ordersPerBuyer: number; gmvPerBuyer: number }
+interface ConvResp { data: ConvRow[]; by: string; totals: ConvTotals }
 interface GeoRow { state: string; paid: number; other: number; total: number }
 interface SignupChannel { channel: string; installs: number; signups: number; signupPct: number }
 interface ObjRow { objective: string; installs: number }
@@ -234,7 +235,7 @@ export default function MarketingDashboard() {
   const [tab, setTab] = useState<Tab>('acquisition');
   const [date, setDate] = useState<DateSel>({ mode: 'days', days: 30, from: '', to: '', year: new Date().getFullYear(), months: [] });
   const [granularity, setGranularity] = useState<Granularity>('day');
-  const [convBy, setConvBy] = useState<'channel' | 'campaign'>('channel');
+  const [convBy, setConvBy] = useState<'channel' | 'campaign' | 'adgroup'>('channel');
   const [geoView, setGeoView] = useState<'map' | 'chart'>('chart');
   const [showEff, setShowEff] = useState(false);
   const [showSessions, setShowSessions] = useState(false);
@@ -598,38 +599,69 @@ export default function MarketingDashboard() {
         {tab === 'conversion' && (
           <div className="space-y-6">
             {conv.data?.totals && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <KPICard label="Acquired Buyers" value={fmtInt(conv.data.totals.buyers)} sub={windowSub} tone="fuchsia" />
-                <KPICard label="Placed an Order" value={fmtInt(conv.data.totals.ordered)} sub="since install" tone="emerald" />
-                <KPICard label="Install → Order" value={`${conv.data.totals.convPct.toFixed(2)}%`} sub="conversion" tone="amber" />
+                <KPICard label="Install → Order" value={`${conv.data.totals.convPct.toFixed(2)}%`} sub={`${fmtInt(conv.data.totals.ordered)} ordered`} tone="amber" />
+                <KPICard label="Repeat Rate" value={`${conv.data.totals.repeatPct.toFixed(1)}%`} sub="of orderers ordered 2+" tone="emerald" />
+                <KPICard label="Orders / Buyer" value={conv.data.totals.ordersPerBuyer.toFixed(2)} sub="among orderers" tone="purple" />
+                <KPICard label="GMV / Buyer" value={fmtCur(conv.data.totals.gmvPerBuyer)} sub="per ordering buyer" tone="indigo" />
                 <KPICard label="GMV from Cohort" value={fmtCur(conv.data.totals.gmv)} sub="orders post-install" tone="sky" />
               </div>
             )}
-            <Panel title="Install → Order Conversion" desc="Of buyers acquired in the window, how many placed a real order, the GMV they generated, and how long it took."
+
+            {/* Activation funnel */}
+            {conv.data?.totals && (() => {
+              const t = conv.data.totals;
+              const steps = [
+                { label: 'Installs', n: t.buyers, pct: 100, sub: windowSub },
+                { label: 'Signed up', n: t.signups, pct: t.signupPct, sub: `${t.signupPct.toFixed(0)}% of installs` },
+                { label: 'Placed an order', n: t.ordered, pct: t.convPct, sub: `${t.convPct.toFixed(2)}% of installs · ${t.signups ? (t.ordered / t.signups * 100).toFixed(1) : '0'}% of signups` },
+              ];
+              return (
+                <Panel title="Activation Funnel" desc="Install → Signup → First Order, and where acquired buyers drop off.">
+                  <div className="space-y-3">
+                    {steps.map((s, i) => (
+                      <div key={s.label} className="flex items-center gap-3">
+                        <div className="w-32 shrink-0 text-sm text-purple-100 font-medium">{s.label}</div>
+                        <div className="flex-1 h-8 rounded-lg bg-white/5 overflow-hidden">
+                          <div className="h-full rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-600 flex items-center px-3 text-xs font-bold text-white" style={{ width: `${Math.max(s.pct, 2)}%` }}>{s.pct >= 6 ? fmtInt(s.n) : ''}</div>
+                        </div>
+                        <div className="w-56 shrink-0 text-sm tabular-nums"><span className="text-white font-semibold">{fmtInt(s.n)}</span> <span className="text-purple-300/60 text-xs">— {s.sub}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+              );
+            })()}
+
+            <Panel title="Install → Order Conversion & Quality" desc="Per channel / campaign / creative — signup, order conversion, repeat rate, and value per buyer."
               sql={conv.data?.sql} csv={{ filename: csvName(`conversion-by-${convBy}`), rows: () => conv.data?.data ?? [] }}
-              right={<div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">{(['channel', 'campaign'] as const).map((b) => (<button key={b} onClick={() => setConvBy(b)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${convBy === b ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-[0_0_18px_rgba(56,189,248,0.45)]' : 'text-purple-200 hover:bg-white/10'}`}>By {b}</button>))}</div>}>
+              right={<div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">{([['channel', 'Channel'], ['campaign', 'Campaign'], ['adgroup', 'Creative']] as const).map(([b, lbl]) => (<button key={b} onClick={() => setConvBy(b)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${convBy === b ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-[0_0_18px_rgba(56,189,248,0.45)]' : 'text-purple-200 hover:bg-white/10'}`}>By {lbl}</button>))}</div>}>
               {conv.loading ? <State kind="loading" msg="Crunching cohort (joins orders, ~a few seconds)…" /> : conv.error ? <State kind="error" msg={conv.error} /> : !conv.data || conv.data.data.length === 0 ? <State kind="empty" msg="No data." /> : (
                 <div className="overflow-x-auto max-h-[34rem] overflow-y-auto rounded-xl border border-white/10">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">{convBy === 'channel' ? 'Channel' : 'Campaign'}</th><th className="px-4 py-3 font-semibold text-right">Installs</th><th className="px-4 py-3 font-semibold text-right">Ordered</th><th className="px-4 py-3 font-semibold text-right">Conv %</th><th className="px-4 py-3 font-semibold text-right">GMV</th><th className="px-4 py-3 font-semibold text-right">Avg Days→Order</th></tr></thead>
+                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">{convBy === 'channel' ? 'Channel' : convBy === 'campaign' ? 'Campaign' : 'Creative (adgroup)'}</th><th className="px-4 py-3 font-semibold text-right">Installs</th><th className="px-4 py-3 font-semibold text-right">Signup %</th><th className="px-4 py-3 font-semibold text-right">Ordered</th><th className="px-4 py-3 font-semibold text-right">Conv %</th><th className="px-4 py-3 font-semibold text-right" title="Of orderers, how many ordered 2+ times">Repeat %</th><th className="px-4 py-3 font-semibold text-right">GMV</th><th className="px-4 py-3 font-semibold text-right">GMV / Buyer</th><th className="px-4 py-3 font-semibold text-right">Days→Order</th></tr></thead>
                     <tbody>
                       {conv.data.data.map((r, i) => (
                         <tr key={`${r.group}-${i}`} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>
                           <td className="px-4 py-2.5 font-medium max-w-md truncate" title={r.group}>{r.group}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(r.buyers)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{r.signupPct.toFixed(0)}%</td>
                           <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(r.ordered)}</td>
                           <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${convTone(r.convPct)}`}>{r.convPct.toFixed(2)}%</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-emerald-200">{r.ordered ? `${r.repeatPct.toFixed(0)}%` : '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-white">{fmtCur(r.gmv)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{r.ordered ? fmtCur(r.gmvPerBuyer) : '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{r.avgDays ? `${r.avgDays.toFixed(1)}d` : '—'}</td>
                         </tr>
                       ))}
                     </tbody>
-                    {conv.data.totals && (<tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15"><tr><td className="px-4 py-3">Total</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(conv.data.totals.buyers)}</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(conv.data.totals.ordered)}</td><td className="px-4 py-3 text-right tabular-nums">{conv.data.totals.convPct.toFixed(2)}%</td><td className="px-4 py-3 text-right tabular-nums">{fmtCur(conv.data.totals.gmv)}</td><td className="px-4 py-3 text-right tabular-nums">—</td></tr></tfoot>)}
+                    {conv.data.totals && (<tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15"><tr><td className="px-4 py-3">Total</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(conv.data.totals.buyers)}</td><td className="px-4 py-3 text-right tabular-nums">{conv.data.totals.signupPct.toFixed(0)}%</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(conv.data.totals.ordered)}</td><td className="px-4 py-3 text-right tabular-nums">{conv.data.totals.convPct.toFixed(2)}%</td><td className="px-4 py-3 text-right tabular-nums">{conv.data.totals.repeatPct.toFixed(0)}%</td><td className="px-4 py-3 text-right tabular-nums">{fmtCur(conv.data.totals.gmv)}</td><td className="px-4 py-3 text-right tabular-nums">{fmtCur(conv.data.totals.gmvPerBuyer)}</td><td className="px-4 py-3 text-right tabular-nums">—</td></tr></tfoot>)}
                   </table>
                 </div>
               )}
             </Panel>
-            <p className="text-[11px] text-purple-300/50">Conversion = acquired buyer placed ≥1 order at/after install (excludes DRAFT &amp; CANCELLED; REJECTED still counts). GMV sums those orders&apos; net amount. Conversion rises as a cohort matures, so recent-install windows understate it — compare equal windows. Orders joined from <code className="text-purple-200">purchaseOrder.purchaseOrder</code> on <code className="text-purple-200">buyerId</code>.</p>
+            <p className="text-[11px] text-purple-300/50">Conversion = acquired buyer placed ≥1 order at/after install (excludes DRAFT &amp; CANCELLED; REJECTED still counts). Signup % = completed signup in the first session. Repeat % = of orderers, share who placed 2+ orders. GMV / Buyer = GMV ÷ ordering buyers. Conversion &amp; value rise as a cohort matures — compare equal windows. Orders joined from <code className="text-purple-200">purchaseOrder.purchaseOrder</code> on <code className="text-purple-200">buyerId</code>.</p>
           </div>
         )}
 

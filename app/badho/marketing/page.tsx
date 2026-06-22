@@ -660,7 +660,7 @@ export default function MarketingDashboard() {
               </div>
             )}
           </Panel>
-          <Panel title="Installs by State" desc={`Where new users are installing from, Paid vs other, over the ${windowSub}. ~1/3 of installs have no state set.`} sql={geo.data?.sql} csv={{ filename: csvName('geography'), rows: () => geo.data?.data ?? [] }}>
+          <Panel title="Installs by State" desc={`Where new users are installing from, Paid vs other, over the ${windowSub}. State falls back to the buyer's profile / pincode when the install didn't capture it; the rest have no location on file.`} sql={geo.data?.sql} csv={{ filename: csvName('geography'), rows: () => geo.data?.data ?? [] }}>
             {geo.loading ? <State kind="loading" msg="Loading geography…" /> : geo.error ? <State kind="error" msg={geo.error} /> : !geo.data || geo.data.data.length === 0 ? <State kind="empty" msg="No data." /> : (
               <div className="overflow-x-auto max-h-[40rem] overflow-y-auto rounded-xl border border-white/10">
                 <table className="w-full text-sm">

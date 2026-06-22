@@ -12,8 +12,11 @@ interface Row {
   total: string;
 }
 
-// Installs by buyer state (from userProperties.state), split into Paid (Meta) vs
-// the rest. First sessions only, test excluded. ~1/3 of installs have no state.
+// Installs by buyer state, split into Paid (Meta) vs the rest. First sessions
+// only, test excluded. State is resolved with a fallback chain to shrink the
+// "(unknown)" bucket: install-time userProperties.state → the buyer's current
+// profile state (users.buyer.state) → pincode→state (master.pincode, deduped),
+// using the buyer's pincode or the install-time pincode.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const campaign = searchParams.get('campaign') || '';
@@ -25,13 +28,23 @@ export async function GET(req: NextRequest) {
       const { clause } = dateClause('created_at', dp, params);
       const camp = campaignClause(campaign, params);
       const sql = `
-        SELECT COALESCE(NULLIF("userProperties"->>'state', ''), '(unknown)')          AS state,
+        SELECT COALESCE(NULLIF(s.us_state, ''), NULLIF(b."state", ''), mp."state", '(unknown)') AS state,
                COUNT(*) FILTER (WHERE ${IS_PAID})::text AS paid,
-               COUNT(*)::text                                                          AS total
-        FROM history.session
-        WHERE ${COHORT_WHERE}
-          ${clause}
-          ${camp}
+               COUNT(*)::text                                                                   AS total
+        FROM (
+          SELECT "buyerId",
+                 "userProperties"->>'state'                          AS us_state,
+                 NULLIF(trim("userProperties"->>'pincode'), '')      AS us_pin,
+                 "installReferrer",
+                 "additionalDetails"
+          FROM history.session
+          WHERE ${COHORT_WHERE}
+            ${clause}
+            ${camp}
+        ) s
+        LEFT JOIN users.buyer b ON b."id" = s."buyerId"
+        LEFT JOIN (SELECT DISTINCT ON ("pincode") "pincode", "state" FROM master."pincode") mp
+          ON mp."pincode" = COALESCE(NULLIF(trim(b."pincode"), ''), s.us_pin)
         GROUP BY 1
         ORDER BY COUNT(*) DESC
         LIMIT 40;

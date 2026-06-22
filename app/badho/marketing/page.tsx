@@ -237,7 +237,6 @@ export default function MarketingDashboard() {
   const [granularity, setGranularity] = useState<Granularity>('day');
   const [convBy, setConvBy] = useState<'channel' | 'campaign' | 'adgroup'>('channel');
   const [geoView, setGeoView] = useState<'map' | 'chart'>('chart');
-  const [showEff, setShowEff] = useState(false);
   const [showSessions, setShowSessions] = useState(false);
   const [campaign, setCampaign] = useState('');
   const dateQ = dateQuery(date);
@@ -268,7 +267,7 @@ export default function MarketingDashboard() {
   const conv = useApi<ConvResp>(`/api/marketing/conversion?${dateQ}&by=${convBy}${campQ}`, authChecked && tab === 'conversion');
   const convCamp = useApi<ConvResp>(`/api/marketing/conversion?${dateQ}&by=campaign${campQ}`, authChecked && tab === 'spend');
   const geo = useApi<{ data: GeoRow[]; total: number }>(`/api/marketing/geography?${dateQ}${campQ}`, authChecked && tab === 'geography');
-  const geoEff = useApi<{ data: GeoEffRow[]; underspent: string[]; overmarketed: string[]; medPaid: number; medYield: number }>(`/api/marketing/geo-efficiency?${dateQ}${campQ}`, authChecked && tab === 'geography' && showEff);
+  const geoEff = useApi<{ data: GeoEffRow[]; underspent: string[]; overmarketed: string[]; medPaid: number; medYield: number }>(`/api/marketing/geo-efficiency?${dateQ}${campQ}`, authChecked && tab === 'geography');
   const whatsapp = useApi<{ data: WaRow[]; total: number }>(`/api/marketing/whatsapp-campaigns?${dateQ}`, authChecked && tab === 'whatsapp');
   const spend = useApi<{ configured: boolean; message?: string; data?: SpendRow[]; totalSpend?: number; currency?: string; error?: string }>(`/api/marketing/spend?${dateQ}`, authChecked && tab === 'spend');
   const sessionSrc = useApi<{ data: SessSrcRow[]; totalSessions: number; totalBuyers: number }>(`/api/marketing/session-source?${dateQ}`, authChecked && tab === 'sessions' && showSessions);
@@ -731,12 +730,7 @@ export default function MarketingDashboard() {
 
           <Panel title="Marketing Efficiency by State" desc="Where paid marketing is low but orders are high (organic strongholds / underspent) vs over-marketed zones. Ranked by ordering buyers per 100 paid installs."
             sql={geoEff.data?.sql} csv={{ filename: csvName('geo-efficiency'), rows: () => geoEff.data?.data ?? [] }}>
-            {!showEff ? (
-              <div className="py-10 flex flex-col items-center gap-3 text-center">
-                <p className="text-sm text-purple-300/70 max-w-md">This joins every acquired buyer to their orders, so it&apos;s heavier than the other panels (a few seconds). Load it when you need it.</p>
-                <button onClick={() => setShowEff(true)} className="px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-[0_0_18px_rgba(217,70,239,0.45)] hover:opacity-90 transition-opacity">▶ Load efficiency insight</button>
-              </div>
-            ) : geoEff.loading ? <State kind="loading" msg="Crunching state-wise orders (joins orders, ~a few seconds)…" /> : geoEff.error ? <State kind="error" msg={geoEff.error} /> : !geoEff.data || geoEff.data.data.length === 0 ? <State kind="empty" msg="No data (need matured installs — try a 30D+ window)." /> : (
+            {geoEff.loading ? <State kind="loading" msg="Crunching state-wise orders (joins orders, ~a few seconds)…" /> : geoEff.error ? <State kind="error" msg={geoEff.error} /> : !geoEff.data || geoEff.data.data.length === 0 ? <State kind="empty" msg="No data (need matured installs — try a 30D+ window)." /> : (
               <>
                 {(geoEff.data.underspent.length > 0 || geoEff.data.overmarketed.length > 0) && (
                   <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm flex flex-col gap-1.5">

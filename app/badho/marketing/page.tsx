@@ -262,6 +262,7 @@ export default function MarketingDashboard() {
   const signup = useApi<{ channels: SignupChannel[]; objectives: ObjRow[]; objectivesTotal: number }>(`/api/marketing/signup-funnel?${dateQ}`, authChecked && (tab === 'acquisition' || tab === 'campaigns'));
   const detail = useApi<{ platforms: DetailRow[]; platformsTotal: number; entryPoints: DetailRow[]; entryTotal: number }>(`/api/marketing/attribution-detail?${dateQ}`, authChecked && tab === 'acquisition');
   const mom = useApi<{ thisMtd: number; lastMtd: number; spanDays: number; thisLabel: string; lastLabel: string; pct: number | null }>(`/api/marketing/mom?${campQ.replace(/^&/, '')}`, authChecked && tab === 'acquisition');
+  const otp = useApi<{ requested: number; verified: number; phonesRequested: number; phonesVerified: number; phoneVerifyPct: number; txnVerifyPct: number; attemptsPerPhone: number; trend: { day: string; requested: number; verified: number }[] }>(`/api/marketing/otp-funnel?${dateQ}`, authChecked && tab === 'acquisition');
   const campaigns = useApi<{ data: CampaignRow[]; total: number }>(`/api/marketing/campaigns?${dateQ}${campQ}`, authChecked && (tab === 'campaigns' || tab === 'spend'));
   const creatives = useApi<{ data: CreativeRow[]; total: number }>(`/api/marketing/creatives?${dateQ}${campQ}`, authChecked && tab === 'campaigns');
   const conv = useApi<ConvResp>(`/api/marketing/conversion?${dateQ}&by=${convBy}${campQ}`, authChecked && tab === 'conversion');
@@ -434,6 +435,31 @@ export default function MarketingDashboard() {
                 )}
               </div>
             )}
+
+            <Panel title="OTP Verification Funnel" desc="Login-OTP funnel on the buyer app: of unique phones that requested an OTP, how many verified. (Per-OTP rate is lower only because users resend OTPs.)"
+              sql={otp.data?.sql} csv={{ filename: csvName('otp-funnel'), rows: () => otp.data ? [{ requested_phones: otp.data.phonesRequested, verified_phones: otp.data.phonesVerified, verify_pct: otp.data.phoneVerifyPct.toFixed(1), otp_sends: otp.data.requested, sends_per_phone: otp.data.attemptsPerPhone.toFixed(2) }] : [] }}>
+              {otp.loading ? <State kind="loading" msg="Loading OTP funnel…" /> : otp.error ? <State kind="error" msg={otp.error} /> : !otp.data ? <State kind="empty" msg="No data." /> : (
+                <>
+                  <div className="space-y-3 mb-4">
+                    {[
+                      { label: 'Requested OTP', n: otp.data.phonesRequested, pct: 100 },
+                      { label: 'Verified OTP', n: otp.data.phonesVerified, pct: otp.data.phoneVerifyPct },
+                    ].map((s) => (
+                      <div key={s.label} className="flex items-center gap-3">
+                        <div className="w-32 shrink-0 text-sm text-purple-100 font-medium">{s.label}</div>
+                        <div className="flex-1 h-8 rounded-lg bg-white/5 overflow-hidden"><div className="h-full rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center px-3 text-xs font-bold text-white" style={{ width: `${Math.max(s.pct, 3)}%` }}>{s.pct >= 8 ? fmtInt(s.n) : ''}</div></div>
+                        <div className="w-44 shrink-0 text-sm tabular-nums"><span className="text-white font-semibold">{fmtInt(s.n)}</span> <span className="text-purple-300/60 text-xs">phones</span></div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    <span className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 font-semibold">Verify rate {otp.data.phoneVerifyPct.toFixed(1)}%</span>
+                    <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-purple-200">{otp.data.attemptsPerPhone.toFixed(1)} OTP sends / phone</span>
+                    <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-purple-200">{fmtInt(otp.data.requested)} OTPs sent · {otp.data.txnVerifyPct.toFixed(0)}% per-OTP</span>
+                  </div>
+                </>
+              )}
+            </Panel>
 
             <Panel title="Installs Trend" desc={`New buyer installs per ${granularity}.`}
               sql={trend.data?.sql} csv={{ filename: csvName('installs-trend'), rows: () => trend.data?.data ?? [] }}

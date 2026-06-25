@@ -87,11 +87,11 @@ const DASHBOARDS: DashboardEntry[] = [
   },
   {
     slug: 'drop-funnel',
-    title: 'Drop Funnel',
+    title: 'Buyer Funnel',
     description:
-      'Buyer drop-off funnel across app open → product view → cart → checkout → order placed, with stage-wise conversion and drop-off rates.',
+      'Buyer-app acquisition → engagement → order funnel: OTP success, home → ATC → cart → MOV → address → order conversions, new vs returning, DAU → orders, and seller page views.',
     icon: '🪜',
-    status: 'coming-soon',
+    status: 'live',
   },
   {
     slug: 'calling-team',

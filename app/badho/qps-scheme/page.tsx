@@ -668,7 +668,7 @@ function GiftUpdateTab() {
           >
             {schemes.map((s) => (
               <option key={s.id} value={s.id} className="bg-slate-900">
-                {s.name} · {s.period_type}
+                {s.name} · {s.period_type}{s.period_start ? ` · ${gDate(s.period_start)}–${gDate(s.period_end)}` : ''}
               </option>
             ))}
           </select>

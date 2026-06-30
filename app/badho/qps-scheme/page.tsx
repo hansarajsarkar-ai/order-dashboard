@@ -388,6 +388,18 @@ function getAvailableMonths(): { value: string; label: string }[] {
 
 const AVAILABLE_MONTHS = getAvailableMonths();
 
+// Default month for month-scoped views (Qualified Detail, Insights). The scheme's
+// analytics are retrospective and the in-progress current month has little/no data
+// (e.g. empty on the 1st), so default to the most recent COMPLETED month, clamped to
+// the scheme start (Mar 2026). Users can still pick the current month from the dropdown.
+function getDefaultMonthIso(): string {
+  const now = new Date();
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const start = new Date(2026, 2, 1);
+  const d = prev < start ? start : prev;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
 const GIFT_ICON: Record<string, string> = {
   'Airfryer/Mixer (Worth 3000)': '🍳',
   'CCTV/Iron (Worth 2000)': '📷',
@@ -509,7 +521,7 @@ function KpiCard({ label, value, sub, tone }: { label: string; value: React.Reac
 }
 
 function InsightsTab({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
-  const currentMonthIso = AVAILABLE_MONTHS[0]?.value ?? '2026-06-01';
+  const currentMonthIso = getDefaultMonthIso();
   const [rto, setRto] = React.useState<RtoTrendRow[]>([]);
   const [retention, setRetention] = React.useState<RetentionRow[]>([]);
   const [detail, setDetail] = React.useState<DetailRow[]>([]);
@@ -1073,7 +1085,7 @@ export default function QpsSchemePage() {
   const [trendExpanded, setTrendExpanded] = useState(false);
 
   // Detail tab state
-  const defaultMonth = AVAILABLE_MONTHS[0]?.value ?? '2026-06-01';
+  const defaultMonth = getDefaultMonthIso();
   const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
   const [phoneFilter, setPhoneFilter] = useState('');
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);

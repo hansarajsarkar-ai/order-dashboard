@@ -102,7 +102,7 @@ interface BuyerOrderRow {
   cod_collect: string;
 }
 
-type Tab = 'overview' | 'alerts' | 'detail' | 'insights';
+type Tab = 'overview' | 'alerts' | 'detail' | 'insights' | 'gift-update';
 type SqlQuery = { sql: string; params?: unknown[] };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -516,6 +516,297 @@ function KpiCard({ label, value, sub, tone }: { label: string; value: React.Reac
       <div className="text-[11px] uppercase tracking-wide text-purple-300/60">{label}</div>
       <div className={`text-2xl font-black ${valueCls}`}>{value}</div>
       {sub && <div className="text-xs text-purple-300/55 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+// ── Gift Update tab ───────────────────────────────────────────────────────────
+// DB-backed QPS gift-scheme report (see /api/qps-gift-update — the auto-refreshing
+// promotions."qpsBuyerReport" VIEW). Pick a scheme → see every buyer's
+// qualification, the unlocked gift + next level, calling status and gift dispatch.
+// This replaces the manual Excel tracking; the report stays current on its own.
+
+interface GiftScheme {
+  id: string; name: string; period_type: string;
+  period_start: string | null; period_end: string | null; status: string;
+  buyers: string; qualified: string; resolved: string; finalized: string;
+}
+interface GiftLevel {
+  scheme_id: string; level_number: string; qualifying_amount: string;
+  gift_name: string; gift_amount: string;
+}
+interface GiftRow {
+  scheme_id: string; scheme_name: string; period_type: string;
+  period_start: string | null; period_end: string | null;
+  buyer_id: string; business_name: string | null; buyer_name: string | null; buyer_address: string | null;
+  placed: string; delivered: string; rto: string; other_terminal: string; in_transit: string;
+  resolved: string; current_level: string; current_gift: string | null; gift_amount: string;
+  next_level: string | null; next_gift: string | null; amount_to_next: string | null;
+  calling_status: string | null; remarks: string | null; amazon_order_id: string | null;
+  delivery_eta: string | null; delivery_status: string | null; finalized: string;
+}
+
+const SCHEME_STATUS_TONE: Record<string, string> = {
+  DRAFT: 'bg-slate-500/20 text-slate-200 border-slate-400/30',
+  ACTIVE: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30',
+  EVALUATING: 'bg-amber-500/20 text-amber-200 border-amber-400/30',
+  CLOSED: 'bg-purple-500/20 text-purple-200 border-purple-400/30',
+};
+const CALLING_TONE: Record<string, string> = {
+  PENDING: 'bg-slate-500/20 text-slate-200',
+  ATTEMPTED: 'bg-amber-500/20 text-amber-200',
+  CONNECTED: 'bg-sky-500/20 text-sky-200',
+  CONFIRMED: 'bg-emerald-500/20 text-emerald-200',
+  NOT_INTERESTED: 'bg-rose-500/20 text-rose-200',
+  INVALID_NUMBER: 'bg-rose-500/20 text-rose-200',
+};
+const DISPATCH_TONE: Record<string, string> = {
+  NOT_ORDERED: 'bg-slate-500/20 text-slate-200',
+  ORDERED: 'bg-sky-500/20 text-sky-200',
+  IN_TRANSIT: 'bg-amber-500/20 text-amber-200',
+  OUT_FOR_DELIVERY: 'bg-amber-500/20 text-amber-200',
+  DELIVERED: 'bg-emerald-500/20 text-emerald-200',
+  RTO: 'bg-rose-500/20 text-rose-200',
+  CANCELLED: 'bg-rose-500/20 text-rose-200',
+};
+
+function StatusChip({ value, tones }: { value: string | null; tones: Record<string, string> }) {
+  if (!value) return <span className="text-purple-300/40">—</span>;
+  const cls = tones[value] ?? 'bg-white/10 text-purple-200';
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${cls}`}>
+      {value.replace(/_/g, ' ')}
+    </span>
+  );
+}
+
+const gBool = (v: string | null | undefined) => v === 't' || v === 'true' || v === 'TRUE';
+const gNum = (v: string | null | undefined) => Number(v ?? 0) || 0;
+const gDate = (iso: string | null) =>
+  iso ? new Date(iso.substring(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—';
+
+function GiftUpdateTab() {
+  const [schemes, setSchemes] = React.useState<GiftScheme[]>([]);
+  const [levels, setLevels] = React.useState<GiftLevel[]>([]);
+  const [rows, setRows] = React.useState<GiftRow[]>([]);
+  const [schemeId, setSchemeId] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState('');
+  const [callFilter, setCallFilter] = React.useState('ALL');
+  const [finalFilter, setFinalFilter] = React.useState('ALL'); // ALL | FINAL | PENDING
+
+  const load = React.useCallback((sid: string) => {
+    setLoading(true); setError(null);
+    fetch(`/api/qps-gift-update${sid ? `?schemeId=${encodeURIComponent(sid)}` : ''}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) throw new Error(d.error);
+        setSchemes(d.schemes ?? []);
+        setLevels(d.levels ?? []);
+        setRows(d.rows ?? []);
+        setSchemeId(d.schemeId ?? '');
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  React.useEffect(() => { load(''); }, [load]);
+
+  if (loading) return <div className="text-purple-300 text-sm text-center py-20 animate-pulse">Loading gift schemes…</div>;
+  if (error) return <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>;
+
+  // No schemes have been created yet — the DB structure is ready but empty.
+  if (schemes.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div><InsightPill>Gift Update</InsightPill></div>
+        <div className="rounded-2xl border border-fuchsia-400/20 bg-white/[0.03] px-6 py-12 text-center">
+          <div className="text-4xl mb-3">🎁</div>
+          <div className="text-white font-semibold text-lg">No QPS gift schemes yet</div>
+          <div className="text-purple-300/70 text-sm mt-2 max-w-xl mx-auto">
+            The database report (<code className="text-fuchsia-300">promotions.qpsBuyerReport</code>) is live and refreshes on its own.
+            Once a scheme is created and activated, every qualifying buyer — their gift level, calling status and gift dispatch —
+            appears here automatically. No more Excel.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const scheme = schemes.find((s) => s.id === schemeId) ?? schemes[0];
+  const schemeLevels = levels.filter((l) => l.scheme_id === scheme.id).sort((a, b) => gNum(a.level_number) - gNum(b.level_number));
+
+  const filtered = rows.filter((r) => {
+    if (search && !(`${r.business_name || ''} ${r.buyer_name || ''}`.toLowerCase().includes(search.toLowerCase()))) return false;
+    if (callFilter !== 'ALL' && (r.calling_status || 'PENDING') !== callFilter) return false;
+    if (finalFilter === 'FINAL' && !gBool(r.finalized)) return false;
+    if (finalFilter === 'PENDING' && gBool(r.finalized)) return false;
+    return true;
+  });
+
+  const qualified = rows.filter((r) => gNum(r.current_level) > 0).length;
+  const resolved = rows.filter((r) => gBool(r.resolved)).length;
+  const finalized = rows.filter((r) => gBool(r.finalized)).length;
+  const giftCost = rows.filter((r) => gBool(r.finalized)).reduce((s, r) => s + gNum(r.gift_amount), 0);
+  const callsPending = rows.filter((r) => !r.calling_status || r.calling_status === 'PENDING').length;
+
+  const periodLabel = scheme.period_start && scheme.period_end
+    ? `${gDate(scheme.period_start)} – ${gDate(scheme.period_end)}`
+    : '—';
+
+  return (
+    <div className="space-y-6">
+      {/* Header: scheme picker + status */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <InsightPill>Gift Update</InsightPill>
+          <select
+            value={scheme.id}
+            onChange={(e) => load(e.target.value)}
+            className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-fuchsia-400/50"
+          >
+            {schemes.map((s) => (
+              <option key={s.id} value={s.id} className="bg-slate-900">
+                {s.name} · {s.period_type}
+              </option>
+            ))}
+          </select>
+          <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide border ${SCHEME_STATUS_TONE[scheme.status] ?? 'bg-white/10 text-purple-200 border-white/20'}`}>
+            {scheme.status}
+          </span>
+          <span className="text-xs text-purple-300/55">{periodLabel}</span>
+        </div>
+      </div>
+      <div className="text-xs text-purple-300/55">
+        Live from <span className="text-fuchsia-300 font-mono">promotions.qpsBuyerReport</span> · gift level is driven by <em>delivered</em> business; buyers finalize once every order is resolved.
+      </div>
+
+      {/* Scheme levels */}
+      {schemeLevels.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {schemeLevels.map((l) => (
+            <div key={l.scheme_id + l.level_number} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs">
+              <span className="font-bold text-fuchsia-200">L{l.level_number}</span>
+              <span className="text-purple-300/70"> · ≥ ₹{fmtAmt(l.qualifying_amount)} → </span>
+              <span className="text-white font-medium">{l.gift_name}</span>
+              {gNum(l.gift_amount) > 0 && <span className="text-purple-300/50"> (₹{fmtAmt(l.gift_amount)})</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Summary KPIs */}
+      <div className="flex flex-wrap gap-3">
+        <KpiCard label="Buyers" value={fmt(rows.length)} sub="in this scheme" />
+        <KpiCard label="Qualified" value={fmt(qualified)} tone="good" sub="reached a gift level" />
+        <KpiCard label="Fully Resolved" value={fmt(resolved)} sub="ready to finalize" />
+        <KpiCard label="Finalized" value={fmt(finalized)} tone="good" sub="gift locked" />
+        <KpiCard label="Gift Cost" value={`₹${fmtAmt(giftCost)}`} sub="finalized gifts" />
+        <KpiCard label="Calls Pending" value={fmt(callsPending)} tone={callsPending > 0 ? 'bad' : 'neutral'} sub="not yet called" />
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search business / buyer…"
+          className="bg-white/5 border border-white/15 rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-purple-300/40 focus:outline-none focus:border-fuchsia-400/50 w-56"
+        />
+        <select value={callFilter} onChange={(e) => setCallFilter(e.target.value)} className="bg-white/5 border border-white/15 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-fuchsia-400/50">
+          <option value="ALL" className="bg-slate-900">All calling statuses</option>
+          {Object.keys(CALLING_TONE).map((k) => <option key={k} value={k} className="bg-slate-900">{k.replace(/_/g, ' ')}</option>)}
+        </select>
+        <select value={finalFilter} onChange={(e) => setFinalFilter(e.target.value)} className="bg-white/5 border border-white/15 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-fuchsia-400/50">
+          <option value="ALL" className="bg-slate-900">All buyers</option>
+          <option value="FINAL" className="bg-slate-900">Finalized only</option>
+          <option value="PENDING" className="bg-slate-900">Not finalized</option>
+        </select>
+        <span className="text-xs text-purple-300/50">{filtered.length} of {rows.length}</span>
+      </div>
+
+      {/* Buyer report table */}
+      {rows.length === 0 ? (
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-10 text-center text-sm text-purple-300/70">
+          No buyers have qualified in this scheme yet. The report fills in automatically as orders are placed and delivered.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-white/10">
+          <table className="w-full text-xs border-collapse min-w-[1100px]">
+            <thead>
+              <tr className="text-white font-bold bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50 border-b-2 border-fuchsia-400/40 text-left">
+                <th className="py-2 px-3 font-medium">Buyer</th>
+                <th className="py-2 px-3 font-medium">Address</th>
+                <th className="py-2 px-3 font-medium text-right">Placed ₹</th>
+                <th className="py-2 px-3 font-medium text-right text-emerald-300/80">Delivered ₹</th>
+                <th className="py-2 px-3 font-medium text-center">RTO / Transit / Other</th>
+                <th className="py-2 px-3 font-medium text-center">Resolved</th>
+                <th className="py-2 px-3 font-medium">Current Gift</th>
+                <th className="py-2 px-3 font-medium">Next Level</th>
+                <th className="py-2 px-3 font-medium text-center">Calling</th>
+                <th className="py-2 px-3 font-medium">Gift Dispatch</th>
+                <th className="py-2 px-3 font-medium text-center">Finalized</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.buyer_id} className="border-b border-white/5 even:bg-white/[0.025] hover:bg-fuchsia-500/5">
+                  <td className="py-2 px-3 align-top">
+                    <div className="text-white font-medium">{r.business_name || '—'}</div>
+                    <div className="text-purple-300/55">{r.buyer_name || ''}</div>
+                  </td>
+                  <td className="py-2 px-3 align-top max-w-[200px]">
+                    <div className="text-purple-300/70 truncate" title={r.buyer_address || ''}>{r.buyer_address || '—'}</div>
+                  </td>
+                  <td className="py-2 px-3 align-top text-right text-purple-200/90 whitespace-nowrap">₹{fmtAmt(r.placed)}</td>
+                  <td className="py-2 px-3 align-top text-right text-emerald-300 font-semibold whitespace-nowrap">₹{fmtAmt(r.delivered)}</td>
+                  <td className="py-2 px-3 align-top text-center whitespace-nowrap text-[11px]">
+                    <span className="text-rose-300/80">₹{fmtAmt(r.rto)}</span>
+                    <span className="text-purple-300/30"> · </span>
+                    <span className="text-amber-300/80">₹{fmtAmt(r.in_transit)}</span>
+                    <span className="text-purple-300/30"> · </span>
+                    <span className="text-purple-300/60">₹{fmtAmt(r.other_terminal)}</span>
+                  </td>
+                  <td className="py-2 px-3 align-top text-center">
+                    {gBool(r.resolved)
+                      ? <span className="text-emerald-300" title="All orders reached a final state">✓</span>
+                      : <span className="text-amber-300/70" title="Some orders still in transit">…</span>}
+                  </td>
+                  <td className="py-2 px-3 align-top">
+                    {gNum(r.current_level) > 0 ? (
+                      <div>
+                        <span className="text-fuchsia-200 font-bold">L{r.current_level}</span>
+                        <span className="text-white"> {r.current_gift || ''}</span>
+                        {gNum(r.gift_amount) > 0 && <div className="text-purple-300/50 text-[10px]">₹{fmtAmt(r.gift_amount)}</div>}
+                      </div>
+                    ) : <span className="text-purple-300/40">—</span>}
+                  </td>
+                  <td className="py-2 px-3 align-top">
+                    {r.next_gift ? (
+                      <div>
+                        <span className="text-purple-200/90">L{r.next_level} {r.next_gift}</span>
+                        <div className="text-amber-300/70 text-[10px]">₹{fmtAmt(gNum(r.amount_to_next))} to go</div>
+                      </div>
+                    ) : <span className="text-emerald-300/70" title="At the top level">top ✓</span>}
+                  </td>
+                  <td className="py-2 px-3 align-top text-center"><StatusChip value={r.calling_status || 'PENDING'} tones={CALLING_TONE} /></td>
+                  <td className="py-2 px-3 align-top">
+                    <StatusChip value={r.delivery_status || 'NOT_ORDERED'} tones={DISPATCH_TONE} />
+                    {r.amazon_order_id && <div className="text-purple-300/50 text-[10px] font-mono mt-0.5">{r.amazon_order_id}</div>}
+                    {r.delivery_eta && <div className="text-purple-300/45 text-[10px]">ETA {gDate(r.delivery_eta)}</div>}
+                  </td>
+                  <td className="py-2 px-3 align-top text-center">
+                    {gBool(r.finalized)
+                      ? <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-200">LOCKED</span>
+                      : <span className="text-purple-300/40">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -1277,6 +1568,7 @@ export default function QpsSchemePage() {
     { key: 'overview', label: 'Overview' },
     { key: 'detail', label: 'Qualified Detail' },
     { key: 'insights', label: 'Insights' },
+    { key: 'gift-update', label: 'Gift Update' },
     { key: 'alerts', label: 'Alerts' },
   ];
 
@@ -1392,7 +1684,7 @@ export default function QpsSchemePage() {
           </div>
         )}
 
-        {loading && tab !== 'detail' && tab !== 'insights' && (
+        {loading && tab !== 'detail' && tab !== 'insights' && tab !== 'gift-update' && (
           <div className="flex items-center justify-center py-24">
             <div className="text-purple-300 text-sm animate-pulse">Loading QPS data…</div>
           </div>
@@ -2260,6 +2552,11 @@ export default function QpsSchemePage() {
         {/* ── INSIGHTS TAB ─────────────────────────────────────────────────── */}
         {tab === 'insights' && (
           <InsightsTab onDrill={setDrillConfig} />
+        )}
+
+        {/* ── GIFT UPDATE TAB ──────────────────────────────────────────────── */}
+        {tab === 'gift-update' && (
+          <GiftUpdateTab />
         )}
       </div>
     </div>

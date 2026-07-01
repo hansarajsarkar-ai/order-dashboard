@@ -59,6 +59,8 @@ interface ReportRow {
   delivery_eta: string | null;
   delivery_status: string | null;
   finalized: string; // 't' / 'f'
+  last_edited_by: string | null;
+  last_edited_at: string | null;
 }
 
 async function _GET(req: NextRequest) {
@@ -136,10 +138,19 @@ async function _GET(req: NextRequest) {
           "amazonOrderId"       AS amazon_order_id,
           "deliveryETA"         AS delivery_eta,
           "deliveryStatus"      AS delivery_status,
-          "isFinalized"         AS finalized
-        FROM promotions."qpsBuyerReport"
-        WHERE "schemeId" = $1
-        ORDER BY "deliveredAmount" DESC NULLS LAST
+          "isFinalized"         AS finalized,
+          le."editedBy"         AS last_edited_by,
+          le."editedAt"         AS last_edited_at
+        FROM promotions."qpsBuyerReport" rep
+        LEFT JOIN LATERAL (
+          SELECT g."editedBy", g."editedAt"
+          FROM promotions."qpsGiftEditLog" g
+          WHERE g."schemeId" = rep."schemeId" AND g."buyerId" = rep."buyerId"
+          ORDER BY g."editedAt" DESC
+          LIMIT 1
+        ) le ON true
+        WHERE rep."schemeId" = $1
+        ORDER BY rep."deliveredAmount" DESC NULLS LAST
       `, [selectedId]);
     }
 

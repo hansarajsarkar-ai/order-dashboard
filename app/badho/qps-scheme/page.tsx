@@ -547,10 +547,15 @@ interface GiftRow {
   next_level: string | null; next_gift: string | null; amount_to_next: string | null;
   calling_status: string | null; remarks: string | null; amazon_order_id: string | null;
   delivery_eta: string | null; delivery_status: string | null; finalized: string;
+  last_edited_by: string | null; last_edited_at: string | null;
 }
 interface GiftDraft {
   callingStatus: string; giftDeliveryStatus: string; amazonOrderId: string;
   deliveryEta: string; remarks: string; isFinalized: boolean;
+}
+interface GiftLogRow {
+  edited_by: string | null; edited_by_id: string | null; edited_at: string;
+  changes: { callingStatus?: string; giftDeliveryStatus?: string; amazonOrderId?: string | null; deliveryEta?: string | null; remarks?: string | null; isFinalized?: boolean } | null;
 }
 
 const SCHEME_STATUS_TONE: Record<string, string> = {
@@ -710,7 +715,12 @@ function GiftUpdateTab() {
       const res = await fetch('/api/qps-gift-update/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schemeId: r.scheme_id, buyerId: r.buyer_id, ...draft }),
+        body: JSON.stringify({
+          schemeId: r.scheme_id, buyerId: r.buyer_id, ...draft,
+          // Fallback identity for deployments without the qps_session cookie.
+          editedBy: typeof localStorage !== 'undefined' ? localStorage.getItem('employeeName') : null,
+          editedByEmail: typeof localStorage !== 'undefined' ? localStorage.getItem('employeeEmail') : null,
+        }),
       });
       const d = await res.json();
       if (!res.ok || d.error) throw new Error(d.error || `HTTP ${res.status}`);
@@ -721,6 +731,19 @@ function GiftUpdateTab() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Per-buyer edit history (audit log).
+  const [historyFor, setHistoryFor] = React.useState<string | null>(null);
+  const [historyRows, setHistoryRows] = React.useState<GiftLogRow[]>([]);
+  const [historyLoading, setHistoryLoading] = React.useState(false);
+  const openHistory = (r: GiftRow) => {
+    if (historyFor === r.buyer_id) { setHistoryFor(null); return; }
+    setHistoryFor(r.buyer_id); setHistoryRows([]); setHistoryLoading(true);
+    fetch(`/api/qps-gift-update/history?schemeId=${encodeURIComponent(r.scheme_id)}&buyerId=${encodeURIComponent(r.buyer_id)}`)
+      .then((res) => res.json())
+      .then((d) => setHistoryRows(d.rows ?? []))
+      .finally(() => setHistoryLoading(false));
   };
 
   if (loading) return <div className="text-purple-300 text-sm text-center py-20 animate-pulse">Loading gift schemes…</div>;
@@ -995,6 +1018,14 @@ function GiftUpdateTab() {
                     >
                       {editing === r.buyer_id ? 'Close' : '✎ Edit'}
                     </button>
+                    {r.last_edited_by && (
+                      <div className="text-[9px] text-purple-300/50 mt-1 whitespace-nowrap" title={r.last_edited_at ? new Date(r.last_edited_at).toLocaleString('en-IN') : ''}>
+                        by {r.last_edited_by}
+                      </div>
+                    )}
+                    <button onClick={() => openHistory(r)} className="text-[9px] text-fuchsia-300/70 hover:text-fuchsia-200 mt-0.5 underline decoration-dotted">
+                      {historyFor === r.buyer_id ? 'hide' : 'history'}
+                    </button>
                   </td>
                 </tr>
                 {editing === r.buyer_id && draft && (
@@ -1035,6 +1066,39 @@ function GiftUpdateTab() {
                         </div>
                         {saveErr && <div className="text-rose-300 text-xs w-full">⚠ {saveErr}</div>}
                       </div>
+                    </td>
+                  </tr>
+                )}
+                {historyFor === r.buyer_id && (
+                  <tr className="bg-slate-900/40 border-b border-white/10">
+                    <td colSpan={12} className="px-4 py-3">
+                      <div className="text-xs font-semibold text-purple-200 mb-2">Edit history — {r.business_name || r.buyer_id}</div>
+                      {historyLoading ? (
+                        <div className="text-purple-300/50 text-xs">Loading…</div>
+                      ) : historyRows.length === 0 ? (
+                        <div className="text-purple-300/50 text-xs">No edits recorded yet.</div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {historyRows.map((h, i) => (
+                            <div key={i} className="flex items-start gap-2 text-[11px]">
+                              <span className="text-purple-300/45 whitespace-nowrap w-28 shrink-0">
+                                {new Date(h.edited_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <span className="text-fuchsia-200 font-medium whitespace-nowrap w-32 shrink-0 truncate" title={h.edited_by || ''}>{h.edited_by || '—'}</span>
+                              <span className="text-purple-300/70">
+                                {h.changes ? [
+                                  h.changes.callingStatus && `call: ${h.changes.callingStatus.replace(/_/g, ' ')}`,
+                                  h.changes.giftDeliveryStatus && `dispatch: ${h.changes.giftDeliveryStatus.replace(/_/g, ' ')}`,
+                                  h.changes.amazonOrderId && `amazon: ${h.changes.amazonOrderId}`,
+                                  h.changes.deliveryEta && `ETA: ${h.changes.deliveryEta}`,
+                                  h.changes.isFinalized && 'finalized',
+                                  h.changes.remarks && `“${h.changes.remarks}”`,
+                                ].filter(Boolean).join(' · ') : ''}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )}

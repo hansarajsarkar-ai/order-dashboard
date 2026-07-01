@@ -34,6 +34,21 @@ export async function POST(req: NextRequest) {
     const deliveryEta = b.deliveryEta && /^\d{4}-\d{2}-\d{2}$/.test(b.deliveryEta) ? String(b.deliveryEta) : null;
     const isFinalized = b.isFinalized === true || b.isFinalized === 'true';
 
+    // Editor identity for the audit log. Prefer the server-side session cookie
+    // (l748 employee auth: payload is base64url JSON {sub,name,via}); fall back to
+    // client-supplied values so it also works on the Clerk-based deployment.
+    let editedBy: string | null = b.editedBy ? String(b.editedBy).slice(0, 200) : null;
+    let editedById: string | null = b.editedByEmail ? String(b.editedByEmail).slice(0, 200) : null;
+    const cookie = req.cookies.get('qps_session')?.value;
+    if (cookie) {
+      try {
+        const payload = cookie.split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
+        const p = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
+        editedBy = p.name || p.via || editedBy;
+        editedById = p.sub || editedById;
+      } catch { /* keep client fallback */ }
+    }
+
     // Upsert on the (schemeId, buyerId) unique key. When finalizing, lock the
     // level the buyer's DELIVERED business currently clears, and stamp finalizedAt
     // once (never re-stamp an already-finalized buyer).
@@ -73,7 +88,15 @@ export async function POST(req: NextRequest) {
       [schemeId, buyerId, callingStatus, remarks, amazonOrderId, deliveryEta, giftDeliveryStatus, isFinalized]
     );
 
-    return NextResponse.json({ ok: true });
+    // Audit log — one row per save, capturing who/when/what.
+    const changes = { callingStatus, giftDeliveryStatus, amazonOrderId, deliveryEta, remarks, isFinalized };
+    await query(
+      `INSERT INTO promotions."qpsGiftEditLog" (id, "schemeId", "buyerId", "editedBy", "editedById", changes)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5::jsonb)`,
+      [schemeId, buyerId, editedBy, editedById, JSON.stringify(changes)]
+    );
+
+    return NextResponse.json({ ok: true, editedBy });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

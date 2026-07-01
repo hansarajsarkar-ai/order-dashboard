@@ -167,6 +167,9 @@ const DASHBOARDS: DashboardEntry[] = [
       'Marketing analytics — campaign performance, acquisition, engagement and spend metrics across channels and time.',
     icon: '📣',
     status: 'live',
+    // Open in a new browser tab (via the target="_blank" anchor branch) instead of
+    // replacing the dashboards index in the current tab.
+    href: '/badho/marketing',
   },
   // Add new dashboards here. Each one is a folder under app/badho/<slug>/.
 ];

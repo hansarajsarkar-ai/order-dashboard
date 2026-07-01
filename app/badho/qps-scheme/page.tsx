@@ -636,7 +636,9 @@ function StatusChip({ value, tones }: { value: string | null; tones: Record<stri
   );
 }
 
-const gBool = (v: string | null | undefined) => v === 't' || v === 'true' || v === 'TRUE';
+// Accepts both Hasura run_sql text ('t'/'true') and pg native booleans (true),
+// so the tab works whether the deployment uses run_sql or direct Postgres.
+const gBool = (v: unknown) => v === true || v === 't' || v === 'true' || v === 'TRUE';
 const gNum = (v: string | null | undefined) => Number(v ?? 0) || 0;
 const gDate = (iso: string | null) =>
   iso ? new Date(iso.substring(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—';

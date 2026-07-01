@@ -33,23 +33,44 @@ export const IS_PAID_STRING = `(
   OR "installReferrer" #>> '{}' ~ 'utm_medium=(paid|app_installs)(&|$)'
 )`;
 
-// True when the install is a paid ad — used by geography's paid/other split.
+// CANONICAL "is this a Meta paid install" — the single source of truth for the
+// Meta bucket, so every panel classifies Meta identically. Prefers
+// standardizedAttribution (source='meta', plus the rare audience-network case the
+// platform labels source='other (an)' with medium='paid'); installReferrer fallback
+// (object form or paid deeplink) only for older rows that lack SA. Verified
+// equivalent to the hand-written channel query (±1 install / 30d).
+export const IS_META = `(
+  ${SA}->>'source' = 'meta'
+  OR (${SA}->>'source' LIKE 'other (%' AND ${SA}->>'medium' = 'paid')
+  OR (NOT (${SA_PRESENT}) AND (jsonb_typeof("installReferrer") = 'object' OR ${IS_PAID_STRING}))
+)`;
+
+// Campaign-level attribution fields, coalesced installReferrer(object) → SA so the
+// campaign/creative panels cover the SAME Meta installs as IS_META (the object form
+// alone misses ~3% string-deeplink Meta installs). installReferrer wins when present
+// (canonical ad-manager names); SA fills the rest.
+export const CAMPAIGN_NAME = `COALESCE(NULLIF("installReferrer"->>'campaign_name',''), NULLIF(${SA}->>'campaign',''))`;
+export const ADGROUP_NAME = `COALESCE(NULLIF("installReferrer"->>'adgroup_name',''), NULLIF(${SA}->>'adGroup',''))`;
+export const AD_PLATFORM = `COALESCE(NULLIF("installReferrer"->>'publisher_platform',''), NULLIF(${SA}->>'originalSource',''))`;
+
+// True when the install is a paid ad — used by geography's paid/other split and the
+// efficiency panel. Intentionally BROADER than IS_META: this is "all paid marketing
+// intensity" (Meta + Google + any paid), the correct denominator for paid-vs-organic.
 export const IS_PAID = `(
   ${SA}->>'medium' IN ('paid','app_installs','cpc','ads')
   OR (NOT (${SA_PRESENT}) AND (jsonb_typeof("installReferrer") = 'object' OR ${IS_PAID_STRING}))
 )`;
 
 // Acquisition channel — identical across channel-mix, conversion(by=channel) and
-// signup-funnel. SA first (clean), installReferrer fallback for older rows.
+// signup-funnel. Meta via the canonical IS_META; SA next (clean), installReferrer
+// fallback for older rows.
 export const CHANNEL_CASE = `CASE
-  WHEN ${SA}->>'source' = 'meta' THEN 'Paid (Meta)'
+  WHEN ${IS_META} THEN 'Paid (Meta)'
   WHEN ${SA}->>'source' = 'google' AND ${SA}->>'medium' <> 'organic' THEN 'Paid (Google)'
   WHEN ${SA}->>'medium' = 'whatsapp' THEN 'WhatsApp'
   WHEN ${SA}->>'medium' = 'organic' OR ${SA}->>'source' IN ('organic','google') THEN 'Organic (Play Store)'
   WHEN ${SA_PRESENT} AND ${SA}->>'source' IS NOT NULL THEN 'Other'
-  WHEN jsonb_typeof("installReferrer") = 'object' THEN 'Paid (Meta)'
   WHEN "installReferrer" #>> '{}' ILIKE '%utm_source=whatsapp%' THEN 'WhatsApp'
-  WHEN ${IS_PAID_STRING} THEN 'Paid (Meta)'
   WHEN "installReferrer" #>> '{}' ILIKE '%utm_medium=organic%'
     OR "installReferrer" #>> '{}' ILIKE '%google-play%' THEN 'Organic (Play Store)'
   WHEN "installReferrer" IS NULL OR "installReferrer" #>> '{}' IN ('unknown', '') THEN 'Unknown'

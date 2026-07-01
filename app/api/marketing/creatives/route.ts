@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, campaignClause, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
+import { COHORT_WHERE, campaignClause, IS_META, CAMPAIGN_NAME, ADGROUP_NAME, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -15,7 +15,8 @@ interface Row {
 
 // Creative-level drill of Meta paid installs: campaign → adgroup → placement.
 // Lets marketing see which specific creatives/placements drive installs, not just
-// the campaign rollup. First sessions, object referrer only.
+// the campaign rollup. Scoped by canonical IS_META (names coalesced installReferrer
+// → standardizedAttribution); placement exists on the object form only. First sessions.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const campaign = searchParams.get('campaign') || '';
@@ -27,13 +28,13 @@ export async function GET(req: NextRequest) {
       const { clause } = dateClause('created_at', dp, params);
       const camp = campaignClause(campaign, params);
       const sql = `
-        SELECT "installReferrer"->>'campaign_name'                          AS campaign,
-               "installReferrer"->>'adgroup_name'                           AS adgroup,
+        SELECT ${CAMPAIGN_NAME}                                             AS campaign,
+               ${ADGROUP_NAME}                                              AS adgroup,
                COALESCE(NULLIF("installReferrer"->>'platform_position',''), '(n/a)') AS placement,
                COUNT(*)::text                                               AS installs
         FROM history.session
         WHERE ${COHORT_WHERE}
-          AND jsonb_typeof("installReferrer") = 'object'
+          AND ${IS_META}
           ${clause}
           ${camp}
         GROUP BY 1, 2, 3

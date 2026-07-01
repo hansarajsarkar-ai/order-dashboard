@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { queryNoNestloop, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, CHANNEL_CASE, campaignClause, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
+import { COHORT_WHERE, CHANNEL_CASE, IS_META, CAMPAIGN_NAME, ADGROUP_NAME, campaignClause, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -35,11 +35,12 @@ export async function GET(req: NextRequest) {
   const by = byRaw === 'campaign' ? 'campaign' : byRaw === 'adgroup' ? 'adgroup' : 'channel';
   const dp = parseDateParams(searchParams);
 
-  const grpExpr = by === 'campaign' ? `"installReferrer"->>'campaign_name'`
-    : by === 'adgroup' ? `"installReferrer"->>'adgroup_name'`
+  const grpExpr = by === 'campaign' ? CAMPAIGN_NAME
+    : by === 'adgroup' ? ADGROUP_NAME
     : CHANNEL_CASE;
-  // Campaign/adgroup views only make sense for Meta paid installs (they have the field).
-  const paidFilter = by === 'channel' ? '' : `AND jsonb_typeof("installReferrer") = 'object'`;
+  // Campaign/adgroup views are scoped to Meta installs (canonical IS_META), so the
+  // totals match the Meta bucket used everywhere else.
+  const paidFilter = by === 'channel' ? '' : `AND ${IS_META}`;
   const limit = by === 'channel' ? '' : 'LIMIT 200';
   const campaign = searchParams.get('campaign') || '';
 

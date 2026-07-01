@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, campaignClause, SA, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
+import { COHORT_WHERE, campaignClause, SA, IS_META, CAMPAIGN_NAME, AD_PLATFORM, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -15,8 +15,10 @@ interface Row {
 }
 
 // Meta (Facebook/Instagram) paid-ad campaign performance — installs attributed
-// to each campaign × publisher platform, parsed from the installReferrer JSON
-// object. First sessions only (= installs), test sessions excluded.
+// to each campaign × publisher platform. Scoped by the canonical IS_META so the
+// total matches the Meta bucket everywhere; campaign/platform names come from the
+// installReferrer object, falling back to standardizedAttribution (so string-deeplink
+// Meta installs are included). First sessions only (= installs), test excluded.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const campaign = searchParams.get('campaign') || '';
@@ -28,8 +30,8 @@ export async function GET(req: NextRequest) {
       const { clause } = dateClause('created_at', dp, params);
       const camp = campaignClause(campaign, params);
       const sql = `
-        SELECT "installReferrer"->>'campaign_name'       AS campaign,
-               "installReferrer"->>'publisher_platform'  AS platform,
+        SELECT ${CAMPAIGN_NAME}                          AS campaign,
+               ${AD_PLATFORM}                            AS platform,
                "installReferrer"->>'ad_objective_name'   AS objective,
                COUNT(*)::text                            AS installs,
                -- median seconds from ad click to install (creative-quality signal);
@@ -42,7 +44,7 @@ export async function GET(req: NextRequest) {
                ))::text                                  AS median_cti
         FROM history.session
         WHERE ${COHORT_WHERE}
-          AND jsonb_typeof("installReferrer") = 'object'
+          AND ${IS_META}
           ${clause}
           ${camp}
         GROUP BY 1, 2, 3

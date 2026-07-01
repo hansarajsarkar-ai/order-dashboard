@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
+import { COHORT_WHERE, SA, IS_META, CAMPAIGN_NAME, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -23,12 +23,12 @@ export async function GET(req: NextRequest) {
       const params: (string | number)[] = [];
       const { clause } = dateClause('created_at', dp, params);
       const sql = `
-        SELECT "installReferrer"->>'campaign_name' AS campaign,
-               "installReferrer"->>'campaign_id'   AS campaign_id,
+        SELECT ${CAMPAIGN_NAME}                                          AS campaign,
+               COALESCE(NULLIF("installReferrer"->>'campaign_id',''), NULLIF(${SA}->>'campaignId','')) AS campaign_id,
                COUNT(*)::text                       AS installs
         FROM history.session
         WHERE ${COHORT_WHERE}
-          AND jsonb_typeof("installReferrer") = 'object'
+          AND ${IS_META}
           ${clause}
         GROUP BY 1, 2
         ORDER BY COUNT(*) DESC

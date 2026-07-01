@@ -32,6 +32,14 @@ const CLASSIFY = `CASE
 END`;
 
 interface Row { src: string; sessions: string; buyers: string }
+interface FreqRow { bucket: string; ord: string; buyers: string; sessions: string }
+
+// Shared cohort predicate for the Sessions tab (all buyer-app sessions, incl. re-engagement).
+const SESSION_COHORT = `a."buyerId" IS NOT NULL
+  AND a."isTest" = FALSE
+  AND a."userType" = 'buyer'
+  AND a."appUsed" = 'buyer-app'
+  AND a."isMasterLogin" = FALSE`;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -48,21 +56,46 @@ export async function GET(req: NextRequest) {
         FROM "history"."session" a
         WHERE TRUE
           ${clause}
-          AND a."buyerId" IS NOT NULL
-          AND a."isTest" = FALSE
-          AND a."userType" = 'buyer'
-          AND a."appUsed" = 'buyer-app'
-          AND a."isMasterLogin" = FALSE
+          AND ${SESSION_COHORT}
         GROUP BY 1
         ORDER BY COUNT(*) DESC;
       `;
-      const rows = await query<Row>(sql, params);
+      // Engagement distribution: bucket buyers by how many sessions they had in the
+      // window, to see where the heavy-usage buyers sit.
+      const freqSql = `
+        WITH perbuyer AS (
+          SELECT a."buyerId" AS b, COUNT(*) AS n
+          FROM "history"."session" a
+          WHERE TRUE ${clause} AND ${SESSION_COHORT}
+          GROUP BY a."buyerId"
+        )
+        SELECT CASE WHEN n = 1 THEN '1'
+                    WHEN n = 2 THEN '2'
+                    WHEN n = 3 THEN '3'
+                    WHEN n BETWEEN 4 AND 5 THEN '4–5'
+                    WHEN n BETWEEN 6 AND 10 THEN '6–10'
+                    WHEN n BETWEEN 11 AND 20 THEN '11–20'
+                    ELSE '20+' END       AS bucket,
+               MIN(n)::text              AS ord,
+               COUNT(*)::text            AS buyers,
+               SUM(n)::text              AS sessions
+        FROM perbuyer
+        GROUP BY 1
+        ORDER BY MIN(n);
+      `;
+      const [rows, freqRows] = await Promise.all([query<Row>(sql, params), query<FreqRow>(freqSql, params)]);
       const data = rows.map((r) => ({ source: r.src, sessions: parseInt(r.sessions, 10), buyers: parseInt(r.buyers, 10) }));
+      const frequency = freqRows.map((r) => ({ bucket: r.bucket, buyers: parseInt(r.buyers, 10), sessions: parseInt(r.sessions, 10) }));
+      // TRUE distinct buyers = every buyer appears once here (a buyer can span several
+      // source buckets, so summing per-source buyers over-counts — don't use that).
+      const totalBuyers = frequency.reduce((a, b) => a + b.buyers, 0);
       return {
         data,
+        frequency,
         totalSessions: data.reduce((a, b) => a + b.sessions, 0),
-        totalBuyers: data.reduce((a, b) => a + b.buyers, 0),
-        sql: displaySql(sql, params),
+        totalBuyers,
+        avgSessionsPerBuyer: totalBuyers ? data.reduce((a, b) => a + b.sessions, 0) / totalBuyers : 0,
+        sql: displaySql(sql, params) + ';\n\n-- sessions-per-buyer distribution:\n' + displaySql(freqSql, params),
       };
     });
     return NextResponse.json({ ...payload, timestamp: new Date().toISOString() });

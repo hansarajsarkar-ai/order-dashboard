@@ -278,7 +278,7 @@ export default function MarketingDashboard() {
   const geoEff = useApi<{ data: GeoEffRow[]; underspent: string[]; overmarketed: string[]; medPaid: number; medYield: number }>(`/api/marketing/geo-efficiency?${dateQ}${campQ}`, authChecked && tab === 'geography');
   const whatsapp = useApi<{ data: WaRow[]; total: number }>(`/api/marketing/whatsapp-campaigns?${dateQ}`, authChecked && tab === 'whatsapp');
   const spend = useApi<{ configured: boolean; message?: string; data?: SpendRow[]; totalSpend?: number; currency?: string; error?: string }>(`/api/marketing/spend?${dateQ}`, authChecked && tab === 'spend');
-  const sessionSrc = useApi<{ data: SessSrcRow[]; totalSessions: number; totalBuyers: number }>(`/api/marketing/session-source?${dateQ}`, authChecked && tab === 'sessions' && showSessions);
+  const sessionSrc = useApi<{ data: SessSrcRow[]; frequency: { bucket: string; buyers: number; sessions: number }[]; totalSessions: number; totalBuyers: number; avgSessionsPerBuyer: number }>(`/api/marketing/session-source?${dateQ}`, authChecked && tab === 'sessions' && showSessions);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -878,9 +878,10 @@ export default function MarketingDashboard() {
         {tab === 'sessions' && (
           <div className="space-y-6">
             {sessionSrc.data && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <KPICard label="Total Sessions" value={fmtInt(sessionSrc.data.totalSessions)} sub={`${windowSub} · all sessions`} tone="fuchsia" />
                 <KPICard label="Distinct Buyers" value={fmtInt(sessionSrc.data.totalBuyers)} sub="who opened the app" tone="purple" />
+                <KPICard label="Avg Sessions / Buyer" value={sessionSrc.data.avgSessionsPerBuyer.toFixed(2)} sub="opens per buyer" tone="emerald" />
                 <KPICard label="Sources" value={String(sessionSrc.data.data.length)} sub="session sources" tone="sky" />
               </div>
             )}
@@ -914,8 +915,46 @@ export default function MarketingDashboard() {
                 </div>
               )}
             </Panel>
+
+            {showSessions && sessionSrc.data?.frequency && sessionSrc.data.frequency.length > 0 && (() => {
+              const freq = sessionSrc.data.frequency;
+              const tB = sessionSrc.data.totalBuyers, tS = sessionSrc.data.totalSessions;
+              const heavy = freq.filter((f) => ['6–10', '11–20', '20+'].includes(f.bucket));
+              const heavyB = heavy.reduce((a, b) => a + b.buyers, 0), heavyS = heavy.reduce((a, b) => a + b.sessions, 0);
+              const colors = ['#64748b', '#818cf8', '#a78bfa', '#c084fc', '#34d399', '#fbbf24', '#fb7185'];
+              return (
+                <Panel title="Sessions per Buyer" desc={`How many sessions each buyer had in the ${windowSub} — where the heavy-usage buyers sit.`} csv={{ filename: csvName('sessions-per-buyer'), rows: () => freq.map((f) => ({ ...f, buyer_pct: pct(f.buyers, tB).toFixed(1), session_pct: pct(f.sessions, tS).toFixed(1) })) }}>
+                  <div className="mb-4 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-400/25 text-sm text-emerald-100">
+                    Heavy buyers (<span className="font-semibold">6+ sessions</span>) are just <span className="font-semibold">{pct(heavyB, tB).toFixed(1)}%</span> of buyers but drive <span className="font-semibold">{pct(heavyS, tS).toFixed(1)}%</span> of all sessions.
+                  </div>
+                  <div className="overflow-x-auto rounded-xl border border-white/10">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">Sessions / Buyer</th><th className="px-4 py-3 font-semibold">Share of buyers</th><th className="px-4 py-3 font-semibold text-right">Buyers</th><th className="px-4 py-3 font-semibold text-right">% Buyers</th><th className="px-4 py-3 font-semibold text-right">Sessions</th><th className="px-4 py-3 font-semibold text-right">% Sessions</th></tr></thead>
+                      <tbody>
+                        {freq.map((f, i) => {
+                          const bShare = pct(f.buyers, tB);
+                          const color = colors[i] || '#a78bfa';
+                          return (
+                            <tr key={f.bucket} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>
+                              <td className="px-4 py-2.5 font-medium whitespace-nowrap"><span className="inline-flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />{f.bucket}</span></td>
+                              <td className="px-4 py-2.5 w-48"><div className="h-3 rounded bg-white/5 overflow-hidden"><div className="h-full rounded" style={{ width: `${Math.max(bShare, 1)}%`, background: color }} /></div></td>
+                              <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-white">{fmtInt(f.buyers)}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{bShare.toFixed(1)}%</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-white">{fmtInt(f.sessions)}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{pct(f.sessions, tS).toFixed(1)}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15"><tr><td className="px-4 py-3" colSpan={2}>Total</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(tB)}</td><td className="px-4 py-3 text-right tabular-nums">100%</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(tS)}</td><td className="px-4 py-3 text-right tabular-nums">100%</td></tr></tfoot>
+                    </table>
+                  </div>
+                </Panel>
+              );
+            })()}
+
             <p className="text-[11px] text-purple-300/50">
-              Unlike the other tabs (new installs only), this counts <span className="text-purple-300">all</span> buyer-app sessions in the window. &ldquo;Push Notification&rdquo; = sessions actually opened via a push (<code className="text-purple-200">sessionContext.entryPoint = PUSH_NOTIFICATION</code>) — not merely sessions that carry a push token. Source from <code className="text-purple-200">standardizedAttribution</code>; buyers are de-duplicated per source. Filters: buyer · buyer-app · not master/test, excludes test businesses.
+              Unlike the other tabs (new installs only), this counts <span className="text-purple-300">all</span> buyer-app sessions in the window. &ldquo;Push Notification&rdquo; = sessions actually opened via a push (<code className="text-purple-200">sessionContext.entryPoint = PUSH_NOTIFICATION</code>) — not merely sessions that carry a push token. Source from <code className="text-purple-200">standardizedAttribution</code>. The per-source <span className="text-purple-300">Buyers</span> column de-dupes within each source (a buyer active on two sources shows in both, so the column sums above the total), while the <span className="text-purple-300">Distinct Buyers</span> KPI counts each buyer once overall. Filters: buyer · buyer-app · not master/test, excludes test businesses.
             </p>
           </div>
         )}

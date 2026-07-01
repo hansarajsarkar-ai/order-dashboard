@@ -279,6 +279,7 @@ export default function MarketingDashboard() {
   const whatsapp = useApi<{ data: WaRow[]; total: number }>(`/api/marketing/whatsapp-campaigns?${dateQ}`, authChecked && tab === 'whatsapp');
   const spend = useApi<{ configured: boolean; message?: string; data?: SpendRow[]; totalSpend?: number; currency?: string; error?: string }>(`/api/marketing/spend?${dateQ}`, authChecked && tab === 'spend');
   const sessionSrc = useApi<{ data: SessSrcRow[]; frequency: { bucket: string; buyers: number; sessions: number }[]; totalSessions: number; totalBuyers: number; avgSessionsPerBuyer: number }>(`/api/marketing/session-source?${dateQ}`, authChecked && tab === 'sessions' && showSessions);
+  const engagement = useApi<{ data: { screen: string; events: number; buyers: number; perBuyer: number }[]; dataFrom: string | null; dataTo: string | null; totalBuyers: number; totalEvents: number }>(`/api/marketing/engagement-screens`, authChecked && tab === 'sessions');
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -885,6 +886,31 @@ export default function MarketingDashboard() {
                 <KPICard label="Sources" value={String(sessionSrc.data.data.length)} sub="session sources" tone="sky" />
               </div>
             )}
+            <Panel title="Where Buyers Engage (by Screen)" desc={`Event volume &amp; reach per app screen — a proxy for where buyers spend time (true seconds-on-screen isn't tracked).${engagement.data?.dataFrom ? ` Snapshot ${fmtDate(engagement.data.dataFrom)}–${fmtDate(engagement.data.dataTo!)} — the event stream retains only ~3 days.` : ''}`} sql={engagement.data?.sql} csv={{ filename: csvName('engagement-by-screen'), rows: () => engagement.data?.data ?? [] }}>
+              {engagement.loading ? <State kind="loading" msg="Loading engagement…" /> : engagement.error ? <State kind="error" msg={engagement.error} /> : !engagement.data || engagement.data.data.length === 0 ? <State kind="empty" msg="No event data." /> : (() => {
+                const maxEv = Math.max(...engagement.data.data.map((r) => r.events), 1);
+                return (
+                  <div className="overflow-x-auto rounded-xl border border-white/10">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">Screen</th><th className="px-4 py-3 font-semibold">Engagement</th><th className="px-4 py-3 font-semibold text-right">Events</th><th className="px-4 py-3 font-semibold text-right">Buyers</th><th className="px-4 py-3 font-semibold text-right" title="Events per buyer — engagement depth on this screen">Events / Buyer</th></tr></thead>
+                      <tbody>
+                        {engagement.data.data.map((r, i) => (
+                          <tr key={r.screen} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>
+                            <td className="px-4 py-2.5 font-medium whitespace-nowrap">{r.screen}</td>
+                            <td className="px-4 py-2.5 w-56"><div className="h-3 rounded bg-white/5 overflow-hidden"><div className="h-full rounded bg-gradient-to-r from-fuchsia-500 to-purple-500" style={{ width: `${Math.max((r.events / maxEv) * 100, 1)}%` }} /></div></td>
+                            <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-white">{fmtInt(r.events)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-purple-200">{fmtInt(r.buyers)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-purple-100">{r.perBuyer.toFixed(1)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15"><tr><td className="px-4 py-3" colSpan={2}>Total · {fmtInt(engagement.data.totalBuyers)} engaged buyers</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(engagement.data.totalEvents)}</td><td className="px-4 py-3" colSpan={2}></td></tr></tfoot>
+                    </table>
+                  </div>
+                );
+              })()}
+            </Panel>
+
             <Panel title="Sessions by Source" desc={`Every buyer-app session (re-engagement included, NOT just installs) by source, over the ${windowSub}.`} sql={sessionSrc.data?.sql} csv={{ filename: csvName('sessions-by-source'), rows: () => sessionSrc.data?.data ?? [] }}>
               {!showSessions ? (
                 <div className="py-10 flex flex-col items-center gap-3 text-center">

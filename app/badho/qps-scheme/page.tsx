@@ -1976,6 +1976,23 @@ export default function QpsSchemePage() {
             return { gift_name: n, buyer_count: count };
           }) : [];
 
+          // Month before the previous one (April), so the Previous-Month card can
+          // show its own month-over-month comparison — same derivation as prevGifts.
+          const prevPrevRow = schemeRows.length >= 3 ? schemeRows[schemeRows.length - 3] : null;
+          const prevPrevMayPlus = prevPrevRow ? prevPrevRow.month_date >= '2026-05-01' : false;
+          const prevPrevGifts = prevPrevRow ? GIFT_ORDER.filter(n => {
+            if ((n === 'Airfryer/Mixer (Worth 3000)' || n === 'CCTV/Iron (Worth 2000)') && !prevPrevMayPlus) return false;
+            return true;
+          }).map(n => {
+            let count = 0;
+            if (n === 'Airfryer/Mixer (Worth 3000)') count = Number(prevPrevRow.level5) || 0;
+            else if (n === 'CCTV/Iron (Worth 2000)')  count = Number(prevPrevRow.level4) || 0;
+            else if (n === 'Speaker (Worth 1000)')     count = Number(prevPrevRow.level3) || 0;
+            else if (n === 'Mini table fan (Worth 500)') count = Number(prevPrevRow.level2) || 0;
+            else if (n === 'Vastu tortoise (Worth 300)') count = Number(prevPrevRow.level1) || 0;
+            return { gift_name: n, buyer_count: count };
+          }) : [];
+
           const GiftCard = ({ g, dim, onCountClick, prevCount, prevLabel }: { g: { gift_name: string; buyer_count: number }; dim?: boolean; onCountClick?: () => void; prevCount?: number; prevLabel?: string }) => {
             const delta = prevCount !== undefined ? g.buyer_count - prevCount : null;
             return (
@@ -2073,6 +2090,8 @@ export default function QpsSchemePage() {
                         key={g.gift_name}
                         g={g}
                         dim
+                        prevCount={prevPrevRow ? (prevPrevGifts.find((p) => p.gift_name === g.gift_name)?.buyer_count ?? 0) : undefined}
+                        prevLabel={prevPrevRow?.month}
                         onCountClick={g.buyer_count > 0 ? () => setDrillConfig({ title: `${GIFT_ICON[g.gift_name] ?? '🎁'} ${g.gift_name} — ${prevRow!.month}`, monthIso: prevRow!.month_date.substring(0, 10), giftFilter: g.gift_name }) : undefined}
                       />
                     ))}

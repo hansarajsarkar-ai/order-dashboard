@@ -9,6 +9,9 @@ import {
   Line,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -570,6 +573,59 @@ const DISPATCH_TONE: Record<string, string> = {
   CANCELLED: 'bg-rose-500/20 text-rose-200',
 };
 
+// Hex equivalents of the tone maps, for recharts fills.
+const CALLING_HEX: Record<string, string> = {
+  PENDING: '#94a3b8', ATTEMPTED: '#fbbf24', CONNECTED: '#38bdf8',
+  CONFIRMED: '#34d399', NOT_INTERESTED: '#fb7185', INVALID_NUMBER: '#f43f5e',
+};
+const DISPATCH_HEX: Record<string, string> = {
+  NOT_ORDERED: '#94a3b8', ORDERED: '#38bdf8', IN_TRANSIT: '#fbbf24',
+  OUT_FOR_DELIVERY: '#fb923c', DELIVERED: '#34d399', RTO: '#fb7185', CANCELLED: '#f43f5e',
+};
+
+function ChartCard({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex flex-col">
+      <div className="text-sm font-semibold text-purple-100">{title}</div>
+      {sub && <div className="text-xs text-purple-300/55 mb-1">{sub}</div>}
+      <div className="mt-2 flex-1">{children}</div>
+    </div>
+  );
+}
+
+// Donut with a centred total, plus a compact legend. Used for status breakdowns.
+function StatusDonut({ data }: { data: { name: string; value: number; fill: string }[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return <div className="text-purple-300/40 text-xs py-8 text-center">No data</div>;
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative shrink-0" style={{ width: 130, height: 130 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={62} paddingAngle={2} stroke="none">
+              {data.map((d) => <Cell key={d.name} fill={d.fill} />)}
+            </Pie>
+            <Tooltip content={<ChartTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="text-2xl font-black text-white leading-none">{fmt(total)}</span>
+          <span className="text-[10px] text-purple-300/55">buyers</span>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1 text-xs min-w-0">
+        {data.map((d) => (
+          <div key={d.name} className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: d.fill }} />
+            <span className="text-purple-200/85 truncate">{d.name}</span>
+            <span className="text-white font-semibold ml-auto pl-2">{fmt(d.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StatusChip({ value, tones }: { value: string | null; tones: Record<string, string> }) {
   if (!value) return <span className="text-purple-300/40">—</span>;
   const cls = tones[value] ?? 'bg-white/10 text-purple-200';
@@ -651,6 +707,35 @@ function GiftUpdateTab() {
   const giftCost = rows.filter((r) => gBool(r.finalized)).reduce((s, r) => s + gNum(r.gift_amount), 0);
   const callsPending = rows.filter((r) => !r.calling_status || r.calling_status === 'PENDING').length;
 
+  // ── Chart data (derived from the selected scheme's buyer rows) ────────────
+  const placedTotal = rows.reduce((s, r) => s + gNum(r.placed), 0);
+  const deliveredTotal = rows.reduce((s, r) => s + gNum(r.delivered), 0);
+  const inTransitTotal = rows.reduce((s, r) => s + gNum(r.in_transit), 0);
+
+  const levelChart = [
+    { name: 'No level', count: rows.filter((r) => gNum(r.current_level) === 0).length, fill: '#64748b' },
+    ...schemeLevels.map((l, i) => ({
+      name: `L${l.level_number} ${l.gift_name}`,
+      count: rows.filter((r) => gNum(r.current_level) === gNum(l.level_number)).length,
+      fill: ['#e879f9', '#c084fc', '#a78bfa', '#818cf8', '#60a5fa'][i % 5],
+    })),
+  ];
+
+  const bizBreakdown = [
+    { name: 'Delivered', value: deliveredTotal, fill: '#34d399' },
+    { name: 'In-Transit', value: inTransitTotal, fill: '#fbbf24' },
+    { name: 'RTO', value: rows.reduce((s, r) => s + gNum(r.rto), 0), fill: '#fb7185' },
+    { name: 'Other', value: rows.reduce((s, r) => s + gNum(r.other_terminal), 0), fill: '#a78bfa' },
+  ].filter((d) => d.value > 0);
+
+  const callCounts: Record<string, number> = {};
+  rows.forEach((r) => { const k = r.calling_status || 'PENDING'; callCounts[k] = (callCounts[k] || 0) + 1; });
+  const callChart = Object.keys(CALLING_HEX).filter((k) => callCounts[k]).map((k) => ({ name: k.replace(/_/g, ' '), value: callCounts[k], fill: CALLING_HEX[k] }));
+
+  const dispCounts: Record<string, number> = {};
+  rows.forEach((r) => { const k = r.delivery_status || 'NOT_ORDERED'; dispCounts[k] = (dispCounts[k] || 0) + 1; });
+  const dispChart = Object.keys(DISPATCH_HEX).filter((k) => dispCounts[k]).map((k) => ({ name: k.replace(/_/g, ' '), value: dispCounts[k], fill: DISPATCH_HEX[k] }));
+
   const periodLabel = scheme.period_start && scheme.period_end
     ? `${gDate(scheme.period_start)} – ${gDate(scheme.period_end)}`
     : '—';
@@ -703,8 +788,53 @@ function GiftUpdateTab() {
         <KpiCard label="Fully Resolved" value={fmt(resolved)} sub="ready to finalize" />
         <KpiCard label="Finalized" value={fmt(finalized)} tone="good" sub="gift locked" />
         <KpiCard label="Gift Cost" value={`₹${fmtAmt(giftCost)}`} sub="finalized gifts" />
+        <KpiCard label="Delivered ₹" value={`₹${fmtAmt(deliveredTotal)}`} tone="good" sub={`of ₹${fmtAmt(placedTotal)} placed`} />
+        <KpiCard label="In-Transit ₹" value={`₹${fmtAmt(inTransitTotal)}`} sub="upside if delivered" />
         <KpiCard label="Calls Pending" value={fmt(callsPending)} tone={callsPending > 0 ? 'bad' : 'neutral'} sub="not yet called" />
       </div>
+
+      {/* Charts */}
+      {rows.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartCard title="Gift level distribution" sub="buyers by the gift they've unlocked">
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={levelChart} margin={{ top: 16, right: 12, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: '#c4b5fd', fontSize: 10 }} interval={0} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} />
+                <YAxis allowDecimals={false} tick={{ fill: '#c4b5fd', fontSize: 11 }} tickLine={false} axisLine={false} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(217,70,239,0.06)' }} />
+                <Bar dataKey="count" name="Buyers" radius={[4, 4, 0, 0]}>
+                  {levelChart.map((d) => <Cell key={d.name} fill={d.fill} />)}
+                  <LabelList dataKey="count" position="top" fill="#e9d5ff" fontSize={11} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title="Business breakdown" sub="placed business by delivery outcome (₹)">
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={bizBreakdown} layout="vertical" margin={{ top: 8, right: 40, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#c4b5fd', fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${fmtAmt(v)}`} />
+                <YAxis type="category" dataKey="name" tick={{ fill: '#c4b5fd', fontSize: 12 }} tickLine={false} axisLine={false} width={72} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(217,70,239,0.06)' }} />
+                <Bar dataKey="value" name="₹" radius={[0, 4, 4, 0]}>
+                  {bizBreakdown.map((d) => <Cell key={d.name} fill={d.fill} />)}
+                  <LabelList dataKey="value" position="right" fill="#e9d5ff" fontSize={11} formatter={(v) => `₹${fmtAmt(Number(v))}`} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title="Calling status" sub="where each buyer is in the calling flow">
+            <StatusDonut data={callChart} />
+          </ChartCard>
+
+          <ChartCard title="Gift dispatch status" sub="Amazon order / delivery of the gift">
+            <StatusDonut data={dispChart} />
+          </ChartCard>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">

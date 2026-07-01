@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, campaignClause, IS_META, CAMPAIGN_NAME, ADGROUP_NAME, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
+import { COHORT_WHERE, campaignClause, IS_META, CAMPAIGN_NAME, ADSET_NAME, ADGROUP_NAME, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 import { campaignLaunchDates, resolveLaunch, launchCutoff, LAUNCH_MONTHS } from '@/lib/campaignLaunch';
 
 export const dynamic = 'force-dynamic';
@@ -9,15 +9,15 @@ export const maxDuration = 60;
 
 interface Row {
   campaign: string | null;
-  adgroup: string | null;
-  placement: string | null;
+  adset: string | null;
+  ad: string | null;
   installs: string;
 }
 
-// Creative-level drill of Meta paid installs: campaign → adgroup → placement.
-// Lets marketing see which specific creatives/placements drive installs, not just
-// the campaign rollup. Scoped by canonical IS_META (names coalesced installReferrer
-// → standardizedAttribution); placement exists on the object form only. First sessions.
+// Creative-level drill of Meta paid installs down the real Meta hierarchy:
+// Campaign (campaign_group) → Ad Set (campaign_name, the "creative") → Ad (adgroup_name).
+// Lets marketing see which specific ad sets/ads drive installs, not just the campaign
+// rollup. Scoped by canonical IS_META. First sessions only.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const campaign = searchParams.get('campaign') || '';
@@ -31,8 +31,8 @@ export async function GET(req: NextRequest) {
       const camp = campaignClause(campaign, params);
       const sql = `
         SELECT ${CAMPAIGN_NAME}                                             AS campaign,
-               ${ADGROUP_NAME}                                              AS adgroup,
-               COALESCE(NULLIF("installReferrer"->>'platform_position',''), '(n/a)') AS placement,
+               ${ADSET_NAME}                                                AS adset,
+               ${ADGROUP_NAME}                                              AS ad,
                COUNT(*)::text                                               AS installs
         FROM history.session
         WHERE ${COHORT_WHERE}
@@ -55,8 +55,8 @@ export async function GET(req: NextRequest) {
         .filter((r) => showAll || (resolveLaunch(r.campaign, launch, todayIso).date || '9999') >= cutoff)
         .map((r) => ({
           campaign: r.campaign || '(unnamed)',
-          adgroup: r.adgroup || '(unnamed)',
-          placement: r.placement || '(n/a)',
+          adset: r.adset || '(unnamed)',
+          ad: r.ad || '(unnamed)',
           installs: parseInt(r.installs, 10),
         }));
       return { data, total: data.reduce((a, b) => a + b.installs, 0), recentOnly: !showAll, launchMonths: LAUNCH_MONTHS, cutoff, sql: displaySql(sql, params) };

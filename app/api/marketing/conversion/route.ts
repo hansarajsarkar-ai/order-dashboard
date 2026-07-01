@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { queryNoNestloop, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
-import { COHORT_WHERE, CHANNEL_CASE, IS_META, CAMPAIGN_NAME, ADGROUP_NAME, campaignClause, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
+import { COHORT_WHERE, CHANNEL_CASE, IS_META, CAMPAIGN_NAME, ADSET_NAME, campaignClause, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   const dp = parseDateParams(searchParams);
 
   const grpExpr = by === 'campaign' ? CAMPAIGN_NAME
-    : by === 'adgroup' ? ADGROUP_NAME
+    : by === 'adgroup' ? ADSET_NAME // "By Creative" = Meta ad set (campaign_name)
     : CHANNEL_CASE;
   // Campaign/adgroup views are scoped to Meta installs (canonical IS_META), so the
   // totals match the Meta bucket used everywhere else.

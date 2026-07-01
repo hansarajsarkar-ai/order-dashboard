@@ -47,10 +47,18 @@ export const IS_META = `(
 
 // Campaign-level attribution fields, coalesced installReferrer(object) → SA so the
 // campaign/creative panels cover the SAME Meta installs as IS_META (the object form
-// alone misses ~3% string-deeplink Meta installs). installReferrer wins when present
-// (canonical ad-manager names); SA fills the rest.
-export const CAMPAIGN_NAME = `COALESCE(NULLIF("installReferrer"->>'campaign_name',''), NULLIF(${SA}->>'campaign',''))`;
-export const ADGROUP_NAME = `COALESCE(NULLIF("installReferrer"->>'adgroup_name',''), NULLIF(${SA}->>'adGroup',''))`;
+// alone misses ~3% string-deeplink Meta installs).
+//
+// IMPORTANT — Meta's install-referrer field names are offset one level from the
+// ad-manager UI (verified against the exported campaign sheet):
+//   campaign_group_name = the CAMPAIGN   (what the UI/CSV calls "Campaign")
+//   campaign_name       = the AD SET     (Meta's "campaign_name" is actually the ad set)
+//   adgroup_name        = the AD / creative variant
+// standardizedAttribution has NO campaign-group field, so the true campaign is only on
+// the object form (null for old string-deeplink installs → shown as "(unnamed)").
+export const CAMPAIGN_NAME = `NULLIF("installReferrer"->>'campaign_group_name','')`;                                  // true Campaign
+export const ADSET_NAME = `COALESCE(NULLIF("installReferrer"->>'campaign_name',''), NULLIF(${SA}->>'campaign',''))`;  // Ad Set ("creative")
+export const ADGROUP_NAME = `COALESCE(NULLIF("installReferrer"->>'adgroup_name',''), NULLIF(${SA}->>'adGroup',''))`;  // Ad
 export const AD_PLATFORM = `COALESCE(NULLIF("installReferrer"->>'publisher_platform',''), NULLIF(${SA}->>'originalSource',''))`;
 
 // True when the install is a paid ad — used by geography's paid/other split and the
@@ -140,9 +148,10 @@ export function campaignClause(
   if (!c) return '';
   params.push(c);
   const i = params.length;
-  // Match name or id, in EITHER the installReferrer object or standardizedAttribution.
+  // Match the true CAMPAIGN (campaign_group) by name or id. Only the installReferrer
+  // object carries the campaign group — standardizedAttribution has no such field.
   return `AND (
-    ("installReferrer"->>'campaign_name' = $${i} OR "installReferrer"->>'campaign_id' = $${i})
-    OR (${SA}->>'campaign' = $${i} OR ${SA}->>'campaignId' = $${i})
+    "installReferrer"->>'campaign_group_name' = $${i}
+    OR "installReferrer"->>'campaign_group_id' = $${i}
   )`;
 }

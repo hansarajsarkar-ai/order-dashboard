@@ -22,7 +22,7 @@ interface CampaignRow { campaign: string; launchedAt: string | null; launchSourc
 interface DetailRow { label: string; installs: number }
 interface SessSrcRow { source: string; sessions: number; buyers: number }
 interface GeoEffRow { state: string; installs: number; paidInstalls: number; orderingBuyers: number; gmv: number; ordersPer100Paid: number; gmvPerPaid: number; tag: string }
-interface CreativeRow { campaign: string; adgroup: string; placement: string; installs: number }
+interface CreativeRow { campaign: string; adset: string; ad: string; installs: number }
 interface WaRow { campaign: string; sessions: number }
 interface ConvRow { group: string; buyers: number; signups: number; ordered: number; totalOrders: number; repeatBuyers: number; convPct: number; signupPct: number; repeatPct: number; ordersPerBuyer: number; gmv: number; gmvPerBuyer: number; avgDays: number }
 interface ConvTotals { buyers: number; signups: number; ordered: number; totalOrders: number; repeatBuyers: number; gmv: number; convPct: number; signupPct: number; repeatPct: number; ordersPerBuyer: number; gmvPerBuyer: number }
@@ -615,18 +615,18 @@ export default function MarketingDashboard() {
               )}
             </Panel>
 
-            <Panel title="Creative / Adgroup Drill" desc={`Campaign → adgroup → placement, to spot winning creatives and placements. ${showOldCampaigns ? 'All campaigns.' : `Recent campaigns only (last ${campaigns.data?.launchMonths ?? 4} mo) — toggle above.`}`} sql={creatives.data?.sql} csv={{ filename: csvName('creatives'), rows: () => creatives.data?.data ?? [] }}>
+            <Panel title="Creative / Ad-set Drill" desc={`Real Meta hierarchy: Campaign → Ad Set (creative) → Ad, to spot winning creatives. ${showOldCampaigns ? 'All campaigns.' : `Recent campaigns only (last ${campaigns.data?.launchMonths ?? 4} mo) — toggle above.`}`} sql={creatives.data?.sql} csv={{ filename: csvName('creatives'), rows: () => creatives.data?.data ?? [] }}>
               {creatives.loading ? <State kind="loading" msg="Loading creatives…" /> : creatives.error ? <State kind="error" msg={creatives.error} /> : !creatives.data || creatives.data.data.length === 0 ? <State kind="empty" msg="No creative data." /> : (
                 <div className="overflow-x-auto max-h-[32rem] overflow-y-auto rounded-xl border border-white/10">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">#</th><th className="px-4 py-3 font-semibold">Campaign</th><th className="px-4 py-3 font-semibold">Adgroup (creative)</th><th className="px-4 py-3 font-semibold">Placement</th><th className="px-4 py-3 font-semibold text-right">Installs</th></tr></thead>
+                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">#</th><th className="px-4 py-3 font-semibold">Campaign</th><th className="px-4 py-3 font-semibold">Ad Set (creative)</th><th className="px-4 py-3 font-semibold">Ad</th><th className="px-4 py-3 font-semibold text-right">Installs</th></tr></thead>
                     <tbody>
                       {creatives.data.data.map((r, i) => (
-                        <tr key={`${r.adgroup}-${r.placement}-${i}`} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>
+                        <tr key={`${r.adset}-${r.ad}-${i}`} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>
                           <td className="px-4 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
                           <td className="px-4 py-2.5 text-purple-300/80 text-xs max-w-[16rem] truncate" title={r.campaign}>{r.campaign}</td>
-                          <td className="px-4 py-2.5 font-medium max-w-[16rem] truncate" title={r.adgroup}>{r.adgroup}</td>
-                          <td className="px-4 py-2.5 text-purple-200 text-xs whitespace-nowrap">{r.placement}</td>
+                          <td className="px-4 py-2.5 font-medium max-w-[16rem] truncate" title={r.adset}>{r.adset}</td>
+                          <td className="px-4 py-2.5 text-purple-200 text-xs max-w-[14rem] truncate" title={r.ad}>{r.ad}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-white">{fmtInt(r.installs)}</td>
                         </tr>
                       ))}
@@ -684,7 +684,7 @@ export default function MarketingDashboard() {
               {conv.loading ? <State kind="loading" msg="Crunching cohort (joins orders, ~a few seconds)…" /> : conv.error ? <State kind="error" msg={conv.error} /> : !conv.data || conv.data.data.length === 0 ? <State kind="empty" msg="No data." /> : (
                 <div className="overflow-x-auto max-h-[34rem] overflow-y-auto rounded-xl border border-white/10">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">{convBy === 'channel' ? 'Channel' : convBy === 'campaign' ? 'Campaign' : 'Creative (adgroup)'}</th><th className="px-4 py-3 font-semibold text-right">Installs</th><th className="px-4 py-3 font-semibold text-right">Signup %</th><th className="px-4 py-3 font-semibold text-right">Ordered</th><th className="px-4 py-3 font-semibold text-right">Conv %</th><th className="px-4 py-3 font-semibold text-right" title="Of orderers, how many ordered 2+ times">Repeat %</th><th className="px-4 py-3 font-semibold text-right">GMV</th><th className="px-4 py-3 font-semibold text-right">GMV / Buyer</th><th className="px-4 py-3 font-semibold text-right">Days→Order</th></tr></thead>
+                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">{convBy === 'channel' ? 'Channel' : convBy === 'campaign' ? 'Campaign' : 'Creative (ad set)'}</th><th className="px-4 py-3 font-semibold text-right">Installs</th><th className="px-4 py-3 font-semibold text-right">Signup %</th><th className="px-4 py-3 font-semibold text-right">Ordered</th><th className="px-4 py-3 font-semibold text-right">Conv %</th><th className="px-4 py-3 font-semibold text-right" title="Of orderers, how many ordered 2+ times">Repeat %</th><th className="px-4 py-3 font-semibold text-right">GMV</th><th className="px-4 py-3 font-semibold text-right">GMV / Buyer</th><th className="px-4 py-3 font-semibold text-right">Days→Order</th></tr></thead>
                     <tbody>
                       {conv.data.data.map((r, i) => (
                         <tr key={`${r.group}-${i}`} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>

@@ -18,7 +18,7 @@ type Tab = 'acquisition' | 'campaigns' | 'conversion' | 'geography' | 'whatsapp'
 interface TrendPoint { bucket: string; installs: number }
 interface TrendSummary { totalInstalls: number; avg: number; peak: number; peakBucket: string | null }
 interface ChannelRow { channel: string; installs: number }
-interface CampaignRow { campaign: string; platform: string; objective: string; installs: number; medianCti: number | null }
+interface CampaignRow { campaign: string; launchedAt: string | null; platform: string; objective: string; installs: number; medianCti: number | null }
 interface DetailRow { label: string; installs: number }
 interface SessSrcRow { source: string; sessions: number; buyers: number }
 interface GeoEffRow { state: string; installs: number; paidInstalls: number; orderingBuyers: number; gmv: number; ordersPer100Paid: number; gmvPerPaid: number; tag: string }
@@ -41,6 +41,11 @@ const fmtCompact = (n: number) => {
 };
 const fmtInt = (n: number) => n.toLocaleString('en-IN');
 const fmtCur = (n: number) => `₹${fmtCompact(n)}`;
+// "2026-05-04" → "4 May '26"
+const fmtDate = (iso: string) => {
+  const d = new Date(iso + 'T00:00:00');
+  return isNaN(d.getTime()) ? iso : `${d.getDate()} ${d.toLocaleString('en-US', { month: 'short' })} '${String(d.getFullYear()).slice(2)}`;
+};
 const pct = (n: number, d: number) => (d > 0 ? (n / d) * 100 : 0);
 const fmtDur = (s: number | null) => {
   if (s == null) return '—';
@@ -238,6 +243,7 @@ export default function MarketingDashboard() {
   const [convBy, setConvBy] = useState<'channel' | 'campaign' | 'adgroup'>('channel');
   const [geoView, setGeoView] = useState<'map' | 'chart'>('chart');
   const [showSessions, setShowSessions] = useState(false);
+  const [showOldCampaigns, setShowOldCampaigns] = useState(false);
   const [campaign, setCampaign] = useState('');
   const dateQ = dateQuery(date);
   const windowSub = dateLabel(date).toLowerCase().startsWith('last') ? dateLabel(date).toLowerCase() : dateLabel(date);
@@ -263,8 +269,9 @@ export default function MarketingDashboard() {
   const detail = useApi<{ platforms: DetailRow[]; platformsTotal: number; entryPoints: DetailRow[]; entryTotal: number }>(`/api/marketing/attribution-detail?${dateQ}`, authChecked && tab === 'acquisition');
   const mom = useApi<{ thisMtd: number; lastMtd: number; spanDays: number; thisLabel: string; lastLabel: string; pct: number | null }>(`/api/marketing/mom?${campQ.replace(/^&/, '')}`, authChecked && tab === 'acquisition');
   const otp = useApi<{ requested: number; verified: number; phonesRequested: number; phonesVerified: number; phoneVerifyPct: number; txnVerifyPct: number; attemptsPerPhone: number; trend: { day: string; requested: number; verified: number }[] }>(`/api/marketing/otp-funnel?${dateQ}`, authChecked && tab === 'acquisition');
-  const campaigns = useApi<{ data: CampaignRow[]; total: number }>(`/api/marketing/campaigns?${dateQ}${campQ}`, authChecked && (tab === 'campaigns' || tab === 'spend'));
-  const creatives = useApi<{ data: CreativeRow[]; total: number }>(`/api/marketing/creatives?${dateQ}${campQ}`, authChecked && tab === 'campaigns');
+  const allQ = showOldCampaigns ? '&all=1' : '';
+  const campaigns = useApi<{ data: CampaignRow[]; total: number; recentOnly?: boolean; launchMonths?: number; cutoff?: string; droppedOld?: number }>(`/api/marketing/campaigns?${dateQ}${campQ}${allQ}`, authChecked && (tab === 'campaigns' || tab === 'spend'));
+  const creatives = useApi<{ data: CreativeRow[]; total: number }>(`/api/marketing/creatives?${dateQ}${campQ}${allQ}`, authChecked && tab === 'campaigns');
   const conv = useApi<ConvResp>(`/api/marketing/conversion?${dateQ}&by=${convBy}${campQ}`, authChecked && tab === 'conversion');
   const convCamp = useApi<ConvResp>(`/api/marketing/conversion?${dateQ}&by=campaign${campQ}`, authChecked && tab === 'spend');
   const geo = useApi<{ data: GeoRow[]; total: number }>(`/api/marketing/geography?${dateQ}${campQ}`, authChecked && tab === 'geography');
@@ -572,16 +579,28 @@ export default function MarketingDashboard() {
               )}
             </Panel>
 
-            <Panel title="Meta Campaign Performance" desc={`Installs per Facebook/Instagram campaign × platform, over the ${windowSub}.`} sql={campaigns.data?.sql} csv={{ filename: csvName('campaigns'), rows: () => campaigns.data?.data ?? [] }}>
+            <Panel title="Meta Campaign Performance" desc={`Installs per Facebook/Instagram campaign × platform, over the ${windowSub}. ${showOldCampaigns ? 'Showing all campaigns (incl. older).' : `Only campaigns launched in the last ${campaigns.data?.launchMonths ?? 4} months (by first install).`}`} sql={campaigns.data?.sql} csv={{ filename: csvName('campaigns'), rows: () => campaigns.data?.data ?? [] }}>
+              <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
+                <button onClick={() => setShowOldCampaigns((v) => !v)} className={`px-3 py-1.5 rounded-lg font-semibold border transition-colors ${showOldCampaigns ? 'bg-white/5 border-white/15 text-purple-200 hover:bg-white/10' : 'bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-100'}`}>
+                  {showOldCampaigns ? 'Show recent only' : `Recent only (last ${campaigns.data?.launchMonths ?? 4} mo)`}
+                </button>
+                <button onClick={() => setShowOldCampaigns((v) => !v)} className={`px-3 py-1.5 rounded-lg font-semibold border transition-colors ${showOldCampaigns ? 'bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-100' : 'bg-white/5 border-white/15 text-purple-200 hover:bg-white/10'}`}>
+                  Show all campaigns
+                </button>
+                {!showOldCampaigns && campaigns.data?.cutoff && (
+                  <span className="text-purple-300/70">Launched on/after <span className="text-purple-100 font-medium">{fmtDate(campaigns.data.cutoff)}</span>{campaigns.data.droppedOld ? ` · ${campaigns.data.droppedOld} older hidden` : ''}</span>
+                )}
+              </div>
               {campaigns.loading ? <State kind="loading" msg="Loading campaigns…" /> : campaigns.error ? <State kind="error" msg={campaigns.error} /> : !campaigns.data || campaigns.data.data.length === 0 ? <State kind="empty" msg="No paid campaigns." /> : (
                 <div className="overflow-x-auto max-h-[32rem] overflow-y-auto rounded-xl border border-white/10">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">#</th><th className="px-4 py-3 font-semibold">Campaign</th><th className="px-4 py-3 font-semibold">Platform</th><th className="px-4 py-3 font-semibold">Objective</th><th className="px-4 py-3 font-semibold text-right">Installs</th><th className="px-4 py-3 font-semibold text-right">% of Paid</th><th className="px-4 py-3 font-semibold text-right" title="Median time from ad click to install — a creative-quality signal">Click→Install</th></tr></thead>
+                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-fuchsia-600/90 to-purple-700/90 backdrop-blur text-white"><tr className="text-left"><th className="px-4 py-3 font-semibold">#</th><th className="px-4 py-3 font-semibold">Campaign</th><th className="px-4 py-3 font-semibold">Launched</th><th className="px-4 py-3 font-semibold">Platform</th><th className="px-4 py-3 font-semibold">Objective</th><th className="px-4 py-3 font-semibold text-right">Installs</th><th className="px-4 py-3 font-semibold text-right">% of Paid</th><th className="px-4 py-3 font-semibold text-right" title="Median time from ad click to install — a creative-quality signal">Click→Install</th></tr></thead>
                     <tbody>
                       {campaigns.data.data.map((r, i) => (
                         <tr key={`${r.campaign}-${r.platform}-${i}`} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>
                           <td className="px-4 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
                           <td className="px-4 py-2.5 font-medium max-w-md truncate" title={r.campaign}>{r.campaign}</td>
+                          <td className="px-4 py-2.5 text-purple-300/80 text-xs whitespace-nowrap">{r.launchedAt ? fmtDate(r.launchedAt) : '—'}</td>
                           <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${platformTone(r.platform)}`}>{r.platform}</span></td>
                           <td className="px-4 py-2.5 text-purple-300/80 text-xs whitespace-nowrap">{r.objective}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-white">{fmtInt(r.installs)}</td>
@@ -590,13 +609,13 @@ export default function MarketingDashboard() {
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15"><tr><td className="px-4 py-3" colSpan={4}>Total ({campaigns.data.data.length} rows)</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(campaigns.data.total)}</td><td className="px-4 py-3 text-right tabular-nums">100%</td><td className="px-4 py-3"></td></tr></tfoot>
+                    <tfoot className="sticky bottom-0 bg-slate-900/90 backdrop-blur text-white font-semibold border-t border-white/15"><tr><td className="px-4 py-3" colSpan={5}>Total ({campaigns.data.data.length} rows)</td><td className="px-4 py-3 text-right tabular-nums">{fmtInt(campaigns.data.total)}</td><td className="px-4 py-3 text-right tabular-nums">100%</td><td className="px-4 py-3"></td></tr></tfoot>
                   </table>
                 </div>
               )}
             </Panel>
 
-            <Panel title="Creative / Adgroup Drill" desc="Campaign → adgroup → placement, to spot winning creatives and placements." sql={creatives.data?.sql} csv={{ filename: csvName('creatives'), rows: () => creatives.data?.data ?? [] }}>
+            <Panel title="Creative / Adgroup Drill" desc={`Campaign → adgroup → placement, to spot winning creatives and placements. ${showOldCampaigns ? 'All campaigns.' : `Recent campaigns only (last ${campaigns.data?.launchMonths ?? 4} mo) — toggle above.`}`} sql={creatives.data?.sql} csv={{ filename: csvName('creatives'), rows: () => creatives.data?.data ?? [] }}>
               {creatives.loading ? <State kind="loading" msg="Loading creatives…" /> : creatives.error ? <State kind="error" msg={creatives.error} /> : !creatives.data || creatives.data.data.length === 0 ? <State kind="empty" msg="No creative data." /> : (
                 <div className="overflow-x-auto max-h-[32rem] overflow-y-auto rounded-xl border border-white/10">
                   <table className="w-full text-sm">

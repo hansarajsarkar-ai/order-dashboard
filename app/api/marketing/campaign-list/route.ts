@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { query } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, SA, IS_META, CAMPAIGN_NAME, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
+import { campaignLaunchDates, launchCutoff } from '@/lib/campaignLaunch';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -34,10 +35,11 @@ export async function GET(req: NextRequest) {
         ORDER BY COUNT(*) DESC
         LIMIT 500;
       `;
-      const rows = await query<Row>(sql, params);
+      const [rows, launch] = await Promise.all([query<Row>(sql, params), campaignLaunchDates()]);
+      const cutoff = launchCutoff();
       return {
         data: rows
-          .filter((r) => r.campaign)
+          .filter((r) => r.campaign && (launch[r.campaign] || '9999') >= cutoff)
           .map((r) => ({ campaign: r.campaign as string, campaignId: r.campaign_id || '', installs: parseInt(r.installs, 10) })),
       };
     });

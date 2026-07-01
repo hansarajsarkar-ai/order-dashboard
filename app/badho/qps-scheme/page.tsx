@@ -548,6 +548,10 @@ interface GiftRow {
   calling_status: string | null; remarks: string | null; amazon_order_id: string | null;
   delivery_eta: string | null; delivery_status: string | null; finalized: string;
 }
+interface GiftDraft {
+  callingStatus: string; giftDeliveryStatus: string; amazonOrderId: string;
+  deliveryEta: string; remarks: string; isFinalized: boolean;
+}
 
 const SCHEME_STATUS_TONE: Record<string, string> = {
   DRAFT: 'bg-slate-500/20 text-slate-200 border-slate-400/30',
@@ -582,6 +586,8 @@ const DISPATCH_HEX: Record<string, string> = {
   NOT_ORDERED: '#94a3b8', ORDERED: '#38bdf8', IN_TRANSIT: '#fbbf24',
   OUT_FOR_DELIVERY: '#fb923c', DELIVERED: '#34d399', RTO: '#fb7185', CANCELLED: '#f43f5e',
 };
+
+const EDIT_INPUT = 'bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-fuchsia-400/50';
 
 function ChartCard({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
   return (
@@ -654,6 +660,12 @@ function GiftUpdateTab() {
   const [callFilter, setCallFilter] = React.useState('ALL');
   const [finalFilter, setFinalFilter] = React.useState('ALL'); // ALL | FINAL | PENDING
 
+  // Inline editing of the gift tracker (qpsBuyerProgress).
+  const [editing, setEditing] = React.useState<string | null>(null); // buyer_id
+  const [draft, setDraft] = React.useState<GiftDraft | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [saveErr, setSaveErr] = React.useState<string | null>(null);
+
   const load = React.useCallback((sid: string) => {
     setLoading(true); setError(null);
     fetch(`/api/qps-gift-update${sid ? `?schemeId=${encodeURIComponent(sid)}` : ''}`)
@@ -670,6 +682,46 @@ function GiftUpdateTab() {
   }, []);
 
   React.useEffect(() => { load(''); }, [load]);
+
+  // Refresh just the rows (after a save) without flashing the whole tab.
+  const reloadRows = React.useCallback((sid: string) => {
+    fetch(`/api/qps-gift-update?schemeId=${encodeURIComponent(sid)}`)
+      .then((r) => r.json())
+      .then((d) => { if (!d.error) setRows(d.rows ?? []); });
+  }, []);
+
+  const startEdit = (r: GiftRow) => {
+    setSaveErr(null);
+    setEditing(r.buyer_id);
+    setDraft({
+      callingStatus: r.calling_status || 'PENDING',
+      giftDeliveryStatus: r.delivery_status || 'NOT_ORDERED',
+      amazonOrderId: r.amazon_order_id || '',
+      deliveryEta: r.delivery_eta ? r.delivery_eta.substring(0, 10) : '',
+      remarks: r.remarks || '',
+      isFinalized: gBool(r.finalized),
+    });
+  };
+  const cancelEdit = () => { setEditing(null); setDraft(null); setSaveErr(null); };
+  const saveEdit = async (r: GiftRow) => {
+    if (!draft) return;
+    setSaving(true); setSaveErr(null);
+    try {
+      const res = await fetch('/api/qps-gift-update/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schemeId: r.scheme_id, buyerId: r.buyer_id, ...draft }),
+      });
+      const d = await res.json();
+      if (!res.ok || d.error) throw new Error(d.error || `HTTP ${res.status}`);
+      cancelEdit();
+      reloadRows(r.scheme_id);
+    } catch (e) {
+      setSaveErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <div className="text-purple-300 text-sm text-center py-20 animate-pulse">Loading gift schemes…</div>;
   if (error) return <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>;
@@ -865,7 +917,7 @@ function GiftUpdateTab() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-white/10">
-          <table className="w-full text-xs border-collapse min-w-[1100px]">
+          <table className="w-full text-xs border-collapse min-w-[1200px]">
             <thead>
               <tr className="text-white font-bold bg-gradient-to-r from-purple-800/70 to-fuchsia-900/50 border-b-2 border-fuchsia-400/40 text-left">
                 <th className="py-2 px-3 font-medium">Buyer</th>
@@ -879,14 +931,17 @@ function GiftUpdateTab() {
                 <th className="py-2 px-3 font-medium text-center">Calling</th>
                 <th className="py-2 px-3 font-medium">Gift Dispatch</th>
                 <th className="py-2 px-3 font-medium text-center">Finalized</th>
+                <th className="py-2 px-3 font-medium text-center">Edit</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.buyer_id} className="border-b border-white/5 even:bg-white/[0.025] hover:bg-fuchsia-500/5">
+                <React.Fragment key={r.buyer_id}>
+                <tr className="border-b border-white/5 even:bg-white/[0.025] hover:bg-fuchsia-500/5">
                   <td className="py-2 px-3 align-top">
                     <div className="text-white font-medium">{r.business_name || '—'}</div>
                     <div className="text-purple-300/55">{r.buyer_name || ''}</div>
+                    {r.remarks && <div className="text-purple-300/45 text-[10px] italic mt-0.5 max-w-[200px] truncate" title={r.remarks}>📝 {r.remarks}</div>}
                   </td>
                   <td className="py-2 px-3 align-top max-w-[200px]">
                     <div className="text-purple-300/70 truncate" title={r.buyer_address || ''}>{r.buyer_address || '—'}</div>
@@ -933,7 +988,57 @@ function GiftUpdateTab() {
                       ? <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-200">LOCKED</span>
                       : <span className="text-purple-300/40">—</span>}
                   </td>
+                  <td className="py-2 px-3 align-top text-center">
+                    <button
+                      onClick={() => (editing === r.buyer_id ? cancelEdit() : startEdit(r))}
+                      className="px-2 py-1 rounded-md text-[11px] font-semibold bg-white/8 hover:bg-fuchsia-500/25 border border-white/10 text-purple-200 hover:text-white transition-all whitespace-nowrap"
+                    >
+                      {editing === r.buyer_id ? 'Close' : '✎ Edit'}
+                    </button>
+                  </td>
                 </tr>
+                {editing === r.buyer_id && draft && (
+                  <tr className="bg-fuchsia-500/[0.06] border-b border-fuchsia-400/20">
+                    <td colSpan={12} className="px-4 py-4">
+                      <div className="flex flex-wrap items-end gap-3">
+                        <label className="flex flex-col gap-1 text-[11px] text-purple-300/70">Calling status
+                          <select value={draft.callingStatus} onChange={(e) => setDraft({ ...draft, callingStatus: e.target.value })} className={EDIT_INPUT}>
+                            {Object.keys(CALLING_TONE).map((k) => <option key={k} value={k} className="bg-slate-900">{k.replace(/_/g, ' ')}</option>)}
+                          </select>
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-purple-300/70">Gift dispatch
+                          <select value={draft.giftDeliveryStatus} onChange={(e) => setDraft({ ...draft, giftDeliveryStatus: e.target.value })} className={EDIT_INPUT}>
+                            {Object.keys(DISPATCH_TONE).map((k) => <option key={k} value={k} className="bg-slate-900">{k.replace(/_/g, ' ')}</option>)}
+                          </select>
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-purple-300/70">Amazon order ID
+                          <input value={draft.amazonOrderId} onChange={(e) => setDraft({ ...draft, amazonOrderId: e.target.value })} placeholder="e.g. 404-1234567" className={`${EDIT_INPUT} w-40`} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-purple-300/70">Delivery ETA
+                          <input type="date" value={draft.deliveryEta} onChange={(e) => setDraft({ ...draft, deliveryEta: e.target.value })} className={EDIT_INPUT} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-purple-300/70 flex-1 min-w-[180px]">Remarks
+                          <input value={draft.remarks} onChange={(e) => setDraft({ ...draft, remarks: e.target.value })} placeholder="notes…" className={`${EDIT_INPUT} w-full`} />
+                        </label>
+                        {(() => {
+                          const canFinalize = gBool(r.resolved) && gNum(r.current_level) > 0;
+                          return (
+                            <label className={`flex items-center gap-2 text-xs pb-1.5 ${canFinalize ? 'text-purple-100' : 'text-purple-300/40'}`} title={canFinalize ? 'Lock the gift for this buyer' : 'Only buyers fully resolved with a gift can be finalized'}>
+                              <input type="checkbox" disabled={!canFinalize} checked={draft.isFinalized} onChange={(e) => setDraft({ ...draft, isFinalized: e.target.checked })} className="w-4 h-4 accent-fuchsia-500" />
+                              Finalize (lock gift)
+                            </label>
+                          );
+                        })()}
+                        <div className="flex items-center gap-2 pb-0.5">
+                          <button onClick={() => saveEdit(r)} disabled={saving} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-fuchsia-500/80 hover:bg-fuchsia-500 text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
+                          <button onClick={cancelEdit} disabled={saving} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/8 hover:bg-white/15 text-purple-200 disabled:opacity-50">Cancel</button>
+                        </div>
+                        {saveErr && <div className="text-rose-300 text-xs w-full">⚠ {saveErr}</div>}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

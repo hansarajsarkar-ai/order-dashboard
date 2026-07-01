@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, campaignClause, SA, IS_META, CAMPAIGN_NAME, AD_PLATFORM, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
-import { campaignLaunchDates, launchCutoff, LAUNCH_MONTHS } from '@/lib/campaignLaunch';
+import { campaignLaunchDates, resolveLaunch, launchCutoff, LAUNCH_MONTHS } from '@/lib/campaignLaunch';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -53,20 +53,26 @@ export async function GET(req: NextRequest) {
         ORDER BY COUNT(*) DESC
         LIMIT 300;
       `;
-      // Always resolve launch dates (cached) so the Launched column is populated even
-      // in show-all mode; showAll only disables the recency FILTER below.
+      // Launch = date parsed from the campaign NAME, falling back to first-ever install
+      // (cached) when the name has no date. The install map is always resolved so the
+      // Launched column stays populated in show-all mode; showAll only drops the FILTER.
       const [rows, launch] = await Promise.all([query<Row>(sql, params), campaignLaunchDates()]);
       const cutoff = launchCutoff();
+      const todayIso = new Date().toISOString().slice(0, 10);
       let dropped = 0;
       const data = rows
-        .map((r) => ({
-          campaign: r.campaign || '(unnamed)',
-          launchedAt: r.campaign ? launch[r.campaign] || null : null,
-          platform: r.platform || '—',
-          objective: r.objective || '—',
-          installs: parseInt(r.installs, 10),
-          medianCti: r.median_cti != null ? parseInt(r.median_cti, 10) : null,
-        }))
+        .map((r) => {
+          const { date, source } = resolveLaunch(r.campaign, launch, todayIso);
+          return {
+            campaign: r.campaign || '(unnamed)',
+            launchedAt: date,
+            launchSource: source, // 'name' | 'install' | null
+            platform: r.platform || '—',
+            objective: r.objective || '—',
+            installs: parseInt(r.installs, 10),
+            medianCti: r.median_cti != null ? parseInt(r.median_cti, 10) : null,
+          };
+        })
         // Keep recently-launched campaigns; unnamed/unknown-launch rows are kept
         // (they aren't a nameable "old campaign"). ?all=1 disables the filter.
         .filter((r) => {

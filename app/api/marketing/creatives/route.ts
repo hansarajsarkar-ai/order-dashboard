@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { query, displaySql } from '@/lib/db';
 import { cached } from '@/lib/memoCache';
 import { COHORT_WHERE, campaignClause, IS_META, CAMPAIGN_NAME, ADGROUP_NAME, parseDateParams, dateClause, dateKey } from '@/lib/marketingCohort';
-import { campaignLaunchDates, launchCutoff, LAUNCH_MONTHS } from '@/lib/campaignLaunch';
+import { campaignLaunchDates, resolveLaunch, launchCutoff, LAUNCH_MONTHS } from '@/lib/campaignLaunch';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -48,9 +48,11 @@ export async function GET(req: NextRequest) {
         showAll ? Promise.resolve({} as Record<string, string>) : campaignLaunchDates(),
       ]);
       const cutoff = launchCutoff();
-      // Drop creatives whose PARENT campaign launched before the cutoff.
+      const todayIso = new Date().toISOString().slice(0, 10);
+      // Drop creatives whose PARENT campaign launched (by name-date, else first install)
+      // before the cutoff.
       const data = rows
-        .filter((r) => showAll || !r.campaign || (launch[r.campaign] || '9999') >= cutoff)
+        .filter((r) => showAll || (resolveLaunch(r.campaign, launch, todayIso).date || '9999') >= cutoff)
         .map((r) => ({
           campaign: r.campaign || '(unnamed)',
           adgroup: r.adgroup || '(unnamed)',

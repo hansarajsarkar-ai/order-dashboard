@@ -18,7 +18,7 @@ type Tab = 'acquisition' | 'campaigns' | 'conversion' | 'geography' | 'whatsapp'
 interface TrendPoint { bucket: string; installs: number }
 interface TrendSummary { totalInstalls: number; avg: number; peak: number; peakBucket: string | null }
 interface ChannelRow { channel: string; installs: number }
-interface CampaignRow { campaign: string; launchedAt: string | null; platform: string; objective: string; installs: number; medianCti: number | null }
+interface CampaignRow { campaign: string; launchedAt: string | null; launchSource: 'name' | 'install' | null; platform: string; objective: string; installs: number; medianCti: number | null }
 interface DetailRow { label: string; installs: number }
 interface SessSrcRow { source: string; sessions: number; buyers: number }
 interface GeoEffRow { state: string; installs: number; paidInstalls: number; orderingBuyers: number; gmv: number; ordersPer100Paid: number; gmvPerPaid: number; tag: string }
@@ -579,7 +579,7 @@ export default function MarketingDashboard() {
               )}
             </Panel>
 
-            <Panel title="Meta Campaign Performance" desc={`Installs per Facebook/Instagram campaign × platform, over the ${windowSub}. ${showOldCampaigns ? 'Showing all campaigns (incl. older).' : `Only campaigns launched in the last ${campaigns.data?.launchMonths ?? 4} months (by first install).`}`} sql={campaigns.data?.sql} csv={{ filename: csvName('campaigns'), rows: () => campaigns.data?.data ?? [] }}>
+            <Panel title="Meta Campaign Performance" desc={`Installs per Facebook/Instagram campaign × platform, over the ${windowSub}. ${showOldCampaigns ? 'Showing all campaigns (incl. older).' : `Only campaigns launched in the last ${campaigns.data?.launchMonths ?? 4} months — launch = date in the campaign name (≈ first install when the name has none).`}`} sql={campaigns.data?.sql} csv={{ filename: csvName('campaigns'), rows: () => campaigns.data?.data ?? [] }}>
               <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
                 <button onClick={() => setShowOldCampaigns((v) => !v)} className={`px-3 py-1.5 rounded-lg font-semibold border transition-colors ${showOldCampaigns ? 'bg-white/5 border-white/15 text-purple-200 hover:bg-white/10' : 'bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-100'}`}>
                   {showOldCampaigns ? 'Show recent only' : `Recent only (last ${campaigns.data?.launchMonths ?? 4} mo)`}
@@ -600,7 +600,7 @@ export default function MarketingDashboard() {
                         <tr key={`${r.campaign}-${r.platform}-${i}`} className={`text-purple-100 ${i % 2 ? 'bg-white/[0.03]' : ''} hover:bg-white/10 transition-colors`}>
                           <td className="px-4 py-2.5 text-purple-300/60 tabular-nums">{i + 1}</td>
                           <td className="px-4 py-2.5 font-medium max-w-md truncate" title={r.campaign}>{r.campaign}</td>
-                          <td className="px-4 py-2.5 text-purple-300/80 text-xs whitespace-nowrap">{r.launchedAt ? fmtDate(r.launchedAt) : '—'}</td>
+                          <td className="px-4 py-2.5 text-xs whitespace-nowrap" title={r.launchSource === 'name' ? 'From campaign name' : r.launchSource === 'install' ? 'Estimated — no date in name, using first install' : ''}>{r.launchedAt ? <span className={r.launchSource === 'install' ? 'text-purple-300/60 italic' : 'text-purple-200'}>{r.launchSource === 'install' ? '~' : ''}{fmtDate(r.launchedAt)}</span> : <span className="text-purple-300/40">—</span>}</td>
                           <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${platformTone(r.platform)}`}>{r.platform}</span></td>
                           <td className="px-4 py-2.5 text-purple-300/80 text-xs whitespace-nowrap">{r.objective}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-white">{fmtInt(r.installs)}</td>
